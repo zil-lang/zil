@@ -5,6 +5,7 @@ use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Role {
+    Conditional,
     Life(u32),
     Implicit(u32),
     Head(u32),
@@ -16,6 +17,7 @@ pub(super) enum Role {
 impl Role {
     fn suffix(self) -> ([u32; 4], usize) {
         let (kind, ordinal) = match self {
+            Self::Conditional => return ([0;4],0),
             Self::Life(ordinal) => (0, ordinal),
             Self::Implicit(ordinal) => (1, ordinal),
             Self::Head(ordinal) => (2, ordinal),
@@ -39,6 +41,9 @@ pub(crate) struct CallRegion {
 }
 
 impl CallRegion {
+    pub(in crate::semantics) fn conditional_sources(&self, node: NodeId) -> Option<&[LocalRoleSource]> {
+        (self.role == Role::Conditional && self.call == node).then_some(self.sources.as_slice())
+    }
     pub(crate) fn is_call_implicit(&self, call: NodeId, ordinal: u32) -> bool {
         self.call == call && self.role == Role::Implicit(ordinal)
     }
@@ -231,7 +236,32 @@ impl Check<'_, '_> {
                 scope: SemanticScopeRef::Ancestor(0), ordinal,
             }));
         }
-        self.pay(1, depth)?;
+        self.source_region(owner,call,role,ordinal,depth)
+    }
+
+    pub(super) fn conditional_region(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expression: NodeId,
+        depth: usize,
+    ) -> R<SemanticOuterLifeRecipe> {
+        let SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit { ordinal, .. }) =
+            self.borrow_occurrence(owner, expression, false)?
+        else {
+            return Err(bad("conditional loan has no exact original occurrence"));
+        };
+        self.source_region(owner, expression, Role::Conditional, ordinal, depth)
+    }
+
+    fn source_region(
+        &mut self,
+        owner: SemanticDefinitionId,
+        call: NodeId,
+        role: Role,
+        ordinal: u32,
+        depth: usize,
+    ) -> R<SemanticOuterLifeRecipe> {
+        self.pay(self.proof.call_regions.len().saturating_add(1).ilog2() as usize + 2, depth)?;
         if let Some(previous) = self.proof.call_regions.get(&(owner, ordinal)) {
             if previous.call != call || previous.role != role {
                 return Err(bad(
@@ -288,7 +318,95 @@ impl Check<'_, '_> {
             SemanticOuterLifeRecipe::Static => true,
             SemanticOuterLifeRecipe::Class(source) => self.life_outlives(owner, source, target, depth + 1)?,
         } { return Ok(()); }
+        if a == z {
+            if let (CoreExprKind::Name(name), SemanticLifeRecipe::Implicit { scope: SemanticScopeRef::Ancestor(0), ordinal }) =
+                (&expression.kind, target)
+            {
+                self.pay(name.len() + variables.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                if let Some(binding) = variables.get(name) {
+                    if let Query::Binding(node) = binding.origin {
+                        let key = (binding.origin_owner, node);
+                        self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                        let matching = key.0 == owner && self.proof.local_roles.get(&key).is_some_and(|role|
+                            matches!(source, SemanticOuterLifeRecipe::Class(life) if *life == role.lifetime));
+                        if matching && self.local_result_bound(owner, node, target, &mut BTreeSet::new(), depth + 1)? {
+                            self.proof.proof_mut()?.local_roles.get_mut(&key)
+                                .ok_or_else(|| bad("returned local lost its original declaration"))?.result_upper = Some(*ordinal);
+                            // Preserve the actual local read and its root for the
+                            // executable-world result receipt.
+                            self.return_view(owner,expression,variables,actual,expected,depth+1)?;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
         Err(bad("returned address has no directed upper bound from its actual input"))
+    }
+
+    /// The local declaration keeps its own role. Every incoming write must
+    /// supply the body-inferred result bound, including later loop writes.
+    pub(super) fn local_result_bound(
+        &mut self,
+        owner: SemanticDefinitionId,
+        binding: NodeId,
+        target: &SemanticLifeRecipe,
+        active: &mut BTreeSet<NodeId>,
+        depth: usize,
+    ) -> R<bool> {
+        self.pay(
+            active.len().saturating_add(1).ilog2() as usize
+                + self.proof.local_roles.len().saturating_add(1).ilog2() as usize
+                + 2,
+            depth,
+        )?;
+        if !active.insert(binding) {
+            return Ok(false);
+        }
+        let role = self
+            .proof
+            .local_roles
+            .get(&(owner, binding))
+            .ok_or_else(|| bad("returned local role has no verified source declaration"))?;
+        let mut inputs = Vec::new();
+        for source in &role.sources {
+            crate::dyn_metadata::semantic_operand_snapshot(
+                &source.lifetime,
+                self.limits,
+                self.left,
+                1,
+            )?;
+            inputs.push((source.lifetime.clone(), source.escape.clone()));
+        }
+        let mut all = !inputs.is_empty();
+        for (life, escape) in inputs {
+            all &= match (life, escape) {
+                (SemanticOuterLifeRecipe::Static, OriginalRoleEscape::Static) => true,
+                (
+                    _,
+                    OriginalRoleEscape::Role {
+                        owner: role_owner,
+                        binding: next,
+                    },
+                ) if owner == role_owner => {
+                    self.local_result_bound(owner, next, target, active, depth + 1)?
+                }
+                (
+                    SemanticOuterLifeRecipe::Class(source),
+                    OriginalRoleEscape::Input {
+                        owner: input_owner, ..
+                    }
+                    | OriginalRoleEscape::CallRegion {
+                        owner: input_owner, ..
+                    },
+                ) if owner == input_owner => {
+                    self.life_outlives(owner, &source, target, depth + 1)?
+                }
+                _ => false,
+            };
+        }
+        active.remove(&binding);
+        Ok(all)
     }
 
     pub(super) fn extend_result_inputs<'e>(&mut self, declaration: &SemanticDefinition, signature: &SemanticSignatureRecipe,

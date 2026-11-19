@@ -1048,7 +1048,8 @@ fn operations(
                         // own original occurrence also anchors any later
                         // call-directed shortening; a result binding cannot
                         // supply that input provenance retroactively.
-                        s::ExprKind::Literal(s::Literal::String(_))
+                        s::ExprKind::If { .. }
+                        | s::ExprKind::Literal(s::Literal::String(_))
                         | s::ExprKind::MetaEval(_)
                         | s::ExprKind::Unary {
                             op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut,

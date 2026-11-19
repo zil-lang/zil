@@ -333,6 +333,7 @@ pub(super) struct LocalRole {
     pub ty: SemanticTypeRecipe,
     pub sources: Vec<LocalRoleSource>,
     pub escapes: bool,
+    pub result_upper: Option<u32>,
 }
 #[derive(Clone)]
 struct Binding {
@@ -4240,9 +4241,21 @@ impl<'a> Check<'a, '_> {
                     let b = self.expr(owner, else_value, &mut right, Some(&a), depth + 1)?;
                     (a, b)
                 };
-                self.same(&a, &b)?;
+                let result = if wanted.is_none()
+                    && let (SemanticTypeRecipe::Address { lifetime: x, .. }, SemanticTypeRecipe::Address { lifetime: y, .. }) = (&a,&b)
+                    && x != y
+                {
+                    let SemanticTypeRecipe::Address {mutable, inner, ..} = &a else {unreachable!()};
+                    let SemanticTypeRecipe::Address {mutable: other_mutable, inner: other_inner, ..} = &b else {unreachable!()};
+                    if mutable != other_mutable {return Err(bad("conditional changes its address mode"));}
+                    self.same(inner,other_inner)?;
+                    let lifetime = self.conditional_region(owner,expression.id,depth+1)?;
+                    self.record_region_source(owner,&lifetime,then_value,x,&left,depth+1)?;
+                    self.record_region_source(owner,&lifetime,else_value,y,&right,depth+1)?;
+                    SemanticTypeRecipe::Address { mutable:*mutable, lifetime, inner:Box::new(copy_recipe(inner,self.limits,self.left)?) }
+                } else { self.same(&a,&b)?; a };
                 self.merge_variables(variables, &[left, right])?;
-                a
+                result
             }
             _ => {
                 return Err(pending(

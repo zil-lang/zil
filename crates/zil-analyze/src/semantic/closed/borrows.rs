@@ -699,6 +699,10 @@ impl Check<'_, '_> {
             && *result_owner == instance.id {
             let definition = self.inventory.definition(instance.definition, b)?;
             if definition.elided_result_ordinal() == Some(*ordinal) {
+                if let value::Class::Implicit(source_owner,source)=&actual_class && *source_owner==instance.id {
+                    b.lookup(self.original.received_result_roles.len(),WORK)?;
+                    if self.original.received_result_roles.contains(&(instance.definition,*source,*ordinal)){return Ok(true);}
+                }
                 let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &definition.body else { unreachable!(); };
                 for parameter in &signature.parameters {
                     b.spend(definition.requirements.len().saturating_add(1), WORK)?;

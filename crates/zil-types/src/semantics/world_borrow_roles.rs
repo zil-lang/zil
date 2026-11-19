@@ -1619,6 +1619,83 @@ pub(super) fn payload_view(
 
 /// Recheck the complete incoming class on this concrete CFG edge. Only the
 /// omitted result's outer position can shorten; every pointee class is invariant.
+pub(super) fn conditional_edge(
+    world: &mut World<'_, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    site: &SemanticSite,
+    actual: &SharedType,
+    expected: &SharedType,
+    implicit: &BTreeMap<u32, SemanticClassExpr>,
+) -> R<bool> {
+    if !matches!(World::type_of(expected)?, Type::Address { .. })
+        || World::type_of(actual)? != World::type_of(expected)?
+    {
+        return Ok(false);
+    }
+    let roles::Source::Class(SemanticClassExpr::Implicit {
+        scope: SemanticScopeRef::Ancestor(0),
+        ordinal,
+    }) = roles::outer(world, expected)?
+    else {
+        return Ok(false);
+    };
+    let Some(node) = occurrences::node(world, original, site)? else {
+        return Ok(false);
+    };
+    let sources = {
+        let ledger = world.ledger;
+        let proof = ledger.original.borrow();
+        let proof = proof
+            .as_ref()
+            .ok_or_else(|| bad("conditional has no checked original environment"))?;
+        world.pay(index::search(proof.call_regions.len()))?;
+        let Some(row) = proof
+            .call_regions
+            .get(&(original.id, ordinal))
+            .and_then(|row| row.conditional_sources(node))
+        else {
+            return Ok(false);
+        };
+        let mut sources = Vec::new();
+        for source in row {
+            world.pay(1)?;
+            let SemanticOriginalNode::Expression(node) = source.at else {
+                return Err(bad("conditional source has no actual expression"));
+            };
+            sources.push(node);
+        }
+        sources
+    };
+    let incoming = roles::outer(world, actual)?;
+    let mut found = false;
+    for source in sources {
+        let original_arm = world.physical_type(
+            instance.id,
+            &SemanticTypeRecipe::OriginalType {
+                scope: SemanticScopeRef::Ancestor(0),
+                source: SemanticOriginalTypeSource::Expression(source),
+            },
+            World::type_of(actual)?,
+        )?;
+        let arm = roles::outer(world, &original_arm)?;
+        found |= match (&arm, &incoming) {
+            (roles::Source::Class(a), roles::Source::Class(z)) => {
+                world.class(instance.id, a, implicit)? == world.class(instance.id, z, implicit)?
+            }
+            (roles::Source::Static, roles::Source::Static) => true,
+            _ => false,
+        };
+    }
+    if !found {
+        return Ok(false);
+    }
+    let child = world.pointee(actual)?;
+    let wanted = world.pointee(expected)?;
+    world.same(instance.id, &child, &wanted, implicit)?;
+    Ok(true)
+}
+
 pub(super) fn inferred_result_edge(world: &mut World<'_, '_>, instance: &SemanticInstance,
     original: &SemanticDefinition, actual: &SharedType, expected: &SharedType,
     implicit: &BTreeMap<u32, SemanticClassExpr>) -> R<bool> {
@@ -1633,9 +1710,20 @@ pub(super) fn inferred_result_edge(world: &mut World<'_, '_>, instance: &Semanti
         if actual_class == (SemanticClassExpr::Implicit {scope: SemanticScopeRef::Ancestor(0),ordinal}) {
             return Ok(false);
         }
+        let mut admitted=false;
+        if let SemanticClassExpr::Implicit {scope:SemanticScopeRef::Ancestor(0),ordinal:source}=actual_class {
+            let ledger=world.ledger;
+            let proof=ledger.original.borrow();
+            let proof=proof.as_ref().ok_or_else(||bad("returned loan has no checked originating body"))?;
+            world.pay(index::search(proof.call_regions.len()))?;
+            if let Some(role)=proof.call_regions.get(&(original.id,source)) {
+                world.pay(role.required_outlives.len())?;
+                admitted=role.required_outlives.iter().any(|bound|matches!(bound,
+                    SemanticLifeRecipe::Implicit {scope:SemanticScopeRef::Ancestor(0),ordinal:target} if *target==ordinal));
+            }
+        }
         let actual_class = world.class(instance.id, &actual_class, implicit)?;
         let SemanticDefinitionBody::FunctionWithBody { signature, .. } = &original.body else { unreachable!(); };
-        let mut admitted = false;
         for (index, parameter) in signature.parameters.iter().enumerate() {
             world.pay(1)?;
             let (SemanticTypeRecipe::Address { lifetime: SemanticOuterLifeRecipe::Class(source), .. } |

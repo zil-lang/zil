@@ -123,6 +123,7 @@ impl Check<'_, '_> {
                 ty: copy,
                 sources: vec![source],
                 escapes: false,
+                result_upper: None,
             },
         );
         Ok(role_type)
@@ -973,11 +974,17 @@ impl Check<'_, '_> {
         let mut roles = Vec::new();
         for ((role_owner, binding), role) in &self.proof.local_roles {
             if *role_owner == owner && role.escapes {
-                roles.push(*binding);
+                roles.push((*binding,role.result_upper));
             }
         }
-        for binding in roles {
+        for (binding,result_upper) in roles {
             self.escape_role(owner, binding, &mut BTreeSet::new(), depth + 1)?;
+            if let Some(ordinal) = result_upper {
+                let target = SemanticLifeRecipe::Implicit {scope: SemanticScopeRef::Ancestor(0), ordinal};
+                if !self.local_result_bound(owner,binding,&target,&mut BTreeSet::new(),depth+1)? {
+                    return Err(bad("returned local has an incoming write outside its result bound"));
+                }
+            }
         }
         self.pay(self.proof.call_regions.len(), depth)?;
         let regions = self

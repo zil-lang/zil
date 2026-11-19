@@ -163,6 +163,26 @@ impl Solver<'_, '_> {
                 return Ok(allowed);
             }
         }
+        if let Kind::Life(Life::Implicit(owner, ordinal)) = self.state.arena[upper]
+            && owner == frame.definition
+            && let Kind::Life(Life::Implicit(result_owner, result_ordinal)) = self.state.arena[self.root(wanted,b)?]
+            && result_owner == owner
+            && self.inventory.definition(owner,b)?.elided_result_ordinal() == Some(result_ordinal)
+            && let Some(sources) = self.reference_region_sources(frame,owner,ordinal,b,depth+1)?
+        {
+            b.lookup(active.len(), WORK)?;
+            if !active.insert((owner,ordinal)) { return Ok(false); }
+            let mut all = true;
+            for source in sources {
+                all &= self.view_upper_allows(frame,source,wanted,active,b,depth+1)?;
+            }
+            active.remove(&(owner,ordinal));
+            if all {
+                b.lookup(self.local_return_bounds.len(), WORK)?;
+                self.local_return_bounds.insert((owner,upper,wanted));
+            }
+            return Ok(all);
+        }
         self.declared_outlives(frame, upper, wanted, b, depth + 1)
     }
     fn declared_outlives(

@@ -334,7 +334,12 @@ impl CheckedOriginal {
         if matches!(&expected,Life::Local(owner,_)if Some(*owner)==self.current) {
             return Ok(true);
         }
-        let mut pending = vec![self.resolved_life(actual, b)?];
+        let actual=self.resolved_life(actual,b)?;
+        if !self.conditional_sources.is_empty() {
+            b.spend(self.conditional_sources.len().ilog2() as usize+2)?;
+            if self.conditional_sources.get(&expected).is_some_and(|arms| arms.contains(&actual)) {return Ok(true);}
+        }
+        let mut pending = vec![actual];
         let mut graph = BTreeMap::<Life, Vec<Life>>::new();
         let mut grounded = BTreeSet::new();
         while let Some(source) = pending.pop() {
@@ -360,7 +365,14 @@ impl CheckedOriginal {
                     b.spend(sources.len())?;
                     Some(sources.clone())
                 }
-                _ => self.local_outer_sources(&source, b)?,
+                _ if !self.conditional_sources.is_empty() => {
+                    b.spend(self.conditional_sources.len().ilog2() as usize+2)?;
+                    match self.conditional_sources.get(&source) {
+                        Some(inputs) => Some(inputs.to_vec()),
+                        None => self.local_outer_sources(&source,b)?,
+                    }
+                }
+                _ => self.local_outer_sources(&source,b)?,
             };
             let Some(dependencies) = dependencies else {
                 return Ok(false);

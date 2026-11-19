@@ -245,7 +245,7 @@ impl CheckedOriginal {
                 CoreExprKind::Sequence { bindings:initializers, value } =>
                     self.sequence_value(module, context, initializers, value, id, env, bindings, expected, active, b)?,
                 CoreExprKind::If{condition,then_value,else_value}=>
-                    self.conditional_value(module, context, condition, then_value, else_value, env, bindings, expected, active, b)?,
+                    self.conditional_value(module, context, expression.id, condition, then_value, else_value, env, bindings, expected, active, b)?,
                 CoreExprKind::Closure{..}=>
                     self.closure_literal(module, context, expression, id, env, bindings, expected, active, b)?,
                 CoreExprKind::Try(value)=>{let source=self.expression(module,context,value,env,bindings,None,active,b)?;self.propagate_error(source,env,b)?},
@@ -354,10 +354,39 @@ impl CheckedOriginal {
     }
 
     #[allow(clippy::too_many_arguments)]
+    pub(in crate::semantic) fn has_address_conditional(&self,owner:SemanticDefinitionId,b:&mut Budget)->Check<bool>{
+        if self.conditional_arms.is_empty(){return Ok(false);}
+        b.spend(self.conditional_arms.len().ilog2() as usize+2)?;
+        Ok(self.conditional_arms.range((owner,NodeId(0))..=(owner,NodeId(u32::MAX))).next().is_some())
+    }
+
+    pub(in crate::semantic) fn conditional_arm_nodes(
+        &self,
+        owner: SemanticDefinitionId,
+        site: SemanticSiteId,
+        b: &mut Budget,
+    ) -> Check<Option<(NodeId, [NodeId; 2])>> {
+        let grammar = self
+            .source_grammar
+            .as_ref()
+            .ok_or_else(|| bad("conditional has no checked original grammar"))?;
+        let Some(SemanticOriginalNode::Expression(node)) = grammar.site_node(owner, site, b)?
+        else {
+            return Ok(None);
+        };
+        b.spend(self.conditional_arms.len().saturating_add(1).ilog2() as usize + 1)?;
+        Ok(self
+            .conditional_arms
+            .get(&(owner, node))
+            .copied()
+            .map(|arms| (node, arms)))
+    }
+
     fn conditional_value(
         &mut self,
         module: &TypedModule,
         context: &CheckedContext,
+        node: NodeId,
         condition: &SemanticOriginalExpr,
         then_value: &SemanticOriginalExpr,
         else_value: &SemanticOriginalExpr,
@@ -369,6 +398,15 @@ impl CheckedOriginal {
     ) -> Check<Ty> {
         self.condition_original(module, context, condition, env, bindings, active, b)?;
         let before = self.use_snapshot(env, b)?;
+        let owner=env.current()?;
+        let remember_arms=|this:&mut Self,b:&mut Budget| -> Check<()> {
+            let arms=[then_value.id,else_value.id];
+            b.spend(this.conditional_arms.len().saturating_add(1).ilog2() as usize+1)?;
+            if this.conditional_arms.insert((owner,node),arms).is_some_and(|old|old!=arms) {
+                return Err(bad("conditional changes its original branches"));
+            }
+            Ok(())
+        };
         if let Some(target @ Ty::Address { life: Life::Implicit(owner, ordinal), .. }) = expected
             && *owner == env.current()?
             && context.definition(module, *owner, b)?.elided_result_ordinal() == Some(*ordinal)
@@ -381,6 +419,7 @@ impl CheckedOriginal {
             self.relate_value(&no, target, b)?;
             let no_uses = self.use_snapshot(env, b)?;
             self.join_uses(env, &yes_uses, &no_uses, b)?;
+            remember_arms(self,b)?;
             return Ok(target.clone());
         }
         let (yes, yes_uses, no, no_uses) = if Self::contextual_numeric_literal(then_value, b)? {
@@ -416,16 +455,38 @@ impl CheckedOriginal {
                 else_value,
                 env,
                 bindings,
-                Some(&yes),
+                if expected.is_none() && matches!(yes,Ty::Address{..})
+                { None } else { Some(&yes) },
                 active,
                 b,
             )?;
             let no_uses = self.use_snapshot(env, b)?;
             (yes, yes_uses, no, no_uses)
         };
-        self.unify(&yes, &no, b)?;
+        let result = if expected.is_none()
+            && let (Ty::Address {mutable,life:a,inner},Ty::Address {mutable:other,life:z,inner:other_inner}) = (&yes,&no)
+            && !self.same_life(a,z,b)?
+        {
+            if mutable != other {return Err(bad("conditional changes its checked pointer mode"));}
+            self.unify(inner,other_inner,b)?;
+            let owner=env.current()?;
+            let grammar=self.source_grammar.as_ref().ok_or_else(||bad("conditional has no checked source grammar"))?;
+            let ordinal=grammar.implicit_head(owner,node,b)?.ok_or_else(||bad("conditional has no original join occurrence"))?;
+            let life=Life::Implicit(owner,ordinal);
+            let sources=[self.resolved_life(a,b)?,self.resolved_life(z,b)?];
+            b.spend(self.conditional_sources.len().saturating_add(1).ilog2() as usize+2)?;
+            if self.conditional_sources.insert(life.clone(),sources.clone()).is_some_and(|old| old!=sources) {
+                return Err(bad("conditional changes its original input edges"));
+            }
+
+            self.relate_outer(&sources[0],&life,b)?;
+            self.relate_outer(&sources[1],&life,b)?;
+            let Ty::Address{mutable,inner,..}=yes else {unreachable!()};
+            Ty::Address {mutable,life,inner}
+        } else { self.unify(&yes,&no,b)?; yes };
+        if matches!(result,Ty::Address{..}) {remember_arms(self,b)?;}
         self.join_uses(env, &yes_uses, &no_uses, b)?;
-        Ok(yes)
+        Ok(result)
     }
 
     #[allow(clippy::too_many_arguments)]

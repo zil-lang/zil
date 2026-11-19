@@ -1266,6 +1266,99 @@ fn branch_union_alias_substitution_and_rebinding_preserve_last_use() {
     );
 }
 
+fn check_local_result_sources(body: &str, expected: i64) {
+    let select = format!("fn pick(a:&i64,b:&i64,other:&i64,f:bool)->&i64{{{body}}}");
+    let use_result = "fn result()->i64{var x=10i64;var y=20i64;var z=30i64;
+        let p=pick(&x,&y,&z,true);z=7i64;return *p + z;}";
+    native(&format!("{select}{use_result}"), expected);
+    for write in ["x=7i64", "y=7i64"] {
+        let source_text = format!("{select}{}", use_result.replace("z=7i64", write));
+        let report = compile_source(&source(&source_text), &CompileOptions::default());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-BORROW-CONFLICT"),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn elided_result_follows_conditional_local_initializer() {
+    check_local_result_sources("let q = if f { a } else { b }; return q;",17);
+}
+
+#[test]
+fn elided_return_sources_follow_reaching_local_assignments() {
+    check_local_result_sources("var q = a; if f { q = b; } return q;",27);
+}
+
+#[test]
+fn independent_local_join_does_not_supply_return_sources() {
+    for returned in ["c", "if f { c } else { d }"] {
+        let body = format!(
+            "fn pick(a:&i64,b:&i64,c:&i64,d:&i64,f:bool)->&i64{{
+            let q=if f {{a}} else {{b}}; let observed=*q; return {returned};}}"
+        );
+        let caller = "fn result()->i64{var x=10i64;var y=20i64;var z=30i64;var spare=40i64;
+            let p=pick(&x,&y,&z,&spare,true);x=7i64;return *p+x;}";
+        let input = format!("{body}{caller}");
+        native(&input, 37);
+        let bad = format!("{body}{}", caller.replace("x=7i64", "z=7i64"));
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-BORROW-CONFLICT"),
+            "{}",
+            report.to_json()
+        );
+
+        let limits = Limits::default();
+        let target = TargetProfile::default();
+        let unit = source(&input);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand_with_map_semantics(
+            &unit,
+            &syntax,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: unit.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let mut module = zil_types::check(&core, &target, &limits).unwrap();
+        let mut candidate = zil_analyze::analyze(&module, &limits).unwrap();
+        zil_verify::verify_module(module.clone(), candidate.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+        let function = &mut module.functions[0];
+        let returned = function.parameters[2];
+        let discarded = function.parameters[0];
+        let instruction = function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|insn| matches!(insn.kind,InstructionKind::Load(local) if local==returned))
+            .unwrap();
+        instruction.kind = InstructionKind::Load(discarded);
+        candidate.module_fingerprint = module.fingerprint();
+        assert!(zil_analyze::analyze(&module, &limits).is_err());
+        let wire = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+        let raw = zil_verify::verify_module(module, candidate, &target, &limits).unwrap_err();
+        let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert_eq!(raw[0].category, ResultCategory::SafeReject);
+        assert_eq!(decoded[0].code, raw[0].code);
+    }
+}
+
 #[test]
 fn elided_return_bounds_preserve_static_and_only_the_returned_inputs() {
     let input = r#"

@@ -336,6 +336,7 @@ pub(super) struct Checked {
     return_injections: BTreeMap<(SemanticDefinitionId, NodeId), (Term, bool)>,
     dyn_creations: BTreeMap<(SemanticDefinitionId, NodeId), dyn_owned::Creation>,
     receiving_places: BTreeMap<(SemanticDefinitionId, NodeId), ReceivingPlace>,
+    pub(super) received_result_roles: BTreeSet<(SemanticDefinitionId,u32,u32)>,
     view_uppers: BTreeMap<(SemanticDefinitionId, u32), Vec<Term>>,
     reference_roles: BTreeMap<(SemanticDefinitionId, NodeId), local_reference_roles::Role>,
     call_regions: BTreeMap<(SemanticDefinitionId, u32), call_regions::Region>,
@@ -368,6 +369,7 @@ struct Solver<'a, 'i> {
     capture_state: captures::CaptureState,
     code_inputs: code_inputs::CodeInputs,
     receiving: Vec<(SemanticDefinitionId, NodeId, Term)>,
+    local_return_bounds: BTreeSet<(SemanticDefinitionId, Term, Term)>,
     field_needs: Vec<(Term, SemanticDefinitionId, u32)>,
     nominal_declaration: Option<SemanticDefinitionId>,
     call_variables: BTreeMap<Term, call_regions::Role>,
@@ -3380,6 +3382,7 @@ impl Solver<'_, '_> {
                     let expected = self.receiving_for(frame, value.id, b)?;
                     let result = self.var(b)?;
                     let wanted = expected.unwrap_or(result);
+                    let open_join = matches!(self.state.arena[self.type_root(wanted,b)?], Kind::Infer(None));
                     let alive = frame.alive;
                     let before = self.copy_locals(&frame.locals, b)?;
                     // Infer both complete branches once. Literal terms remain
@@ -3387,12 +3390,30 @@ impl Solver<'_, '_> {
                     // a known integer peer supplies context without evaluating
                     // another branch just to discover its type.
                     let left = self.expression_expected(frame, then_value, wanted, b, depth + 1)?;
-                    self.unify(left, result, depth + 1, b)?;
+                    if !open_join { self.unify(left, result, depth + 1, b)?; }
                     let left_alive = frame.alive;
                     let left_locals = std::mem::replace(&mut frame.locals, before);
                     frame.alive = alive;
                     let right = self.expression_expected(frame, else_value, wanted, b, depth + 1)?;
-                    self.unify(right, result, depth + 1, b)?;
+                    if open_join
+                        && let (Kind::Address {life:x,..},Kind::Address {life:y,..}) =
+                            (&self.state.arena[self.type_root(left,b)?],&self.state.arena[self.type_root(right,b)?])
+                        && !self.same_original(*x,*y,b,depth+1)? {
+                        let (Kind::Address {mutable,life:a,inner},Kind::Address {mutable:other,life:z,inner:child}) =
+                            (&self.state.arena[self.type_root(left,b)?],&self.state.arena[self.type_root(right,b)?]) else {unreachable!()};
+                        let (mutable,a,z,inner,child)=(*mutable,*a,*z,*inner,*child);
+                        if other != &mutable {return Err(fail("conditional changes its original pointer mode"));}
+                        self.unify(inner,child,depth+1,b)?;
+                        let ordinal=self.borrow_occurrence(frame.definition,value.id,b)?;
+                        self.remember_view_upper(frame.definition,ordinal,Some(a),b)?;
+                        self.remember_view_upper(frame.definition,ordinal,Some(z),b)?;
+                        let life=self.term(Kind::Life(Life::Implicit(frame.definition,ordinal)),b)?;
+                        let joined=self.term(Kind::Address {mutable,life,inner},b)?;
+                        self.unify(joined,result,depth+1,b)?;
+                    } else {
+                        if open_join { self.unify(left,result,depth+1,b)?; }
+                        self.unify(right,result,depth+1,b)?;
+                    }
                     let right_alive = frame.alive;
                     if left_locals.len() != frame.locals.len() {
                         return Err(fail("original value branch changes its lexical binding inventory"));
@@ -4715,6 +4736,7 @@ pub(super) fn check(
             return_injections: BTreeMap::new(),
             dyn_creations: BTreeMap::new(),
             receiving_places: BTreeMap::new(),
+            received_result_roles: BTreeSet::new(),
             view_uppers: BTreeMap::new(),
             reference_roles: BTreeMap::new(),
             call_regions: BTreeMap::new(),
@@ -4742,6 +4764,7 @@ pub(super) fn check(
         capture_state: captures::CaptureState::default(),
         code_inputs: code_inputs::CodeInputs::default(),
         receiving: Vec::new(),
+        local_return_bounds: BTreeSet::new(),
         field_needs: Vec::new(),
         nominal_declaration: None,
         call_variables: BTreeMap::new(),
@@ -4969,6 +4992,15 @@ pub(super) fn check(
             .chain(std::iter::once(&frame.result))
         {
             solver.sized_original(*value, b, 0)?;
+        }
+    }
+    for (owner, source, target) in std::mem::take(&mut solver.local_return_bounds) {
+        b.lookup(solver.state.frames.len(), WORK)?;
+        let frame = solver.state.frames.get(&owner).ok_or_else(|| fail("returned reference role has no original frame"))?;
+        b.spend(frame.formals.len(), WORK)?;
+        let context = nominal::frame(owner, frame.formals.clone());
+        if !solver.view_upper_allows(&context, source, target, &mut BTreeSet::new(), b, 0)? {
+            return Err(fail("updated local reference sources exceed the required return bound"));
         }
     }
     solver.reference_role_escapes(b)?;

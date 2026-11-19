@@ -522,6 +522,7 @@ impl Check<'_, '_> {
                     escape,
                 }],
                 escapes: false,
+                result_upper: None,
             };
             self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 3, depth)?;
             if let Some(previous) = self.proof.local_roles.get(&(owner, call.id)) {
@@ -1484,7 +1485,19 @@ impl Check<'_, '_> {
             (
                 Some(SemanticOuterLifeRecipe::Class(source)),
                 SemanticOuterLifeRecipe::Class(target),
-            ) => self.life_outlives(owner, source, target, depth + 1)?,
+            ) => {
+                let returned_local = match (bound.root,target) {
+                    (ViewBorrowRoot::Local(binding),SemanticLifeRecipe::Implicit {
+                        scope: SemanticScopeRef::Ancestor(0), ordinal
+                    }) if local_source_copy(bound.root,&bound.steps) => {
+                        self.pay(self.proof.local_roles.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                        self.proof.local_roles.get(&(owner,binding)).is_some_and(|role|
+                            role.result_upper == Some(*ordinal) && &role.lifetime == source)
+                    }
+                    _ => false,
+                };
+                returned_local || self.life_outlives(owner, source, target, depth + 1)?
+            }
             _ => false,
         };
         if !allowed {

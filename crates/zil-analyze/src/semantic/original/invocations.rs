@@ -442,6 +442,14 @@ impl Solver<'_, '_> {
             }
             return Ok(Some(received));
         }
+        if let (Kind::Life(Life::Implicit(source_owner,from)),Kind::Life(Life::Implicit(target_owner,to))) =
+            (&self.state.arena[self.root(source,b)?],&self.state.arena[self.root(target,b)?])
+            && *source_owner==frame.definition && *target_owner==frame.definition
+            && self.inventory.definition(frame.definition,b)?.elided_result_ordinal()==Some(*to)
+        {
+            b.lookup(self.state.received_result_roles.len(),WORK)?;
+            self.state.received_result_roles.insert((frame.definition,*from,*to));
+        }
         Ok(Some(self.term(Kind::Address { mutable: false, life: target, inner }, b)?))
     }
 

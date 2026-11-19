@@ -49,54 +49,73 @@ impl State {
         Ok(Rc::make_mut(&mut self.locals).as_mut_slice())
     }
 }
-/// Concrete Stores whose occupant reaches a Load used by an actual Return.
-/// Kills stop this backwards query. Initialization is checked by the forward
-/// interpreter before each operation and cannot be established by this set.
-pub(crate) fn returned_join_stores(f: &TypedFunction, b: &mut Budget) -> Check<BTreeSet<(BlockId,usize)>> {
+/// Reconstruct the local Stores supplying each actual conditional result
+/// operand. An unrelated result or local has no edge to this occurrence.
+fn conditional_join_stores(
+    f: &TypedFunction,
+    joins: &BTreeMap<ValueId, (CheckedType, [CheckedType; 2])>,
+    b: &mut Budget,
+) -> Check<BTreeMap<(BlockId, usize), ValueId>> {
+    if joins.is_empty() {
+        return Ok(BTreeMap::new());
+    }
     let definitions = crate::tasks::context_projection::definitions(f, b)?;
     b.spend(f.blocks.len())?;
     let mut predecessors = vec![Vec::new(); f.blocks.len()];
-    let mut pending = Vec::new();
     for (block, body) in f.blocks.iter().enumerate() {
         b.spend(3)?;
         let (first, second) = match body.terminator {
             Terminator::Jump(to) => (Some(to), None),
-            Terminator::Branch {then_block,else_block,..} => (Some(then_block),Some(else_block)),
-            Terminator::Return(Some(value)) => {
-                let (owner, at) = definitions.get(value.0 as usize).copied().flatten()
-                    .ok_or_else(||bad("returned join has no actual SSA definition"))?;
-                if let InstructionKind::Load(local) | InstructionKind::TakeLocal {local} = f.blocks[owner].instructions[at].kind {
-                    pending.push((owner,at,local));
-                }
-                (None,None)
-            }
-            _ => (None,None),
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => (Some(then_block), Some(else_block)),
+            _ => (None, None),
         };
-        for successor in [first,second].into_iter().flatten() {
-            predecessors.get_mut(successor.0 as usize)
-                .ok_or_else(||bad("return join has an absent successor"))?.push(block);
+        for successor in [first, second].into_iter().flatten() {
+            predecessors
+                .get_mut(successor.0 as usize)
+                .ok_or_else(|| bad("return join has an absent successor"))?
+                .push(block);
         }
     }
-    let mut stores = BTreeSet::new();
-    for load in pending {
-        let mut pending = vec![load];
+    let mut stores = BTreeMap::new();
+    for value in joins.keys() {
+        b.spend(1)?;
+        let (owner, at) = definitions
+            .get(value.0 as usize)
+            .copied()
+            .flatten()
+            .ok_or_else(|| bad("conditional has no actual SSA definition"))?;
+        let (InstructionKind::Load(local) | InstructionKind::TakeLocal { local }) =
+            f.blocks[owner].instructions[at].kind
+        else {
+            return Err(bad("conditional has no actual local result load"));
+        };
+        let mut pending = vec![(owner, at, local)];
         let mut seen = BTreeSet::new();
         let mut reaching = BTreeSet::new();
-        while let Some((block,end,local)) = pending.pop() {
+        while let Some((block, end, local)) = pending.pop() {
             b.spend(seen.len().saturating_add(1).ilog2() as usize + 2)?;
-            if !seen.insert((block,end,local)) { continue; }
+            if !seen.insert((block, end, local)) {
+                continue;
+            }
             let body = &f.blocks[block];
             let mut killed = false;
-            for (at,instruction) in body.instructions[..end].iter().enumerate().rev() {
+            for (at, instruction) in body.instructions[..end].iter().enumerate().rev() {
                 b.spend(1)?;
                 match instruction.kind {
-                    InstructionKind::Store {local:target,..} if target == local => {
+                    InstructionKind::Store { local: target, .. } if target == local => {
                         b.spend(reaching.len().saturating_add(1).ilog2() as usize + 2)?;
-                        reaching.insert((body.id,at));
+                        reaching.insert((body.id, at));
                     }
-                    InstructionKind::StorageLive(target) | InstructionKind::StorageDead(target)
-                    | InstructionKind::TakeLocal {local:target} | InstructionKind::BindPackageCapture {local:target,..}
-                    | InstructionKind::EndPackageCapture {local:target,..} if target == local => {}
+                    InstructionKind::StorageLive(target)
+                    | InstructionKind::StorageDead(target)
+                    | InstructionKind::TakeLocal { local: target }
+                    | InstructionKind::BindPackageCapture { local: target, .. }
+                    | InstructionKind::EndPackageCapture { local: target, .. }
+                        if target == local => {}
                     _ => continue,
                 }
                 killed = true;
@@ -104,13 +123,20 @@ pub(crate) fn returned_join_stores(f: &TypedFunction, b: &mut Budget) -> Check<B
             }
             if !killed {
                 b.spend(predecessors[block].len())?;
-                for &parent in &predecessors[block] { pending.push((parent,f.blocks[parent].instructions.len(),local)); }
+                for &parent in &predecessors[block] {
+                    pending.push((parent, f.blocks[parent].instructions.len(), local));
+                }
             }
         }
-        if reaching.len() > 1 {
-            for site in reaching {
-                b.spend(stores.len().saturating_add(1).ilog2() as usize + 2)?;
-                stores.insert(site);
+        if reaching.len() < 2 {
+            return Err(bad(
+                "conditional result has fewer than two reaching branch Stores",
+            ));
+        }
+        for site in reaching {
+            b.spend(stores.len().saturating_add(1).ilog2() as usize + 2)?;
+            if stores.insert(site, *value).is_some_and(|old| old != *value) {
+                return Err(bad("conditional joins reuse a physical Store"));
             }
         }
     }
@@ -334,7 +360,7 @@ impl CheckedContext {
             self.mark_task_worker_checked(module,instance,signature,b)?;
             return Ok(BodyChecked{instance:instance.id,definition:instance.definition,function,environment:checked_environment,result:checked_signature.result});
         }
-        let join_stores = if original_definition.elided_result_ordinal().is_some() {
+        if original_definition.elided_result_ordinal().is_some() {
             let header = f.storage_life.as_ref().ok_or_else(||bad("inferred return has no executable header"))?;
             let inputs = original_definition.elided_result_inputs(instance,header,|n| b.spend(n))?;
             if inputs.is_empty() { return Err(bad("inferred return has no input bounds in the actual header")); }
@@ -343,8 +369,25 @@ impl CheckedContext {
             if let Some(old) = rows.get(&function) {
                 if old.as_ref() != inputs.as_slice() {return Err(bad("inferred return selects different input bounds across worlds"));}
             } else {rows.insert(function,inputs.into());}
-            returned_join_stores(f,b)?
-        } else { BTreeSet::new() };
+        }
+        let mut joins=BTreeMap::new();
+        let has_joins=self.original.borrow().as_ref().ok_or_else(||bad("conditional lacks its original body"))?
+            .has_address_conditional(instance.definition,b)?;
+        let join_sites=if has_joins {self.site_index.instance(module,instance.id,b)?} else { Vec::new() };
+        for site in join_sites {
+            let SemanticSiteAction::TypeUse {subject:SemanticOperand::Value(operand),..}=site.action else {continue;};
+            if !matches!(f.values.get(operand.0 as usize),Some(Type::Address{..})){continue;}
+            let Some((node,arms))=self.original.borrow().as_ref().ok_or_else(||bad("conditional lacks its original body"))?
+                .conditional_arm_nodes(instance.definition,site.recipe,b)? else {continue;};
+            let mut value=|id| self.evaluate_type(module,&SemanticTypeRecipe::OriginalType {
+                scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Expression(id)
+            },environment,external,active,b);
+            let pair=(value(node)?,[value(arms[0])?,value(arms[1])?]);
+            b.spend(joins.len().saturating_add(1).ilog2() as usize+1)?;
+            if joins.insert(operand,pair).is_some() {return Err(bad("one actual SSA has several original conditional owners"));}
+        }
+        let join_stores=conditional_join_stores(f,&joins,b)?;
+        let mut reached_arms = BTreeMap::<ValueId,[bool;2]>::new();
         let mut states=vec![None;f.blocks.len()];
         let entry=f.entry.0 as usize;
         if entry>=states.len() {return Err(bad("actual CFG entry is absent"));}
@@ -491,13 +534,16 @@ impl CheckedContext {
                         if local_role{if let Some(value)=&normalized{self.record_local_role_write(instance,*local,actual,value,&environment,b)?;}}
                         if !join_stores.is_empty() {
                             b.spend(join_stores.len().ilog2() as usize + 2)?;
-                            if join_stores.contains(&(block.id,ordinal)) {
-                                let source = normalized.as_ref().unwrap_or(value);
-                                if !self.compatible(environment,source,&signature.result,b)? {
-                                    return Err(bad("incoming return join changes its source upper or invariant child"));
-                                }
-                                signature.result.charge_clone(b)?;
-                                normalized = Some(signature.result.clone());
+                            if let Some(result)=join_stores.get(&(block.id,ordinal)) {
+                                let (target,arms)=joins.get(result).ok_or_else(||bad("conditional Store has no original arm directory"))?;
+                                let source=normalized.as_ref().unwrap_or(value);
+                                let matches=[self.compatible(environment,source,&arms[0],b)?,self.compatible(environment,source,&arms[1],b)?];
+                                if matches==[false,false] {return Err(bad("conditional join changes its original address source or pointee domain"));}
+                                b.spend(reached_arms.len().saturating_add(1).ilog2() as usize+1)?;
+                                let reached=reached_arms.entry(*result).or_default();
+                                for (reached,matched) in reached.iter_mut().zip(matches) { *reached |= matched; }
+                                target.charge_clone(b)?;
+                                normalized=Some(target.clone());
                             }
                         }
                         state.edit_locals(b)?[local.0 as usize]=Some(Rc::new(match normalized{Some(value)=>value,None=>value.clone()}));None
@@ -697,10 +743,16 @@ impl CheckedContext {
                 if changed {queue.push_back(target);}
             }
         }
+        for reached in reached_arms.values() {
+            b.spend(1)?;
+            if *reached!=[true,true] {return Err(bad("conditional fails to realize both original address sources"));}
+        }
         defer_actions.finish(b)?;
         self.check_record_pattern_bindings(module, instance, f, b)?;
         self.mark_task_worker_checked(module,instance,signature,b)?;
         if !join_stores.is_empty() {
+            b.spend(join_stores.len().saturating_mul(join_stores.len().ilog2() as usize+1))?;
+            let join_stores=join_stores.into_keys().collect::<BTreeSet<_>>();
             let mut rows = self.returned_join_stores.borrow_mut();
             b.spend(rows.len().saturating_add(1).ilog2() as usize + 2)?;
             if let Some(previous) = rows.get(&function) {

@@ -1563,7 +1563,8 @@ impl<'p> World<'p, '_> {
                     let original_value = self.logical_type(instance.id, recipe_ty, super::materialize::LogicalExpected::whole(&value)?)?;
                     self.same(instance.id, expected, &original_value, implicit)?;
                     if let SemanticOperand::Value(operand) = subject
-                        && borrow_roles::inferred_result_edge(self, instance, original, &value, &original_value, implicit)?
+                        && (borrow_roles::conditional_edge(self,instance,original,site,&value,&original_value,implicit)?
+                            || borrow_roles::inferred_result_edge(self, instance, original, &value, &original_value, implicit)?)
                     {
                         // Keep the actual operand's roots and epoch while receiving its
                         // checked outer role at the original conditional expression.
@@ -3076,7 +3077,9 @@ impl<'p> World<'p, '_> {
                                     .transpose()?
                             };
                             if let Some(expected) = declared.get(local) {
-                                self.same(instance.id, &value, expected, &implicit)?;
+                                if borrow_roles::inferred_result_edge(self,instance,original,&value,expected,&implicit)? {
+                                    value = self.share(expected)?;
+                                } else { self.same(instance.id, &value, expected, &implicit)?; }
                             }
                             self.stale_locals.remove(local);
                             self.clear_vacant(*local)?;

@@ -3496,6 +3496,60 @@ impl Check<'_, '_> {
             }
         }
     }
+    /// A conditional loan belongs to its actual result SSA. The original
+    /// address outputs of both arms retain their own complete domains.
+    fn conditional_join(
+        &self,
+        instance: &SemanticInstance,
+        operand: ValueId,
+        b: &mut Budget,
+        depth: usize,
+    ) -> CompileResult<Option<(Value, [Value; 2])>> {
+        let mut found = None;
+        for site in self
+            .inventory
+            .sites_for_value(self.program, instance.id, operand, b)?
+        {
+            b.spend(1, WORK)?;
+            if !matches!(site.action,SemanticSiteAction::TypeUse{subject:SemanticOperand::Value(value),..} if value==operand)
+            {
+                continue;
+            }
+            let index = self.inventory.original_index(instance.definition, b)?;
+            let Some(SemanticOriginalNode::Expression(node)) = index.site_node(site.recipe, b)?
+            else {
+                continue;
+            };
+            let CoreExprKind::If {
+                then_value,
+                else_value,
+                ..
+            } = &index.get_expr(node, b)?.kind
+            else {
+                continue;
+            };
+            if found.is_some() {
+                return Err(fail("one conditional SSA has several original join owners"));
+            }
+            let evaluate = |id, b: &mut Budget| {
+                self.recipe_value(
+                    instance,
+                    &SemanticTypeRecipe::OriginalType {
+                        scope: SemanticScopeRef::Ancestor(0),
+                        source: SemanticOriginalTypeSource::Expression(id),
+                    },
+                    b,
+                    depth + 1,
+                )
+            };
+            found = Some((
+                evaluate(node, b)?,
+                [evaluate(then_value.id, b)?, evaluate(else_value.id, b)?],
+            ));
+        }
+        Ok(found)
+    }
+
     pub(super) fn local_value(
         &self,
         instance: &SemanticInstance,
@@ -3577,21 +3631,14 @@ impl Check<'_, '_> {
         let mut pending = vec![(local, at.0, at.1)];
         let mut seen = BTreeSet::new();
         let mut selected: Option<Value> = None;
-        let returned = function.blocks.get(at.0.0 as usize).filter(|block| {
-            matches!(block.terminator, Terminator::Return(Some(id))
-                if block.instructions.get(at.1).is_some_and(|instruction| instruction.result == Some(id)
-                    && matches!(instruction.kind, InstructionKind::Load(source) | InstructionKind::TakeLocal {local:source} if source == local)))
-        });
-        let join = if returned.is_some() {
-            let definition = self.inventory.definition(instance.definition, b)?;
-            match &definition.body {
-                SemanticDefinitionBody::FunctionWithBody { signature, .. } if definition.elided_result_ordinal().is_some() =>
-                    Some(self.recipe_value(instance, &signature.result, b, depth + 1)?),
-                _ => None,
-            }
-        } else { None };
+        let join = if matches!(ty,Type::Address {..})
+            && let Some(instruction) = function.blocks.get(at.0.0 as usize).and_then(|body| body.instructions.get(at.1))
+            && matches!(instruction.kind,InstructionKind::Load(source) | InstructionKind::TakeLocal{local:source} if source==local)
+            && let Some(operand) = instruction.result
+        { self.conditional_join(instance,operand,b,depth+1)? } else {None};
+        let joined_local=local;
         let mut join_sites = Vec::new();
-        let mut joined = false;
+        let mut matched_arms = [false;2];
         while let Some((local, at_block, end)) = pending.pop() {
             b.lookup(seen.len(), WORK)?;
             if !seen.insert((local, at_block, end)) {
@@ -3636,15 +3683,8 @@ impl Check<'_, '_> {
                             value,
                             b,
                         )?;
-                        if let Some(expected) = &join {
-                            let actual = self.ssa_value(instance, function, value, b, depth + 1)?;
-                            if !self.outer_role(instance, function, &actual, expected, b, depth + 1)? {
-                                return Err(fail("incoming return alternative changes its original input or invariant child"));
-                            }
-                            self.push_value(&mut join_sites, (function.id, at_block, index), b)?;
-                            origin = Some(actual);
-                            assigned = true;
-                            break;
+                        if join.is_some() && local == joined_local {
+                            self.push_value(&mut join_sites,(function.id,at_block,index),b)?;
                         }
                         let (source_block, source_index, source) =
                             self.defining(function, value, b)?;
@@ -3657,7 +3697,9 @@ impl Check<'_, '_> {
                                 // Copying its saved pointer keeps that sigma;
                                 // following only its initializer would replace
                                 // the role by an earlier RHS's lifetime image.
-                                if let Some(value) = self.reference_local_value(
+                                if matches!(ty,Type::Address{..}) && self.conditional_join(instance,value,b,depth+1)?.is_some() {
+                                    origin=Some(self.ssa_value(instance,function,value,b,depth+1)?);
+                                } else if let Some(value) = self.reference_local_value(
                                     instance,
                                     function,
                                     source,
@@ -3745,15 +3787,19 @@ impl Check<'_, '_> {
             if let Some(value) = origin {
                 value.check_geometry(b)?;
                 b.spend(value.classes.len().saturating_add(1), WORK)?;
-                if let Some(old) = &selected {
-                    if !old.equal_paid(&value, b)? {
-                        if let Some(expected) = &join
-                            && self.outer_role(instance,function,old,expected,b,depth+1)?
-                            && self.outer_role(instance,function,&value,expected,b,depth+1)?
-                        { joined = true; }
-                        else { return Err(unknown("semantic local needs its complete joined role/source dependency relation")); }
+                if let Some((_,sources)) = &join {
+                    let mut matches=false;
+                    for (matched,source) in matched_arms.iter_mut().zip(sources) {
+                        let same=source.equal_paid(&value,b)? || self.outer_role(instance,function,&value,source,b,depth+1)?;
+                        *matched |= same;
+                        matches |= same;
                     }
-                } else { selected = Some(value); }
+                    if !matches {return Err(fail("conditional Store disagrees with both original address sources"));}
+                } else if let Some(old) = &selected {
+                    if !old.equal_paid(&value,b)? {
+                        return Err(unknown("semantic local needs its complete joined role/source dependency relation"));
+                    }
+                } else {selected=Some(value);}
             }
             if assigned {
                 continue;
@@ -3773,12 +3819,13 @@ impl Check<'_, '_> {
                 ));
             }
         }
-        if joined {
+        if let Some((expected,_))=join {
+            if join_sites.len()<2 || matched_arms != [true,true] {return Err(fail("conditional result loses an actual incoming arm"));}
             for site in join_sites {
                 b.lookup(b.semantic_join_stores.len(), WORK)?;
                 b.semantic_join_stores.insert(site);
             }
-            return join.ok_or_else(|| fail("actual return join has no declared result role"));
+            return Ok(expected);
         }
         selected.ok_or_else(|| fail("semantic local cycle has no initialized actual class origin"))
     }
