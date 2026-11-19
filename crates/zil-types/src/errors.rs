@@ -181,7 +181,14 @@ impl Builder<'_, '_> {
         Ok(())
     }
 
-    pub(super) fn try_expr(&mut self, operand: &CoreExpr, span: Span) -> R<(ValueId, Type)> {
+    pub(super) fn try_expr(
+        &mut self,
+        expression: &CoreExpr,
+        operand: &CoreExpr,
+    ) -> R<(ValueId, Type)> {
+        use crate::semantics::emission::{Construction, Point, Propagation};
+
+        let span = expression.span;
         // Evaluate the real request before demanding its result context.
         let enclosing = self.function.return_type.clone();
         let (value, ty) = self.expr(operand, None)?;
@@ -224,6 +231,11 @@ impl Builder<'_, '_> {
                 "? requires exactly the enclosing error type; error conversion is explicit",
             ));
         }
+        let tag_block = self.current.expect("live propagation operand");
+        let tag = Point {
+            block: tag_block,
+            instruction: self.function.blocks[tag_block.0 as usize].instructions.len(),
+        };
         let condition = self.value(InstructionKind::ErrorTag { value }, Type::Bool, span)?;
         let failed = self.block_id()?;
         let succeeded = self.block_id()?;
@@ -234,6 +246,10 @@ impl Builder<'_, '_> {
         });
         self.current = Some(failed);
         self.closures.array_snapshot(&failure, 1, span)?;
+        let error = Point {
+            block: failed,
+            instruction: self.function.blocks[failed.0 as usize].instructions.len(),
+        };
         let payload = self.value(
             if consuming {
                 InstructionKind::TakeErrorUnion {
@@ -265,6 +281,10 @@ impl Builder<'_, '_> {
             self.defer_error_return(payload, *failure, span, CleanupExitKind::Error)?;
         }
         self.current = Some(succeeded);
+        let at = Point {
+            block: succeeded,
+            instruction: self.function.blocks[succeeded.0 as usize].instructions.len(),
+        };
         let value = self.value(
             if consuming {
                 InstructionKind::TakeErrorUnion {
@@ -279,6 +299,16 @@ impl Builder<'_, '_> {
             },
             *result.clone(),
             span,
+        )?;
+        self.closures.semantic_propagated(
+            self.function.id,
+            expression,
+            Propagation {
+                operand: operand.id,
+                tag,
+                error,
+                success: Construction { value, at },
+            },
         )?;
         Ok((value, *result))
     }

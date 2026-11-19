@@ -22,6 +22,13 @@ pub(crate) struct Construction {
     pub value: ValueId,
     pub at: Point,
 }
+#[derive(Clone, Copy)]
+pub(crate) struct Propagation {
+    pub operand: NodeId,
+    pub tag: Point,
+    pub error: Point,
+    pub success: Construction,
+}
 #[derive(Default)]
 pub(crate) struct Expression {
     pub value: Option<ValueId>,
@@ -67,6 +74,7 @@ pub(crate) struct Frame {
     pub expressions: BTreeMap<NodeId, Expression>,
     pub declarations: BTreeMap<NodeId, Declaration>,
     pub closure_slots: BTreeMap<LocalId, ClosureSlot>,
+    propagations: BTreeMap<NodeId, Propagation>,
     /// Lexical creator and the runtime environment, when materialized. Thin
     /// FunctionRefs retain the creator after their temporary closure slot is released.
     pub parent: Option<(FunctionId, Option<ClosureId>)>,
@@ -514,6 +522,7 @@ impl Ledger {
                 closure_slots: BTreeMap::new(),
                 stack: Vec::new(),
                 live_locals: BTreeMap::new(),
+                propagations: BTreeMap::new(),
             },
         );
         Ok(())
@@ -747,6 +756,32 @@ impl Ledger {
             ));
         }
         row.construction = Some(Construction { value, at });
+        Ok(())
+    }
+    pub(crate) fn propagated(
+        &mut self,
+        function: FunctionId,
+        expression: NodeId,
+        propagation: Propagation,
+        left: &mut usize,
+        span: Span,
+    ) -> R<()> {
+        if self.frames.is_empty() {
+            return Ok(());
+        }
+        pay(left, lookup_cost(self.frames.len()), span)?;
+        let Some(frame) = self.frames.get_mut(&function) else {
+            return Ok(());
+        };
+        pay(left, lookup_cost(frame.propagations.len()).saturating_add(1), span)?;
+        if frame.stack.last() != Some(&expression)
+            || frame.propagations.insert(expression, propagation).is_some()
+        {
+            return Err(invalid(
+                span,
+                "propagation receipt changes or repeats its actual source expression",
+            ));
+        }
         Ok(())
     }
     /// A direct place lookup does not load or move its whole value merely to
@@ -1192,6 +1227,10 @@ impl Ledger {
                 }
             }
         }
+        for (&expression, propagation) in &frame.propagations {
+            pay(left, lookup_cost(frame.expressions.len()).saturating_add(6), span)?;
+            frame.check_propagation(function, expression, propagation)?;
+        }
         for (local, at) in &frame.live_locals {
             pay(left, 1, span)?;
             if !matches!(function.blocks.get(at.block.0 as usize)
@@ -1338,6 +1377,15 @@ impl Ledger {
                 }
             }
         }
+        for propagation in frame.propagations.values_mut() {
+            pay(left, 3, span)?;
+            if !change(&mut propagation.tag)
+                || !change(&mut propagation.error)
+                || !change(&mut propagation.success.at)
+            {
+                return Err(invalid(span, "propagation receipt lost its actual operation"));
+            }
+        }
         frame.live_locals.retain(|_, point| change(point));
         for slot in frame.closure_slots.values_mut() {
             if !change(&mut slot.construction) || !change(&mut slot.initialization) {
@@ -1353,6 +1401,57 @@ impl Ledger {
             }
         }
         Ok(())
+    }
+}
+
+impl Frame {
+    fn check_propagation(
+        &self,
+        function: &TypedFunction,
+        expression: NodeId,
+        propagation: &Propagation,
+    ) -> R<()> {
+        let span = function.span;
+        let operand = self.expressions.get(&propagation.operand)
+            .filter(|row| row.complete)
+            .and_then(|row| row.value)
+            .ok_or_else(|| invalid(span, "propagation lacks its completed actual operand"))?;
+        let block = |at: Point| {
+            function.blocks.get(at.block.0 as usize).filter(|row| row.id == at.block)
+        };
+        let instruction = |at: Point| block(at).and_then(|row| row.instructions.get(at.instruction));
+        let tag = instruction(propagation.tag).and_then(|row| match row.kind {
+            InstructionKind::ErrorTag { value } if value == operand => row.result,
+            _ => None,
+        });
+        if !matches!(block(propagation.tag).map(|row| &row.terminator),
+            Some(Terminator::Branch { condition, then_block, else_block })
+                if Some(*condition) == tag && *then_block == propagation.error.block
+                && *else_block == propagation.success.at.block && then_block != else_block)
+        {
+            return Err(invalid(span, "propagation tag or branch changes its actual operand"));
+        }
+        let arm = |at: Point, error: bool| {
+            let row = instruction(at)?;
+            let consuming = match row.kind {
+                InstructionKind::ReadErrorUnion { value, is_error }
+                    if value == operand && is_error == error => false,
+                InstructionKind::TakeErrorUnion { value, is_error }
+                    if value == operand && is_error == error => true,
+                _ => return None,
+            };
+            Some((row.result?, consuming))
+        };
+        let failed = arm(propagation.error, true);
+        let succeeded = arm(propagation.success.at, false);
+        match (failed, succeeded) {
+            (Some((_, consuming_error)), Some((result, consuming_success)))
+                if result == propagation.success.value && consuming_error == consuming_success => Ok(()),
+            _ => Err(invalid(span, &format!(
+                "propagation {expression:?} changes a payload of original operand {:?} emitted as {operand:?}",
+                propagation.operand,
+            ))),
+        }
     }
 }
 

@@ -557,6 +557,20 @@ impl State {
             expression.span,
         )
     }
+    pub(super) fn semantic_propagated(
+        &mut self,
+        function: FunctionId,
+        expression: &CoreExpr,
+        propagation: crate::semantics::emission::Propagation,
+    ) -> R<()> {
+        self.semantic_emission.propagated(
+            function,
+            expression.id,
+            propagation,
+            &mut self.work_left,
+            expression.span,
+        )
+    }
     pub(super) fn semantic_callee_place(
         &mut self, function: FunctionId, expression: &CoreExpr, address: ValueId,
     ) -> R<()> {

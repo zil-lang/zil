@@ -2650,7 +2650,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                         "a defer body cannot propagate an error outside its cleanup boundary",
                     ));
                 }
-                self.try_expr(operand, e.span)
+                self.try_expr(e, operand)
             }
             CoreExprKind::Unary {
                 op: UnaryOp::Give,
