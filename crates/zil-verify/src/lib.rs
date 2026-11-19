@@ -447,6 +447,48 @@ struct DiagnosticProgress {
         Option<semantic::SitePoint>,
     )>,
 }
+// The growing set admits exact, fully checked raw roots. A wide directory
+// moves into a contiguous ordered index when its first consumer needs it.
+enum InlineStoreRoots {
+    Growing(BTreeSet<usize>),
+    Indexed(Vec<usize>),
+}
+impl Default for InlineStoreRoots {
+    fn default() -> Self {
+        Self::Growing(BTreeSet::new())
+    }
+}
+impl InlineStoreRoots {
+    fn len(&self) -> usize {
+        match self {
+            Self::Growing(keys) => keys.len(),
+            Self::Indexed(keys) => keys.len(),
+        }
+    }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    fn search_work(&self) -> usize {
+        match self {
+            Self::Growing(keys) => keys.len().saturating_add(1),
+            Self::Indexed(keys) => keys.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+        }
+    }
+    #[cfg(test)]
+    fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+#[cfg(test)]
+impl std::fmt::Debug for InlineStoreRoots {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Growing(keys) => f.debug_set().entries(keys).finish(),
+            Self::Indexed(keys) => f.debug_set().entries(keys).finish(),
+        }
+    }
+}
+
 struct Budget {
     remaining: usize,
     original_input: Option<OriginalInput>,
@@ -470,7 +512,7 @@ struct Budget {
     pod_stores: bool,
     // Raw type roots that actually contain the new Store element family.
     // This is a work gate only; each consumer still checks the complete type.
-    inline_store_roots: BTreeSet<usize>,
+    inline_store_roots: InlineStoreRoots,
     array_snapshot_roots: BTreeSet<usize>,
     // Actual instruction inventory only schedules independent upper reconstruction.
     array_outer_functions: Vec<FunctionId>,
@@ -610,7 +652,7 @@ impl Budget {
             pod_carriers: None,
             static_utf8: false,
             pod_stores: false,
-            inline_store_roots: BTreeSet::new(),
+            inline_store_roots: InlineStoreRoots::default(),
             array_snapshot_roots: BTreeSet::new(),
             array_outer_functions: Vec::new(),
             inline_store_addresses: false,
@@ -795,10 +837,44 @@ impl Budget {
         if self.inline_store_roots.is_empty() {
             return Ok(false);
         }
-        self.spend(self.inline_store_roots.len().saturating_add(1))?;
-        Ok(self
-            .inline_store_roots
-            .contains(&(ty as *const Type as usize)))
+        // Tiny trees need no additional allocation. The indexed alternative
+        // supports later genuine admissions by inserting the exact new key.
+        let count = self.inline_store_roots.len();
+        if count > 8 && matches!(self.inline_store_roots, InlineStoreRoots::Growing(_)) {
+            self.spend(count.saturating_mul(2).saturating_add(4))?;
+            let InlineStoreRoots::Growing(keys) = std::mem::take(&mut self.inline_store_roots) else {
+                unreachable!();
+            };
+            self.inline_store_roots = InlineStoreRoots::Indexed(keys.into_iter().collect());
+        }
+        self.spend(self.inline_store_roots.search_work())?;
+        let address = std::ptr::from_ref(ty) as usize;
+        Ok(match &self.inline_store_roots {
+            InlineStoreRoots::Growing(keys) => keys.contains(&address),
+            InlineStoreRoots::Indexed(keys) => keys.binary_search(&address).is_ok(),
+        })
+    }
+    fn register_inline_store_root(&mut self, ty: &Type) -> Check<()> {
+        self.spend(self.inline_store_roots.search_work())?;
+        let address = std::ptr::from_ref(ty) as usize;
+        match &mut self.inline_store_roots {
+            InlineStoreRoots::Growing(keys) => {
+                keys.insert(address);
+            }
+            InlineStoreRoots::Indexed(keys) => {
+                let Err(index) = keys.binary_search(&address) else { return Ok(()); };
+                // Bound shifts independently of allocation-address ordering.
+                // A full vector may also relocate its existing key storage.
+                let len = keys.len();
+                let relocation = if len == keys.capacity() { len.saturating_add(2) } else { 0 };
+                self.spend(len.saturating_add(relocation).saturating_add(1))?;
+                let InlineStoreRoots::Indexed(keys) = &mut self.inline_store_roots else {
+                    unreachable!();
+                };
+                keys.insert(index, address);
+            }
+        }
+        Ok(())
     }
     fn mark_private_slot(&mut self, function: usize) -> Check<()> {
         if self.private_slot_functions.is_none() {
@@ -2063,8 +2139,7 @@ fn check_type_shape(
         budget.head_descriptions = true;
     }
     if inline_store_root {
-        budget.spend(budget.inline_store_roots.len().saturating_add(1))?;
-        budget.inline_store_roots.insert(ty as *const Type as usize);
+        budget.register_inline_store_root(ty)?;
         budget.inline_store_addresses |= matches!(ty, Type::Address { inner, .. }
             if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }));
         budget.inline_store_package_addresses |= matches!(ty, Type::Address { inner, .. }
@@ -4982,3 +5057,47 @@ fn check_ct(module: &CtModule, expected_target: &TargetProfile, limits: &Limits)
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[test]
+fn inline_store_root_index_keeps_exact_late_roots_and_clears_every_key() {
+    let limits = Limits::default();
+    let roots = vec![Type::Tuple(vec![Type::I32]); 16];
+    let mut budget = Budget::new(&limits);
+    for root in roots.iter().rev() {
+        budget.register_inline_store_root(root).unwrap();
+    }
+    let temporary = roots[0].clone();
+    let before = budget.remaining;
+    budget.remaining = roots.len() * 2 + 3;
+    assert!(budget.inline_store_root(&temporary).is_err());
+    assert!(matches!(budget.inline_store_roots, InlineStoreRoots::Growing(_)));
+    assert_eq!(budget.inline_store_roots.len(), roots.len());
+    budget.remaining = before;
+    assert!(!budget.inline_store_root(&temporary).unwrap());
+    assert!(matches!(budget.inline_store_roots, InlineStoreRoots::Indexed(_)));
+    assert!(before - budget.remaining > roots.len());
+    let before = budget.remaining;
+    for root in &roots {
+        assert!(budget.inline_store_root(root).unwrap());
+    }
+    assert_eq!(before - budget.remaining, roots.len() * 6);
+    let before = budget.remaining;
+    budget.remaining = 5;
+    assert!(budget.inline_store_root(&roots[0]).is_err());
+    budget.remaining = 6;
+    assert!(budget.inline_store_root(&roots[0]).unwrap());
+    assert_eq!(budget.remaining, 0);
+    budget.remaining = 6;
+    assert!(budget.register_inline_store_root(&temporary).is_err());
+    budget.remaining = before;
+    assert!(!budget.inline_store_root(&temporary).unwrap());
+    budget.register_inline_store_root(&temporary).unwrap();
+    budget.register_inline_store_root(&temporary).unwrap();
+    assert!(budget.inline_store_root(&temporary).unwrap());
+    assert_eq!(budget.inline_store_roots.len(), roots.len() + 1);
+    budget.inline_store_roots.clear();
+    budget.register_inline_store_root(&temporary).unwrap();
+    assert!(budget.inline_store_root(&temporary).unwrap());
+    assert!(!budget.inline_store_root(&roots[0]).unwrap());
+}
