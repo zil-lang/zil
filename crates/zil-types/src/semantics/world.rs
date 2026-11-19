@@ -1348,7 +1348,7 @@ impl<'p> World<'p, '_> {
         edge: SemanticSiteEdge,
         values: &mut ssa::Values,
         locals: &[Option<SharedType>],
-        declared: &mut BTreeMap<LocalId, SharedType>,
+        declared: &mut Rc<BTreeMap<LocalId, SharedType>>,
         implicit: &mut BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
         for site in self.point_sites(sites, block, instruction)? {
@@ -1383,7 +1383,7 @@ impl<'p> World<'p, '_> {
                     let storage = if persistent {
                         persistent_slots::array(self, &actual)?
                     } else { actual };
-                    if let Some(old) = declared.insert(*local, storage.clone()) {
+                    if let Some(old) = edit_declarations(self, declared)?.insert(*local, storage.clone()) {
                         self.same(instance.id, &old, &storage, implicit)?;
                     }
                 }
@@ -2513,9 +2513,9 @@ impl<'p> World<'p, '_> {
         let initial = flow::State {
             schema: f.id,
             instance: instance.id,
-            locals,
+            locals: Rc::new(locals),
             values,
-            declared,
+            declared: Rc::new(declared),
             implicit,
             vacant_captures: Default::default(),
             stale_values: Default::default(),
@@ -2785,7 +2785,7 @@ impl<'p> World<'p, '_> {
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
                             self.local_roots.remove(local);
-                            locals[local.0 as usize] = None;
+                            set_local(self, &mut locals, *local, None)?;
                             Some(value)
                         }
                         InstructionKind::Store { local, value } => {
@@ -2840,9 +2840,7 @@ impl<'p> World<'p, '_> {
                             if !stored_roots.is_empty() {
                                 self.local_roots.insert(*local, stored_roots);
                             }
-                            *locals
-                                .get_mut(local.0 as usize)
-                                .ok_or_else(|| bad("store local is absent"))? = Some(value);
+                            set_local(self, &mut locals, *local, Some(value))?;
                             None
                         }
                         InstructionKind::StorageLive(local)
@@ -2853,14 +2851,14 @@ impl<'p> World<'p, '_> {
                                     owners.insert(*local, *scope);
                                 }
                             }
-                            declared.remove(local);
+                            if declared.contains_key(local) {
+                                edit_declarations(self, &mut declared)?.remove(local);
+                            }
                             self.stale_locals.remove(local);
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
                             self.local_roots.remove(local);
-                            *locals
-                                .get_mut(local.0 as usize)
-                                .ok_or_else(|| bad("activation local is absent"))? = None;
+                            set_local(self, &mut locals, *local, None)?;
                             None
                         }
                         InstructionKind::BorrowPackageField {
@@ -4182,12 +4180,12 @@ impl<'p> World<'p, '_> {
                                 self.stale_locals.remove(target);
                                 self.role_sources.remove(target);
                                 self.local_roots.remove(target);
-                                locals[target.0 as usize] = Some(field);
+                                set_local(self, &mut locals, *target, Some(field))?;
                             }
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
                             self.local_roots.remove(local);
-                            locals[local.0 as usize] = None;
+                            set_local(self, &mut locals, *local, None)?;
                             None
                         }
                         InstructionKind::DropClosure { local }
@@ -4232,7 +4230,7 @@ impl<'p> World<'p, '_> {
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
                             self.local_roots.remove(local);
-                            locals[local.0 as usize] = None;
+                            set_local(self, &mut locals, *local, None)?;
                             self.stale_locals.remove(local);
                             None
                         }
@@ -4421,14 +4419,14 @@ impl<'p> World<'p, '_> {
                             self.role_sources.remove(local);
                             self.local_roots.remove(local);
                             self.stale_locals.remove(local);
-                            locals[local.0 as usize] = Some(value);
+                            set_local(self, &mut locals, *local, Some(value))?;
                             None
                         }
                         InstructionKind::EndPackageCapture { local, .. } => {
                             self.clear_vacant(*local)?;
                             self.role_sources.remove(local);
                             self.local_roots.remove(local);
-                            locals[local.0 as usize] = None;
+                            set_local(self, &mut locals, *local, None)?;
                             self.stale_locals.remove(local);
                             None
                         }
@@ -4716,8 +4714,10 @@ impl<'p> World<'p, '_> {
                                     self.clear_vacant(*local)?;
                                     self.role_sources.remove(local);
                                     self.local_roots.remove(local);
-                                    locals[local.0 as usize] = None;
-                                    declared.remove(local);
+                                    set_local(self, &mut locals, *local, None)?;
+                                    if declared.contains_key(local) {
+                                        edit_declarations(self, &mut declared)?.remove(local);
+                                    }
                                     self.stale_locals.remove(local);
                                 }
                             }
@@ -4949,6 +4949,38 @@ impl<'p> World<'p, '_> {
         Ok(())
     }
 }
+fn set_local(
+    world: &mut World<'_, '_>,
+    locals: &mut Rc<Vec<Option<SharedType>>>,
+    local: LocalId,
+    value: Option<SharedType>,
+) -> R<()> {
+    world.pay(1)?;
+    let index = local.0 as usize;
+    let old = locals.get(index).ok_or_else(|| bad("write selects an absent actual local"))?;
+    match (old, &value) {
+        (None, None) => return Ok(()),
+        (Some(old), Some(value)) if Rc::ptr_eq(old, value) => return Ok(()),
+        _ => {}
+    }
+    if Rc::strong_count(locals) != 1 {
+        world.pay(locals.len().saturating_add(1))?;
+    }
+    Rc::make_mut(locals)[index] = value;
+    Ok(())
+}
+
+fn edit_declarations<'s>(
+    world: &mut World<'_, '_>,
+    declared: &'s mut Rc<BTreeMap<LocalId, SharedType>>,
+) -> R<&'s mut BTreeMap<LocalId, SharedType>> {
+    world.pay(1)?;
+    if Rc::strong_count(declared) != 1 {
+        world.pay(declared.len().saturating_add(1))?;
+    }
+    Ok(Rc::make_mut(declared))
+}
+
 pub(super) fn program(
     program: &SemanticModule,
     module: &TypedModule,

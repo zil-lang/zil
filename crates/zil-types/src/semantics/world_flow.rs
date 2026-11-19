@@ -10,9 +10,9 @@ pub(super) struct State {
     // against that immutable Typed directory before it can populate a cell.
     pub schema: FunctionId,
     pub instance: SemanticInstanceId,
-    pub locals: Vec<Option<SharedType>>,
+    pub locals: Rc<Vec<Option<SharedType>>>,
     pub values: ssa::Values,
-    pub declared: BTreeMap<LocalId, SharedType>,
+    pub declared: Rc<BTreeMap<LocalId, SharedType>>,
     pub implicit: BTreeMap<u32, SemanticClassExpr>,
     pub vacant_captures: BTreeSet<(SemanticInstanceId, u32)>,
     pub stale_values: BTreeSet<ValueId>,
@@ -32,10 +32,10 @@ impl State {
     pub fn snapshot(&self, world: &mut World<'_, '_>) -> R<Self> {
         let before = *world.left;
         world.pay(
-            self.locals
+            self.values
+                .pages
                 .len()
-                .saturating_add(self.values.pages.len())
-                .saturating_add(self.declared.len())
+                .saturating_add(2)
                 .saturating_add(self.implicit.len())
                 .saturating_add(self.stale_values.len())
                 .saturating_add(self.vacant_captures.len())
@@ -55,15 +55,6 @@ impl State {
         for (_, path) in &self.vacant {
             world.pay(path.len())?;
         }
-        let mut locals = Vec::with_capacity(self.locals.len());
-        for value in &self.locals {
-            locals.push(value.clone());
-        }
-        let values = self.values.clone();
-        let mut declared = BTreeMap::new();
-        for (local, value) in &self.declared {
-            declared.insert(*local, value.clone());
-        }
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
         }
@@ -78,9 +69,9 @@ impl State {
         let state = Self {
             schema: self.schema,
             instance: self.instance,
-            locals,
-            values,
-            declared,
+            locals: self.locals.clone(),
+            values: self.values.clone(),
+            declared: self.declared.clone(),
             implicit: self.implicit.clone(),
             vacant_captures: self.vacant_captures.clone(),
             stale_values: self.stale_values.clone(),
@@ -191,29 +182,27 @@ impl State {
         {
             return Ok(false);
         }
-        for (left, right) in self
-            .locals
-            .iter()
-            .zip(&other.locals)
-        {
-            world.pay(1)?;
-            match (left, right) {
-                (None, None) => {}
-                (Some(left), Some(right)) => {
-                    if !matches!(left.as_ref(), SemanticTypeValue::Resolved { .. })
-                        || !matches!(right.as_ref(), SemanticTypeValue::Resolved { .. })
-                    {
-                        return Err(bad("class-flow comparison has an unresolved whole type"));
-                    }
-                    if !Rc::ptr_eq(left, right) {
-                        charge_value_domain(world, left)?;
-                        charge_value_domain(world, right)?;
-                        if !same_value_domain(left, right)? {
-                            return Ok(false);
+        if !Rc::ptr_eq(&self.locals, &other.locals) {
+            for (left, right) in self.locals.iter().zip(other.locals.iter()) {
+                world.pay(1)?;
+                match (left, right) {
+                    (None, None) => {}
+                    (Some(left), Some(right)) => {
+                        if !matches!(left.as_ref(), SemanticTypeValue::Resolved { .. })
+                            || !matches!(right.as_ref(), SemanticTypeValue::Resolved { .. })
+                        {
+                            return Err(bad("class-flow comparison has an unresolved whole type"));
+                        }
+                        if !Rc::ptr_eq(left, right) {
+                            charge_value_domain(world, left)?;
+                            charge_value_domain(world, right)?;
+                            if !same_value_domain(left, right)? {
+                                return Ok(false);
+                            }
                         }
                     }
+                    _ => return Ok(false),
                 }
-                _ => return Ok(false),
             }
         }
         for (left, right) in self.values.pages.iter().zip(&other.values.pages) {
@@ -236,7 +225,10 @@ impl State {
                 _ => return Ok(false),
             }
         }
-        for ((left_key, left), (right_key, right)) in self.declared.iter().zip(&other.declared) {
+        if Rc::ptr_eq(&self.declared, &other.declared) {
+            return Ok(true);
+        }
+        for ((left_key, left), (right_key, right)) in self.declared.iter().zip(other.declared.iter()) {
             world.pay(2)?;
             if left_key != right_key {
                 return Ok(false);
@@ -731,7 +723,7 @@ impl State {
         }
         world.pay(self.declared.len())?;
         hash_binary(&mut digest, world.left, &self.declared.len())?;
-        for (local, value) in &self.declared {
+        for (local, value) in self.declared.iter() {
             hash_binary(&mut digest, world.left, local)?;
             hash_domain(&mut digest, world, domains, value)?;
         }
