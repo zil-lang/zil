@@ -466,11 +466,40 @@ fn a_conditional_argument_cannot_invalidate_its_already_borrowed_parent() {
         NESTED.split("fn main()").next().unwrap()
     );
     source_rejected(
-        "conditional-parent-move",
+        "conditional-missing-sync-drop",
         &source,
+        Phase::Types,
+        ResultCategory::SafeReject,
+        "E-ORIGINAL-CLEANUP",
+    );
+    let bounded = source.replace(
+        "fn discard<T:Copy,F:FnMut",
+        "fn discard<T:Copy,F:SyncDrop+FnMut",
+    );
+    source_rejected(
+        "conditional-parent-move",
+        &bounded,
         Phase::Verify,
         ResultCategory::SafeReject,
         "E-BORROW-CONFLICT",
+    );
+    let distinct = bounded
+        .replace(
+            "return a.callback",
+            "var b=pack(make(66),3,98);return a.callback",
+        )
+        .replace("discard(a)", "discard(b)");
+    native("conditional-sibling-keep", &distinct, "AbBaA", 1);
+    let taken = distinct.replace("if false", "if true");
+    native("conditional-sibling-drop", &taken, "bBAaA", 1);
+    let dependent = taken.replace("->i32{return 1}fn main", "->T{return state.value}fn main");
+    native("conditional-sibling-result", &dependent, "bBAaA", 3);
+    source_rejected(
+        "conditional-sibling-result-width",
+        &dependent.replace("make(66),3,98", "make(66),3i64,98"),
+        Phase::Ct,
+        ResultCategory::SafeReject,
+        "E-TYPE-MISMATCH",
     );
 }
 
