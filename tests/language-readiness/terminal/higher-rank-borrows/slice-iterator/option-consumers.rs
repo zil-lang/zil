@@ -690,3 +690,137 @@ fn option_none_to_some_backedge_keeps_the_runtime_some_arm() {
         "source loop did not contain the actual Some projection"
     );
 }
+
+#[test]
+fn partitioned_option_matches_use_only_frozen_stored_facts() {
+    use zil_ir::{BinaryOp, HoldRoot, InstructionKind as I, Terminator};
+
+    let source = include_str!("mixed-task-option.zil");
+    let conditional = "if flag { return Option::<&'s i64>.None(); }";
+    let some = "return Option::<&'s i64>.Some(&slice[0]);";
+    let none = source
+        .replace(conditional, "")
+        .replace(some, "return Option::<&'s i64>.None();")
+        .replace("result(false)-42", "result(false)-0");
+    for program in [source, none.as_str()] {
+        let report = compile_source(&super::source(program), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    let module = typed(&none);
+    let plan = accept(&module);
+    accept(&typed(source));
+    accept(&typed(&source.replace(conditional, "")));
+
+    let result = module
+        .functions
+        .iter()
+        .position(|f| f.name == "result")
+        .unwrap();
+    let worker = module
+        .functions
+        .iter()
+        .position(|f| f.name == "worker")
+        .unwrap();
+    let tag = module.functions[result]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|i| {
+            matches!(i.kind, I::VariantTag { .. })
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let mut wrong_test = module.clone();
+    let comparison = wrong_test.functions[result]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find_map(|i| match &mut i.kind {
+            I::Binary { op, left, right }
+                if *op == BinaryOp::Equal && (*left == tag || *right == tag) =>
+            {
+                Some(op)
+            }
+            _ => None,
+        })
+        .unwrap();
+    *comparison = BinaryOp::NotEqual;
+    let limits = Limits::default();
+    let analyzed = zil_analyze::analyze(&wrong_test, &limits).unwrap_err();
+    assert_eq!(analyzed[0].code, "E-ANALYZE-IR");
+    assert!(
+        analyzed[0]
+            .message
+            .contains("incomplete actual target facts in result")
+    );
+
+    let mut wrong_worker = module.clone();
+    let return_block = wrong_worker.functions[worker]
+        .blocks
+        .iter_mut()
+        .find(|block| matches!(block.terminator, Terminator::Return(Some(_))))
+        .unwrap();
+    return_block.terminator = Terminator::Return(None);
+    let payload = module.functions[result]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .find_map(|i| {
+            matches!(i.kind, I::ReadVariant { .. })
+                .then_some(i.result)
+                .flatten()
+        })
+        .unwrap();
+    let mut wrong_hold = plan.clone();
+    let row = wrong_hold
+        .functions
+        .iter_mut()
+        .find(|f| f.function == module.functions[result].id)
+        .unwrap();
+    row.holds
+        .iter_mut()
+        .find(|hold| hold.value == payload)
+        .unwrap()
+        .roots
+        .push(HoldRoot::Static);
+    for (forged, mut claim, code, message) in [
+        (
+            wrong_test,
+            plan.clone(),
+            "E-VERIFY-STORED",
+            "no complete actual target permission",
+        ),
+        (
+            wrong_worker,
+            plan,
+            "E-VERIFY-RETURN",
+            "return value does not match the function result type",
+        ),
+        (
+            module,
+            wrong_hold,
+            "E-VERIFY-STORED",
+            "candidate differs from independently reconstructed stored target roots",
+        ),
+    ] {
+        claim.module_fingerprint = forged.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for checked in [
+            zil_verify::verify_module(forged.clone(), claim, &forged.target, &limits),
+            zil_verify::verify_module_bytes(&wire, &forged.target, &limits),
+        ] {
+            let errors = checked
+                .err()
+                .expect("forged mixed-partition candidate accepted");
+            assert_eq!(errors[0].code, code);
+            assert!(errors[0].message.contains(message), "{:?}", errors[0]);
+        }
+    }
+}

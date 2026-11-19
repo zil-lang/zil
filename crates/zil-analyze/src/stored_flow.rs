@@ -9296,13 +9296,6 @@ fn derive_cfg(
     }
     // Freeze only the original, fully converged graph facts. A second solve
     // receives no authority to trim another edge from its narrowed summaries.
-    if !b.composition_stored.is_empty() && observed_none && !b.masked_stored_tasks() {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "mixed stored/ordinary Option-address refinement is outside the scalar seam",
-            None,
-        )]);
-    }
     if inactive.is_none()
         && observed_none
         && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?

@@ -483,6 +483,17 @@ pub(super) fn refine(
     };
     let mut changed = false;
     for (fi, f) in module.functions.iter().enumerate() {
+        if b.composition_stored.get(fi) == Some(&false) || frozen[fi].none_values.is_empty() {
+            // Only an actual None in the stored fixed point can remove an edge.
+            let (predecessors, reachable) = &original[fi];
+            fee(b, predecessors.len().saturating_add(reachable.len()))?;
+            for row in predecessors {
+                fee(b, row.len())?;
+            }
+            proof.graphs.push((predecessors.clone(), reachable.clone()));
+            proof.inactive.push(BTreeSet::new());
+            continue;
+        }
         fee(
             b,
             f.values

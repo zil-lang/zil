@@ -516,12 +516,35 @@ pub(super) struct Refinement {
     pub(super) graphs: Vec<FunctionGraph>,
     pub(super) inactive: Vec<Vec<ValueId>>,
 }
+fn graph_with_edges(
+    original: &FunctionGraph,
+    successors: Vec<Vec<usize>>,
+    predecessors: Vec<Vec<usize>>,
+    reachable: Vec<bool>,
+    b: &mut Budget,
+) -> Check<FunctionGraph> {
+    b.spend(original.package_views.by_local.len()
+        .saturating_add(original.package_views.by_capture.len())
+        .saturating_add(original.role_data_uses.len()))?;
+    Ok(FunctionGraph {
+        successors,
+        predecessors,
+        reachable,
+        package_views: packages::CaptureViews {
+            by_local: original.package_views.by_local.clone(),
+            by_capture: original.package_views.by_capture.clone(),
+        },
+        role_data_uses: original.role_data_uses.clone(),
+    })
+}
+
 /// This reads only the fixed point of the original graph. Its output is used
 /// for one permission replay; the replay is never allowed to refine again.
 pub(super) fn refine(
     module: &TypedModule,
     original: &[FunctionGraph],
     frozen: &[Summary],
+    mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<Option<Refinement>> {
     b.spend(module.functions.len().saturating_mul(4))?;
@@ -532,6 +555,21 @@ pub(super) fn refine(
     let mut removed = false;
     for (fi, f) in module.functions.iter().enumerate() {
         let old = &original[fi];
+        if mask.is_some_and(|selected| !selected[fi]) || frozen[fi].none_values.is_empty() {
+            // These stored facts cannot refine this function. Preserve its
+            // checked edges and reachability, including ordinary functions.
+            b.spend(old.successors.len()
+                .saturating_add(old.predecessors.len())
+                .saturating_add(old.reachable.len()))?;
+            for row in old.successors.iter().chain(&old.predecessors) {
+                b.spend(row.len())?;
+            }
+            result.graphs.push(graph_with_edges(
+                old, old.successors.clone(), old.predecessors.clone(), old.reachable.clone(), b,
+            )?);
+            result.inactive.push(Vec::new());
+            continue;
+        }
         b.spend(
             f.values
                 .len()
@@ -642,23 +680,7 @@ pub(super) fn refine(
                 }
             }
         }
-        b.spend(
-            old.package_views
-                .by_local
-                .len()
-                .saturating_add(old.package_views.by_capture.len())
-                .saturating_add(old.role_data_uses.len()),
-        )?;
-        result.graphs.push(FunctionGraph {
-            successors,
-            predecessors,
-            reachable,
-            package_views: packages::CaptureViews {
-                by_local: old.package_views.by_local.clone(),
-                by_capture: old.package_views.by_capture.clone(),
-            },
-            role_data_uses: old.role_data_uses.clone(),
-        });
+        result.graphs.push(graph_with_edges(old, successors, predecessors, reachable, b)?);
         result.inactive.push(inactive);
     }
     Ok(removed.then_some(result))

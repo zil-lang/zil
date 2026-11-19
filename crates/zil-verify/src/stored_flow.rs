@@ -8635,10 +8635,9 @@ fn solve_check(
     {
         return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), mask, b);
     }
-    if (mask.is_none() || b.masked_stored_tasks())
-        && inactive.is_none()
+    if inactive.is_none()
         && observed_none
-        && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
+        && let Some(proof) = option_address::refine(module, graphs, &summaries, mask, b)?
     {
         return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), mask, b);
     }
