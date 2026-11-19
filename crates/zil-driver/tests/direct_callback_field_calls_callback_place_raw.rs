@@ -184,9 +184,7 @@ fn main() -> i32 {
     );
 }
 
-#[test]
-fn nested_value_package_borrow_checks_the_complete_field_path() {
-    let source = r#"
+const NESTED_VALUE_PACKAGES: &str = r#"
 resource Tag { code: i32 }
 impl Drop for Tag { fn drop(self: Self) {} }
 package Pair<T: Value> { manages tag: Tag; left: T; right: T }
@@ -202,6 +200,10 @@ fn main() -> i32 {
     return (&mut root.right.left)(1)
 }
 "#;
+
+#[test]
+fn nested_value_package_borrow_checks_the_complete_field_path() {
+    let source = NESTED_VALUE_PACKAGES;
     let limits = Limits::default();
     let module = value_package_module(source);
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
@@ -219,6 +221,29 @@ fn main() -> i32 {
         assert!(zil_analyze::analyze(&changed, &limits).is_err());
         pair("nested-value-sibling", source, changed, plan.clone(), Some("E-VERIFY-SEMANTIC"));
     }
+}
+
+#[test]
+fn forwarded_child_package_keeps_its_actual_holder_and_receiver() {
+    use zil_ir::PlaceProjection::Field;
+
+    let source = NESTED_VALUE_PACKAGES
+        .replace("fn main()", "fn relay<F: Value + FnMut(i32)->i32>(root:&mut Pair<F>, n:i32)->i32 {return (root.left)(n)}\nfn main()")
+        .replace("(&mut root.right.left)(1)", "relay(&mut root.right, 1)");
+    let limits = Limits::default();
+    let mut module = value_package_module(&source);
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    pair("forwarded-child-control", &source, module.clone(), plan.clone(), None);
+
+    let path = main_function(&mut module).blocks.iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find_map(|instruction| match &mut instruction.kind {
+            I::BorrowPlaceLocal { path, mutable: true, .. } if path == &[Field(2)] => Some(path),
+            _ => None,
+        }).expect("exclusive borrow of the right child Package");
+    path[0] = Field(1);
+    assert!(zil_analyze::analyze(&module, &limits).is_err());
+    pair("forwarded-child-sibling", &source, module, plan, Some("E-VERIFY-SEMANTIC"));
 }
 
 fn value_package_module(source: &str) -> TypedModule {

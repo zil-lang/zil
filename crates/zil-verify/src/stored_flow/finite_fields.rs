@@ -60,7 +60,7 @@ fn selected<'a>(
         InstructionKind::BorrowPackageField { local, index, mutable } => {
             (*local, FieldPath::Direct([PlaceProjection::Field(*index)]), *mutable)
         }
-        InstructionKind::BorrowPlaceLocal { local, path, mutable } if path.len() > 1 => {
+        InstructionKind::BorrowPlaceLocal { local, path, mutable } if !path.is_empty() => {
             if path.len() > b.limits.max_call_depth {
                 return Err(limit("finite field borrow path exceeds depth"));
             }
@@ -86,7 +86,7 @@ fn selected<'a>(
         child = &fields.get(*index as usize)
             .ok_or_else(|| err("finite field borrow selects no actual field"))?.1;
     }
-    if !matches!(child, Type::Closure(_))
+    if !matches!(child, Type::Closure(_) | Type::Package { .. })
         && !(matches!(path, FieldPath::Direct(_)) && child.is_copy_value())
     {
         return Ok(None);

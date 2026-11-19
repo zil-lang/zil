@@ -425,6 +425,26 @@ fn source_state_type(ty: &TypeRef, name: &str, dual: bool, work: &mut usize) -> 
     if state_type(ty, name) {
         return Ok(true);
     }
+    // A nominal application may carry the same callable binder through
+    // another nominal argument. This locates a binder in the signature only.
+    // Its concrete field, signature and access still need an actual receiver.
+    if let TypeKind::Named { path, args } = &grouped(ty).kind
+        && !matches!(path.as_slice(), [head] if head == "Registration" || head == "AsyncRegistration")
+        && (1..=2).contains(&args.len())
+    {
+        hrtb::pay(work, args.len(), ty.span)?;
+        let mut selected = false;
+        for arg in args {
+            let GenericArg::Type(argument) = arg else { return Ok(false); };
+            if selector_refers(argument, name, work)? {
+                if selected || !source_state_type(argument, name, false, work)? {
+                    return Ok(false);
+                }
+                selected = true;
+            }
+        }
+        return Ok(selected);
+    }
     if let TypeKind::Tuple(fields) = &grouped(ty).kind {
         hrtb::pay(work, fields.len(), ty.span)?;
         for field in fields {

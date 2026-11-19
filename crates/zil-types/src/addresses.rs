@@ -472,6 +472,19 @@ impl Builder<'_, '_> {
             ty,
         ))
     }
+    fn borrow_local_projection(
+        &mut self, local: LocalId, path: Vec<PlaceProjection>, field: Type,
+        mutable: bool, span: Span,
+    ) -> R<(ValueId, Type)> {
+        if mutable && !self.function.locals[local.0 as usize].mutable {
+            return Err(error("E-IMMUTABLE-ASSIGNMENT", span,
+                "exclusive field borrow requires a mutable Package position"));
+        }
+        self.check_package_field_closure(&field, span)?;
+        let ty = Type::Address { mutable, inner: Box::new(field) };
+        let value = self.value(InstructionKind::BorrowPlaceLocal { local, path, mutable }, ty.clone(), span)?;
+        Ok((value, ty))
+    }
     pub(super) fn borrow_package_field(
         &mut self,
         local: LocalId,
@@ -516,6 +529,9 @@ impl Builder<'_, '_> {
                 )?,
                 ty,
             ));
+        }
+        if mutable && matches!(field, Type::Package { .. }) {
+            return self.borrow_local_projection(local, vec![PlaceProjection::Field(index)], field, mutable, span);
         }
         let shared_owned = !mutable
             && (packages::product::supported(&field)
@@ -708,15 +724,10 @@ impl Builder<'_, '_> {
             if !packages::product::supported(&decl.ty)
                 && !(callable_fields::has_fields(&decl.ty) && packages::supported(&decl.ty))
             {
-                // Only the new inline Store owner enters the ordinary
-                // Product branch. Reserve both structural walks before
-                // inspecting its complete children; old accepted
-                // Product heads retain their exact previous fee.
+                // A loan of the whole local keeps its complete owning type.
+                // The same structural rule applies at each nesting depth.
                 self.closures.snapshot(work.saturating_mul(4), span)?;
-                if !(dynamic_store::contains_inline_carrier(&decl.ty)
-                    || packages::has_store_fields(&decl.ty))
-                    || !packages::product::owned_supported(&decl.ty)
-                {
+                if !packages::ordinary(&decl.ty) {
                     return Err(unsupported(
                         span,
                         if mutable {
@@ -822,7 +833,8 @@ impl Builder<'_, '_> {
                 owner,
             } => {
                 if matches!(object.kind, CoreExprKind::Member { .. })
-                    && let Some((local, path, field @ Type::Closure(_))) = self.local_product_path(e)?
+                    && let Some((local, path, field)) = self.local_product_path(e)?
+                    && (matches!(field, Type::Closure(_)) || mutable && matches!(field, Type::Package { .. }))
                 {
                     let mut root = object.as_ref();
                     while let CoreExprKind::Member { object, .. } = &root.kind {
@@ -830,14 +842,7 @@ impl Builder<'_, '_> {
                         root = object;
                     }
                     self.semantic_local_place(root, local)?;
-                    if mutable && !self.function.locals[local.0 as usize].mutable {
-                        return Err(error("E-IMMUTABLE-ASSIGNMENT", e.span,
-                            "exclusive field borrow requires a mutable Package position"));
-                    }
-                    self.check_package_field_closure(&field, e.span)?;
-                    let ty = Type::Address { mutable, inner: Box::new(field) };
-                    let value = self.value(InstructionKind::BorrowPlaceLocal { local, path, mutable }, ty.clone(), e.span)?;
-                    return Ok((value, ty));
+                    return self.borrow_local_projection(local, path, field, mutable, e.span);
                 }
                 if !self.indirect_place(e)
                     && let Some((local, index, field)) = self.package_place(e)?

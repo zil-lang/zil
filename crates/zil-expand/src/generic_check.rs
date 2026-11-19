@@ -6436,68 +6436,49 @@ impl Check<'_, '_, '_> {
         let Some(bounds) = self.callable.as_ref().filter(|bounds| bounds.owned_state) else {
             return Ok(None);
         };
-        let dual = bounds.dual_names().is_some();
         let ExprKind::Member {
             object,
             member: MemberName::Name(member) | MemberName::Constrained { name: member, .. },
-        } = &callee.kind
-        else {
+        } = &callee.kind else {
             return Ok(None);
         };
         let owner = self.package_local(object, state);
         if owner.is_none() {
             let mut base = object.as_ref();
-            while let ExprKind::Group(inner) = &base.kind {
+            loop {
                 self.budget.node(base.span, 0)?;
-                base = inner;
+                match &base.kind {
+                    ExprKind::Group(inner) | ExprKind::Member { object: inner, .. } => base = inner,
+                    _ => break,
+                }
             }
             let window = match &base.kind {
                 ExprKind::Name(name) => state.locals.get(name).is_some_and(|local| {
                     matches!(&group(&local.ty).kind, TypeKind::Reference { inner, .. }
-                        if bounds.store_callbacks().active(inner))
+                        if bounds.store_callbacks().active(inner)
+                            || bounds.bindings().any(|bound| callable::refers(inner, &bound.generic_name)))
                 }),
                 ExprKind::Call { callee, .. } => {
                     matches!(stores::call_name(callee), Some("store_at" | "store_at_mut"))
                 }
                 _ => false,
             };
-            if !window {
-                return Ok(None);
-            }
+            if !window { return Ok(None); }
         }
-        // Only the new two-root path selects from the actual resolved field.
-        // One representative ClosureId or first bound cannot supply its mode.
-        let place = if dual {
-            Some(self.place(callee, state)?)
-        } else {
-            None
-        };
+        // Resolve the full field path once. Equal signatures on sibling fields
+        // supply no evidence about the selected receiver or its access mode.
+        let (ty, mutable) = self.place(callee, state)?;
         let bounds = self.callable.as_ref().expect("owning callable scope");
-        let bound = if let Some((ty, _)) = &place {
-            self.budget.node(callee.span, 0)?;
-            let Some(bound) = bounds
-                .bindings()
-                .find(|bound| callable::parameter_mode(ty, &bound.generic_name) == Some(None))
-            else {
-                return Ok(None);
-            };
-            self.budget.text(&bound.generic_name, callee.span)?;
-            bound
-        } else {
-            &bounds.roles[0]
+        let Some(bound) = bounds.bindings()
+            .find(|bound| callable::parameter_mode(&ty, &bound.generic_name) == Some(None))
+        else {
+            return Ok(None);
         };
         for parameter in &bound.parameters {
             self.budget.ty(parameter)?;
         }
         self.budget.ty(&bound.result)?;
         let bound = bound.clone();
-        let (ty, mutable) = match place {
-            Some(place) => place,
-            None => self.place(callee, state)?,
-        };
-        if callable::parameter_mode(&ty, &bound.generic_name) != Some(None) {
-            return Ok(None);
-        }
         let slot = owner
             .map(|owner| self.field_slot(owner, member, callee.span))
             .transpose()?;

@@ -1923,16 +1923,7 @@ impl Resolver<'_> {
                     name: name.clone(),
                     fields: resolved_fields,
                 };
-                if packages::product::owned_supported(&ty) {
-                    packages::product::validate_owned(
-                        &ty,
-                        &mut self.remaining,
-                        self.depth_limit,
-                        span,
-                    )?;
-                } else {
-                    owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
-                }
+                self.validate_value_package(&ty, depth, span)?;
                 ty
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -2178,6 +2169,13 @@ impl Resolver<'_> {
                     {
                         Type::Managed(payload)
                     }
+                    // Resolution of a generic Package already checked its
+                    // value fields under their own lexical bounds. An address
+                    // preserves that type, including nested callable fields.
+                    Type::Package { ref name, .. }
+                        if packages::product::nested(&inner)
+                            && self.generic.canonical_arguments.contains_key(name)
+                            && self.ordinary_value_shape(&inner, depth + 1, span)? => inner,
                     Type::Package { .. }
                         if packages::product::nested(&inner)
                             || packages::product::supported(&inner)
@@ -4359,22 +4357,25 @@ impl Resolver<'_> {
             })
             && !owned_shapes::zero_debt_package(&ty)
         {
-            if packages::product::owned_supported(&ty) {
-                packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
-            } else {
-                aggregate_templates::type_work(&ty, &self.generic_limits, &mut self.remaining, span)?;
-                if fields.iter().all(|(_, field)| {
-                    owned_shapes::value(field) || matches!(field, Type::Named(_)) && args.contains(field)
-                }) {
-                    owned_shapes::validate_names(&ty, &mut self.remaining, span)?;
-                } else {
-                    return Err(unsupported(span, "generic Package field requires a complete Value or declared formal"));
-                }
-            }
+            self.validate_value_package(&ty, depth, span)?;
         }
         self.generic_active.remove(&family);
         Ok(ty)
     }
+    /// Fresh and re-resolved applications have the same Value obligations.
+    /// A symbolic leaf must be established by its lexical declaration. No
+    /// closure mode, retained lifetime or destructor is inferred from Value.
+    fn validate_value_package(&mut self, ty: &Type, depth: usize, span: Span) -> R<()> {
+        if packages::product::owned_supported(ty) {
+            return packages::product::validate_owned(ty, &mut self.remaining, self.depth_limit, span);
+        }
+        aggregate_templates::type_work(ty, &self.generic_limits, &mut self.remaining, span)?;
+        if !owned_shapes::value(ty) && !self.ordinary_value_shape(ty, depth, span)? {
+            return Err(unsupported(span, "generic Package field requires a complete Value or declared formal"));
+        }
+        owned_shapes::validate_names(ty, &mut self.remaining, span)
+    }
+
     fn generic_recipe(
         &mut self,
         recipe: &CoreAggregateTypeRecipe,
