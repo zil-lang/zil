@@ -2,7 +2,7 @@
 //! ordered actuals. A matching layout is never a nominal identity.
 use super::*;
 pub(super) mod closed;
-mod closed_fields;
+pub(super) mod closed_fields;
 
 impl CheckedContext {
     pub(super) fn nominal(

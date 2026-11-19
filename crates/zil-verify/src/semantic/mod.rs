@@ -61,6 +61,7 @@ pub(crate) struct CheckedContext {
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     instances: BTreeMap<SemanticInstanceId, usize>,
     site_index: sites::Index,
+    rigid_worlds: RefCell<flow::RigidWorlds>,
     premises: RefCell<BTreeMap<ScopeKey, Premises>>,
     premises_epoch: Cell<u64>,
     static_identity: std::rc::Rc<()>,

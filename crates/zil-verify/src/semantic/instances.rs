@@ -6,9 +6,11 @@ pub(super) struct ClosedFrames {
     limits: Limits,
     // None is possible only for a root function whose closed arguments were
     // reconstructed directly from its immutable instance. Self, seals and
-    // caller premises never take part in such a frame.
+    // caller premises never take part in such a frame. Concrete callback
+    // arguments still require the current creator domains below.
     premises_epoch: Option<u64>,
     lexical: Vec<LexicalFrame>,
+    callbacks: Vec<ClosureId>,
 }
 impl CheckedContext {
     pub(crate) fn environment_for_instance(&self,module:&TypedModule,id:SemanticInstanceId,active:&mut ActiveQueries,b:&mut Budget)->Check<EvalEnv> {
@@ -22,7 +24,8 @@ impl CheckedContext {
         let lexical=if reusable{
             b.spend(self.closed_frames.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2).saturating_add(11))?;
             let frames=self.closed_frames.borrow();
-            if let Some(known)=frames.get(&memo_key).filter(|known|known.limits==b.limits && known.premises_epoch.is_none_or(|generation| generation == epoch)){
+            if let Some(known)=frames.get(&memo_key).filter(|known|known.limits==b.limits && known.premises_epoch.is_none_or(|generation| generation == epoch))
+                && self.callbacks_still_empty(&known.callbacks, b)? {
                 charge_frames(&known.lexical,b)?;
                 if let Some(progress)=&mut b.diagnostic_progress{progress.frame_hits=progress.frame_hits.saturating_add(1);}
                 Some(known.lexical.clone())
@@ -119,7 +122,9 @@ impl CheckedContext {
             }
             lexical[0].self_type=self_value;
         }
-        if reusable&&no_seals&&epoch==self.premises_epoch.get()&&pure_frames(&lexical,b)?{
+        let mut callbacks = Vec::new();
+        let closed_callbacks = independent && !self.domain_only.get() && self.original.borrow().is_some() && self.site_index.same_input(module,b);
+        if reusable&&no_seals&&epoch==self.premises_epoch.get()&&pure_frames(&lexical,module,closed_callbacks,&mut callbacks,b)?{
             charge_frames(&lexical,b)?;
             b.spend(self.closed_frames.borrow().len().checked_ilog2().map_or(1,|n|n as usize+2).saturating_add(13))?;
             if independent {
@@ -128,11 +133,13 @@ impl CheckedContext {
                         CheckedActual::Type(value) | CheckedActual::Const { carrier: value, .. } => value,
                         CheckedActual::Life(_) => continue,
                     };
-                    if !type_storage::closed_storage(&value.ty, b)? { independent = false; break; }
+                    // Top-level callbacks were qualified in pure_frames and their creator
+                    // domains are checked again on every retrieval.
+                    if !matches!(value.ty, Type::Closure(_)) && !type_storage::closed_storage(&value.ty, b)? { independent = false; break; }
                 }
             }
             self.closed_frames.borrow_mut().insert(memo_key,ClosedFrames{
-                limits:b.limits.clone(), premises_epoch: (!independent).then_some(epoch), lexical:lexical.clone(),
+                limits:b.limits.clone(), premises_epoch: (!independent).then_some(epoch), lexical:lexical.clone(), callbacks,
             });
             if let Some(progress)=&mut b.diagnostic_progress{progress.frame_cache_entries=self.closed_frames.borrow().len();}
         }
@@ -172,6 +179,85 @@ impl CheckedContext {
     }
 }
 
+impl CheckedContext {
+    // Construction reads the mutable intrinsic domain of each concrete closure.
+    // A later constructor may supply its first domain or introduce a conflict.
+    fn callbacks_still_empty(&self, callbacks: &[ClosureId], b: &mut Budget) -> Check<bool> {
+        for id in callbacks {
+            b.spend(1)?;
+            if let Some(domain) = self.closure_domain(*id, b)?
+                && (domain.life != empty_life()
+                    || !domain.classes.is_empty()
+                    || !domain.origins.is_empty()
+                    || !domain.statics.is_empty())
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+/// Only a concrete, capture-free Fn with an explicitly empty entry and
+/// environment header can contribute an immutable physical argument. Its
+/// lexical identity and independently checked creator domain remain separate.
+pub(super) fn closed_callback(module: &TypedModule, id: ClosureId, b: &mut Budget) -> Check<bool> {
+    b.spend(2)?;
+    let Some(closure) = module.closures.get(id.0 as usize).filter(|c| c.id == id) else {
+        return Ok(false);
+    };
+    let Some(entry) = module
+        .functions
+        .get(closure.function.0 as usize)
+        .filter(|f| f.id == closure.function)
+    else {
+        return Ok(false);
+    };
+    let empty_header = |header: &Option<StorageLifeContract>| {
+        header.as_ref().is_some_and(|h| {
+            h.fixed_binder_count == 0
+                && h.invocation_binder_count == 0
+                && h.bindings.is_empty()
+                && h.static_bindings.is_empty()
+                && h.classes.is_empty()
+        })
+    };
+    if closure.kind != CallableKind::Fn
+        || !closure.captures.is_empty()
+        || !closure.lending_captures.is_empty()
+        || entry.environment != Some(id)
+        || entry.foreign.is_some()
+        || entry.call_kind != CallKind::Direct
+        || !empty_header(&closure.storage_life)
+        || !empty_header(&entry.storage_life)
+        || entry
+            .retained_return_sources
+            .as_ref()
+            .is_some_and(|r| !r.is_empty())
+        || entry.parameters.len() != closure.parameters.len()
+    {
+        return Ok(false);
+    }
+    for (local, external) in entry.parameters.iter().zip(&closure.parameters) {
+        b.spend(1)?;
+        let Some(local) = entry
+            .locals
+            .get(local.0 as usize)
+            .filter(|l| l.id == *local)
+        else {
+            return Ok(false);
+        };
+        dynamic_metadata::ty(&local.ty, b)?;
+        dynamic_metadata::ty(external, b)?;
+        if local.ty != *external || !type_storage::closed_storage(external, b)? {
+            return Ok(false);
+        }
+    }
+    dynamic_metadata::ty(&closure.result, b)?;
+    dynamic_metadata::ty(&entry.return_type, b)?;
+    Ok(closure.result == entry.return_type && type_storage::closed_storage(&closure.result, b)?)
+}
+
 fn charge_frames(frames:&[LexicalFrame],b:&mut Budget)->Check<()>{
     b.spend(frames.len())?;
     for frame in frames{
@@ -184,12 +270,17 @@ fn charge_frames(frames:&[LexicalFrame],b:&mut Budget)->Check<()>{
         if let Some(value)=&frame.self_type{value.charge_clone(b)?;}
     }Ok(())
 }
-fn pure_frames(frames:&[LexicalFrame],b:&mut Budget)->Check<bool>{
+fn pure_frames(frames:&[LexicalFrame],module:&TypedModule,closed_callbacks:bool,callbacks:&mut Vec<ClosureId>,b:&mut Budget)->Check<bool>{
     b.spend(frames.len())?;
     for frame in frames{
         if !frame.environment.is_empty(){return Ok(false);}
         for value in frame.actuals.iter().filter_map(|value|match value{CheckedActual::Type(value)|CheckedActual::Const{carrier:value,..}=>Some(value),_=>None}).chain(frame.self_type.iter()){
             if value.life!=empty_life()||!value.classes.is_empty()||!value.origins.is_empty()||!value.statics.is_empty(){return Ok(false);}
+            if let Type::Closure(id) = value.ty {
+                if !closed_callbacks || !closed_callback(module,id,b)? { return Ok(false); }
+                callbacks.push(id);
+                continue;
+            }
             let mut pending=vec![&value.ty];
             while let Some(ty)=pending.pop(){b.spend(1)?;match ty{
                 Type::BorrowedStorage{storage,life}if *life==empty_life()=>pending.push(storage),
@@ -236,7 +327,76 @@ mod tests{
         assert!(context.closed_frames.borrow().len()>full_entries,"domain-only metadata has a separate cache, never an actual WF receipt");
         let mut frame=first.lexical[0].clone();
         let sealed=CheckedType{type_cell:CheckedTypeData::new(Type::Closure(ClosureId(0))),life:empty_life(),classes:vec![],origins:vec![],statics:vec![]};
-        frame.actuals.push(CheckedActual::Type(sealed.clone()));assert!(!pure_frames(&[frame.clone()],&mut b).unwrap());
-        frame.actuals.pop();frame.environment.push(CheckedActual::Type(sealed));assert!(!pure_frames(&[frame],&mut b).unwrap());
+        frame.actuals.push(CheckedActual::Type(sealed.clone()));assert!(!pure_frames(&[frame.clone()],&module,true,&mut vec![],&mut b).unwrap());
+        frame.actuals.pop();frame.environment.push(CheckedActual::Type(sealed));assert!(!pure_frames(&[frame],&module,true,&mut vec![],&mut b).unwrap());
+    }
+    #[test]
+    fn callback_frame_rechecks_new_creator_domains_and_both_headers() {
+        let limits = Limits::default();
+        let (mut module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("fixtures/local-closure-complete-head.wire"),
+            &limits,
+        )
+        .unwrap();
+        let id = module.closures[0].id;
+        let entry = module.closures[0].function.0 as usize;
+        let mut budget = Budget::new(&limits);
+        assert!(!closed_callback(&module, id, &mut budget).unwrap());
+        let original = module.closures[0].storage_life.clone();
+        let mut empty = original.clone().unwrap();
+        empty.fixed_binder_count = 0;
+        empty.bindings.clear();
+        module.closures[0].captures.clear();
+        module.closures[0].storage_life = Some(empty.clone());
+        assert!(!closed_callback(&module, id, &mut budget).unwrap());
+        module.functions[entry].storage_life = Some(empty);
+        assert!(closed_callback(&module, id, &mut budget).unwrap());
+        module.closures[0].storage_life = original;
+        assert!(!closed_callback(&module, id, &mut budget).unwrap());
+
+        // The receipt is private to this domain query. Supply a later creator
+        // with a concrete retained head and confirm the earlier empty result expires.
+        let (module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("fixtures/local-closure-complete-head.wire"),
+            &limits,
+        )
+        .unwrap();
+        let context = CheckedContext::catalogue(&module, &mut budget).unwrap();
+        assert!(context.callbacks_still_empty(&[id], &mut budget).unwrap());
+        let child = module
+            .semantic
+            .as_ref()
+            .unwrap()
+            .instances
+            .iter()
+            .find(|row| row.environment.is_some())
+            .unwrap();
+        let scope = ScopeKey::Instance(child.parent.unwrap());
+        let key = ClassKey::Implicit { scope, ordinal: 0 };
+        let mut life = empty_life();
+        life.binder_count = 1;
+        let value = CheckedType {
+            type_cell: CheckedTypeData::new(Type::Closure(id)),
+            life,
+            classes: vec![key.clone()],
+            origins: vec![IntrinsicOrigin::DerivedClass { source: key }],
+            statics: vec![],
+        };
+        context
+            .closure_boundaries
+            .borrow_mut()
+            .push(ClosureBoundary {
+                creator: scope,
+                node: zil_base::NodeId(0),
+                at: SitePoint {
+                    function: FunctionId(0),
+                    block: BlockId(0),
+                    instruction: 0,
+                    after: true,
+                },
+                child: child.id,
+                value,
+            });
+        assert!(!context.callbacks_still_empty(&[id], &mut budget).unwrap());
     }
 }

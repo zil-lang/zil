@@ -3,6 +3,8 @@
 //! entry with a matching machine ABI. Each retained world is replayed by the
 //! independent function pass as well.
 use super::*;
+mod rigid;
+pub(in crate::semantic) use rigid::RigidWorlds;
 
 pub(super) struct CallWorld {
     pub(super) instance:SemanticInstanceId,
@@ -14,9 +16,10 @@ impl CheckedContext {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn call_worlds(&self,module:&TypedModule,function:FunctionId,definition:SemanticDefinitionId,expected:&EvalEnv,caller:&EvalEnv,active:&mut ActiveQueries,b:&mut Budget)->Check<Vec<CallWorld>> {
         let program=module.semantic.as_ref().ok_or_else(||bad("actual Call lacks its original instance directory"))?;
-        b.spend(program.instances.len())?;
+        let candidates = self.world_candidates(module, program, function, definition, b)?;
         let mut matched=Vec::new();
-        for instance in program.instances.iter().filter(|row|row.definition==definition&&matches!(row.target,SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(id))if id==function)) {
+        for index in candidates {
+            let instance = &program.instances[index];
             // An actual lexical ancestor is an identity, not a same-typed
             // substitute. Witness frames name independently selected impl
             // scopes and are instead compared by their full actuals below.
@@ -60,12 +63,17 @@ impl CheckedContext {
     // still rigid. Only then apply this occurrence's outside images. Rebuilding
     // P<A,B> after A and B both map to a would lose its original N2 boundary.
     pub(super) fn world_signature(&self,module:&TypedModule,recipe:&SemanticSignatureRecipe,worlds:Vec<CallWorld>,caller:&EvalEnv,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<CheckedSignature>{
+        let multiple = worlds.len() > 1;
         let mut selected:Option<CheckedSignature>=None;
         for mut world in worlds{
             let definition=self.definition(module,world.environment.lexical.first().ok_or_else(||bad("Call world has no current original definition"))?.definition,b)?;
             self.evaluate_requirements(module,&definition.requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;
             for formal in &definition.parameters{if let SemanticFormal::Type{requirements}=formal{self.evaluate_requirements(module,requirements,&world.environment,RequirementMode::DeclarationPremise,external,active,b)?;}}
-            let mut signature=self.entry_signature(module,definition,recipe,&world.environment,external,active,b)?;
+            let mut signature=if multiple {
+                self.rigid_entry_signature(module,definition,recipe,&world,external,active,b)?
+            } else {
+                self.entry_signature(module,definition,recipe,&world.environment,external,active,b)?
+            };
             for(parameter,_)in &mut signature.parameters{*parameter=world.boundary.project_type(self,caller,parameter,b)?;}
             signature.result=world.boundary.project_type(self,caller,&signature.result,b)?;
             if let Some(expected)=&selected{

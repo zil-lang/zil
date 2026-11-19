@@ -23,6 +23,16 @@ pub(super) fn independent(
     proof.body(body, &formals, 0, b)
 }
 
+/// Dependencies of a signature component relative to its own declaration.
+pub(in crate::semantic) fn independent_signature_type(
+    context: &CheckedContext, module: &TypedModule, root: &SemanticDefinition,
+    recipe: &SemanticTypeRecipe, b: &mut Budget,
+) -> Check<bool> {
+    b.spend(root.parameters.len().saturating_add(1))?;
+    let formals: Vec<_> = (0..root.parameters.len()).collect();
+    Fields { context, module, root, active: vec![root.id] }.field(recipe, &formals, 0, b)
+}
+
 struct Fields<'a> {
     context: &'a CheckedContext,
     module: &'a TypedModule,

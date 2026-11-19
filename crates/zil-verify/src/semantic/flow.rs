@@ -15,6 +15,7 @@ mod sum_values;
 mod call_borrows;
 mod trait_members;
 mod worlds;
+pub(super) use worlds::RigidWorlds;
 mod task_operations;
 mod dyn_values;
 mod static_values;
