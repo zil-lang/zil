@@ -600,7 +600,8 @@ pub(super) fn effects(
                         }
                     }
                 }
-                InstructionKind::OwnedStoreReserve { .. } => effect(summary, &DynEffect::Alloc, b)?,
+                InstructionKind::OwnedStoreReserve { .. }
+                | InstructionKind::ByteBufferReserve { .. } => effect(summary, &DynEffect::Alloc, b)?,
                 InstructionKind::OwnedStoreBorrow { .. }
                 | InstructionKind::OwnedStoreBorrowMut { .. } => {
                     effect(summary, &DynEffect::Panic, b)?
@@ -627,7 +628,13 @@ pub(super) fn effects(
                 // allocation or suspension; their complete type, live prefix,
                 // ownership and address permissions are checked by the existing
                 // actual instruction/resource kernels before this effect join.
-                InstructionKind::DescribeAddress { .. }
+                InstructionKind::ByteBufferNew
+                | InstructionKind::ByteBufferPush { .. }
+                | InstructionKind::ByteBufferTruncate { .. }
+                | InstructionKind::ByteBufferBorrow { .. }
+                | InstructionKind::ByteBufferLen { .. }
+                | InstructionKind::ByteBufferCapacity { .. }
+                | InstructionKind::DescribeAddress { .. }
                 | InstructionKind::DescribeLocal { .. }
                 | InstructionKind::DescribePackageField { .. }
                 | InstructionKind::ReadDesc { .. }
