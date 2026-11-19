@@ -173,7 +173,9 @@ fn reject(
         assert!(
             errors
                 .iter()
-                .any(|d| d.phase == Phase::Analyze && d.category == category),
+                .any(|d| d.phase == Phase::Analyze
+                    && d.category == category
+                    && (d.code == clue || d.message.contains(clue))),
             "{label}: {errors:#?}"
         );
     }
@@ -424,12 +426,12 @@ fn main()->i32{
 
 #[test]
 fn lending_windows_distinguish_two_state_instances_with_the_same_closure_type() {
-    let (mut module, _) = baseline("lending-instances-control", LENDING);
+    let (mut module, candidate) = baseline("lending-instances-control", LENDING);
     native("lending-instances-runtime", LENDING, "", 0);
     source_rejected(
         "lending-same-instance",
         &LENDING.replace("let other=b.callback()", "let other=a.callback()"),
-        Phase::Verify,
+        Phase::Analyze,
         ResultCategory::SafeReject,
         "E-BORROW-CONFLICT",
     );
@@ -447,14 +449,13 @@ fn lending_windows_distinguish_two_state_instances_with_the_same_closure_type() 
         unreachable!()
     };
     *local = a;
-    let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     reject(
         "lending-retargeted-instance",
         module,
         candidate,
         ResultCategory::SafeReject,
         "E-BORROW-CONFLICT",
-        false,
+        true,
     );
 }
 
