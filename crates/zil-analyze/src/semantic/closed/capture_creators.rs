@@ -206,7 +206,8 @@ impl Check<'_, '_> {
         let occurrence = occurrence
             .ok_or_else(|| fail("capture head omits its original implicit occurrence"))?;
         let mut lexical = self.forwarded_capture_input(instance, function, occurrence, b)?;
-        for recipe in recipes.iter().filter(|_| occurrence.forwarded_input().is_none()) {
+        let direct_recipes = if lexical.is_some() { &[][..] } else { recipes.as_slice() };
+        for recipe in direct_recipes {
             b.spend(
                 recipe
                     .occurrence_path
