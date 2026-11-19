@@ -68,11 +68,19 @@ fn type_fact_bucket(ty: &Type) -> usize {
 
 // A scope with no completed Type facts needs no partition directory.
 #[derive(Default)]
-struct TypeFacts(Option<Box<[BTreeSet<TypeFact>; TYPE_FACT_BUCKETS]>>);
+struct TypeFacts(Option<Box<[FactBucket; TYPE_FACT_BUCKETS]>>);
+// The fast slot is published solely after a complete immutable bounds proof.
+// Shape partitioning, unlike hashing allocator addresses, makes lookup work
+// deterministic for independent Raw and Wire inputs.
+#[derive(Default)]
+struct FactBucket { complete: BTreeSet<TypeFact>, recent: Option<TypeFact> }
+impl FactBucket {
+    fn len(&self)->usize{self.complete.len()}
+}
 impl TypeFacts {
     #[cfg(test)]
     fn len(&self) -> usize {
-        self.0.as_ref().map_or(0, |buckets| buckets.iter().map(BTreeSet::len).sum())
+        self.0.as_ref().map_or(0, |buckets| buckets.iter().map(FactBucket::len).sum())
     }
 }
 
@@ -293,11 +301,18 @@ pub(super) fn type_known(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool>
     }
     b.spend(2)?;
     let bucket = type_fact_bucket(ty);
-    let fee = lookup(b.structural.as_ref().unwrap().type_success.0.as_ref().unwrap()[bucket].len());
-    b.spend(fee)?;
     let key = (ty as *const Type as usize, depth, profile(b));
-    let buckets = b.structural.as_ref().unwrap().type_success.0.as_ref().unwrap();
-    Ok(buckets[bucket].contains(&key))
+    b.spend(1)?;
+    let row=&b.structural.as_ref().unwrap().type_success.0.as_ref().unwrap()[bucket];
+    if row.recent==Some(key) { return Ok(true); }
+    let fee=lookup(row.complete.len());
+    b.spend(fee)?;
+    let row=&mut b.structural.as_mut().unwrap().type_success.0.as_mut().unwrap()[bucket];
+    if row.complete.contains(&key) {
+        row.recent=Some(key);
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 pub(super) fn type_success(ty: &Type, depth: usize, b: &mut Budget) -> Check<()> {
@@ -309,12 +324,13 @@ pub(super) fn type_success(ty: &Type, depth: usize, b: &mut Budget) -> Check<()>
     b.spend(2)?;
     let bucket = type_fact_bucket(ty);
     let directory = &b.structural.as_ref().unwrap().type_success.0;
-    let fee = directory.as_ref().map_or(TYPE_FACT_BUCKETS + 2, |buckets| lookup(buckets[bucket].len()));
+    let fee = directory.as_ref().map_or(TYPE_FACT_BUCKETS * 2 + 2, |buckets| lookup(buckets[bucket].len()));
     b.spend(fee.saturating_add(2))?;
     let key = (ptr, depth, profile(b));
     let directory = &mut b.structural.as_mut().unwrap().type_success.0;
-    let buckets = directory.get_or_insert_with(|| Box::new(std::array::from_fn(|_| BTreeSet::new())));
-    buckets[bucket].insert(key);
+    let buckets = directory.get_or_insert_with(|| Box::new(std::array::from_fn(|_| FactBucket::default())));
+    buckets[bucket].complete.insert(key);
+    buckets[bucket].recent=Some(key);
     Ok(())
 }
 pub(super) fn recipe_known<T:'static>(value:&T,b:&mut Budget)->Check<bool>{
@@ -1001,7 +1017,7 @@ mod tests{
         // lookups cannot publish a success for this unregistered allocation.
         let directory=&b.structural.as_ref().unwrap();
         let bucket=type_fact_bucket(&temporary);
-        let lookups=2usize.saturating_add(lookup(directory.type_success.0.as_ref().unwrap()[bucket].len())).saturating_add(lookup(directory.types.len()));
+        let lookups=3usize.saturating_add(lookup(directory.type_success.0.as_ref().unwrap()[bucket].len())).saturating_add(lookup(directory.types.len()));
         assert_eq!(actual,cold_before-cold_walk.remaining+lookups);
         assert_eq!(entries,b.structural.as_ref().unwrap().type_success.len());
         b.limits.max_nodes=1;
