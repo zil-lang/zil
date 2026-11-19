@@ -188,6 +188,36 @@ impl Check<'_, '_> {
         Ok(self.anchored_local(world, function, anchor, b)? == local)
     }
 
+    /// Resolve the original name before inspecting its physical transport.
+    /// A materialized capture can live in a local slot. Prove the capture at
+    /// that particular load, including its reaching definitions.
+    fn copied_name_source(
+        &self, world: &SemanticInstance, function: &TypedFunction, node: zil_base::NodeId,
+        value: ValueId, operation: &InstructionKind, b: &mut Budget,
+    ) -> CompileResult<Option<bool>> {
+        let Some(anchor) = self.original.place_read_anchor(world.definition, node, b)? else {
+            return Ok(None);
+        };
+        let matched = match anchor {
+            original::LocalAnchor::Environment(ordinal) => {
+                let expected = self.environment_capture(world, function, ordinal, b)?;
+                match operation {
+                    InstructionKind::ReadCapture { index } | InstructionKind::DescribeCapture { index } =>
+                        *index == expected,
+                    InstructionKind::Load(local) | InstructionKind::DescribeLocal { local } =>
+                        self.spilled_capture_name(function, *local, value, expected, b)? == expected,
+                    _ => false,
+                }
+            }
+            lexical => match operation {
+                InstructionKind::Load(local) | InstructionKind::DescribeLocal { local } =>
+                    self.anchored_local(world, function, lexical, b)? == *local,
+                _ => false,
+            },
+        };
+        Ok(Some(matched))
+    }
+
     // A TypeUse can identify the correct SSA result even if its producing
     // field ordinal was changed. Reconstruct the product projection itself.
     pub(super) fn scalar_call_projection(
@@ -202,12 +232,8 @@ impl Check<'_, '_> {
                     return self.copy_expression_source(world, function, source, value, b, 0);
                 }
                 CoreExprKind::Name(_) => {
-                    let Some(anchor) = self.original.local_read_anchor(world.definition, source.id, b)? else {
-                        return Ok(true);
-                    };
                     let (_, _, producer) = self.defining(function, value, b)?;
-                    let InstructionKind::Load(local) = producer.kind else { return Ok(false); };
-                    return Ok(self.anchored_local(world, function, anchor, b)? == local);
+                    return Ok(self.copied_name_source(world, function, source.id, value, &producer.kind, b)?.unwrap_or(true));
                 }
                 CoreExprKind::Member { object, .. } => {
                     let parent = self.original.source_type(world, SemanticScopeRef::Ancestor(0),
@@ -258,14 +284,9 @@ impl Check<'_, '_> {
                 operations::available_before(function, (block, at, SemanticSiteEdge::Before), union, b)?;
                 self.copy_expression_source(world, function, operand, union, b, depth + 1)?
             }
-            (CoreExprKind::Name(_), InstructionKind::Load(local) | InstructionKind::DescribeLocal { local }) => {
-                let Some(anchor) =
-                    self.original
-                        .local_read_anchor(world.definition, source.id, b)?
-                else {
-                    return Ok(false);
-                };
-                self.anchored_local(world, function, anchor, b)? == *local
+            (CoreExprKind::Name(_), operation @ (InstructionKind::Load(_) | InstructionKind::DescribeLocal { .. }
+                | InstructionKind::ReadCapture { .. } | InstructionKind::DescribeCapture { .. })) => {
+                self.copied_name_source(world, function, source.id, actual, operation, b)?.unwrap_or(false)
             }
             (
                 CoreExprKind::Member { object, member, .. },

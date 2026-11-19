@@ -754,3 +754,64 @@ fn shared_pipeline_keeps_the_original_lexical_loan() {
     zil_verify::verify_module(module, plan, &target, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
 }
+
+#[test]
+fn scalar_call_reads_its_original_capture_after_description_storage() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "two-captured-resources.zil", r#"
+        resource Ticket { code:i32; count:i32 }
+        impl Drop for Ticket { fn drop(self:Self){} }
+        fn keep(v:i32)->i32{return v}
+        fn make()->impl FnMut()->i32 {
+            var left=Ticket{code:13,count:4}
+            var right=Ticket{code:99,count:7}
+            return move ()=> {
+                left.count+=1
+                right.count+=2
+                return keep(left.count)+keep(right.count)
+            }
+        }
+        fn main()->i32 { var callback=make(); return callback()-14 }
+    "#);
+    let core = original_core(source, &limits, &target);
+    let mut module = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let original = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&original, &target, &limits).unwrap();
+
+    let mut changed = 0;
+    let keep = module.functions.iter().find(|f| f.name == "keep").unwrap().id;
+    for function in &mut module.functions {
+        if function.environment.is_none() { continue; }
+        for block in &mut function.blocks {
+            let Some(argument) = block.instructions.iter().find_map(|row| match &row.kind {
+                InstructionKind::Call { function, arguments } if *function == keep => arguments.first().copied(),
+                _ => None,
+            }) else { continue; };
+            let desc = block.instructions.iter().find_map(|row| match row.kind {
+                InstructionKind::ReadDesc { desc, index: 1 } if row.result == Some(argument) => Some(desc),
+                _ => None,
+            }).unwrap();
+            let first = block.instructions.iter().position(|row| row.result == Some(desc)).unwrap();
+            let InstructionKind::Load(left) = block.instructions[first].kind else { panic!() };
+            let other_origin = block.instructions.iter().find_map(|row| match row.kind {
+                InstructionKind::DescribeCapture { index: 1 } => row.result, _ => None,
+            }).unwrap();
+            let right = block.instructions.iter().find_map(|row| match row.kind {
+                InstructionKind::Store { local, value } if value == other_origin => Some(local), _ => None,
+            }).unwrap();
+            assert_ne!(left, right);
+            assert_eq!(function.locals[left.0 as usize].ty, function.locals[right.0 as usize].ty);
+            block.instructions[first].kind = InstructionKind::Load(right);
+            changed += 1;
+        }
+    }
+    assert_eq!(changed, 1);
+    require_semantic_rejection(zil_analyze::analyze(&module, &limits).unwrap_err());
+    plan.module_fingerprint = module.fingerprint();
+    let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    require_semantic_rejection(zil_verify::verify_module(module, plan, &target, &limits).unwrap_err());
+    require_semantic_rejection(zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err());
+}
