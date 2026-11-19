@@ -104,6 +104,7 @@ pub(super) struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     call_proofs: calls::Proofs,
+    entry_header_proofs: BTreeMap<SemanticInstanceId, bool>,
     types: types::Table<'a>,
     zero_scalars: [Option<SharedType>; 14],
     cfg_shapes: BTreeMap<FunctionId, Rc<flow::Shape>>,
@@ -2131,6 +2132,70 @@ impl<'p> World<'p, '_> {
             self.left,
         )
     }
+    fn check_entry_header(
+        &mut self,
+        instance: &SemanticInstance,
+        f: &TypedFunction,
+        signature: &SemanticSignatureRecipe,
+    ) -> R<()> {
+        self.pay(index::search(self.index.type_contexts.len()))?;
+        let Some(context) = self.index.type_contexts.get(&instance.id).copied()
+            .filter(|_| f.environment.is_none() && signature.invocation_lifetimes == 0)
+        else {
+            return self.check_header(instance, f, signature);
+        };
+        self.pay(index::search(self.entry_header_proofs.len()))?;
+        let prior = self.entry_header_proofs.get(&context.representative).copied();
+        if prior == Some(true) {
+            return Ok(());
+        }
+        self.check_header(instance, f, signature)?;
+        if prior.is_some() {
+            return Ok(());
+        }
+
+        // The context already compares the exact original definition, actual
+        // function, complete mixed actuals and header embedding. The header
+        // proof is portable only if none of its queries reads a different
+        // creator, call-site result or live invocation.
+        let ledger = self.ledger;
+        let proof = ledger.original.borrow();
+        let Some(proof) = proof.as_ref() else { return Ok(()); };
+        self.pay(instance.header_embedding.len().saturating_add(1))?;
+        let mut portable = instance.header_embedding.iter().all(|row| {
+            matches!(&row.actual,
+                SemanticClassExpr::Formal { scope: SemanticScopeRef::Ancestor(0), .. }
+                | SemanticClassExpr::Implicit { scope: SemanticScopeRef::Ancestor(0), .. }
+                | SemanticClassExpr::Bound { .. }
+                | SemanticClassExpr::OuterOccurrence {
+                    operand: SemanticOperand::Parameter(_)
+                        | SemanticOperand::TypeArgument { scope: SemanticScopeRef::Ancestor(0), .. }, ..
+                }
+                | SemanticClassExpr::IntrinsicClass {
+                    operand: SemanticOperand::Parameter(_)
+                        | SemanticOperand::TypeArgument { scope: SemanticScopeRef::Ancestor(0), .. }, ..
+                })
+        });
+        if portable {
+            let sources = (0..f.parameters.len())
+                .map(|ordinal| SemanticOriginalTypeSource::Parameter(ordinal as u32))
+                .chain(std::iter::once(SemanticOriginalTypeSource::Result));
+            for source in sources {
+                let recipe = SemanticTypeRecipe::OriginalType {
+                    scope: SemanticScopeRef::Ancestor(0),
+                    source,
+                };
+                if !type_contexts::portable(proof, context.definition, &recipe, self.limits, self.left, 0)? {
+                    portable = false;
+                    break;
+                }
+            }
+        }
+        self.pay(index::search(self.entry_header_proofs.len()).saturating_add(1))?;
+        self.entry_header_proofs.insert(context.representative, portable);
+        Ok(())
+    }
+
     fn check_header(
         &mut self,
         instance: &SemanticInstance,
@@ -2270,7 +2335,7 @@ impl<'p> World<'p, '_> {
         block: BlockId,
         index: usize,
         operand: SemanticOperand,
-        value: &SemanticTypeValue,
+        value: &SharedType,
         requested: CallableKind,
         arguments: &[ValueId],
         values: &ssa::Values,
@@ -2290,11 +2355,11 @@ impl<'p> World<'p, '_> {
             self.value_roots.remove(&output);
             self.value_role_sources.remove(&output);
         }
-        let raw_value = self.copy(value)?;
+        let raw_value = self.share(value)?;
         let value = if matches!(Self::type_of(value)?, Type::Address { .. }) {
             self.pointee(value)?
         } else {
-            self.copy(value)?
+            self.share(value)?
         };
         let Type::Closure(id) = Self::type_of(&value)? else {
             return Err(pending(
@@ -2543,7 +2608,7 @@ impl<'p> World<'p, '_> {
             declared.insert(*parameter, value);
         }
         let expected_result = self.result_value(instance.id, types::Hint::Actual(&f.return_type))?;
-        self.check_header(instance, f, signature)?;
+        self.check_entry_header(instance, f, signature)?;
         if matches!(
             &original.body,
             SemanticDefinitionBody::FunctionWithBody {
@@ -4155,7 +4220,7 @@ impl<'p> World<'p, '_> {
                                 .get(local.0 as usize)
                                 .and_then(|value| value.as_ref())
                                 .ok_or_else(|| bad("partial store has no active local shell"))?;
-                            let parent = self.copy(parent)?;
+                            let parent = self.share(parent)?;
                             let expected = self.field_value(&parent, *field)?;
                             let actual = self.get(&values, *value)?;
                             self.same(instance.id, &actual, &expected, &implicit)?;
@@ -4350,7 +4415,7 @@ impl<'p> World<'p, '_> {
                                 {
                                     Some(value) => value,
                                     None if ty == Some(&f.return_type) => {
-                                        self.copy(&expected_result)?
+                                        self.share(&expected_result)?
                                     }
                                     None => {
                                         error_injection::call_operand(
@@ -5127,6 +5192,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         call_proofs: Default::default(),
+        entry_header_proofs: BTreeMap::new(),
         types: types::Table::default(),
         zero_scalars: Default::default(),
         cfg_shapes: BTreeMap::new(),

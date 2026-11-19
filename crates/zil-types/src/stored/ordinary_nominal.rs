@@ -3,6 +3,32 @@
 //! This proves no Copy, ownership, cleanup, address permission or task state.
 use super::*;
 
+/// Candidate keys only partition nominal rows. A hit still compares the
+/// complete physical Type and checks the original declaration and actuals.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum NominalKey {
+    Record(zil_base::Fingerprint),
+    Package(zil_base::Fingerprint),
+    Enum(zil_base::Fingerprint),
+    Whole(zil_base::Fingerprint),
+}
+
+type NominalRows<'a> = std::collections::BTreeMap<NominalKey, Vec<&'a LifeNominalInstance>>;
+
+fn nominal_key(ty: &Type, limits: &Limits, left: &mut usize) -> R<NominalKey> {
+    let (name, key): (&str, fn(zil_base::Fingerprint) -> NominalKey) = match ty {
+        Type::Record { name, .. } => (name, NominalKey::Record),
+        Type::Package { name, .. } => (name, NominalKey::Package),
+        Type::Enum { name, .. } => (name, NominalKey::Enum),
+        _ => {
+            inference::charge_type_snapshot(ty, Span::default(), limits, left, 2)?;
+            return Ok(NominalKey::Whole(ty.fingerprint()));
+        }
+    };
+    fee(left, name.len().saturating_add(1), Span::default())?;
+    Ok(key(zil_base::Fingerprint::of(name.as_bytes())))
+}
+
 struct Check<'a, 'b> {
     module: Option<&'a TypedModule>,
     declarations: &'a [LifeNominalDeclaration],
@@ -14,8 +40,7 @@ struct Check<'a, 'b> {
     active_closures: Vec<ClosureId>,
     // Borrowed immutable directory, local to this exact Check/phase. Hashes
     // select candidates only; every collision still uses complete Type Eq.
-    type_index:
-        Option<std::collections::BTreeMap<zil_base::Fingerprint, Vec<&'a LifeNominalInstance>>>,
+    type_index: Option<NominalRows<'a>>,
     checked_rows: std::collections::BTreeSet<usize>,
     checked_closures: std::collections::BTreeSet<ClosureId>,
     index_builds: usize,
@@ -104,8 +129,7 @@ struct PhaseStats {
 /// capability, protocol phase or permission facts.
 pub(crate) struct Context<'a> {
     module: &'a TypedModule,
-    type_index:
-        Option<std::collections::BTreeMap<zil_base::Fingerprint, Vec<&'a LifeNominalInstance>>>,
+    type_index: Option<NominalRows<'a>>,
     checked_rows: std::collections::BTreeSet<usize>,
     checked_closures: std::collections::BTreeSet<ClosureId>,
     index_builds: usize,
@@ -233,20 +257,10 @@ impl<'a> Check<'a, '_> {
                     None,
                 ));
             }
-            let mut index: std::collections::BTreeMap<
-                zil_base::Fingerprint,
-                Vec<&'a LifeNominalInstance>,
-            > = std::collections::BTreeMap::new();
+            let mut index = NominalRows::new();
             fee(self.left, self.instances.len(), Span::default())?;
             for row in self.instances {
-                inference::charge_type_snapshot(
-                    &row.ty,
-                    Span::default(),
-                    self.limits,
-                    self.left,
-                    2,
-                )?;
-                let key = row.ty.fingerprint();
+                let key = nominal_key(&row.ty, self.limits, self.left)?;
                 self.hashed_types = self.hashed_types.saturating_add(1);
                 fee(
                     self.left,
@@ -257,8 +271,7 @@ impl<'a> Check<'a, '_> {
             }
             self.type_index = Some(index);
         }
-        inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 2)?;
-        let key = ty.fingerprint();
+        let key = nominal_key(ty, self.limits, self.left)?;
         let index = self
             .type_index
             .as_ref()
