@@ -657,7 +657,28 @@ impl Check<'_, '_> {
     /// external image or generating a memory root. Each local class receives
     /// its own token while reconstructing the original application.
     pub(super) fn nominal_inventory(&self, ty: &Type, b: &mut Budget) -> CompileResult<()> {
-        self.nominal_inventory_source(ty, b).map(|_| ())
+        if !matches!(ty, Type::Record { .. } | Type::Package { .. } | Type::Enum { .. })
+            || !self.trait_queries.borrow().is_empty() || !self.scope_queries.borrow().is_empty()
+        {
+            return self.nominal_inventory_source(ty, b).map(|_| ());
+        }
+        let key = (geometry::type_identity(ty, b)?, b.partial_depth, b.helper_nodes);
+        {
+            let known = self.formed_nominal_types.borrow();
+            if let Some((epoch, checked)) = &*known && std::sync::Arc::ptr_eq(epoch, &b.geometry_epoch) {
+                b.lookup(checked.len(), WORK)?;
+                if checked.contains(&key) { return Ok(()); }
+            }
+        }
+        self.nominal_inventory_source(ty, b)?;
+        let mut known = self.formed_nominal_types.borrow_mut();
+        if known.as_ref().is_some_and(|(epoch, _)| !std::sync::Arc::ptr_eq(epoch, &b.geometry_epoch)) {
+            *known = None;
+        }
+        let (_, checked) = known.get_or_insert_with(|| (std::sync::Arc::clone(&b.geometry_epoch), BTreeSet::new()));
+        b.lookup(checked.len(), WORK)?;
+        checked.insert(key);
+        Ok(())
     }
     pub(super) fn nominal_inventory_source(
         &self,
@@ -4628,13 +4649,12 @@ impl Check<'_, '_> {
     pub(super) fn full_value_at(
         &self,
         instance: &SemanticInstance,
-        expected: &SemanticTypeValue,
+        expected: Value,
         operand: &SemanticOperand,
         at: (BlockId, usize, SemanticSiteEdge),
         declaration: bool,
         b: &mut Budget,
     ) -> CompileResult<Value> {
-        let expected = self.resolved(instance, expected, b, 0)?;
         if declaration {
             return Ok(expected);
         }

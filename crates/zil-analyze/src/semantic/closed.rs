@@ -97,6 +97,9 @@ struct Check<'a, 'i> {
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
     /// Type-only zero-domain proofs for exact immutable SSA coordinates.
     closed_ssa_types: std::cell::RefCell<BTreeSet<(FunctionId, ValueId)>>,
+    // A successful complete physical nominal classification grants no class
+    // image or cleanup source. Those belong to the actual value and operation.
+    formed_nominal_types: std::cell::RefCell<Option<(std::sync::Arc<()>, BTreeSet<(usize, usize, usize)>)>>,
     task_results: std::cell::RefCell<BTreeMap<(SemanticInstanceId, FunctionId, BlockId, usize), value::Value>>,
     slot_queries: std::cell::RefCell<
         BTreeMap<(SemanticInstanceId, FunctionId, LocalId), Option<value::Value>>,
@@ -131,6 +134,7 @@ pub(super) fn coordinate_field(
         capture_directories: Default::default(),
         value_queries: Default::default(),
         closed_ssa_types: Default::default(),
+        formed_nominal_types: Default::default(),
         task_results: Default::default(),
         slot_queries: Default::default(),
         trait_queries: Default::default(),
@@ -1194,6 +1198,7 @@ pub(super) fn check(
         capture_directories: Default::default(),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
         closed_ssa_types: Default::default(),
+        formed_nominal_types: Default::default(),
         task_results: Default::default(),
         slot_queries: Default::default(),
         trait_queries: std::cell::RefCell::new(Vec::new()),

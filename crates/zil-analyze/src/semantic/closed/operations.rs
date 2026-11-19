@@ -677,10 +677,10 @@ impl Check<'_, '_> {
         claim: &SemanticTypeValue,
         original: &crate::semantic::value::Value,
         b: &mut Budget,
-    ) -> CompileResult<()> {
+    ) -> CompileResult<value::Value> {
         let actual = self.resolved(instance, claim, b, 0)?;
         if self.capture_values_equal(&actual, original, b)? {
-            return Ok(());
+            return Ok(actual);
         }
         crate::dyn_metadata::recipe(claim, b)?;
         crate::dyn_metadata::ty(&original.ty, b)?;
@@ -719,14 +719,15 @@ impl Check<'_, '_> {
             ) => {
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 let expected = &original_value.ty;
-                if self.uses_full_value(&original_value.ty, b)? {
-                    self.original_claim(instance, value, &original_value, b)?;
-                }
+                let prepared_claim = if self.uses_full_value(&original_value.ty, b)? {
+                    Some(self.original_claim(instance, value, &original_value, b)?)
+                } else { None };
 
                 self.image_operands(instance, value, point, Some(*result), b)?;
                 if !geometry::same_type(self.captured_value(
                     instance,
                     value,
+                    prepared_claim,
                     &SemanticOperand::Value(*result),
                     (point.block.id, point.instruction, SemanticSiteEdge::After),
                     false,
@@ -921,9 +922,9 @@ impl Check<'_, '_> {
                     }
                     return Ok(());
                 }
-                if self.uses_full_value(&original_value.ty, b)? {
-                    self.original_claim(instance, expected, &original_value, b)?;
-                }
+                let prepared_claim = if self.uses_full_value(&original_value.ty, b)? {
+                    Some(self.original_claim(instance, expected, &original_value, b)?)
+                } else { None };
 
                 self.image_operands(instance, expected, point, None, b)?;
                 self.function_reference(
@@ -980,6 +981,7 @@ impl Check<'_, '_> {
                 let captured = self.captured_value(
                     instance,
                     expected,
+                    prepared_claim,
                     subject,
                     (point.block.id, point.instruction, point.edge),
                     false,
@@ -1014,9 +1016,9 @@ impl Check<'_, '_> {
             ) => {
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 let expected_type = &original_value.ty;
-                if self.uses_full_value(&original_value.ty, b)? {
-                    self.original_claim(instance, expected, &original_value, b)?;
-                }
+                let prepared_claim = if self.uses_full_value(&original_value.ty, b)? {
+                    Some(self.original_claim(instance, expected, &original_value, b)?)
+                } else { None };
 
                 if let Some(slot) = self.persistent_slot(instance, point.function, *local, b)? {
                     if slot.declaration() != (point.block.id, point.instruction)
@@ -1040,6 +1042,7 @@ impl Check<'_, '_> {
                 if !geometry::same_type(self.captured_value(
                     instance,
                     expected,
+                    prepared_claim,
                     &SemanticOperand::Local(*local),
                     (point.block.id, point.instruction, point.edge),
                     true,

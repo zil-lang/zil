@@ -1977,6 +1977,7 @@ impl Check<'_, '_> {
         &self,
         instance: &SemanticInstance,
         value: &'v SemanticTypeValue,
+        prepared_claim: Option<value::Value>,
         operand: &SemanticOperand,
         at: (BlockId, usize, SemanticSiteEdge),
         declaration: bool,
@@ -1986,8 +1987,12 @@ impl Check<'_, '_> {
             return Err(fail("executable whole value retains a Core type"));
         };
         if self.uses_full_value(ty, b)? {
+            let expected = match prepared_claim {
+                Some(checked) => checked,
+                None => self.resolved(instance, value, b, 0)?,
+            };
             return Ok(ObservedType::Reconstructed(
-                self.full_value_at(instance, value, operand, at, declaration, b)?
+                self.full_value_at(instance, expected, operand, at, declaration, b)?
             ));
         }
         let SemanticTypeValue::Resolved {
