@@ -121,6 +121,7 @@ pub(super) struct World<'a, 'b> {
     direct_work: BTreeMap<(&'static str, u32), (usize, usize)>,
     last_instance: Option<&'a SemanticInstance>,
     last_definition: Option<&'a SemanticDefinition>,
+    last_type_context: Option<(SemanticInstanceId, Option<type_contexts::Context>)>,
     last_point_block: Option<((SemanticInstanceId, BlockId), Option<Rc<index::BlockPoints>>)>,
     last_point_rows: Option<((SemanticInstanceId, BlockId, usize), Option<Rc<Vec<usize>>>)>,
     current_point: Option<(
@@ -578,8 +579,16 @@ impl<'a> World<'a, '_> {
         recipe: &SemanticTypeRecipe,
         hint: types::Hint<'a, '_>,
     ) -> R<SharedType> {
-        self.pay(index::search(self.index.type_contexts.len()))?;
-        let shared_scope = if let Some(context) = self.index.type_contexts.get(&scope).copied()
+        self.pay(1)?;
+        let context = if let Some((current, context)) = self.last_type_context && current == scope {
+            context
+        } else {
+            self.pay(index::search(self.index.type_contexts.len()))?;
+            let context = self.index.type_contexts.get(&scope).copied();
+            self.last_type_context = Some((scope, context));
+            context
+        };
+        let shared_scope = if let Some(context) = context
             && let Some(proof) = self.ledger.original.borrow().as_ref()
         {
             self.types.shared_scope(context, recipe, proof, self.limits, self.left)?
@@ -5135,6 +5144,7 @@ fn program_at(
         direct_work: BTreeMap::new(),
         last_instance: None,
         last_definition: None,
+        last_type_context: None,
         last_point_block: None,
         last_point_rows: None,
         current_point: None,

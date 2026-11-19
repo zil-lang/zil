@@ -163,8 +163,9 @@ impl<'a> Table<'a> {
             index::pay(left, bucket.len())?;
             for entry in bucket {
                 if let Some(expected) = &entry.recipe {
+                    // The key is a partition only. Meter a full paired walk
+                    // of the held recipe before exact structural comparison.
                     crate::dyn_metadata::semantic_operand_snapshot(expected, limits, left, 1)?;
-                    crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
                     if expected != recipe {
                         continue;
                     }
@@ -175,8 +176,9 @@ impl<'a> Table<'a> {
                 let same_hint = if std::ptr::eq(entry.hint.as_ref(), hint.as_type()) {
                     true
                 } else {
+                    // Complete Type equality visits only paired fields up
+                    // to the first difference. The held hint bounds that walk.
                     inference::charge_type_snapshot(&entry.hint, Span::default(), limits, left, 1)?;
-                    inference::charge_type_snapshot(hint.as_type(), Span::default(), limits, left, 1)?;
                     entry.hint.as_ref() == hint.as_type()
                 };
                 if same_hint {

@@ -576,13 +576,25 @@ pub(crate) fn same_resolved_geometry(
 ) -> R<bool> {
     let mut work = Work { limits, left, copies: 1, nodes: 0 };
     if !std::ptr::eq(ty, other_ty) {
-        DynRecipeVisitor::ty(&mut work, ty, 2)?;
+        if ty.is_b0_scalar() {
+            work.node(2)?;
+        } else {
+            DynRecipeVisitor::ty(&mut work, ty, 2)?;
+        }
         if ty != other_ty {
             return Ok(false);
         }
     }
     if !std::ptr::eq(life, other_life) {
-        DynRecipeVisitor::life(&mut work, life, 2)?;
+        if life.binder_count == 0
+            && life.slots.is_empty()
+            && life.retained.is_empty()
+            && life.nominal_arguments.is_empty()
+        {
+            work.node(2)?;
+        } else {
+            DynRecipeVisitor::life(&mut work, life, 2)?;
+        }
         if life != other_life {
             return Ok(false);
         }
