@@ -173,12 +173,10 @@ impl Builder<'_, '_> {
                 if signature.foreign
                     || signature.cleanup
                     || signature.receiver.is_some()
-                    || !signature.callable.is_empty()
-                    || signature.state_parameter.is_some()
                 {
                     return Err(unsupported(
                         rhs.span,
-                        "Product self replacement requires an ordinary static function without callable or State roles",
+                        "Product self replacement requires an ordinary static function",
                     ));
                 }
             } else {
@@ -237,8 +235,14 @@ impl Builder<'_, '_> {
         let work = inference::type_snapshot_work(ty, span, self.limits)?;
         self.closures.snapshot(work.saturating_mul(3), span)?;
         let evaluated = self.transfer_expr(rhs, Some(ty));
+        let consumed = self.replacement_input.is_none();
         self.replacement_input = previous_input;
         let (value, actual) = evaluated?;
+        // All static specializations, including State/callable helpers, must
+        // consume the selected lexical argument through take_replacement_input.
+        if references && !consumed {
+            return Err(unsupported(rhs.span, "Product replacement did not move its declared self argument"));
+        }
         self.same(&actual, ty, rhs.span)?;
         // This independently checked full value protects all RHS obligations
         // while old fields execute their ordinary declared-order cleanup.

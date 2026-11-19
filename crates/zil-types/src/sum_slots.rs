@@ -103,8 +103,6 @@ impl Builder<'_, '_> {
             if signature.foreign
                 || signature.cleanup
                 || signature.receiver.is_some()
-                || !signature.callable.is_empty()
-                || signature.state_parameter.is_some()
             {
                 return Err(unsupported(
                     rhs.span,

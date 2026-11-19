@@ -109,6 +109,25 @@ fn whole_state_parameters_and_results_keep_original_fnmut_environment() {
     native(&[("main", &source)], b"A", 0);
 }
 
+#[test]
+fn state_self_replacement_transfers_each_owner_and_preserves_live_field_loans() {
+    let definitions = r#"
+extern "C" fn putchar(x:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package State<F>{manages ticket:Ticket;callback:F;hits:i32}
+fn pack<F:FnMut()->i32>(callback:F,code:i32)->State<F>{return State::<F>{ticket:Ticket{code:code},callback:callback,hits:0}}
+fn tick<G:FnMut()->i32>(state:State<G>)->State<G>{var next=state;next.hits+=1;return next}
+fn make(n:i32)->impl FnMut()->i32{let guard=Ticket{code:66};var value=n;return move()=>{value+=1;return value+guard.code-66}}
+"#;
+    let valid = format!("{definitions}fn main()->i32{{var state=pack(make(40),65);state=tick(state);if state.hits!=1{{return 1}};state=tick(state);return state.hits-2}}");
+    native(&[("main", &valid)], b"AB", 0);
+    let conflict = format!("{definitions}fn main()->i32{{var state=pack(make(40),65);let saved=&state.hits;state=tick(state);return *saved}}");
+    let report = check(&[("main", &conflict)]);
+    assert_eq!(report.status, ResultCategory::SafeReject);
+    assert!(report.diagnostics.iter().any(|e| e.code == "E-BORROW-CONFLICT"), "{}", report.to_json());
+}
+
 const OWNED: &str = r#"
 fn owned(n:i32)->impl FnMut()->i32{let guard=Ticket{code:n};var value=n;return move()=>{value+=1;return value+guard.code-n}}
 fn forward(n:i32)->impl FnMut()->i32{return owned(n)}

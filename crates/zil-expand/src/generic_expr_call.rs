@@ -1139,6 +1139,33 @@ impl Engine<'_> {
                         if function.params.len() != actual.len() {
                             return Err(error(e.span, "callable helper arity mismatch"));
                         }
+                        // A helper returning its declared State input type carries the
+                        // caller's actual nominal occurrence. Re-expanding a substituted
+                        // F in the callee's lexical scope loses its defining binder.
+                        let mut state_input = None;
+                        if callable.owned_state && let Some(result) = &function.return_type {
+                            for role in callable.bindings() {
+                                let parameter = &function.params[role.index].ty;
+                                if callable::state_type(parameter, &role.generic_name)
+                                    && callable::state_type(result, &role.generic_name)
+                                    && type_key(parameter, &mut self.budget)?
+                                        == type_key(result, &mut self.budget)?
+                                {
+                                    if state_input.is_some_and(|index| index != role.index) {
+                                        // Multiple formals with this shape supply no
+                                        // unique source occurrence for a type hint.
+                                        state_input = None;
+                                        break;
+                                    }
+                                    state_input = Some(role.index);
+                                }
+                            }
+                        }
+                        let returned_state = state_input.and_then(|index| actual[index].as_ref());
+                        if let Some(input) = returned_state {
+                            self.budget.ty(input)?;
+                        }
+                        let returned_state = returned_state.cloned();
                         if function.generics.iter().any(|p| {
                             !matches!(p.kind, GenericParamKind::Lifetime)
                                 && !callable.contains_generic(&p.name)
@@ -1218,33 +1245,13 @@ impl Engine<'_> {
                                 .collect::<R<Vec<_>>>()?;
                             let instance = self.instantiate(&target, types, e.span)?;
                             callee.kind = ExprKind::Name(instance.clone());
-                            if callable.owned_state
-                                && let (Some(hints), Some(result)) = (&hints, &function.return_type)
-                                && let Some(mut result) =
-                                    hints.symbolic_result(result, &callable, &mut self.budget)?
-                            {
-                                // This retained result still contains the callee's
-                                // unresolved callable binder. Its spelling has no
-                                // meaning in the caller's original lexical Gamma.
-                                let owner =
-                                    function.semantic.raw_index().map(|_| function.semantic);
-                                self.with_nominal_owner(owner, |engine| {
-                                    engine.ty(&mut result, depth + 1)
-                                })?;
+                            if let Some(result) = returned_state {
                                 self.note_single_state_value_result(&result, &callable)?;
                                 return Ok(Some(result));
                             }
                             return self.signature_result(&instance);
                         }
-                        if callable.owned_state
-                            && let (Some(hints), Some(result)) = (&hints, &function.return_type)
-                            && let Some(mut result) =
-                                hints.symbolic_result(result, &callable, &mut self.budget)?
-                        {
-                            let owner = function.semantic.raw_index().map(|_| function.semantic);
-                            self.with_nominal_owner(owner, |engine| {
-                                engine.ty(&mut result, depth + 1)
-                            })?;
+                        if let Some(result) = returned_state {
                             self.note_single_state_value_result(&result, &callable)?;
                             return Ok(Some(result));
                         }
