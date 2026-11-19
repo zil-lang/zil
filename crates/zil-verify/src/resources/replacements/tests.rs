@@ -14,6 +14,34 @@ fn graphs(module: &TypedModule) -> Vec<FunctionGraph> {
         .collect()
 }
 #[test]
+fn completed_actual_routes_keep_the_original_graphs_request_and_depth() {
+    let module = fixture::module();
+    let graphs = graphs(&module);
+    let limits = Limits::default();
+    let mut original = Budget::new(&limits);
+    original.structural = Some(dynamic_metadata::Structure::register(&module, &mut original).unwrap());
+    let completed = actual::CheckedInputs::reconstruct(&module, &graphs, &mut original).unwrap().unwrap();
+
+    let (source, selected, program) = completed.view(&mut original).unwrap();
+    assert!(std::ptr::eq(source, &module));
+    assert!(std::ptr::eq(selected, graphs.as_slice()));
+    assert_eq!(program.functions.len(), module.functions.len());
+
+    let mut foreign = Budget::new(&limits);
+    assert!(completed.view(&mut foreign).is_err());
+    original.limits.max_call_depth -= 1;
+    assert!(completed.view(&mut original).is_err());
+    original.limits.max_call_depth = limits.max_call_depth;
+    let (source, program) = completed.into_program(&mut original).unwrap();
+    assert!(std::ptr::eq(source, &module));
+    assert_eq!(program.functions.len(), module.functions.len());
+
+    let completed = actual::CheckedInputs::reconstruct(&module, &graphs, &mut original).unwrap().unwrap();
+    original.structural = Some(dynamic_metadata::Structure::register(&module, &mut original).unwrap());
+    assert!(completed.view(&mut original).is_err());
+}
+
+#[test]
 fn independent_commit_debt_and_content_keep_incoming_distinct_from_fresh_through_two_calls() {
     for fresh in [false, true] {
         let module = fixture::module_with_relay_and_caller(fresh);

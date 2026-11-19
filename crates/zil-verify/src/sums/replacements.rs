@@ -1221,11 +1221,26 @@ pub(super) fn check(
     graphs: &[FunctionGraph],
     b: &mut Budget,
 ) -> Check<Proofs> {
+    check_with_routes(module, graphs, None, b)
+}
+
+pub(super) fn check_with_routes(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    routes: Option<&actual::Program>,
+    b: &mut Budget,
+) -> Check<Proofs> {
     #[cfg(test)]
     if trace::full() {
         return scheduler_tests::full_scan(module, graphs, b);
     }
-    let actual = actual::Program::reconstruct(module, graphs, b)?;
+    let reconstructed;
+    let actual = if let Some(routes) = routes {
+        routes
+    } else {
+        reconstructed = actual::Program::reconstruct(module, graphs, b)?;
+        &reconstructed
+    };
     b.spend(module.functions.len().saturating_mul(3))?;
     let mut places = Vec::with_capacity(module.functions.len());
     let mut result = Vec::with_capacity(module.functions.len());
@@ -1258,7 +1273,7 @@ pub(super) fn check(
             #[cfg(test)]
             trace::solve(index);
             let context = Context {
-                actual: &actual,
+                actual,
                 places: &places,
                 summaries: &effects,
                 whole_must: &whole_must_rows,
@@ -1321,7 +1336,7 @@ pub(super) fn check(
             Rows::new()
         };
         let context = Context {
-            actual: &actual,
+            actual,
             places: &places,
             summaries: &effects,
             whole_must: &whole_must_rows,

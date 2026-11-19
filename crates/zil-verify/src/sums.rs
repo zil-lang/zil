@@ -3434,6 +3434,14 @@ pub(super) fn test_tagged_invalidation_budget(
     println!("partial Sum indexed invalidation N={low}; N-1 ResourceLimit; fresh N pass");
 }
 
+pub(super) fn check_replacement_inputs(
+    input: &crate::place_replacements::actual::CheckedInputs<'_>,
+    budget: &mut Budget,
+) -> Check<Proofs> {
+    let (module, graphs, routes) = input.view(budget)?;
+    replacements::check_with_routes(module, graphs, Some(routes), budget)
+}
+
 pub(super) fn check_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],

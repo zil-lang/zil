@@ -3561,7 +3561,16 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<()> {
-    let sum_proofs = sums::check_module(module, graphs, budget)?;
+    let checked_inputs = if budget.replacements {
+        crate::place_replacements::actual::CheckedInputs::reconstruct(module, graphs, budget)?
+    } else {
+        None
+    };
+    let sum_proofs = if let Some(input) = &checked_inputs {
+        sums::check_replacement_inputs(input, budget)?
+    } else {
+        sums::check_module(module, graphs, budget)?
+    };
     budget.spend(module.closures.len())?;
     if module.resources.is_empty() && !budget.sums {
         let mut owning_entry = false;
@@ -3594,7 +3603,15 @@ pub(super) fn check_module(
     }
     // Effects are inferred from executable writes and actual description origins,
     // including forwarding and closures. An empty candidate is never authority.
-    let replacements = if budget.replacements {
+    let replacements = if let Some(input) = checked_inputs {
+        Some(replacements::Plan::from_checked_inputs(
+            input,
+            &sum_proofs.replacement_writes,
+            &sum_proofs.replacement_targets,
+            &sum_proofs.retirement_targets,
+            budget,
+        )?)
+    } else if budget.replacements {
         Some(replacements::Plan::new(
             module,
             graphs,

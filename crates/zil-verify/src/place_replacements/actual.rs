@@ -27,6 +27,63 @@ pub(crate) struct Function {
 pub(crate) struct Program {
     pub(crate) functions: Vec<Function>,
 }
+/// Completed may-routes for one borrowed executable module and its original
+/// checked graphs. The resource request borrows these in Sum, then moves the
+/// same routes into its resource plan.
+pub(crate) struct CheckedInputs<'a> {
+    module: &'a TypedModule,
+    graphs: &'a [FunctionGraph],
+    program: Program,
+    scope: std::rc::Rc<()>,
+    max_depth: usize,
+}
+
+impl<'a> CheckedInputs<'a> {
+    pub(crate) fn reconstruct(
+        module: &'a TypedModule,
+        graphs: &'a [FunctionGraph],
+        b: &mut Budget,
+    ) -> Check<Option<Self>> {
+        b.spend(2)?;
+        let Some(scope) = b.structural.as_ref().and_then(|structure| structure.identity_for(module)) else {
+            return Ok(None);
+        };
+        let program = Program::reconstruct(module, graphs, b)?;
+        let headers = std::mem::size_of::<Self>().div_ceil(std::mem::size_of::<usize>());
+        b.spend(headers.saturating_mul(2))?;
+        Ok(Some(Self {
+            module,
+            graphs,
+            program,
+            scope,
+            max_depth: b.limits.max_call_depth,
+        }))
+    }
+
+    fn check_request(&self, b: &mut Budget) -> Check<()> {
+        b.spend(6)?;
+        let same_scope = b.structural.as_ref().and_then(|structure| structure.identity_for(self.module))
+            .is_some_and(|scope| std::rc::Rc::ptr_eq(&scope, &self.scope));
+        if !same_scope || self.max_depth != b.limits.max_call_depth {
+            return Err(fail("actual replacement routes belong to a different request or depth limit"));
+        }
+        Ok(())
+    }
+
+    pub(crate) fn view(&self, b: &mut Budget) -> Check<(&TypedModule, &[FunctionGraph], &Program)> {
+        self.check_request(b)?;
+        b.spend(4)?;
+        Ok((self.module, self.graphs, &self.program))
+    }
+
+    pub(crate) fn into_program(self, b: &mut Budget) -> Check<(&'a TypedModule, Program)> {
+        self.check_request(b)?;
+        let headers = std::mem::size_of::<Program>().div_ceil(std::mem::size_of::<usize>());
+        b.spend(headers.saturating_mul(2).saturating_add(1))?;
+        Ok((self.module, self.program))
+    }
+}
+
 fn fail(text: &str) -> Diagnostic {
     bad(None, text)
 }

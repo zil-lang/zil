@@ -84,6 +84,29 @@ impl Plan {
     ) -> Check<Self> {
         nested_descriptor_boundary(module, b)?;
         let actual = actual::Program::reconstruct(module, graphs, b)?;
+        Self::from_program(module, actual, writes, targets, retirements, b)
+    }
+
+    pub(super) fn from_checked_inputs(
+        input: actual::CheckedInputs<'_>,
+        writes: &[BTreeSet<Root>],
+        targets: &BTreeMap<usize, Vec<actual::Target>>,
+        retirements: &BTreeMap<usize, Vec<actual::Target>>,
+        b: &mut Budget,
+    ) -> Check<Self> {
+        let (module, actual) = input.into_program(b)?;
+        nested_descriptor_boundary(module, b)?;
+        Self::from_program(module, actual, writes, targets, retirements, b)
+    }
+
+    fn from_program(
+        module: &TypedModule,
+        actual: actual::Program,
+        writes: &[BTreeSet<Root>],
+        targets: &BTreeMap<usize, Vec<actual::Target>>,
+        retirements: &BTreeMap<usize, Vec<actual::Target>>,
+        b: &mut Budget,
+    ) -> Check<Self> {
         b.spend(module.functions.len().saturating_add(writes.len()))?;
         let mut inventories = Vec::with_capacity(module.functions.len());
         for f in &module.functions {
