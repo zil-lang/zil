@@ -51,6 +51,9 @@ fn typed(source: &str) -> zil_ir::TypedModule {
     typed_project(project(source))
 }
 fn typed_project(p: ProjectSources) -> zil_ir::TypedModule {
+    typed_inputs(p, false)
+}
+fn typed_inputs(p: ProjectSources, full_semantics: bool) -> zil_ir::TypedModule {
     let asts = p
         .modules
         .iter()
@@ -79,7 +82,12 @@ fn typed_project(p: ProjectSources) -> zil_ir::TypedModule {
         })
         .collect::<Vec<_>>();
     let limits = work_profile_support::limits();
-    let expanded = zil_expand::expand_program_with_limits_target_context(
+    let expand = if full_semantics {
+        zil_expand::expand_program_with_semantics
+    } else {
+        zil_expand::expand_program_with_limits_target_context
+    };
+    let expanded = expand(
         &p.modules,
         &asts.iter().collect::<Vec<_>>(),
         &imports,
@@ -110,7 +118,14 @@ fn typed_project(p: ProjectSources) -> zil_ir::TypedModule {
     typed
 }
 fn raw(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let typed = typed(source);
+    verify_typed(source, typed(source))
+}
+fn raw_with_semantics(source: &str) {
+    let typed = typed_inputs(project(source), true);
+    assert!(typed.semantic.is_some());
+    verify_typed(source, typed);
+}
+fn verify_typed(source: &str, typed: zil_ir::TypedModule) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let limits = work_profile_support::limits();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     if let Err(errors) =
@@ -255,10 +270,42 @@ fn associated_owning_items_reach_borrowed_and_owning_callback_consumers() {
         ("owned-callback", OWNED_CALLBACK, b"BA".as_slice()),
         ("owned-fold", OWNED_FOLD, b"BAZ".as_slice()),
     ] {
-        raw(source);
+        raw_with_semantics(source);
         native(label, source, stdout, false);
     }
 }
+#[test]
+fn lending_an_associated_item_uses_the_actual_store_field() {
+    let reordered = BORROWED
+        .replace("manages values:Store<Item>; index:i64", "index:i64; manages values:Store<Item>")
+        .replace("Cursor{values:give values,index:0}", "Cursor{index:0,values:give values}");
+    assert_ne!(reordered, BORROWED);
+    raw_with_semantics(&reordered);
+    native("borrowed-reordered", &reordered, b"AB", false);
+}
+
+#[test]
+fn a_lent_item_pins_only_the_cursor_that_supplied_its_store() {
+    let (definitions, main) = BORROWED.split_once("fn main()").unwrap();
+    let setup = main.split_once("    var total:i32=0").unwrap().0;
+    let valid = format!("{definitions}
+fn get<I:iter.LendingIterator,life a>(cursor:&'a mut I)->Option<&'a I.Item>{{return cursor.next()}}
+fn main(){setup}
+    let extra:Store<Item>=store_new()
+    var other=Cursor{{values:give extra,index:0}}
+    match get(&mut cursor){{
+        Option.Some(first)=>{{other.index+=1;return first.value-10}},
+        Option.None()=>{{return 1}}
+    }}
+}}");
+    raw_with_semantics(&valid);
+    let conflicting = valid.replace("other.index+=1", "cursor.index+=1");
+    let rejected = compile_project(&project(&conflicting), &CompileOptions::default());
+    assert_eq!(rejected.status, ResultCategory::SafeReject);
+    assert!(rejected.diagnostics.iter().any(|error| error.code == "E-BORROW-CONFLICT"),
+        "{}", rejected.to_json());
+}
+
 #[test]
 fn independent_structural_and_nominal_premises_retain_store_lending_sources() {
     raw(STORE_LENDING);

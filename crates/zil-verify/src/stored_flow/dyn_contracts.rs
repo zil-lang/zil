@@ -612,6 +612,67 @@ fn variable_outer(
         }))
 }
 
+// Store allocation boundaries keep separate physical projection domains.
+fn store_owner_endpoint<'t>(
+    parameters: &'t [DynTypeValue],
+    actual: &Source,
+    b: &mut Budget,
+) -> Check<(u32, bool, &'t Type)> {
+    let HoldRoot::Parameter(index) = actual.base else {
+        return Err(bad("Store source retains a non-parameter manager"));
+    };
+    if !actual.leaf.is_empty() || actual.retained_port.is_some() {
+        return Err(bad("Store source is rooted in an external borrowed leaf"));
+    }
+    let parameter = parameters.get(index as usize)
+        .ok_or_else(|| bad("Store source parameter is absent"))?;
+    let Type::Address { mutable, inner: root } = &parameter.ty else {
+        return Err(bad("Store source requires a borrowed owner"));
+    };
+    let header = crate::dynamic_ports::physical_path(root, &actual.inline, b)?;
+    let Type::Managed(payload) = header else {
+        return Err(bad("Store source crosses an unowned header"));
+    };
+    let Type::OwnedStore { element } = payload.as_ref() else {
+        return Err(bad("Store source selects a different manager"));
+    };
+    Ok((index, *mutable, nested_store_endpoint(element, actual, b)?))
+}
+
+fn store_result_upper(
+    parameters: &[DynTypeValue],
+    actual: &Source,
+    upper: &[StorageSource],
+    output: &Type,
+    b: &mut Budget,
+) -> Check<()> {
+    let (index, input_mut, target) = store_owner_endpoint(parameters, actual, b)?;
+    let Type::Address { mutable, inner } = output else {
+        return Err(bad("Store result requires a borrowed payload"));
+    };
+    dynamic_metadata::ty(target, b)?;
+    if target != inner.as_ref() || (*mutable && !input_mut) {
+        return Err(bad(
+            "Store result changes the borrowed payload type or mode",
+        ));
+    }
+    let mode = if *mutable {
+        StoredBorrowMode::ExclusiveAddress
+    } else {
+        StoredBorrowMode::SharedAddress
+    };
+    for atom in upper {
+        dynamic_metadata::source(atom, b)?;
+        if matches!(atom, StorageSource::OwnedView { head, leaf, mode: allowed }
+            if head.base == StorageBase::Parameter(index) && head.path.is_empty()
+            && leaf == output && *allowed == mode)
+        {
+            return Ok(());
+        }
+    }
+    Err(bad("Store result exceeds its original owning-view upper"))
+}
+
 fn source_upper(
     module: &TypedModule,
     request: &ContractRequest,
@@ -620,6 +681,10 @@ fn source_upper(
     result_path: &[PlaceProjection],
     b: &mut Budget,
 ) -> Check<()> {
+    if actual.heap_element.is_some() && matches!(request.origin, Origin::Definition { .. }) {
+        let output = crate::dynamic_ports::physical_path(&request.result.ty, result_path, b)?;
+        return store_result_upper(&request.parameters, actual, upper, output, b);
+    }
     let position = position(request, module, actual, b)?;
     if actual.base != HoldRoot::Static && position.is_none() {
         return Err(bad("contract result retains activation-local storage"));
@@ -1252,8 +1317,23 @@ fn contract(
         }
     }
     for (source, writing) in &summary.dyn_accesses {
-        let Some(actual) = position(request, module, source, b)? else {
-            continue;
+        let actual = if matches!(request.origin, Origin::Definition { .. })
+            && matches!(source.base, HoldRoot::Parameter(_)) && source.heap_element.is_some()
+        {
+            // Check the complete path first. An access through an owning
+            // Store counts against its exact manager's declared access.
+            let (parameter, mutable, _) = store_owner_endpoint(&request.parameters, source, b)?;
+            if *writing && !mutable {
+                return Err(bad("Store access writes through a shared owner"));
+            }
+            b.spend(source.inline.len())?;
+            StoragePosition {
+                base: StorageBase::Parameter(parameter),
+                path: source.inline.iter().copied().map(ContractProjection::Place).collect(),
+            }
+        } else {
+            let Some(actual) = position(request, module, source, b)? else { continue };
+            actual
         };
         let upper = if *writing {
             &access.writes
@@ -1430,6 +1510,37 @@ mod source_upper_tests {
             static_dependency: StaticProvenance::NotStatic,
         }
     }
+    #[test]
+    fn owning_view_follows_the_selected_manager_and_keeps_the_actual_parameter() {
+        let limits = Limits::default();
+        let mut b = Budget::new(&limits);
+        let manager = Type::Managed(Box::new(Type::OwnedStore { element: Box::new(Type::I32) }));
+        let parameter = DynTypeValue {
+            ty: Type::Address { mutable: true, inner: Box::new(Type::Tuple(vec![Type::I64, manager])) },
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![StorageLifeSlot { binder: 0, path: vec![], mode: StoredBorrowMode::ExclusiveAddress }],
+                retained: vec![], nominal_arguments: vec![],
+            },
+            classes: vec![StorageBinder::Invocation(0)],
+        };
+        let parameters = vec![parameter.clone(), parameter];
+        let output = Type::Address { mutable: false, inner: Box::new(Type::I32) };
+        let upper = [StorageSource::OwnedView {
+            head: StoragePosition { base: StorageBase::Parameter(0), path: vec![] },
+            leaf: output.clone(), mode: StoredBorrowMode::SharedAddress,
+        }];
+        let mut actual = Source {
+            leaf: vec![], inline: vec![PlaceProjection::Field(1)], heap_element: Some(vec![]), ..source()
+        };
+        store_result_upper(&parameters, &actual, &upper, &output, &mut b).unwrap();
+        actual.base = HoldRoot::Parameter(1);
+        assert!(store_result_upper(&parameters, &actual, &upper, &output, &mut b).is_err());
+        actual.base = HoldRoot::Parameter(0);
+        actual.inline = vec![PlaceProjection::Field(0)];
+        assert!(store_result_upper(&parameters, &actual, &upper, &output, &mut b).is_err());
+    }
+
     #[test]
     fn static_alternative_cannot_ground_an_actual_target_or_replace_its_exact_port() {
         let limits = Limits::default();

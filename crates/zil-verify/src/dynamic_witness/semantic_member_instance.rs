@@ -174,7 +174,7 @@ pub(crate) fn build_requests(
         let original=original_recipe(module,owner,b)?;
         dynamic_metadata::recipe(original,b)?;dynamic_metadata::recipe(recipe,b)?;
         if original.contract!=*recipe{return Err(bad("definition contract differs from its exact original signature"));}
-        contracts::defaults::instantiate_definition(module,owner,original,&mut resolved,&receiver,domain.scope,b)?;
+        contracts::defaults::instantiate_definition(module,owner,original,&mut resolved,&receiver,&sources,domain.scope,b)?;
         let borrows=input_borrow_sources(signature,&mut domain,b)?;
         let(expected_header,embedding)=resolved.function(module,function,&sources,&borrows,b)?;
         let leaves=inventory::self_leaves(module,&receiver,domain.scope,b)?;

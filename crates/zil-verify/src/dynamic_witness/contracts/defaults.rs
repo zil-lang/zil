@@ -119,7 +119,7 @@ fn push_source(sources:&mut Vec<StorageSource>,source:&StorageSource,b:&mut Budg
 /// Instantiate a certified default over the real concrete Self directory.
 /// This is a declaration upper only: actual sources, parents, after-state,
 /// cleanup and effects still require the independent executable CFG consumer.
-pub(in crate::dynamic_witness) fn instantiate_definition(module:&TypedModule,owner:&SemanticDynOwner,recipe:&DynSignatureRecipe,signature:&mut signatures::Resolved,receiver:&terms::Value,scope:DynInstantiationScope,b:&mut Budget)->Check<()>{
+pub(in crate::dynamic_witness) fn instantiate_definition(module:&TypedModule,owner:&SemanticDynOwner,recipe:&DynSignatureRecipe,signature:&mut signatures::Resolved,receiver:&terms::Value,result_sources:&[(terms::LifeTerm,terms::LifeTerm)],scope:DynInstantiationScope,b:&mut Budget)->Check<()>{
     if !canonical(module,owner,recipe,b)?{return Ok(());}
     let Some(head_value)=signature.parameters.first()else{return Err(bad("default definition lacks its original receiver"));};
     let mutable=match head_value.ty{Type::Address{mutable,..}=>mutable,_=>return Ok(())};
@@ -128,6 +128,104 @@ pub(in crate::dynamic_witness) fn instantiate_definition(module:&TypedModule,own
     let mut arguments=Vec::new();
     for(index,value)in signature.parameters.iter().enumerate().skip(1){for mut leaf in inventory::self_leaves(module,value,scope,b)?{leaf.source.base=StorageBase::Parameter(index as u32);b.spend(1)?;arguments.push(leaf);}}
     let result=if matches!(signature.result.ty,Type::Address{..})&&!signature.result.life.slots.is_empty(){inventory::self_leaves(module,&signature.result,scope,b)?.into_iter().find(|leaf|leaf.source.path.is_empty())}else{None};
+    // A value result can contain a physical address, for example in one arm
+    // of a sum. Instantiate the default at its complete result position.
+    if !signature.result.life.slots.is_empty()
+        && !matches!(signature.result.ty, Type::Address { .. })
+    {
+        let head_outer = head_value
+            .life
+            .slots
+            .iter()
+            .find(|row| row.path.is_empty())
+            .map(|slot| head_value.term(slot.binder, b))
+            .transpose()?
+            .map(|term| requests::Borrow::Variable {
+                binder: term.image,
+                origin: headers::symbol(term),
+            });
+        for output in inventory::self_leaves(module, &signature.result, scope, b)? {
+            let requests::LeafKind::Physical { outer, mode } = &output.kind else {
+                continue;
+            };
+            if output.source.path.is_empty() {
+                continue;
+            }
+            let mut outside = *outer;
+            if let requests::Borrow::Variable { binder, origin } = outer {
+                // Nominal constructors introduce a fresh result class. Its
+                // checked original substitution identifies the outside loan.
+                b.spend(result_sources.len())?;
+                if let Some((_, term)) = result_sources
+                    .iter()
+                    .find(|(fresh, _)| fresh.image == *binder && headers::symbol(*fresh) == *origin)
+                {
+                    outside = requests::Borrow::Variable {
+                        binder: term.image,
+                        origin: headers::symbol(*term),
+                    };
+                }
+            }
+            let mut sources = Vec::new();
+            if matches!(
+                mode,
+                StoredBorrowMode::SharedAddress | StoredBorrowMode::ReadOnlyDescription
+            ) {
+                push_source(
+                    &mut sources,
+                    &StorageSource::Static {
+                        leaf: output.ty.clone(),
+                        mode: *mode,
+                    },
+                    b,
+                )?;
+            }
+            if let requests::Borrow::Variable { .. } = outer {
+                let through_receiver = Some(outside) == head_outer
+                    && (mutable || !matches!(mode, StoredBorrowMode::ExclusiveAddress | StoredBorrowMode::WritableDescription));
+                if through_receiver {
+                    push_source(
+                        &mut sources,
+                        &StorageSource::OwnedView {
+                            head: head(0),
+                            leaf: output.ty.clone(),
+                            mode: *mode,
+                        },
+                        b,
+                    )?;
+                }
+                for input in &leaves {
+                    if !inner_matches(input, &output, b)? {
+                        continue;
+                    }
+                    let mut source = input.source.clone();
+                    source.base = StorageBase::Parameter(0);
+                    if input.ty == output.ty && borrow(input) == Some((&outside, *mode)) {
+                        push_source(&mut sources, &StorageSource::Exact(source.clone()), b)?;
+                    }
+                    if through_receiver {
+                        push_source(&mut sources, &StorageSource::ReborrowedLeaf { source, head: head(0) }, b)?;
+                    }
+                }
+                for input in &arguments {
+                    if inner_matches(input, &output, b)?
+                        && input.ty == output.ty && borrow(input) == Some((&outside, *mode))
+                    {
+                        push_source(&mut sources, &StorageSource::Exact(input.source.clone()), b)?;
+                    }
+                }
+            }
+            signature
+                .contract
+                .guarantees
+                .as_mut()
+                .ok_or_else(|| bad("default definition guarantees disappeared"))?
+                .push(DynGuarantee::StorageSources(StorageSourceBinding {
+                    position: output.source,
+                    sources,
+                }));
+        }
+    }
     let short=result.as_ref().is_some_and(|result|matches!(borrow(result),Some((requests::Borrow::Variable{binder,..},_))if Some(*binder)==head_binder));
     let c=&mut signature.contract;
     for leaf in &leaves{
