@@ -221,10 +221,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
         };
         if *stored {
             if !stored_callables::finite(module, definition.id) {
-                return Err(unsupported(
-                    "mixed stored closure has no complete actual entry consumer",
-                    None,
-                ));
+                return Ok(None);
             }
             stored_callables::captured_profile(module, definition, budget)?;
         }
@@ -234,29 +231,20 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
         budget.spend(table.entries.len().saturating_add(1))?;
         for entry in table.entries.iter().chain(table.cleanup.iter()) {
             if mask.get(entry.function.0 as usize).copied().unwrap_or(true) {
-                return Err(unsupported(
-                    "mixed stored domain cannot contain a dynamic entry",
-                    None,
-                ));
+                return Ok(None);
             }
         }
     }
     for resource in &module.resources {
         budget.spend(1)?;
         if stored_type(module, &resource.payload, budget)? {
-            return Err(unsupported(
-                "mixed stored domain cannot contain resource payload",
-                None,
-            ));
+            return Ok(None);
         }
         if resource
             .teardown
             .is_some_and(|id| mask.get(id.0 as usize).copied().unwrap_or(true))
         {
-            return Err(unsupported(
-                "mixed stored domain cannot contain resource teardown",
-                None,
-            ));
+            return Ok(None);
         }
     }
     // This first mixed slice has no stored-domain owned carrier or closure.
@@ -271,10 +259,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                 forbidden |= forbidden_stored_type(module, ty, budget)?;
             }
             if forbidden {
-                return Err(unsupported(
-                    "mixed stored domain requires scalar holder bodies without owned carriers or closures",
-                    Some(f.span),
-                ));
+                return Ok(None);
             }
         }
         for block in &f.blocks {
@@ -305,12 +290,16 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                     continue;
                 }
                 let InstructionKind::Call { arguments, .. } = &i.kind else {
-                    return Err(unsupported(
-                        "mixed stored/ordinary non-call function edge",
-                        Some(i.span),
-                    ));
+                    return Ok(None);
                 };
                 budget.spend(arguments.len().saturating_add(2))?;
+                if other.call_kind != CallKind::Direct {
+                    return Err(reject(
+                        "E-VERIFY-CALL",
+                        Some(i.span),
+                        "mixed stored/ordinary edge uses a direct Call for a non-Direct function",
+                    ));
+                }
                 if !pure_boundary(other)
                     || arguments.len() != other.parameters.len()
                     || arguments
@@ -319,10 +308,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                     || i.result.and_then(|id| f.values.get(id.0 as usize))
                         != Some(&other.return_type)
                 {
-                    return Err(unsupported(
-                        "mixed stored/ordinary edge requires actual direct pure scalar signature and operands",
-                        Some(i.span),
-                    ));
+                    return Ok(None);
                 }
             }
             for i in &block.instructions {
@@ -348,10 +334,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                         .get(target.0 as usize)
                         .is_none_or(|stored| *stored != mask[index])
                     {
-                        return Err(unsupported(
-                            "mixed stored/ordinary callback edge",
-                            Some(i.span),
-                        ));
+                        return Ok(None);
                     }
                 }
             }

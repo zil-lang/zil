@@ -578,6 +578,7 @@ struct Budget {
     // Raw actual Task plus callback-header inventory schedules the complete
     // SSA solver; neither a zero header nor this bit supplies any capability.
     task_scope_composition: bool,
+    full_stored_task_flow: bool,
     store_option_results: bool,
     // Derived only from the bounded raw tree: direct Managed elements or a
     // Store header below another Store's actual element. No candidate flag.
@@ -619,6 +620,12 @@ impl Budget {
     fn store_descriptions(&self) -> bool {
         self.nested_store_windows || self.returned_environment_sources && self.actual_store_types
     }
+    // Select the Task-aware stored transfer over actual instructions. Ordinary
+    // loan and resource passes retain their own independent source conditions.
+    fn stored_task_flow(&self) -> bool {
+        self.full_stored_task_flow || self.task_sources()
+    }
+
     fn task_sources(&self) -> bool {
         self.raw_reference_cells
             || self.task_borrowed_results
@@ -706,6 +713,7 @@ impl Budget {
             task_borrowed_results: false,
             task_retained_environments: false,
             task_scope_composition: false,
+            full_stored_task_flow: false,
             store_option_results: false,
             nested_store_windows: false,
             actual_store_types: false,
@@ -1554,7 +1562,9 @@ fn check_module_budget(
             && !budget.task_sources()
             && (budget.tasks || budget.registrations)
         {
-            stored_partition::mixed(module, &mut budget)?
+            let partition = stored_partition::mixed(module, &mut budget)?;
+            budget.full_stored_task_flow = partition.is_none() && budget.tasks;
+            partition
         } else {
             None
         };

@@ -1700,7 +1700,7 @@ mod option_root_tests {
             let f = &module.functions[0];
             let limits = Limits::default();
             let mut b = Budget::new(&limits);
-            assert!(!b.task_sources());
+            assert!(!b.stored_task_flow());
             let current = Permission {
                 sources: vec![source(input, vec![])],
                 loans: vec![0],

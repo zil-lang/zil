@@ -178,7 +178,7 @@ fn port_path(places: &[PlaceProjection], port: u32) -> Vec<ContractProjection> {
     out
 }
 pub(super) fn work(p: &Payload, b: &mut Budget) -> Check<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     b.spend(p.task_ports.len())?;
@@ -207,7 +207,7 @@ pub(super) fn insert(
     }
 }
 pub(super) fn join(out: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(false);
     }
     let mut changed = false;
@@ -224,7 +224,7 @@ pub(super) fn seed(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     for (carrier, port, mode) in carriers::paths(module, ty, b)? {
@@ -269,7 +269,7 @@ pub(super) fn create_environment(
     out: &mut Payload,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     b.spend(captures.len())?;
@@ -344,7 +344,7 @@ pub(super) fn environment_task_leaf(
     let Type::Task { retained_life, .. } = endpoint else {
         return Ok(false);
     };
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Err(err(
             "opaque Task environment leaf has no actual Task consumer",
         ));
@@ -593,7 +593,7 @@ pub(super) fn call(
     out: &mut Payload,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     for (path, sources) in &summary.task_ports {
@@ -779,7 +779,7 @@ pub(super) fn summarize(
     summary: &mut Summary,
     b: &mut Budget,
 ) -> Check<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     for (mut path, port, _) in carriers::paths(module, &f.return_type, b)? {
@@ -835,7 +835,7 @@ pub(super) fn transfer(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> Check<Option<Payload>> {
-    if !b.task_sources() || !operation(&i.kind) {
+    if !b.stored_task_flow() || !operation(&i.kind) {
         return Ok(None);
     }
     let get = |id: ValueId| {

@@ -164,6 +164,7 @@ fn analyze_budgeted_context(
     budget.stored_synchronous_abis.clear();
     budget.stored_task_frame_functions.clear();
     budget.stored_task_frame_pending = false;
+    budget.full_stored_task_flow = false;
     // The common incremental/reuse entry cannot bypass the public raw entry's
     // semantic-program gate. No partial ghost model enters fingerprinting.
     match context {
@@ -325,20 +326,21 @@ fn analyze_budgeted_context(
                 module, &hold_graphs, stored_flow::ResourcePass::Joint, budget,
             )?);
         } else if ordinary_required && !synchronous_callbacks {
-            let members = composition::partition(module, budget)?;
-            if !members.iter().any(|member| *member) || !members.iter().any(|member| !*member) {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "stored/ordinary composition has no separate actual function domains",
-                    None,
-                )]);
+            // The separate ledgers are a work selection for the scalar case.
+            // Other actual interfaces require the complete module and both ledgers.
+            budget.composition_stored = composition::partition(module, budget)?.unwrap_or_default();
+            if budget.composition_stored.is_empty() && budget.tasks {
+                // Complete stored target analysis needs actual Task operations in the
+                // same CFG. Frame identity and each input mapping remain mandatory.
+                tasks::check(module, budget)?;
+                budget.full_stored_task_flow = true;
             }
-            budget.composition_stored = members;
-            // Both solvers see the original module and CFG. The membership
-            // mask only selects which function each solver is authorized to
-            // prove; it never changes an ID, declaration, or contract.
+            if budget.composition_stored.is_empty() && !module.closures.is_empty() {
+                stored_callables::definitions(module, budget)?;
+                helpers::check(module, budget)?;
+            }
             for (index, function) in module.functions.iter().enumerate() {
-                if budget.composition_stored[index] {
+                if budget.composition_stored.is_empty() || budget.composition_stored[index] {
                     stored_flow::header(module, function, budget)?;
                 }
             }

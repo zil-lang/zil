@@ -1,4 +1,5 @@
-//! Actual function ownership for the finite stored/ordinary scalar seam.
+//! Select the separate ledgers only when their actual interfaces have no
+//! target or resource transport. Every other interface needs the complete CFG.
 use super::*;
 
 fn contains_stored(root: &Type, b: &mut Budget) -> CompileResult<bool> {
@@ -53,7 +54,7 @@ fn contains_stored(root: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(false)
 }
 
-pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<Vec<bool>> {
+pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<Option<Vec<bool>>> {
     b.spend(module.functions.len(), "composition function ownership")?;
     let mut stored = vec![false; module.functions.len()];
     for (index, f) in module.functions.iter().enumerate() {
@@ -104,11 +105,7 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
             .get(closure.function.0 as usize)
             .ok_or_else(|| bad("composition closure entry absent"))?;
         if member || entry {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "stored/ordinary composition does not transfer stored callback environments",
-                None,
-            )]);
+            return Ok(None);
         }
     }
     for (index, f) in module.functions.iter().enumerate() {
@@ -128,11 +125,7 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
                             | InstructionKind::CallDynSlot { .. }
                     )
                 {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "stored/ordinary composition requires direct stored-domain calls",
-                        Some(i.span),
-                    )]);
+                    return Ok(None);
                 }
                 let indirect_targets = match &i.kind {
                     InstructionKind::FunctionRef { function }
@@ -181,11 +174,7 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
                         .get(target.0 as usize)
                         .ok_or_else(|| bad("composition referenced function absent"))?;
                     if stored[index] || *member != stored[index] {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "stored/ordinary composition cannot put an indirect function edge in the stored domain or across domains",
-                            Some(i.span),
-                        )]);
+                        return Ok(None);
                     }
                 }
                 let InstructionKind::Call {
@@ -227,11 +216,7 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
                     && f.values.get(arguments[0].0 as usize) == Some(&Type::I32)
                     && i.result.and_then(|v| f.values.get(v.0 as usize)) == Some(&Type::I32);
                 if !scalar {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "stored/ordinary composition requires an actual direct i32 -> i32 boundary",
-                        Some(i.span),
-                    )]);
+                    return Ok(None);
                 }
             }
         }
@@ -250,34 +235,26 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
                 .get(entry.function.0 as usize)
                 .ok_or_else(|| bad("composition dynamic entry absent"))?
             {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "stored/ordinary composition cannot transfer a dynamic entry",
-                    None,
-                )]);
+                return Ok(None);
             }
         }
     }
     for resource in &module.resources {
         b.spend(1, "composition teardown edge")?;
         if contains_stored(&resource.payload, b)? {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "stored/ordinary composition cannot carry a stored resource payload",
-                None,
-            )]);
+            return Ok(None);
         }
         if let Some(id) = resource.teardown
             && *stored
                 .get(id.0 as usize)
                 .ok_or_else(|| bad("composition resource teardown absent"))?
         {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "stored/ordinary composition cannot transfer a resource teardown",
-                None,
-            )]);
+            return Ok(None);
         }
     }
-    Ok(stored)
+    if stored.iter().any(|member| *member) && stored.iter().any(|member| !*member) {
+        Ok(Some(stored))
+    } else {
+        Ok(None)
+    }
 }

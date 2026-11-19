@@ -239,6 +239,7 @@ pub(super) struct Budget {
     pub(super) guard_return_sources: Vec<BTreeSet<u32>>,
     pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
+    pub(super) full_stored_task_flow: bool,
     // Derived only by the complete paid raw-type preflight, never producer metadata.
     pub(super) task_origin_roots: bool,
     pub(super) borrowed_task_ports: bool,
@@ -322,6 +323,12 @@ pub(super) struct Budget {
 }
 
 impl Budget {
+    // Select the Task-aware stored transfer over actual instructions. Ordinary
+    // loan and resource passes retain their own independent source conditions.
+    pub(super) fn stored_task_flow(&self) -> bool {
+        self.full_stored_task_flow || self.task_sources()
+    }
+
     pub(super) fn task_sources(&self) -> bool {
         self.task_borrowed_results || self.task_failure_carriers || self.task_retained_environments
             // Actual nonempty capture/source relations schedule the full
@@ -437,6 +444,7 @@ impl Budget {
             guard_return_sources: Vec::new(),
             borrowed_function_pointers: false,
             tasks: false,
+            full_stored_task_flow: false,
             task_origin_roots: false,
             borrowed_task_ports: false,
             invocation_callbacks: false,

@@ -516,7 +516,7 @@ impl Variants {
         self.domain != 0 || !self.nested.is_empty()
     }
     pub(super) fn grounded(&self, ty: &Type, b: &mut Budget) -> Check<bool> {
-        if b.task_sources(){return self.full_grounded(ty,0,b);}
+        if b.stored_task_flow(){return self.full_grounded(ty,0,b);}
         b.spend(1)?;
         if !self.present() || self.constructed.is_empty()&&self.inputs.is_empty(){return Ok(false);}
         match ty {

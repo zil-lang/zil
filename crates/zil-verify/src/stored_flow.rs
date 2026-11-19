@@ -1891,7 +1891,7 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
 /// has the real Address origin and loan. This predicate concerns only the
 /// pointee: it never makes the owner Copy or discharges its cleanup debt.
 fn ordinary_task_enum(module: &TypedModule, root: &Type, b: &mut Budget) -> Check<bool> {
-    if !b.task_sources() || !matches!(root, Type::Enum { .. }) { return Ok(false); }
+    if !b.stored_task_flow() || !matches!(root, Type::Enum { .. }) { return Ok(false); }
     let mut todo = vec![root];
     let mut owning = false;
     while let Some(ty) = todo.pop() {
@@ -1933,7 +1933,7 @@ fn ordinary_task_enum(module: &TypedModule, root: &Type, b: &mut Budget) -> Chec
 }
 
 fn ordinary_enum_operation(module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check<bool> {
-    if !b.task_sources() { return Ok(false); }
+    if !b.stored_task_flow() { return Ok(false); }
     let root = match &i.kind {
         InstructionKind::MakeVariant { .. } => i.result.and_then(|id| f.values.get(id.0 as usize)),
         InstructionKind::DropEnum { local } | InstructionKind::UnpackVariant { local, .. }
@@ -2052,7 +2052,7 @@ pub(super) fn qualifications(
                 let owned_operation = !ordinary_store_operation
                     && !task_capture_operation
                     && !owned_byte_views::owner_instruction(module, f, i, b)?
-                    && !(b.task_sources() && task_address::owner_instruction(f, &i.kind))
+                    && !(b.stored_task_flow() && task_address::owner_instruction(f, &i.kind))
                     && super::stored_owned::operation(module, f, i, b)?;
                 if !ordinary_store_operation
                     && !super::class_flow::pointer_instruction(f, i)
@@ -2072,9 +2072,9 @@ pub(super) fn qualifications(
                     && !owned_byte_views::instruction(module, f, i, b)?
                     && !owned_byte_views::description_instruction(module, f, i, b)?
                     && byte_queries::query(&i.kind).is_none()
-                    && !(b.task_sources() && task_address::operation(&i.kind))
+                    && !(b.stored_task_flow() && task_address::operation(&i.kind))
                     && !failure_unpack(f, i, b)?
-                    && !(b.task_sources()
+                    && !(b.stored_task_flow()
                         && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
                     && !crate::tasks::input_scope::registration_operation(f, i, b)?
                     && !failure_tuple_drop(f, i, b)?
@@ -2184,7 +2184,7 @@ pub(super) fn qualifications(
                     && !anonymous_tuple::operation(f, i, b)?
                     && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
-                    && !(b.task_sources() && task_address::wrapper_instruction(f, i, b)?)
+                    && !(b.stored_task_flow() && task_address::wrapper_instruction(f, i, b)?)
                     && !dyn_ports::wrapper(module, f, i, b)?
                     && !dyn_closed::wrapper(module, f, i, b)?
                 {
@@ -3268,7 +3268,7 @@ fn seed_pointee(
             ));
         }
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         let input = match base {
             HoldRoot::Parameter(index) => option_address::Input::Parameter(index),
             HoldRoot::Capture(index) => option_address::Input::Capture(index),
@@ -3351,7 +3351,7 @@ fn seed(
                 p.option_variants = option_address::Variants::parameter(position as u32, b)?;
             }
         }
-        if b.task_sources() {
+        if b.stored_task_flow() {
             p.enum_variants = enum_address::Variants::full_parameter(position as u32, ty, b)?;
         }
         dyn_ports::seed(
@@ -3403,7 +3403,7 @@ fn seed(
             let base = HoldRoot::Capture(index as u32);
             let mut payload = seed_payload(module, ty, base, loans, b)?;
             value_transport::seed_capture(module, ty, index as u32, &mut payload, b)?;
-            if b.task_sources() {
+            if b.stored_task_flow() {
                 payload.enum_variants = enum_address::Variants::full_input(
                     option_address::Input::Capture(index as u32),
                     ty,
@@ -4169,7 +4169,7 @@ fn step(
         dyn_captures::prepare_after(module, f, i, state, values, summaries, dyn_sites, loans, b)?;
     let task_tags = enum_address::tags::transfer(f, i, state, values, b)?;
     let mut unpacked_tags = Vec::new();
-    if b.task_sources()
+    if b.stored_task_flow()
         && let InstructionKind::UnpackTuple { local, fields } = &i.kind
     {
         b.spend(fields.len())?;
@@ -4227,7 +4227,7 @@ fn step(
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
         InstructionKind::UnpackTuple { local, fields }
-            if b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
+            if b.stored_task_flow() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
                 b.spend(fields.len().saturating_add(1))?;
                 state.locals[local.0 as usize] = Payload::default();
                 for field in fields { state.locals[field.0 as usize] = Payload::default(); }
@@ -4679,7 +4679,7 @@ static_dependency: StaticProvenance::NotStatic,
         }
         InstructionKind::MakeClosure { closure, captures } if b.returned_environment_sources => {
             returned_environment::create(module, *closure, captures, values, state, &mut out, b)?;
-            if b.task_sources() { task_address::create_environment(captures,values,&mut out,b)?; }
+            if b.stored_task_flow() { task_address::create_environment(captures,values,&mut out,b)?; }
         }
         InstructionKind::MakeClosure { closure, captures }
             if module
@@ -4719,7 +4719,7 @@ static_dependency: StaticProvenance::NotStatic,
                     }
                 }
             }
-            if b.task_sources() { task_address::create_environment(captures,values,&mut out,b)?; }
+            if b.stored_task_flow() { task_address::create_environment(captures,values,&mut out,b)?; }
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
@@ -4732,7 +4732,7 @@ static_dependency: StaticProvenance::NotStatic,
                 heap_parents: Vec::new(),
                 heap_element: None,
             });
-            if b.task_sources() {
+            if b.stored_task_flow() {
                 task_address::join(&mut out, &state.locals[local.0 as usize], b)?;
             }
             if qualified(&f.locals[local.0 as usize].ty).is_some()
@@ -5958,7 +5958,7 @@ fn live_loans(
         if b.store_descriptions() || !payload.store_description.loans.is_empty() {
             loans.add(&payload.store_description.loans, b)?;
         }
-        if b.task_sources() {
+        if b.stored_task_flow() {
             for (_, p) in &payload.task_ports {
                 loans.add(&p.loans, b)?;
             }
@@ -6001,7 +6001,7 @@ fn live_loans(
             loans.add(&permission.loans, b)
         })?;
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         // The actual frame retains its inputs until its owning carrier moves
         // or is discharged; dead SSA uses of a head do not discharge a frame.
         b.spend(state.locals.len())?;
@@ -6079,7 +6079,7 @@ fn live_loans_main_fullscan(
         if b.store_descriptions() || !payload.store_description.loans.is_empty() {
             add_loans_by_scan(&mut loans, &payload.store_description.loans, b)?;
         }
-        if b.task_sources() {
+        if b.stored_task_flow() {
             for (_, p) in &payload.task_ports {
                 add_loans_by_scan(&mut loans, &p.loans, b)?;
             }
@@ -6109,7 +6109,7 @@ fn live_loans_main_fullscan(
             Ok(())
         })?;
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         // The actual frame retains its inputs until its owning carrier moves
         // or is discharged; dead SSA uses of a head do not discharge a frame.
         for payload in &state.locals {
@@ -7466,7 +7466,7 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
             .saturating_add(s.capture_after.len())
             .saturating_add(s.apart.len()),
     )?;
-    if b.task_sources() {
+    if b.stored_task_flow() {
         for (path, row) in &s.task_ports {
             b.spend(path.len())?;
             source_work(row, b)?;
@@ -8092,11 +8092,11 @@ fn check_with_mask(
     let owned_byte_profile = mask.is_none()
         && !mixed_package
         && !b.masked_stored_tasks()
-        && !b.task_sources()
+        && !b.stored_task_flow()
         && owned_byte_views::profile(module, b)?;
     if mask.is_none() || b.masked_stored_tasks() {
         if !mixed_package
-            && !b.task_sources()
+            && !b.stored_task_flow()
             && !b.masked_stored_tasks()
             && !owned_byte_profile
             && !closed_dyn_profile
@@ -8126,7 +8126,7 @@ fn check_with_mask(
             && !crate::tasks::input_scope::provider(module, f, b)?)
             || f.callable_return_contract.is_some() && !b.returned_environment_sources
             || f.call_kind != CallKind::Direct
-                && !(b.task_sources() && f.call_kind == CallKind::Suspend)
+                && !(b.stored_task_flow() && f.call_kind == CallKind::Suspend)
                 && !crate::tasks::ordinary_sabi_body(f, b)?
         {
             return Err(unsupported(
@@ -8170,10 +8170,10 @@ fn check_with_mask(
             let closed_dyn_value =
                 dyn_closed::value(module, ty, b)? || dyn_ports::value(module, ty, b)?;
             let neutral_owner =
-                b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?;
+                b.stored_task_flow() && crate::tasks::input_scope::neutral_owner_value(ty, b)?;
             if !module.resources.is_empty()
                 && !mixed_package
-                && !(b.task_sources() && task_address::shape(ty))
+                && !(b.stored_task_flow() && task_address::shape(ty))
                 && !b.masked_stored_tasks()
                 && !byte_value
                 && !closed_dyn_value
@@ -8183,7 +8183,7 @@ fn check_with_mask(
             {
                 super::stored_owned::value_type(ty, b)?;
             }
-            let mixed_resource = if mixed_package || b.task_sources() {
+            let mixed_resource = if mixed_package || b.stored_task_flow() {
                 b.spend(module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))
@@ -8197,7 +8197,7 @@ fn check_with_mask(
                 || byte_value
                 || closed_dyn_value
                 || super::stored_callables::value(module, ty)
-                || b.task_sources() && task_address::admitted_value(ty)
+                || b.stored_task_flow() && task_address::admitted_value(ty)
                 || neutral_owner
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
@@ -8606,7 +8606,7 @@ fn solve_check(
     }
     dyn_providers::validate(module, &summaries, b)?;
     dyn_contracts::validate(module, &summaries, b)?;
-    let mut checked_task_sources = if b.task_sources() {
+    let mut checked_task_sources = if b.stored_task_flow() {
         Some(Vec::with_capacity(module.functions.len()))
     } else {
         None

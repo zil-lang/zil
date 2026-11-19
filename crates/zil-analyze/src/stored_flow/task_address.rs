@@ -201,7 +201,7 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
     )
 }
 pub(super) fn work(value: &Value, b: &mut Budget) -> CompileResult<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     fee(b, value.task_ports.len())?;
@@ -221,7 +221,7 @@ fn port_snapshot(p: &Permission, path_width: usize, b: &mut Budget) -> CompileRe
     Ok(p.clone())
 }
 pub(super) fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(false);
     }
     let mut changed = false;
@@ -250,7 +250,7 @@ pub(super) fn seed(
     loans: &mut Vec<Loan>,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     for (carrier, ordinal, port) in carriers::ports(module, ty, b)? {
@@ -328,7 +328,7 @@ pub(super) fn call(
     out: &mut Value,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     for (path, sources) in &summary.returned_task_ports {
@@ -455,7 +455,7 @@ pub(super) fn summarize(
     facts: &mut Facts,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(());
     }
     for (path, permission) in &value.task_ports {
@@ -491,7 +491,7 @@ pub(super) fn transfer(
     summaries: &[Facts],
     b: &mut Budget,
 ) -> CompileResult<Option<Value>> {
-    if !b.task_sources() || !operation(&i.kind) {
+    if !b.stored_task_flow() || !operation(&i.kind) {
         return Ok(None);
     }
     let get = |id: ValueId| {

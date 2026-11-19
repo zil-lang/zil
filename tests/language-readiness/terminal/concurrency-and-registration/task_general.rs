@@ -566,6 +566,89 @@ fn shared_task_retained_port_exact_source_kernel_budgets() {
         }
     }
 }
+fn mixed_holder_types(text: &str, original: bool) -> zil_ir::TypedModule {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let src = source(text);
+    let parsed = zil_syntax::parse(&src).into_result().unwrap();
+    let aliases = std::collections::BTreeMap::new();
+    let context = zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+        root: src.module_id,
+        aliases: &aliases,
+        declarations: zil_expand::source_context::DeclarationPlacement::Original,
+    };
+    let core = if original {
+        zil_expand::expand_program_with_semantics(
+            &[src], &[&parsed], &[Vec::new()], &limits, &target, context,
+        )
+        .unwrap()
+        .remove(0)
+        .0
+        .core
+    } else {
+        zil_expand::expand_with_map_limits_target_context(&src, &parsed, &limits, &target, context)
+            .unwrap()
+            .core
+    };
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    assert_eq!(typed.semantic.is_some(), original);
+    typed
+}
+
+#[test]
+fn actual_task_and_holder_calls_accept_their_checked_operands_in_both_public_forms() {
+    let source = include_str!("task-holder-cross-call.zil");
+    let variants = [
+        source.to_owned(),
+        source.replace("first:i32, second:i32", "first:&i32")
+            .replace("first+second", "*first")
+            .replace("bump(30, 1)", "bump(&base)"),
+        format!("struct Pair {{ left:i32; right:i32 }}\n{source}")
+            .replace("first:i32, second:i32", "pair:Pair")
+            .replace("first+second", "pair.left+pair.right")
+            .replace("bump(30, 1)", "bump(Pair { left:30, right:1 })"),
+    ];
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for variant in &variants {
+        for original in [false, true] {
+            let typed = mixed_holder_types(variant, original);
+            let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+            let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+            zil_verify::verify_module(typed, plan, &target, &limits).unwrap();
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        }
+    }
+}
+
+#[test]
+fn joint_task_and_holder_loans_still_conflict_at_the_actual_write() {
+    let legal = include_str!("task-holder-cross-write.zil");
+    let conflict = legal.replace(
+        "let value = *holder.pointer;\n    *first = 64;",
+        "*first = 64;\n    let value = *holder.pointer;",
+    );
+    assert_ne!(legal, conflict);
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for original in [false, true] {
+        let legal = mixed_holder_types(legal, original);
+        let mut plan = zil_analyze::analyze(&legal, &limits).unwrap();
+        zil_verify::verify_module(legal, plan.clone(), &target, &limits).unwrap();
+        let invalid = mixed_holder_types(&conflict, original);
+        let errors = zil_analyze::analyze(&invalid, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
+        plan.module_fingerprint = invalid.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&invalid, &plan, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(invalid, plan, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
+        }
+    }
+}
+
 #[test]
 fn shared_task_and_holder_partition_rejects_false_raw_and_wire_proofs() {
     use zil_ir::{CallKind, InstructionKind, Type};

@@ -89,7 +89,7 @@ fn logical_inputs(
         .map(ContractProjection::Place)
         .collect::<Vec<_>>();
     let ty = Type::Closure(id);
-    if b.task_sources() {
+    if b.stored_task_flow() {
         for (path, mode) in task_address::input_ports(module, &ty, b)? {
             let Some((ContractProjection::RetainedPort(port), carrier)) = path.split_last() else {
                 return Err(err("nested Task input lacks its actual terminal port"));

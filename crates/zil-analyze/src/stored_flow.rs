@@ -190,7 +190,7 @@ pub(super) fn task_capture_instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    Ok(b.task_sources() && task_address::capture_instruction(module, f, i, b)?)
+    Ok(b.stored_task_flow() && task_address::capture_instruction(module, f, i, b)?)
 }
 
 /// Structural scheduling only; every current cell/source still needs proof.
@@ -1062,7 +1062,7 @@ fn snapshot(value: &Value, b: &mut Budget) -> CompileResult<Value> {
         source_upper: dyn_address::upper_snapshot(&value.source_upper, b)?,
         pointee_holds: dyn_address::upper_snapshot(&value.pointee_holds, b)?,
         store_description: copy_permission(&value.store_description, b)?,
-        task_ports: if b.task_sources() {
+        task_ports: if b.stored_task_flow() {
             copy_permission_rows(&value.task_ports, b)?
         } else {
             BTreeMap::new()
@@ -1305,7 +1305,7 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             fee(b, target_width(source).saturating_add(1))?;
         }
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         fee(b, f.pointer_values.len())?;
         for row in &f.pointer_values {
             fee(b, row.len())?;
@@ -4503,7 +4503,7 @@ fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
             union(&mut permission, leaf, b)?;
         }
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         for leaf in value.task_ports.values() {
             union(&mut permission, leaf, b)?;
         }
@@ -4942,7 +4942,7 @@ fn transfer(
             task_failure::unpack_value(f, *local, fields, state, b)?;
         }
         InstructionKind::UnpackTuple { local, fields }
-            if b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
+            if b.stored_task_flow() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)? => {
                 ordered(b, state.locals.len().saturating_add(fields.len()), 0)?;
                 state.locals.remove(local);
                 for field in fields { state.locals.insert(*field, Value::default()); }
@@ -5113,7 +5113,7 @@ fn transfer(
                     environment_merge(&mut out, held, b)?;
                 }
             }
-            if b.task_sources()
+            if b.stored_task_flow()
                 && let Some(held) = state.locals.get(local)
             {
                 task_address::merge(&mut out, held, b)?;
@@ -5799,7 +5799,7 @@ fn transfer(
             owned::describe(&mut out, HoldRoot::Local(*local), b)?;
         }
         InstructionKind::DescribeCapture {index}
-            if b.task_sources() && task_address::capture_instruction(module,f,i,b)? => {
+            if b.stored_task_flow() && task_address::capture_instruction(module,f,i,b)? => {
             // Opaque Task descriptions retain their actual stable head. This
             // does not copy any retained data-port permission into the head.
             owned::describe(&mut out,HoldRoot::Capture(*index),b)?;
@@ -6564,7 +6564,7 @@ fn active_value(
             active_loans_union(direct, permission, b)?;
         }
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         for permission in value.task_ports.values() {
             active_loans_union(direct, permission, b)?;
         }
@@ -6607,7 +6607,7 @@ fn active(
             }
         }
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         // Retained ports are frame obligations, even when this particular
         // borrowed head has no further SSA use in the callee.
         fee(b, state.locals.len())?;
@@ -6691,7 +6691,7 @@ fn active_by_permission(
                     union(&mut direct, permission, b)?;
                 }
             }
-            if b.task_sources() {
+            if b.stored_task_flow() {
                 for permission in value.task_ports.values() {
                     union(&mut direct, permission, b)?;
                 }
@@ -6712,7 +6712,7 @@ fn active_by_permission(
             }
         }
     }
-    if b.task_sources() {
+    if b.stored_task_flow() {
         // Retained ports are frame obligations, even when this particular
         // borrowed head has no further SSA use in the callee.
         for value in state.locals.values() {
@@ -8473,7 +8473,7 @@ fn derive_cfg(
                     fee(b, actual.none_values.len().saturating_add(1))?;
                     actual.none_values.insert(ValueId(id as u32));
                 }
-                if b.task_sources() {
+                if b.stored_task_flow() {
                     let mut ports = crate::budget::TaskRetainedRoots::new();
                     task_address::work(value, b)?;
                     for (path, permission) in &value.task_ports {
@@ -9351,14 +9351,14 @@ pub(super) fn infer(
     dyn_address::capture_directories(module, b)?;
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
-    let owned_byte_profile = !b.task_sources()
+    let owned_byte_profile = !b.stored_task_flow()
         && !b.masked_stored_tasks()
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
         && owned_byte_views::profile(module, b)?;
     b.stored_owned_fixed = if !b.stored_compound_values
         && !owned_byte_profile
-        && !b.task_sources()
+        && !b.stored_task_flow()
         && !b.masked_stored_tasks()
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
@@ -9380,7 +9380,7 @@ pub(super) fn infer(
             && !super::foreign_scoped::provider(module, f, b)?)
             || f.call_kind != CallKind::Direct
                 && !(f.call_kind == CallKind::Suspend
-                    && (b.task_sources() || task_calls::body(f, b)?))
+                    && (b.stored_task_flow() || task_calls::body(f, b)?))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -9425,7 +9425,7 @@ pub(super) fn infer(
             let byte_value = owned_byte_profile && owned_byte_views::value(ty, b)?;
             let mixed_resource = if b.stored_packages
                 || b.stored_compound_values
-                || b.task_sources()
+                || b.stored_task_flow()
             {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
@@ -9442,8 +9442,8 @@ pub(super) fn infer(
                 || dyn_address::admitted_value(module, ty, b)?
                 || super::stored_callables::value(module, ty)
                 || callable_arrays::admitted(module, ty, b)?
-                || b.task_sources() && task_address::admitted_value(ty)
-                || b.task_sources() && crate::tasks::input_scope::neutral_owner_value(ty, b)?
+                || b.stored_task_flow() && task_address::admitted_value(ty)
+                || b.stored_task_flow() && crate::tasks::input_scope::neutral_owner_value(ty, b)?
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
@@ -9539,7 +9539,7 @@ pub(super) fn infer(
             && !b.store_option_results
         || (b.qualified_package_returns || b.byte_queries || ordinary_observations)
             && b.composition_stored.is_empty()
-            && !b.task_sources()
+            && !b.stored_task_flow()
             && !b.masked_stored_tasks();
     if resource_pass == ResourcePass::StoredOnly && needs_resources {
         super::resources::check_module(module, graphs, b)?;
@@ -9558,7 +9558,7 @@ pub(super) fn infer(
                     .insert((module.functions[index].id, *value));
             }
         }
-        if b.task_sources() && b.masked_stored_tasks() {
+        if b.stored_task_flow() && b.masked_stored_tasks() {
             fee(b, 1)?;
             b.task_stored_coverage
                 .push(b.composition_stored.is_empty() || b.composition_stored[index]);
@@ -9572,7 +9572,7 @@ pub(super) fn infer(
             if let Some(actual) = &mut option_targets {
                 actual.push(vec![Vec::new(); count]);
             }
-            if b.task_sources() {
+            if b.stored_task_flow() {
                 fee(b, count)?;
                 b.task_pointer_roots.push(vec![Vec::new(); count]);
                 fee(b, count)?;
@@ -9606,7 +9606,7 @@ pub(super) fn infer(
             }
             actual.push(function.values.clone());
         }
-        if b.task_sources() {
+        if b.stored_task_flow() {
             if function.pointer_values.len() != function.values.len() {
                 return Err(failure("Task physical-source proof omitted an SSA value"));
             }
@@ -9954,7 +9954,7 @@ fn actual_instructions(
                 package_read || package_description || error_borrow || byte_view;
             let enum_operation = enum_address::instruction(module, f, i, b)?;
             let task_capture_operation =
-                b.task_sources() && task_address::capture_instruction(module, f, i, b)?;
+                b.stored_task_flow() && task_address::capture_instruction(module, f, i, b)?;
             let owned_operation = owned::ordinary_enum_operation(module, f, i, b)?
                 || owned::task_neighbour_instruction(module,f,i,b)?
                 || !task_capture_operation && (b.stored_owned_fixed
@@ -9988,9 +9988,9 @@ fn actual_instructions(
                 && !error_borrow
                 && !dyn_address::instruction(module, f, i, b)?
                 && !compound_take
-                && !(b.task_sources() && task_address::operation(&i.kind))
+                && !(b.stored_task_flow() && task_address::operation(&i.kind))
                 && !unpack_failure
-                && !(b.task_sources() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
+                && !(b.stored_task_flow() && crate::tasks::input_scope::neutral_owner_unpack(f, i, b)?)
                 && !crate::tasks::input_scope::registration_operation(f, i, b)?
                 && !failure_tuple_drop(f, i, b)?
                 && !(matches!(
@@ -10141,7 +10141,7 @@ fn actual_instructions(
                 && !array_index::candidate(f, i)
                 && enum_address::types(module, f, i, b)?.is_none()
                 && option_address::types(module, f, i, b)?.is_none()
-                && !(b.task_sources() && task_address::wrapper_instruction(f, i, b)?)
+                && !(b.stored_task_flow() && task_address::wrapper_instruction(f, i, b)?)
             {
                 // A qualified Enum claim cannot become an unsupported Copy
                 // operation merely by deleting its nominal instance inventory.

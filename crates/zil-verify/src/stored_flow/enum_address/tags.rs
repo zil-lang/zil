@@ -153,7 +153,7 @@ impl Variants {
 pub(in crate::stored_flow) fn transfer(
     f:&TypedFunction,i:&Instruction,state:&Frame,values:&[Payload],b:&mut Budget,
 )->Check<Option<Variants>>{
-    if !b.task_sources(){return Ok(None);}
+    if !b.stored_task_flow(){return Ok(None);}
     let get=|id:ValueId|values.get(id.0 as usize).map(|p|&p.enum_variants)
         .ok_or_else(||err("Task tag input is outside its actual SSA inventory"));
     let mut out=Variants::default();

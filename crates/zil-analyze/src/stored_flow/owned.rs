@@ -23,7 +23,7 @@ pub(super) fn task_neighbour(
     ty: &Type,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_sources() || !data(ty, b)? {
+    if !b.stored_task_flow() || !data(ty, b)? {
         return Ok(false);
     }
     let (Type::Managed(payload) | Type::Desc(payload)) = ty else {
@@ -39,7 +39,7 @@ pub(super) fn task_neighbour_instruction(
     i: &Instruction,
     b: &mut Budget,
 ) -> CompileResult<bool> {
-    if !b.task_sources() {
+    if !b.stored_task_flow() {
         return Ok(false);
     }
     let ty = match &i.kind {
@@ -147,7 +147,7 @@ pub(crate) fn ordinary_value(
             super::super::resources::product::admit_owned(module, ty, b)?;
             Ok(true)
         }
-        Type::Enum { .. } if b.task_sources() => ordinary_task_enum(module, ty, b),
+        Type::Enum { .. } if b.stored_task_flow() => ordinary_task_enum(module, ty, b),
         Type::ErrorUnion { .. } => {
             super::super::resources::sums::admit(module, ty, b)?;
             Ok(true)
@@ -194,7 +194,7 @@ pub(super) fn ordinary_task_enum(module: &TypedModule, ty: &Type, b: &mut Budget
 }
 
 pub(super) fn ordinary_enum_operation(module: &TypedModule, f: &TypedFunction, i: &Instruction, b: &mut Budget) -> CompileResult<bool> {
-    if !b.task_sources() { return Ok(false); }
+    if !b.stored_task_flow() { return Ok(false); }
     let ty = match &i.kind {
         InstructionKind::MakeVariant { .. } => value_type(f, i.result.ok_or_else(|| failure("Enum constructor lacks its result"))?)?,
         InstructionKind::VariantTagLocal { local, .. } | InstructionKind::UnpackVariant { local, .. }

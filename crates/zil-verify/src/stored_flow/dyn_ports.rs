@@ -197,7 +197,7 @@ pub(super) fn shape(
             | Type::Opaque { hidden: child, .. } => {
                 if crate::dynamic_ports::has_context(module, child, b)? {
                     if matches!(ty, Type::Managed(_) | Type::Desc(_))
-                        && b.task_sources()
+                        && b.stored_task_flow()
                         && crate::tasks::task_payload(child).is_some()
                     {
                         // The owning/description wrapper exposes the same
@@ -214,7 +214,7 @@ pub(super) fn shape(
             // Retained Task pointers keep their separate namespace and parent
             // proof. An owning result cannot disappear as an empty Dyn row.
             Type::Task { result, .. } if crate::dynamic_ports::has_context(module, result, b)? => {
-                if !b.task_sources() {
+                if !b.stored_task_flow() {
                     return Err(unsupported(
                         "Task Context result requires its actual ownership and port transport",
                         None,
