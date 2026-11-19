@@ -867,12 +867,18 @@ impl Checked {
                 ReceiverSource::Expression(owner, node) if transfer => {
                     b.lookup(self.owner_transfers.len(), WORK)?;
                     if let Some(place) = self.owner_transfers.get(&(owner, node)) {
-                        let Some(LocalAnchor::Environment(ordinal)) = place.anchor else { return Ok(false); };
                         if !place.path.is_empty() || !matches!(self.arena[self.root(place.selected, b)?],
                             Kind::Address { mutable: true, .. }) { return Ok(false); }
-                        b.lookup(sources.len(), WORK)?;
-                        sources.insert(ordinal);
-                        seed = true;
+                        match place.anchor {
+                            Some(LocalAnchor::Environment(ordinal)) => {
+                                b.lookup(sources.len(), WORK)?;
+                                sources.insert(ordinal);
+                                seed = true;
+                            }
+                            Some(LocalAnchor::Binding(binding)) =>
+                                Solver::push(&mut edges, ReceiverSource::Binding(owner, binding), b)?,
+                            _ => return Ok(false),
+                        }
                     } else {
                         let value = inventory.original_index(owner, b)?.get_expr(node, b)?;
                         match &value.kind {
