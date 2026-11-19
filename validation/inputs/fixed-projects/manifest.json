@@ -4,7 +4,10 @@
   "historical_contract": {
     "compiler": "365ee0748469ac073b0f39786d5f768a343d2050",
     "goal_commit": "4ba44662cff0ab1bfe9b1867bb9269542a9ffce3",
-    "record": "records/language-alpha-projects-and-callable-rules-365ee07.json"
+    "record": "records/language-alpha-projects-and-callable-rules-365ee07.json",
+    "archive_if_stdin_unavailable": {
+      "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24": 44
+    }
   },
   "target": "Linux x86_64",
   "configurations": [

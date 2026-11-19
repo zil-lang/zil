@@ -2,6 +2,7 @@
 """Replay the frozen Rust project comparison and its semantic controls."""
 
 import argparse
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import io
@@ -160,7 +161,8 @@ def run_native(args, directory, source, reference, entry, cases, source_passed, 
             if can_run:
                 build['status'] = 'pass'
         for index, (identity, data, expected_exit, expected_stdout) in enumerate(cases):
-            row = {'stdin_sha256': identity, 'status': 'build-unavailable'}
+            row = {'stdin_sha256': identity, 'expected_exit': expected_exit,
+                   'expected_stdout_sha256': expected_stdout, 'status': 'build-unavailable'}
             build['runs'].append(row)
             if data is None:
                 row['status'] = 'input-bytes-unavailable'
@@ -265,11 +267,23 @@ def check_project(args, project, inputs):
     return row
 
 
-def native_totals(builds):
+def native_totals(builds, archive_if_unavailable=None):
     runs = [row for build in builds for row in build['runs']]
+    unavailable = Counter(row['stdin_sha256'] for row in runs if row['status'] == 'input-bytes-unavailable')
+    archived = {}
+    if archive_if_unavailable:
+        selected = Counter(row['stdin_sha256'] for row in runs)
+        for identity, expected_rows in archive_if_unavailable.items():
+            if expected_rows <= 0 or selected[identity] != expected_rows:
+                raise ValueError(f'Historical stdin {identity} must identify exactly {expected_rows} frozen rows')
+            if unavailable[identity]:
+                if unavailable[identity] != expected_rows:
+                    raise ValueError(f'Inconsistent availability for historical stdin {identity}')
+                archived[identity] = unavailable[identity]
     return {'builds_selected': len(builds), 'builds_passed': sum(b['status'] == 'pass' for b in builds),
             'comparisons_selected': len(runs), 'comparisons_passed': sum(r['status'] == 'pass' for r in runs),
-            'inputs_unavailable': sorted({r['stdin_sha256'] for r in runs if r['status'] == 'input-bytes-unavailable'})}
+            'comparisons_required': len(runs) - sum(archived.values()),
+            'archived_unavailable_by_input': archived, 'inputs_unavailable': sorted(unavailable)}
 
 
 def main():
@@ -305,7 +319,8 @@ def main():
         (input_output / identity).write_bytes(data)
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         rows = list(pool.map(lambda project: check_project(args, project, inputs), args.manifest['projects']))
-    native = native_totals([build for row in rows for build in row['native']])
+    native = native_totals([build for row in rows for build in row['native']],
+                           args.manifest['historical_contract']['archive_if_stdin_unavailable'])
     additional_native = native_totals([build for row in rows for build in row['additional_native']])
     controls = [row['control'] for row in rows if 'control' in row]
     witnesses = [control['cleanup'] for control in controls if 'cleanup' in control]
@@ -339,7 +354,7 @@ def main():
               and all(row['check']['passed'] for row in rows)
               and all(c['check']['passed'] for c in controls + witnesses)
               and all(t['builds_passed'] == t['builds_selected'] and
-                      t['comparisons_passed'] == t['comparisons_selected']
+                      t['comparisons_passed'] == t['comparisons_required']
                       for t in (native, additional_native, control_native, cleanup_native)))
     write_json(args.out / 'report.json', {'candidate': receipt['source_commit'], 'cli_sha256': receipt['cli_sha256'],
                                         'manifest_sha256': digest(manifest_bytes), 'work_profile': args.work_profile,
