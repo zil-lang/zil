@@ -358,11 +358,18 @@ impl CheckedOriginal {
             let state = self.project_loop_uses(env, scope, b)?;
             LoopExits::merge(&mut exits.backedges, state, b)?;
         }
-        if let Some(backedge) = exits.backedges {
+        if let Some(mut backedge) = exits.backedges {
             self.loop_uses(module, context, env, &entry, &backedge, bindings, active, b)?;
             if let Some(exit) = &mut conditional_exit {
-                // Previously moved places can also have been refilled before
-                // a later condition check. Preserve both cleanup possibilities.
+                // The header runs again on a later false exit. Keep its
+                // definite moves even if the body refilled that place.
+                b.spend(exit.definite.len().saturating_add(entry.definite.len()))?;
+                for place in exit.definite.difference(&entry.definite) {
+                    place.binder.charge_clone(b)?;
+                    b.spend(place.fields.len())?;
+                    for field in &place.fields { b.spend(field.len())?; }
+                    backedge.definite.insert(place.clone());
+                }
                 exit.join(&backedge, b)?;
             }
         }

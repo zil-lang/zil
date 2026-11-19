@@ -186,6 +186,14 @@ fn moves_on_break_do_not_repeat_on_surviving_backedges() {
             ),
         );
     }
+    for header in ["while flag", "while let true=flag", "loop"] {
+        accepted(
+            "conditional-exit",
+            &format!(
+                "fn dispose<T:SyncDrop>(value:T,n:i32,flag:bool){{{header}{{if n==0{{let used=value;break}}else{{continue}}}}}}fn main(){{}}"
+            ),
+        );
+    }
 }
 
 #[test]
