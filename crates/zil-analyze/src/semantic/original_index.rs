@@ -28,7 +28,8 @@ pub(super) struct Index<'a, T = SemanticTypeRecipe> {
     navigation: BTreeSet<NodeId>,
     names: NameRows<'a>,
     declarations: BTreeMap<NodeId, SemanticSiteId>,
-    recipes: BTreeMap<u32, &'a SemanticSiteRecipe>,
+    recipe_rows: &'a [SemanticSiteRecipe],
+    recipes: BTreeMap<u32, usize>,
     site_nodes: BTreeMap<u32, SemanticOriginalNode>,
     events: BTreeMap<(NodeId, EventRole), SemanticSiteId>,
 }
@@ -114,8 +115,18 @@ impl<'a> Index<'a> {
         Ok(self.events.get(&(node, role)).copied())
     }
     pub(super) fn recipe(&self, id: SemanticSiteId, b: &mut Budget) -> CompileResult<&'a SemanticSiteRecipe> {
+        self.recipe_row(id, b).map(|(_, recipe)| recipe)
+    }
+    pub(super) fn recipe_row(&self, id: SemanticSiteId, b: &mut Budget)
+        -> CompileResult<(usize, &'a SemanticSiteRecipe)> {
+        let position = id.0 as usize;
+        b.spend(1, WORK)?;
+        if let Some(row) = self.recipe_rows.get(position).filter(|row| row.id == id) {
+            return Ok((position, row));
+        }
         b.lookup(self.recipes.len(), WORK)?;
-        self.recipes.get(&id.0).copied()
+        self.recipes.get(&id.0)
+            .and_then(|&index| self.recipe_rows.get(index).filter(|row| row.id == id).map(|row| (index, row)))
             .ok_or_else(|| bad("actual emission site has no exact original recipe"))
     }
     pub(super) fn declaration_site(
@@ -489,6 +500,7 @@ fn walk_from<'a, T>(root: Work<'a, T>, b: &mut Budget) -> CompileResult<Index<'a
         navigation,
         names: Default::default(),
         declarations: BTreeMap::new(),
+        recipe_rows: &[],
         recipes: BTreeMap::new(),
         site_nodes: BTreeMap::new(),
         events: BTreeMap::new(),
@@ -900,6 +912,7 @@ pub(super) fn index<'a>(
                 navigation: BTreeSet::new(),
                 names: Default::default(),
                 declarations: BTreeMap::new(),
+                recipe_rows: &[],
                 recipes: BTreeMap::new(),
         site_nodes: BTreeMap::new(),
         events: BTreeMap::new(),
@@ -908,9 +921,9 @@ pub(super) fn index<'a>(
     };
     output.names = validated_names;
     let mut recipes = BTreeMap::new();
-    for recipe in sites {
+    for (position, recipe) in sites.iter().enumerate() {
         b.lookup(recipes.len(), WORK)?;
-        if recipes.insert(recipe.id.0, recipe).is_some() {
+        if recipes.insert(recipe.id.0, position).is_some() {
             return Err(bad("original site recipe ID is duplicated"));
         }
     }
@@ -922,6 +935,7 @@ pub(super) fn index<'a>(
         b.lookup(recipes.len(), WORK)?;
         let recipe = recipes
             .get(&binding.site.0)
+            .and_then(|&position| sites.get(position))
             .ok_or_else(|| bad("original site node has no original recipe"))?;
         let (id, node) = match binding.node {
             SemanticOriginalNode::Expression(id) => (id, Node::Expression(output.get_expr(id, b)?)),
@@ -942,6 +956,33 @@ pub(super) fn index<'a>(
     if output.site_nodes.len() != recipes.len() {
         return Err(bad("original recipe is missing its unique node binding"));
     }
+    output.recipe_rows = sites;
     output.recipes = recipes;
     Ok(output)
+}
+
+#[cfg(test)]
+mod recipe_positions {
+    use super::*;
+
+    #[test]
+    fn sparse_and_reordered_recipe_ids_resolve_to_their_actual_rows() {
+        let body = SemanticOriginalBlock { statements: Vec::new(), span: Default::default() };
+        let recipe = |id| SemanticSiteRecipe {
+            id: SemanticSiteId(id),
+            occurrence_path: Vec::new(),
+            kind: SemanticSiteRecipeKind::OriginalCall,
+        };
+        let rows = [recipe(2), recipe(1), recipe(27)];
+        let mut budget = Budget::new(&zil_base::Limits::default());
+        let mut index = walk(&body, &mut budget).unwrap();
+        index.recipe_rows = &rows;
+        index.recipes = rows.iter().enumerate().map(|(i, row)| (row.id.0, i)).collect();
+        for (position, row) in rows.iter().enumerate() {
+            let (actual, found) = index.recipe_row(row.id, &mut budget).unwrap();
+            assert_eq!(actual, position);
+            assert!(std::ptr::eq(found, row));
+        }
+        assert!(index.recipe_row(SemanticSiteId(0), &mut budget).is_err());
+    }
 }

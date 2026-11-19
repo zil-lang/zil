@@ -1931,26 +1931,12 @@ impl Check<'_, '_> {
         // These directories contain only references to the complete immutable
         // event table. They answer presence/location queries; every original
         // recipe, actual event, duplicate and state obligation is still checked.
-        let mut emitted_recipes = BTreeSet::new();
         let mut world_sites = BTreeMap::new();
-        let mut operation_sites: BTreeMap<
-            (SemanticInstanceId, BlockId, usize), Vec<&SemanticSite>,
-        > = BTreeMap::new();
+        let mut created_closures = BTreeSet::new();
         self.inventory.profile_step("event directory", b);
         for site in &self.program.sites {
             self.inventory.profile_site(site, b);
-            b.spend(1, WORK)?;
-            b.lookup(emitted_recipes.len(), WORK)?;
-            emitted_recipes.insert((site.instance, site.recipe));
             site_index::append(&mut world_sites, site.instance, site, b)?;
-            if let SemanticSiteAddress::Typed { block, instruction, .. } = site.at {
-                b.lookup(operation_sites.len(), WORK)?;
-                let rows = operation_sites.entry((site.instance, block, instruction as usize)).or_default();
-                let relocation = if rows.len() == rows.capacity() { rows.len() } else { 0 };
-                b.spend(relocation.saturating_add(1), WORK)?;
-                rows.try_reserve(1).map_err(|_| fail("actual semantic event directory allocation failed"))?;
-                rows.push(site);
-            }
         }
         for instance in &self.program.instances {
             self.inventory.profile_step("world entry", b);
@@ -2038,6 +2024,9 @@ impl Check<'_, '_> {
             let mut code_references = BTreeSet::new();
             let mut ct_trees = BTreeMap::new();
             let original_nodes = self.inventory.original_index(definition.id, b)?;
+            b.spend(recipes.len(), "original recipe coverage")?;
+            let mut emitted_recipes = vec![false; recipes.len()];
+            let mut operation_sites = BTreeMap::new();
             for &site in sites {
                 self.inventory.profile_site(site, b);
                 b.spend(1, WORK)?;
@@ -2057,7 +2046,27 @@ impl Check<'_, '_> {
                 if !initialization.reachable[block.id.0 as usize] {
                     return Err(fail("semantic operation has no reachable actual site"));
                 }
-                let recipe = original_nodes.recipe(site.recipe, b)?;
+                let (ordinal, recipe) = original_nodes.recipe_row(site.recipe, b)?;
+                if !recipes.get(ordinal).is_some_and(|row| std::ptr::eq(recipe, row)) {
+                    return Err(fail("actual emission belongs to another original recipe table"));
+                }
+                if std::mem::replace(&mut emitted_recipes[ordinal], true) {
+                    return Err(fail("one original semantic event is claimed by multiple actual emissions"));
+                }
+                let requires_binding = match &site.action {
+                    SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } => {
+                        b.lookup(created_closures.len(), WORK)?;
+                        created_closures.insert(*id);
+                        true
+                    }
+                    SemanticSiteAction::Closure { .. } | SemanticSiteAction::Call { .. }
+                    | SemanticSiteAction::BodyCall { .. } | SemanticSiteAction::CallableCall { .. } => true,
+                    SemanticSiteAction::DeclareLocal { .. } | SemanticSiteAction::Construct { .. }
+                    | SemanticSiteAction::TypeUse { .. } | SemanticSiteAction::CoreBodyCall => false,
+                };
+                if requires_binding {
+                    site_index::append(&mut operation_sites, (block.id, instruction as usize), site, b)?;
+                }
                 let checked = self.operation(
                     instance,
                     site,
@@ -2098,10 +2107,10 @@ impl Check<'_, '_> {
                 }
             }
             self.inventory.profile_step("recipe coverage", b);
-            for recipe in recipes {
+            for (recipe, emitted) in recipes.iter().zip(emitted_recipes) {
                 self.inventory.profile_recipe(recipe.id, b);
-                b.lookup(emitted_recipes.len(), WORK)?;
-                if !emitted_recipes.contains(&(instance.id, recipe.id)) {
+                b.spend(1, WORK)?;
+                if !emitted {
                     let node = original_nodes.site_node(recipe.id, b)?
                         .ok_or_else(|| fail("emission recipe has no original operation node"))?;
                     let (SemanticOriginalNode::Expression(node) | SemanticOriginalNode::Statement(node)) = node;
@@ -2322,7 +2331,7 @@ impl Check<'_, '_> {
                     };
                     if let Some(kind) = requires {
                         b.lookup(operation_sites.len(), WORK)?;
-                        let rows = operation_sites.get(&(instance.id, block.id, index)).map(Vec::as_slice).unwrap_or(&[]);
+                        let rows = operation_sites.get(&(block.id, index)).map(Vec::as_slice).unwrap_or(&[]);
                         b.spend(rows.len(), WORK)?;
                         let count = rows.iter().copied().filter(|site| site.instance == instance.id
                             && matches!(site.at, SemanticSiteAddress::Typed { block: actual, instruction, .. } if actual == block.id && instruction as usize == index)
@@ -2400,8 +2409,8 @@ impl Check<'_, '_> {
         // entry is sealed at its actual creator's MakeClosure, even if unused.
         self.inventory.profile_stage("closure creation coverage", b);
         for closure in &self.module.closures {
-            b.spend(self.program.sites.len(), WORK)?;
-            if !self.program.sites.iter().any(|site| matches!(site.action, SemanticSiteAction::Closure { closure: SemanticClosureTarget::Typed(id), .. } if id == closure.id)) {
+            b.lookup(created_closures.len(), WORK)?;
+            if !created_closures.contains(&closure.id) {
                 return Err(fail("actual closure environment has no checked original creation site"));
             }
         }
