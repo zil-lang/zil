@@ -597,7 +597,7 @@ struct Budget {
     owned_byte_heads: Option<stored_flow::owned_byte_views::Heads>,
     ordinary_error_places: bool,
     byte_query_functions: Vec<bool>,
-    package_return_calls: Option<BTreeMap<(FunctionId, ValueId), u32>>,
+    package_return_calls: Option<BTreeMap<(FunctionId, ValueId), std::sync::Arc<[u32]>>>,
     store_option_sources: Option<Vec<stored_flow::StoreOptionFunctionSources>>,
     task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
     task_port_paths: Vec<Vec<ContractProjection>>,

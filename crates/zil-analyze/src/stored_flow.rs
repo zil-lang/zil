@@ -404,22 +404,24 @@ pub(super) fn option_byte_hold_source(
 }
 
 /// Read only a certificate rebuilt from actual pointer returns and call inputs.
-pub(super) fn package_return_input(
+pub(super) fn package_return_inputs(
     function: FunctionId,
     value: ValueId,
+    exclusive: bool,
     b: &mut Budget,
-) -> CompileResult<u32> {
+) -> CompileResult<std::sync::Arc<[u32]>> {
     let count = b.package_return_calls.as_ref().map_or(0, BTreeMap::len);
     ordered(b, count, 2)?;
     let found = b
         .package_return_calls
         .as_ref()
         .and_then(|rows| rows.get(&(function, value)))
-        .copied();
+        .cloned();
     found.ok_or_else(|| {
         vec![Diagnostic::unsupported(
             Phase::Analyze,
-            "qualified Package return requires one actual whole shared input",
+            if exclusive { "qualified Package return requires actual whole exclusive input sources" }
+            else { "qualified Package return requires one actual whole shared input" },
             None,
         )]
     })
@@ -497,7 +499,7 @@ fn package_return_candidates(
     values: &[Value],
     summaries: &[Facts],
     b: &mut Budget,
-) -> CompileResult<BTreeMap<ValueId, u32>> {
+) -> CompileResult<BTreeMap<ValueId, std::sync::Arc<[u32]>>> {
     let mut result = BTreeMap::new();
     if f.call_kind != CallKind::Direct || f.environment.is_some() {
         return Ok(result);
@@ -537,46 +539,35 @@ fn package_return_candidates(
                 continue;
             };
             fee(b, roots.len())?;
-            let [root] = roots.as_slice() else {
-                continue;
-            };
-            if !whole_package_target(callee, root, b)? {
-                continue;
+            let exclusive = matches!(callee.return_type, Type::Address { mutable: true, .. });
+            if roots.is_empty() || (!exclusive && roots.len() != 1) { continue; }
+            fee(b, roots.len())?;
+            let mut positions = Vec::with_capacity(roots.len());
+            for root in roots {
+                if !whole_package_target(callee, root, b)? { break; }
+                let HoldRoot::Parameter(position) = root.base else { break; };
+                let input = &callee.locals[callee.parameters[position as usize].0 as usize].ty;
+                b.type_work(input, false, "whole Package actual input equality")?;
+                b.type_work(&callee.return_type, false, "whole Package actual result equality")?;
+                if input != &callee.return_type { break; }
+                let argument = *arguments.get(position as usize)
+                    .ok_or_else(|| failure("Package return actual input absent"))?;
+                let pointer = &values[argument.0 as usize].pointer.targets;
+                if pointer.is_empty() { break; }
+                fee(b, pointer.len())?;
+                let mut grounded = true;
+                for target in pointer { grounded &= whole_package_target(f, target, b)?; }
+                if !grounded { break; }
+                positions.push(position);
             }
-            let HoldRoot::Parameter(position) = root.base else {
-                continue;
-            };
-            let input = &callee.locals[callee.parameters[position as usize].0 as usize].ty;
-            b.type_work(input, false, "whole Package actual input equality")?;
-            b.type_work(
-                &callee.return_type,
-                false,
-                "whole Package actual result equality",
-            )?;
-            if input != &callee.return_type {
-                continue;
-            }
-            let argument = *arguments
-                .get(position as usize)
-                .ok_or_else(|| failure("Package return actual input absent"))?;
-            let pointer = &values[argument.0 as usize].pointer.targets;
-            if pointer.is_empty() {
-                continue;
-            }
-            fee(b, pointer.len())?;
-            let mut whole = true;
-            for root in pointer {
-                whole &= whole_package_target(f, root, b)?;
-            }
-            if !whole {
-                continue;
-            }
+            if positions.len() != roots.len() { continue; }
             let value = instruction
                 .result
                 .ok_or_else(|| failure("Package call result absent"))?;
             ordered(b, result.len(), 1)?;
-            fee(b, std::mem::size_of::<(ValueId, u32)>())?;
-            result.insert(value, position);
+            fee(b, std::mem::size_of::<(ValueId, std::sync::Arc<[u32]>)>())?;
+            fee(b, positions.len().saturating_add(1))?;
+            result.insert(value, positions.into());
         }
     }
     Ok(result)
@@ -882,7 +873,7 @@ pub(super) struct Facts {
     returned_dyn_capture_upper: BTreeMap<Vec<zil_ir::ContractProjection>, Vec<Target>>,
     dyn_accesses: BTreeMap<Target, bool>,
     dyn_return_complete: bool,
-    package_return_calls: BTreeMap<ValueId, u32>,
+    package_return_calls: BTreeMap<ValueId, std::sync::Arc<[u32]>>,
     byte_reads: Vec<Target>,
     byte_covered: bool,
     external_after: BTreeMap<u32, Value>,
@@ -1224,8 +1215,9 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
             b,
             f.package_return_calls
                 .len()
-                .saturating_mul(std::mem::size_of::<(ValueId, u32)>()),
+                .saturating_mul(std::mem::size_of::<(ValueId, std::sync::Arc<[u32]>)>()),
         )?;
+        for inputs in f.package_return_calls.values() { fee(b, inputs.len())?; }
     }
     f.returned_enum_variants.work(b)?;
     for value in f.enum_values.values() {
@@ -9551,15 +9543,15 @@ pub(super) fn infer(
     if b.qualified_package_returns {
         fee(
             b,
-            std::mem::size_of::<BTreeMap<(FunctionId, ValueId), u32>>().saturating_add(facts.len()),
+            std::mem::size_of::<BTreeMap<(FunctionId, ValueId), std::sync::Arc<[u32]>>>().saturating_add(facts.len()),
         )?;
         let mut calls = BTreeMap::new();
         for (index, facts) in facts.iter().enumerate() {
             fee(b, facts.package_return_calls.len())?;
             for (value, position) in &facts.package_return_calls {
                 ordered(b, calls.len(), 2)?;
-                fee(b, std::mem::size_of::<((FunctionId, ValueId), u32)>())?;
-                calls.insert((module.functions[index].id, *value), *position);
+                fee(b, std::mem::size_of::<((FunctionId, ValueId), std::sync::Arc<[u32]>)>())?;
+                calls.insert((module.functions[index].id, *value), position.clone());
             }
         }
         b.package_return_calls = Some(calls);

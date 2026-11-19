@@ -270,7 +270,7 @@ pub(super) struct Budget {
     pub(super) owned_byte_heads: Option<crate::stored_flow::owned_byte_views::Heads>,
     pub(super) byte_query_presence_checked: bool,
     pub(super) byte_query_functions: Vec<bool>,
-    pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), u32>>,
+    pub(super) package_return_calls: Option<BTreeMap<(zil_ir::FunctionId, zil_ir::ValueId), std::sync::Arc<[u32]>>>,
     /// Private complete stored-target facts, published only after the stored
     /// solver finishes every reachable CFG and signature relation.
     pub(super) store_option_targets: Option<Vec<Vec<Vec<super::stored_flow::Target>>>>,

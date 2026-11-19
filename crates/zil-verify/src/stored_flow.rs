@@ -343,12 +343,12 @@ pub(crate) fn shared_record_child(ty: &Type, b: &mut Budget) -> Check<bool> {
 }
 
 /// Certificates come only from this kernel's completed actual pointer proof.
-pub(super) fn package_return_input(
+pub(super) fn package_return_inputs(
     function: FunctionId,
     value: ValueId,
     exclusive: bool,
     b: &mut Budget,
-) -> Check<u32> {
+) -> Check<std::sync::Arc<[u32]>> {
     let count = b.package_return_calls.as_ref().map_or(0, BTreeMap::len);
     b.spend(
         count
@@ -356,21 +356,14 @@ pub(super) fn package_return_input(
             .map_or(1, |n| n as usize + 2)
             .saturating_mul(3),
     )?;
-    let found = b
-        .package_return_calls
-        .as_ref()
+    b.package_return_calls.as_ref()
         .and_then(|rows| rows.get(&(function, value)))
-        .copied();
-    found.ok_or_else(|| {
-        unsupported(
-            if exclusive {
-                "qualified Package return requires one actual whole exclusive input"
-            } else {
-                "qualified Package return requires one actual whole shared input"
-            },
-            None,
-        )
-    })
+        .cloned()
+        .ok_or_else(|| unsupported(if exclusive {
+            "qualified Package return requires actual whole exclusive input sources"
+        } else {
+            "qualified Package return requires one actual whole shared input"
+        }, None))
 }
 
 fn whole_package_source(f: &TypedFunction, source: &Source, b: &mut Budget) -> Check<bool> {
@@ -445,7 +438,7 @@ fn package_return_candidates(
     values: &[Payload],
     summaries: &[Summary],
     b: &mut Budget,
-) -> Check<BTreeMap<ValueId, u32>> {
+) -> Check<BTreeMap<ValueId, std::sync::Arc<[u32]>>> {
     let mut result = BTreeMap::new();
     if (f.call_kind != CallKind::Direct && !crate::tasks::ordinary_sabi_body(f, b)?)
         || f.environment.is_some()
@@ -483,36 +476,33 @@ fn package_return_candidates(
                 continue;
             };
             b.spend(roots.len())?;
-            let [root] = roots.as_slice() else {
-                continue;
-            };
-            if !whole_package_source(callee, root, b)? {
+            let exclusive = matches!(callee.return_type, Type::Address { mutable: true, .. });
+            if roots.is_empty() || (!exclusive && roots.len() != 1) {
                 continue;
             }
-            let HoldRoot::Parameter(position) = root.base else {
-                continue;
-            };
-            let input = &callee.locals[callee.parameters[position as usize].0 as usize].ty;
-            type_work(input, &b.limits.clone(), b)?;
-            type_work(&callee.return_type, &b.limits.clone(), b)?;
-            if input != &callee.return_type {
-                continue;
+            // Every possible returned branch needs the actual whole input,
+            // its exact address permission and full type, and a grounded
+            // caller-side address. An uncovered alternative invalidates the row.
+            b.spend(roots.len())?;
+            let mut positions = Vec::with_capacity(roots.len());
+            for root in roots {
+                let HoldRoot::Parameter(position) = root.base else { break; };
+                if !whole_package_source(callee, root, b)? { break; }
+                let input = &callee.locals[callee.parameters[position as usize].0 as usize].ty;
+                type_work(input, &b.limits.clone(), b)?;
+                type_work(&callee.return_type, &b.limits.clone(), b)?;
+                if input != &callee.return_type { break; }
+                let argument = *arguments.get(position as usize)
+                    .ok_or_else(|| err("Package return actual input absent"))?;
+                let pointer = &values[argument.0 as usize].address.sources;
+                if pointer.is_empty() { break; }
+                b.spend(pointer.len())?;
+                let mut whole = true;
+                for source in pointer { whole &= whole_package_source(f, source, b)?; }
+                if !whole { break; }
+                positions.push(position);
             }
-            let argument = *arguments
-                .get(position as usize)
-                .ok_or_else(|| err("Package return actual input absent"))?;
-            let pointer = &values[argument.0 as usize].address.sources;
-            if pointer.is_empty() {
-                continue;
-            }
-            b.spend(pointer.len())?;
-            let mut whole = true;
-            for source in pointer {
-                whole &= whole_package_source(f, source, b)?;
-            }
-            if !whole {
-                continue;
-            }
+            if positions.len() != roots.len() { continue; }
             let value = instruction
                 .result
                 .ok_or_else(|| err("Package call result absent"))?;
@@ -521,9 +511,10 @@ fn package_return_candidates(
                     .len()
                     .checked_ilog2()
                     .map_or(1, |n| n as usize + 2)
-                    .saturating_add(std::mem::size_of::<(ValueId, u32)>()),
+                    .saturating_add(std::mem::size_of::<(ValueId, std::sync::Arc<[u32]>)>()),
             )?;
-            result.insert(value, position);
+            b.spend(positions.len().saturating_add(1))?;
+            result.insert(value, positions.into());
         }
     }
     Ok(result)
@@ -8668,7 +8659,7 @@ fn solve_check(
         .masked_stored_tasks()
         .then(|| Vec::with_capacity(module.functions.len()));
     let mut package_calls = if b.qualified_package_returns {
-        b.spend(std::mem::size_of::<BTreeMap<(FunctionId, ValueId), u32>>())?;
+        b.spend(std::mem::size_of::<BTreeMap<(FunctionId, ValueId), std::sync::Arc<[u32]>>>())?;
         Some(BTreeMap::new())
     } else {
         None
@@ -8934,7 +8925,7 @@ fn solve_check(
                         .len()
                         .checked_ilog2()
                         .map_or(1, |n| n as usize + 2)
-                        .saturating_add(std::mem::size_of::<((FunctionId, ValueId), u32)>()),
+                        .saturating_add(std::mem::size_of::<((FunctionId, ValueId), std::sync::Arc<[u32]>)>()),
                 )?;
                 calls.insert((f.id, value), position);
             }

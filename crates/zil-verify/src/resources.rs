@@ -2801,21 +2801,24 @@ impl Transfer<'_> {
                             .result
                             .ok_or_else(|| bad(span, "Package return has no result"))?;
                         let exclusive = matches!(&returned.return_type, Type::Address { mutable: true, .. });
-                        let position = crate::stored_flow::package_return_input(f.id, value, exclusive, budget)?;
-                        let actual = *arguments
-                            .get(position as usize)
-                            .ok_or_else(|| bad(span, "Package return input is absent"))?;
-                        let source = slots.desc_value[actual.0 as usize].ok_or_else(|| {
-                            bad(span, "Package return input lacks actual description")
-                        })?;
+                        let positions = crate::stored_flow::package_return_inputs(f.id, value, exclusive, budget)?;
                         let destination = slots.desc_value[value.0 as usize].ok_or_else(|| {
                             bad(span, "Package return lacks actual description slot")
                         })?;
-                        if validate {
-                            description_live(state, slots, source, span, budget)?;
+                        let mut roots = BTreeSet::new();
+                        budget.spend(positions.len())?;
+                        for &position in positions.iter() {
+                            let actual = *arguments.get(position as usize)
+                                .ok_or_else(|| bad(span, "Package return input is absent"))?;
+                            let source = slots.desc_value[actual.0 as usize]
+                                .ok_or_else(|| bad(span, "Package return input lacks actual description"))?;
+                            if validate { description_live(state, slots, source, span, budget)?; }
+                            let width = roots.len().saturating_add(state.desc[source].len());
+                            let insertion = width.checked_ilog2().map_or(1, |n| n as usize + 2);
+                            budget.spend(state.desc[source].len().saturating_mul(insertion))?;
+                            roots.extend(state.desc[source].iter().copied());
                         }
-                        budget.spend(state.desc[source].len())?;
-                        state.desc[destination] = state.desc[source].clone();
+                        state.desc[destination] = roots;
                     }
                     if returned.return_type.is_shared_package_address()
                         && let Some(bound) = &returned.reference_return_bound

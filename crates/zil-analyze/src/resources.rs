@@ -287,10 +287,10 @@ pub(crate) fn package_storage(ty: &Type) -> &Type {
     }
 }
 
-/// The new description bridge concerns only existing qualified shared Packages.
+/// The resource ledger follows the complete actual qualified Package address.
 /// This constant dispatch neither strips their life shape nor grants a root.
 pub(super) fn qualified_package_address(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner }
+    matches!(ty, Type::Address { inner, .. }
         if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
             if matches!(storage.as_ref(), Type::Package { .. })))
 }
@@ -3625,19 +3625,21 @@ impl Flow<'_> {
                         let value = i
                             .result
                             .ok_or_else(|| error("Package return has no result"))?;
-                        let position =
-                            super::stored_flow::package_return_input(f.id, value, budget)?;
-                        let argument = *arguments
-                            .get(position as usize)
-                            .ok_or_else(|| error("Package return input is absent"))?;
-                        let fact = copied(state, Place::Value(argument), budget)?;
-                        if check {
-                            live_sources(state, &fact, budget)?;
+                        let exclusive = matches!(&callee.return_type, Type::Address { mutable: true, .. });
+                        let positions = super::stored_flow::package_return_inputs(f.id, value, exclusive, budget)?;
+                        let mut sources = BTreeSet::new();
+                        budget.spend(positions.len(), "Package result actual inputs")?;
+                        for &position in positions.iter() {
+                            let argument = *arguments.get(position as usize)
+                                .ok_or_else(|| error("Package return input is absent"))?;
+                            let fact = copied(state, Place::Value(argument), budget)?;
+                            if check { live_sources(state, &fact, budget)?; }
+                            let width = sources.len().saturating_add(fact.sources.len());
+                            let insertion = width.checked_ilog2().map_or(1, |n| n as usize + 2);
+                            budget.spend(fact.sources.len().saturating_mul(insertion), "Package result actual resource sources")?;
+                            sources.extend(fact.sources);
                         }
-                        produced = Some(Fact {
-                            sources: fact.sources,
-                            ..Fact::default()
-                        });
+                        produced = Some(Fact { sources, ..Fact::default() });
                     }
                     if out_shape.is_some_and(|shape| shape.description)
                         && callee.return_type.is_shared_package_address()
