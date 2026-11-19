@@ -78,7 +78,11 @@ impl Check<'_, '_> {
                 let replacements = self.cleanup_replacement_values(instance, function,
                     pending.source, &pending.path, pending.event, b)?;
                 let aggregate = InstructionKind::aggregate_drop(local, &declaration.ty);
-                let closure = match &declaration.ty {
+                // A persistent mutable binding stores one logical closure in
+                // an array. Preserve that closure at element replacement and
+                // shell exit so finish can pair the actual drop with its debt.
+                let subject = slot.as_ref().map_or(&declaration.ty, |slot| &slot.logical().ty);
+                let closure = match subject {
                     Type::Managed(payload) if matches!(payload.as_ref(), Type::Task { .. })
                         || function.call_kind == CallKind::Suspend
                             && matches!(payload.as_ref(), Type::AsyncRegistration { .. }) => None,
