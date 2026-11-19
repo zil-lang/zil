@@ -1181,23 +1181,22 @@ fn no_live_description(
     span: Span,
     budget: &mut Budget,
 ) -> Check<()> {
-    for (index, roots) in state.desc.iter().take(live.len()).enumerate() {
-        budget.spend(1)?;
-        if live.get(index, budget)? {
-            budget.spend(roots.len())?;
-            if roots.iter().any(|candidate| {
-                candidate.parent() == root.parent()
-                    || matches!(
-                        (candidate.parent(), root.parent()),
-                        (Root::PackageField { local: a, .. } | Root::ArrayElement { local: a, .. }, Root::Local(b)) if a == b
-                    )
-            }) {
-                return Err(bad(
-                    span,
-                    "moving, clearing or reconstructing a resource head would invalidate a live description",
-                ));
-            }
-        }
+    let invalidates = live.any_active(state.desc.len(), budget, |index, budget| {
+        let roots = &state.desc[index];
+        budget.spend(roots.len())?;
+        Ok(roots.iter().any(|candidate| {
+            candidate.parent() == root.parent()
+                || matches!(
+                    (candidate.parent(), root.parent()),
+                    (Root::PackageField { local: a, .. } | Root::ArrayElement { local: a, .. }, Root::Local(b)) if a == b
+                )
+        }))
+    })?;
+    if invalidates {
+        return Err(bad(
+            span,
+            "moving, clearing or reconstructing a resource head would invalidate a live description",
+        ));
     }
     Ok(())
 }

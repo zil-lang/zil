@@ -274,6 +274,53 @@ fn descriptions_cannot_survive_cleanup_or_give() {
 }
 
 #[test]
+fn packed_descriptions_reject_cleanup_before_the_late_live_ordinal_in_raw_and_wire() {
+    let mut valid = module();
+    let f = &mut valid.functions[0];
+    let mut describes = vec![];
+    let mut late = ValueId(2);
+    for _ in 0..(2 * usize::BITS) {
+        late = ValueId(f.values.len() as u32);
+        f.values.push(desc());
+        describes.push(i(
+            Some(late.0),
+            InstructionKind::DescribeLocal { local: LocalId(0) },
+        ));
+    }
+    let read = 5 + describes.len();
+    let instructions = &mut f.blocks[0].instructions;
+    instructions.splice(5..5, describes);
+    instructions[read].kind = InstructionKind::ReadDesc {
+        desc: late,
+        index: 0,
+    };
+
+    let mut invalid = valid.clone();
+    invalid.functions[0].blocks[0].instructions.swap(read, read + 1);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for (module, reject) in [(valid, false), (invalid, true)] {
+        let candidate = plan(&module);
+        let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+        let raw = verify_module(module, candidate, &target, &limits);
+        let wire = verify_module_bytes(&bytes, &target, &limits);
+        if reject {
+            let raw = raw.unwrap_err();
+            let wire = wire.unwrap_err();
+            assert_eq!(raw, wire);
+            assert!(
+                raw.iter().any(|d| d.code == "E-VERIFY-RESOURCE"
+                    && d.message.contains("invalidate a live description")),
+                "{raw:?}"
+            );
+        } else {
+            raw.unwrap();
+            wire.unwrap();
+        }
+    }
+}
+
+#[test]
 fn create_cannot_launder_incoming_responsibility_but_give_can_transfer_it() {
     let mut m = module();
     let f = &mut m.functions[0];

@@ -28,6 +28,49 @@ impl History {
     }
 }
 impl Row<'_> {
+    /// Test live ordinals from low to high within the consumer's actual width.
+    pub(super) fn any_active(
+        self,
+        width: usize,
+        b: &mut Budget,
+        mut test: impl FnMut(usize, &mut Budget) -> Check<bool>,
+    ) -> Check<bool> {
+        match self {
+            Self::Dense(row) => {
+                for (index, &live) in row.iter().take(width).enumerate() {
+                    b.spend(1)?;
+                    if live && test(index, b)? {
+                        return Ok(true);
+                    }
+                }
+            }
+            Self::Packed { len, words } => {
+                b.spend(3)?; // logical width, word count and tail position
+                let width = len.min(width);
+                for (word, &live) in words.iter().take(width.div_ceil(WORD)).enumerate() {
+                    b.spend(3)?; // actual word read, coordinate and tail selection
+                    let start = word * WORD;
+                    let tail = width - start;
+                    let mut active = live;
+                    if tail < WORD {
+                        b.spend(2)?; // construct the tail mask and apply it
+                        active &= (1usize << tail) - 1;
+                    }
+                    while active != 0 {
+                        b.spend(4)?; // select and clear one live ordinal before visiting it
+                        let index = start + active.trailing_zeros() as usize;
+                        active &= active - 1;
+                        if test(index, b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    #[cfg(test)]
     pub(super) fn len(self) -> usize {
         match self {
             Self::Dense(row) => row.len(),

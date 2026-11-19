@@ -295,6 +295,50 @@ fn description_history_consumer_preserves_full_roots_diagnostics_and_state() {
         }
     }
 }
+
+#[test]
+fn packed_consumer_visits_live_ordinals_in_order_and_masks_its_actual_width() {
+    let ordinals = [1, 7, WORD - 1, WORD, WORD + 5, 2 * WORD - 1, 2 * WORD];
+    let width = 2 * WORD + 1;
+    let mut dense = vec![false; width];
+    let mut words = vec![0; width.div_ceil(WORD)];
+    for index in ordinals {
+        dense[index] = true;
+        set(&mut words, width, index, true, &mut budget(10)).unwrap();
+    }
+    let dense = Row::Dense(&dense);
+    let packed = Row::Packed {
+        len: width,
+        words: &words,
+    };
+    for width in [0, 7, WORD, WORD + 1, 2 * WORD, width, width + 1] {
+        for stop in [None, Some(WORD)] {
+            let visit = |row: Row<'_>, steps| -> Check<_> {
+                let mut observed = vec![];
+                let mut b = budget(steps);
+                let stopped = row.any_active(width, &mut b, |index, _| {
+                    observed.push(index);
+                    Ok(Some(index) == stop)
+                })?;
+                Ok((observed, stopped, b.remaining))
+            };
+            let steps = 1_000;
+            let original = visit(dense, steps).unwrap();
+            let actual = visit(packed, steps).unwrap();
+            assert_eq!((&actual.0, actual.1), (&original.0, original.1));
+            let used = steps - actual.2;
+            assert_eq!(visit(packed, used).unwrap(), (actual.0, actual.1, 0));
+            assert_eq!(
+                visit(packed, used - 1).unwrap_err().category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+        }
+    }
+    let mut b = budget(width);
+    assert!(!packed.any_active(width, &mut b, |_, _| Ok(false)).unwrap());
+    assert!(b.remaining > 0);
+}
+
 #[test]
 fn description_history_budget_failure_does_not_publish_and_retries_fresh() {
     let (module, graph, slots) = fixture(72, vec![vec![1], vec![2], vec![1]], vec![true; 3]);
