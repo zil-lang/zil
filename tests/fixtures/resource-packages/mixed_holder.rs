@@ -2362,6 +2362,11 @@ fn helper_replacement_rejects_a_live_child_of_the_same_carrier_ssa() {
 fn mixed_package_native_both_optimizations() {
     for (name, program, expected) in [
         (
+            "branch-selected-exclusive-package-runtime.zil",
+            include_str!("branch-selected-exclusive-package-runtime.zil"),
+            b"0\n".as_slice(),
+        ),
+        (
             "mixed-owned-borrowed-package.zil",
             PROGRAM,
             b"42\n".as_slice(),

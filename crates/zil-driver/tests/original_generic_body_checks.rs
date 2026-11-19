@@ -931,6 +931,44 @@ fn two_exclusive_package_return_sources_remain_protected_to_the_last_use() {
 }
 
 #[test]
+fn branch_selected_package_borrow_retains_the_inputs_inside_both_managers() {
+    let source = include_str!("../../../tests/fixtures/resource-packages/branch-selected-exclusive-package-runtime.zil");
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let module = stored_original_module(source, &limits, &target);
+    let choose = module.functions.iter().find(|f| f.name == "choose").unwrap();
+    let exercise = module.functions.iter().find(|f| f.name == "exercise").unwrap();
+    let results = exercise.blocks.iter().flat_map(|block| &block.instructions)
+        .filter_map(|op| match op.kind {
+            InstructionKind::Call { function, .. } if function == choose.id => op.result,
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [selected] = results.as_slice() else { panic!("expected one original call to choose") };
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let good = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&good, &target, &limits).unwrap();
+
+    let caller = plan.functions.iter_mut().find(|f| f.function == exercise.id).unwrap();
+    let row = caller.holds.iter_mut().find(|h| h.value == *selected).unwrap();
+    assert_eq!(row.roots.iter().filter(|r| matches!(r, HoldRoot::Local(_))).count(), 2);
+    assert!(row.roots.contains(&HoldRoot::Parameter(1)));
+    assert!(row.roots.contains(&HoldRoot::Parameter(2)));
+    assert_eq!(row.roots.len(), 4);
+    row.roots.retain(|r| matches!(r, HoldRoot::Local(_)));
+
+    let wrong = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for result in [zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&wrong, &target, &limits)] {
+        let errors = result.err().expect("the claimed address omits both stored input roots");
+        assert!(errors.iter().any(|d| d.category == ResultCategory::SafeReject
+            && d.code == "E-VERIFY-STORED" && d.message.contains("independently reconstructed stored target roots")),
+            "{errors:?}");
+    }
+}
+
+#[test]
 fn returned_stored_slot_uses_the_address_from_its_own_call() {
     let source = include_str!("../../../tests/fixtures/resource-packages/returned-stored-address.zil");
     check_stored_origin_mutation(source, |module| {
