@@ -867,7 +867,26 @@ fn slot_layout_actual_frontier_and_replacement_context_match_complete_old_run() 
     assert_eq!(new_solves, old_solves);
     assert!(new_solves >= module.functions.len());
     assert!(!old_sums.retirement_targets.is_empty() || !old_sums.replacement_targets.is_empty());
+    let mut omitted_retirement_rows = false;
     for index in 0..module.functions.len() {
+        let mut old_inference = captured(|| {
+            old_run(
+                &module,
+                &mut bindings[index],
+                &old_effects,
+                false,
+                None,
+                &mut a,
+                Some(&old_plan),
+            )
+        });
+        let new_inference = captured(|| request.run(index, &new_effects, false, None));
+        for old in old_inference.inputs.as_mut().unwrap().iter_mut().flatten() {
+            omitted_retirement_rows |= !old.retirement.is_empty();
+            old.retirement.clear();
+        }
+        complete_ok(old_inference, new_inference);
+
         let mut expected = Slots::old_layout_new(
             &module,
             &module.functions[index],
@@ -908,6 +927,7 @@ fn slot_layout_actual_frontier_and_replacement_context_match_complete_old_run() 
             captured(|| request.run(index, &new_effects, true, new_rows)),
         );
     }
+    assert!(omitted_retirement_rows);
     old_plan.close_pairs(&module, &mut a).unwrap();
     request.close_pairs().unwrap();
 }

@@ -533,7 +533,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
                 format!("mode={mode}"),
                 module,
                 plan,
-                Some([5097, 5379, 7098][mode as usize]),
+                Some([5097, 5354, 7018][mode as usize]),
             )
         })
         .collect();
@@ -545,7 +545,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
             format!("Store indirect={indirect}"),
             module,
             plan,
-            Some(if indirect { 19174 } else { 16091 }),
+            Some(if indirect { 19031 } else { 16024 }),
         ));
     }
     // Each fixture has one closure whose capture list selects the fixed point.
@@ -599,6 +599,7 @@ fn shared_product_parameter_and_legacy_controls_have_exact_fresh_budgets() {
         assert_eq!(minima[0], minima[1]);
         // The pinned minima include reconstruction of immediate dominators,
         // definite-initialization transfers and sorted boundary claims.
+        // Resource effect inference ends at its checked worklist fixed point.
         // Both transports independently rerun the original module at N and N-1.
         if let Some(expected) = expected {
             observed.push((label.clone(), minima[0]));

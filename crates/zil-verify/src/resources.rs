@@ -1036,7 +1036,12 @@ impl Slots {
         self.retained_debt.get(debt).copied().unwrap_or(false)
     }
 
+    #[cfg(test)]
     fn empty(&self, budget: &mut Budget) -> Check<State> {
+        self.initial_state(self.retirement, budget)
+    }
+
+    fn initial_state(&self, retirement: bool, budget: &mut Budget) -> Check<State> {
         budget.spend(
             self.debt_count
                 .saturating_mul(2)
@@ -1046,11 +1051,11 @@ impl Slots {
         // An input or unknown producer still starts every actual field INPUT.
         let package_fresh = self.package_fresh_plan.empty(budget)?;
         budget.spend(self.product.width())?;
-        if self.retirement {
+        if retirement {
             budget.spend(self.desc_count)?;
         }
         Ok(State {
-            retirement: if self.retirement {
+            retirement: if retirement {
                 vec![replacements::Sources::default(); self.desc_count]
             } else {
                 vec![]
@@ -3065,7 +3070,9 @@ impl Transfer<'_> {
                     }
                 }
             }
-            if let Some(plan) = self.replacements {
+            if let Some(plan) = self.replacements
+                && !state.retirement.is_empty()
+            {
                 plan.source_step(self, state, instruction, budget)?;
             }
             if validate {
@@ -3227,7 +3234,10 @@ fn run_with_slots(
         BTreeSet::new()
     };
     let after = binding.after(slots, budget)?;
-    let mut initial = slots.empty(budget)?;
+    // Only the validating run records retirement pairs and call sources. Its
+    // worklist still transports those sources for the validating replay.
+    let track_retirement = validate && slots.retirement;
+    let mut initial = slots.initial_state(track_retirement, budget)?;
     // Charge actual initialization work, including the old Managed-only scan.
     budget.spend(slots.capture_debt.len())?;
     for (index, debt) in slots.capture_debt.iter().enumerate() {
@@ -3265,7 +3275,9 @@ fn run_with_slots(
             initial.desc[index].insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { root.store_parent() } else { root });
         }
     }
-    if let Some(plan) = replacements {
+    if let Some(plan) = replacements
+        && !initial.retirement.is_empty()
+    {
         plan.seed_sources(module, f, slots, &mut initial, budget)?;
     }
     if validate {
@@ -3305,7 +3317,7 @@ fn run_with_slots(
         .saturating_add(slots.product.width())
         .saturating_add(slots.local_count)
         .saturating_add(slots.desc_count)
-        .saturating_add(if slots.retirement { slots.desc_count } else { 0 });
+        .saturating_add(if track_retirement { slots.desc_count } else { 0 });
     let forward_output = clone_floor > move_work;
     while let Some(b) = pending.pop(budget)? {
         if let Some(progress)=&mut budget.diagnostic_progress{progress.block_visits=progress.block_visits.saturating_add(1);}
@@ -3338,9 +3350,13 @@ fn run_with_slots(
             *capture = Some(inputs.clone());
         }
     });
-    for (b, input) in inputs.into_iter().enumerate() {
-        if let Some(mut state) = input {
-            transfer.block(b, &mut state, validate, &mut written, budget)?;
+    // Every stable input has already reached the worklist transfer and added
+    // its inferred writes. Only validation has another consumer of the state.
+    if validate {
+        for (b, input) in inputs.into_iter().enumerate() {
+            if let Some(mut state) = input {
+                transfer.block(b, &mut state, true, &mut written, budget)?;
+            }
         }
     }
     Ok(written)
