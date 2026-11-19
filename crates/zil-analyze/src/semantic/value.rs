@@ -523,6 +523,11 @@ fn reference(
     if inner.life.binder_count as usize != inner.classes.len() {
         return Err(fail("address child omits its complete intrinsic domain"));
     }
+    if inner.classes.is_empty() && empty_shape(&inner.life) {
+        let geometry = geometry::empty_child_reference(&inner.geometry, mode, b)?;
+        b.spend(1, WORK)?;
+        return Ok(Value::from_geometry(geometry, vec![class]));
+    }
     let mut classes = Vec::new();
     let outer = intern(&mut classes, class, b)?;
     let mut retained = Vec::new();
@@ -2366,6 +2371,28 @@ fn resolve_classes(
 #[cfg(test)]
 mod geometry_tests {
     use super::*;
+
+    #[test]
+    fn references_share_only_their_exact_empty_child_geometry() {
+        let mut b = Budget::new(&zil_base::Limits::default());
+        let child = scalar(Type::I64);
+        let first = address(false, Class::Local(1), child.clone(), &mut b).unwrap();
+        let second = address(false, Class::Local(2), child.clone(), &mut b).unwrap();
+        assert!(std::sync::Arc::ptr_eq(&first.geometry, &second.geometry));
+        assert_eq!(first.classes, vec![Class::Local(1)]);
+        assert_eq!(second.classes, vec![Class::Local(2)]);
+        let exclusive = address(true, Class::Local(1), child.clone(), &mut b).unwrap();
+        let weak = description(Class::Local(1), child, &mut b).unwrap();
+        let unsigned = address(false, Class::Local(1), scalar(Type::U64), &mut b).unwrap();
+        assert_eq!(exclusive.life.slots[0].mode, StoredBorrowMode::ExclusiveAddress);
+        assert_eq!(weak.life.slots[0].mode, StoredBorrowMode::WritableDescription);
+        assert_ne!(first.ty, unsigned.ty);
+        let nested = address(false, Class::Local(3), second, &mut b).unwrap();
+        assert_eq!(nested.classes, vec![Class::Local(3), Class::Local(2)]);
+        assert_eq!(nested.life.retained.len(), 1);
+        b.partial_depth = 0;
+        assert!(address(false, Class::Local(4), scalar(Type::I64), &mut b).is_err());
+    }
 
     #[test]
     fn sum_preserves_unused_success_classes_and_whole_child_identity() {

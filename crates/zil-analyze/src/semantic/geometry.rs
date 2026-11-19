@@ -94,6 +94,35 @@ pub(super) fn construct(
     intern::construct(kind, children, life, budget)
 }
 
+/// Only constructor geometry enters this table. The caller supplies and
+/// retains the original outer class separately for each actual occurrence.
+pub(super) fn empty_child_reference(
+    child: &Arc<Geometry>, mode: StoredBorrowMode, b: &mut Budget,
+) -> CompileResult<Arc<Geometry>> {
+    let kind = match mode {
+        StoredBorrowMode::SharedAddress => Unary::Address(false),
+        StoredBorrowMode::ExclusiveAddress => Unary::Address(true),
+        StoredBorrowMode::WritableDescription => Unary::Desc,
+        StoredBorrowMode::ReadOnlyDescription => return Err(fail("unsupported reference constructor mode")),
+    };
+    let child_id = intern::owned(child, b)?.geometry_id;
+    let key = (b.geometry_module, child_id, b.partial_depth, b.helper_nodes, mode);
+    b.lookup(b.empty_child_references.len(), "formed empty-child reference lookup")?;
+    if let Some(formed) = b.empty_child_references.get(&key).cloned() {
+        b.spend(1, "formed empty-child reference observation")?;
+        return Ok(formed);
+    }
+    b.spend(1, "formed reference outer slot")?;
+    let life = StorageLifeShape { binder_count: 1, slots: vec![StorageLifeSlot {
+        path: Vec::new(), binder: 0, mode,
+    }], retained: Vec::new(), nominal_arguments: Vec::new() };
+    let formed = construct(Constructor::Unary(kind), &[child], life, b)?;
+    b.lookup(b.empty_child_references.len(), "formed empty-child reference publication")?;
+    b.spend(1, "formed empty-child reference retention")?;
+    b.empty_child_references.insert(key, Arc::clone(&formed));
+    Ok(formed)
+}
+
 pub(crate) struct TypeEntry {
     // Retaining the owner makes every registered address request-stable.
     pub owner: Arc<Geometry>,

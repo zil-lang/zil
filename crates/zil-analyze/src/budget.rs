@@ -59,6 +59,7 @@ pub(super) struct Budget {
         Vec<crate::semantic::geometry::GeometryRecord>,
     >,
     pub(super) geometry_next_type: usize,
+    pub(super) empty_child_references: BTreeMap<(Option<usize>, usize, usize, usize, zil_ir::StoredBorrowMode), std::sync::Arc<crate::semantic::geometry::Geometry>>,
     pub(super) geometry_next_value: usize,
     // Exact child Type identity and its complete bounded comparison work.
     pub(super) geometry_child_types:
@@ -341,6 +342,7 @@ impl Budget {
             geometry_type_catalog: BTreeMap::new(),
             geometry_catalog: BTreeMap::new(),
             geometry_next_type: 0,
+            empty_child_references: BTreeMap::new(),
             geometry_next_value: 0,
             geometry_child_types: BTreeMap::new(),
             cost_profiling: matches!(
