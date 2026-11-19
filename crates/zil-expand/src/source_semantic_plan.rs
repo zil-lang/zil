@@ -576,13 +576,19 @@ fn projected_borrow_root(
     body: &mut SourceBody<'_>, path: &[u32], budget: &mut Budget<'_>, span: Span,
 ) -> R<bool> {
     let mut length = path.len();
+    let mut member = false;
     while length > 0 && path[length - 1] == 0 {
         length -= 1;
         let Some(parent) = body.locate(&path[..length], budget, span)? else { return Ok(false); };
         let body_nodes::Node::Expression(expression) = parent.node else { return Ok(false); };
         match &expression.kind {
-            s::ExprKind::Member { .. } | s::ExprKind::Index { .. } | s::ExprKind::Slice { .. }
-                | s::ExprKind::Group(_) => {},
+            s::ExprKind::Member { .. } => member = true,
+            s::ExprKind::Index { .. } | s::ExprKind::Slice { .. } => member = false,
+            s::ExprKind::Group(_) | s::ExprKind::TypeApply { .. } => {},
+            // A method's implicit borrow observes the actual pattern receiver
+            // just as an explicit borrow does. Its lexical source and emitted
+            // local still have to agree in the consumer.
+            s::ExprKind::Call { .. } => return Ok(member),
             s::ExprKind::Unary { op: s::UnaryOp::Borrow | s::UnaryOp::BorrowMut, .. } => return Ok(true),
             _ => return Ok(false),
         }

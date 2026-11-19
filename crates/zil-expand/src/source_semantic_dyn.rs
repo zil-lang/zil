@@ -4,6 +4,7 @@
 use super::*;
 
 pub(super) struct Template {
+    source_owner: usize,
     declaration: LifeDeclarationId,
     scope: SemanticDefinitionId,
     identity: LifeDeclarationIdentity,
@@ -17,6 +18,43 @@ pub(super) struct Template {
     definitions: Option<Vec<DynDefinitionDeclaration>>,
     method_scopes: Vec<(DynDefinitionId, SemanticDefinitionId)>,
     signature_scopes: Vec<(u32, SemanticDefinitionId)>,
+}
+/// A concrete, unparameterized impl's authored associated Type can guide the
+/// Source occurrence inventory. Its use as a type still needs conformance.
+pub(super) fn closed_associated_type<'a>(
+    templates: &'a [Template], receiver: SemanticDefinitionId, trait_id: LifeDeclarationId,
+    member: u32, budget: &mut Budget<'_>, span: Span,
+) -> R<Option<(SemanticDefinitionId, &'a SemanticTypeRecipe)>> {
+    budget.identity_work(templates.len().saturating_mul(2), span)?;
+    let Some(declared) = templates.iter().find(|row| row.declaration == trait_id
+        && row.header.kind == DynDeclarationKind::Trait) else { return Ok(None); };
+    let Some(slot) = declared.header.members.get(member as usize) else { return Ok(None); };
+    if !matches!(slot.kind, DynMemberKind::Type) { return Ok(None); }
+    let mut found = None;
+    for row in templates {
+        let Some(application) = &row.trait_application else { continue; };
+        if application.declaration != trait_id || !application.arguments.is_empty()
+            || !row.header.parameters.is_empty() { continue; }
+        if !matches!(&row.self_type, Some(DynTypePattern::Semantic { scope, ty })
+            if *scope == row.scope && matches!(ty.as_ref(),
+                SemanticTypeRecipe::Nominal { definition, arguments }
+                if *definition == receiver && arguments.is_empty())) { continue; }
+        budget.identity_work(row.header.members.len(), span)?;
+        for (ordinal, item) in row.header.members.iter().enumerate() {
+            budget.identity_work(item.name.len().saturating_add(slot.name.len()), span)?;
+            if item.name != slot.name || !matches!(item.kind, DynMemberKind::Type) { continue; }
+            let Some(values) = &row.associated else { return Ok(None); };
+            budget.identity_work(values.len(), span)?;
+            let Some(value) = values.iter().find(|value| value.member as usize == ordinal)
+                else { return Ok(None); };
+            let Some(DynAssociatedValueRecipe::Type(DynTypePattern::Semantic { scope, ty })) =
+                &value.value else { return Ok(None); };
+            if *scope != row.scope || found.replace((*scope, ty.as_ref())).is_some() {
+                return Ok(None);
+            }
+        }
+    }
+    Ok(found)
 }
 fn find<'a>(
     modules: &'a [(ModuleId, SemanticModule)],
@@ -868,14 +906,65 @@ pub(super) fn collect(
                 }
             }
         }
-        let scope_requirements =
-            complete_requirements(scope, false, builder.budget, row.item.span)?;
+        builder.implicit.clear();
+        let associated = associated(builder, scope, members)?;
+        let identity = identity(&scope.identity, builder.budget, row.item.span)?;
+        let header = crate::generics::dynamic::source::original_header(&row.item, builder.budget)?
+            .ok_or_else(|| {
+                error(
+                    row.item.span,
+                    "original Dyn scope has no authored declaration header",
+                )
+            })?;
+        builder.push(
+            &mut output,
+            Template {
+                source_owner: owner,
+                declaration,
+                scope: scope_id,
+                identity,
+                header,
+                self_type,
+                trait_application,
+                supers,
+                requirements: None,
+                associated,
+                signatures: None,
+                definitions: None,
+                method_scopes: Vec::new(),
+                signature_scopes: Vec::new(),
+            },
+            row.item.span,
+        )?;
+    }
+    Ok(output)
+}
+
+// Method contracts include the inferred call ABI. Complete them after effect
+// solving, while sharing the authored associated values with that same solver.
+pub(super) fn finish_methods(
+    builder: &mut Builder<'_, '_, '_, '_>,
+    modules: &[(ModuleId, SemanticModule)],
+    templates: &mut [Template],
+) -> R<()> {
+    let inventory = builder.inventory;
+    for template in templates {
+        builder.budget.identity_work(1, Span::default())?;
+        let owner = template.source_owner;
+        let row = &inventory.declarations[owner];
+        let scope = find(modules, template.scope, builder.budget)?;
+        template.requirements = complete_requirements(scope, false, builder.budget, row.item.span)?;
+        let members = match &row.item.kind {
+            s::ItemKind::Trait(value) => &value.members,
+            s::ItemKind::Impl(value) => &value.members,
+            _ => return Err(error(row.item.span, "Dyn method owner must be a trait or impl")),
+        };
+        builder.owner = owner;
+        builder.lexical_offset = 0;
         let mut method_signatures = Some(Vec::new());
         let mut method_definitions = Some(Vec::new());
         let mut method_scopes = Vec::new();
         let mut signature_scopes = Vec::new();
-        builder.implicit.clear();
-        let associated = associated(builder, scope, members)?;
         for (ordinal, item) in members.iter().enumerate() {
             let ordinal = u32::try_from(ordinal)
                 .map_err(|_| error(item.span, "Dyn original member ordinal overflow"))?;
@@ -986,35 +1075,12 @@ pub(super) fn collect(
                 }
             }
         }
-        let identity = identity(&scope.identity, builder.budget, row.item.span)?;
-        let header = crate::generics::dynamic::source::original_header(&row.item, builder.budget)?
-            .ok_or_else(|| {
-                error(
-                    row.item.span,
-                    "original Dyn scope has no authored declaration header",
-                )
-            })?;
-        builder.push(
-            &mut output,
-            Template {
-                declaration,
-                scope: scope_id,
-                identity,
-                header,
-                self_type,
-                trait_application,
-                supers,
-                requirements: scope_requirements,
-                associated,
-                signatures: method_signatures,
-                definitions: method_definitions,
-                method_scopes,
-                signature_scopes,
-            },
-            row.item.span,
-        )?;
+        template.signatures = method_signatures;
+        template.definitions = method_definitions;
+        template.method_scopes = method_scopes;
+        template.signature_scopes = signature_scopes;
     }
-    Ok(output)
+    Ok(())
 }
 
 struct RawType<'a>(&'a Type);

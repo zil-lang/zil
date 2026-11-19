@@ -61,6 +61,37 @@ pub(super) fn signature(
     }
     Ok(())
 }
+// A trait method call can be checked by its declared signature even when
+// the effect edge selects its concrete provider. Elided lifetime ordinals
+// belong to each declaration (including implicit occurrences in its body).
+pub(super) fn observe_trait_declaration(
+    rows: &mut Vec<Observation>, owner: SemanticDefinitionId, call: NodeId,
+    definitions: &[&SemanticDefinition], provider: &SemanticDefinition,
+    budget: &mut Budget<'_>, span: Span,
+) -> R<()> {
+    if provider.kind != SemanticDefinitionKind::Method { return Ok(()); }
+    let Some(parent) = provider.parent else { return Ok(()); };
+    budget.identity_work(definitions.len(), span)?;
+    let Some(scope) = definitions.iter().find(|item| item.id == parent) else { return Ok(()); };
+    let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { trait_application, .. }) = &scope.body
+        else { return Ok(()); };
+    budget.identity_work(definitions.len(), span)?;
+    let Some(declaration) = definitions.iter().find(|item| matches!(
+        &item.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration })
+            if *declaration == trait_application.declaration
+    )) else { return Ok(()); };
+    let Some(name) = provider.identity.declaration_path.last() else { return Ok(()); };
+    budget.identity_work(definitions.len(), span)?;
+    for method in definitions {
+        if method.parent != Some(declaration.id) || method.kind != SemanticDefinitionKind::Method { continue; }
+        let Some(candidate) = method.identity.declaration_path.last() else { continue; };
+        budget.identity_work(name.len().saturating_add(candidate.len()), span)?;
+        if candidate == name && let Some(prototype) = effects::signature(method) {
+            signature(rows, owner, call, Some(method), prototype, &[], budget, span)?;
+        }
+    }
+    Ok(())
+}
 fn inputs<'a>(
     rows: &mut Vec<Observation>, owner: SemanticDefinitionId, call: NodeId,
     formals: Option<&[SemanticFormal]>, parameters: impl Iterator<Item = &'a SemanticTypeRecipe>,
@@ -133,8 +164,8 @@ pub(super) fn constructor(
     }
     Ok(())
 }
-pub(super) fn prepare(modules: &mut [(ModuleId, SemanticModule)], budget: &mut Budget<'_>) -> R<()> {
-    let mut observations = effects::observe_call_prototypes(modules, budget)?;
+pub(super) fn prepare(modules: &mut [(ModuleId, SemanticModule)], templates: &[dyn_original::Template], budget: &mut Budget<'_>) -> R<()> {
+    let mut observations = effects::observe_call_prototypes(modules, templates, budget)?;
     for observation in &mut observations {
         let span = Span::default();
         budget.identity_work(modules.len().saturating_add(modules.iter().find(|(id, _)| *id == observation.owner.module).map_or(0, |(_, module)| module.definitions.len())), span)?;

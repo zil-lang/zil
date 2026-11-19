@@ -498,6 +498,7 @@ fn binding_source_local(
     }
     found.ok_or_else(|| {
         bad("projected loan alias lacks its exact original declaration or emitted binding read")
+            .with_note(format!("original definition {:?}, observation {:?}, source {:?}, actual function {:?}", original.id, observed, source, function.id))
     })
 }
 fn input_nominal(

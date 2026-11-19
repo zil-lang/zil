@@ -1430,8 +1430,6 @@ fn prepare_with_inventory(
             };
             plan::function(&mut program, &mut normalizer, function, &inventory.closures)?;
         }
-        call_regions::prepare(&mut program.modules, &mut budget)?;
-        effects::propose(&mut program.modules, &inventory.originals, &mut budget)?;
         let mut normalizer = Builder {
             inventory: &inventory.originals,
             compiler_nominals: &inventory.compiler_nominals,
@@ -1449,6 +1447,9 @@ fn prepare_with_inventory(
             body_nodes: Vec::new(),
         };
         program.dyn_templates = dyn_original::collect(&mut normalizer, &program.modules)?;
+        effects::propose(&mut program.modules, &inventory.originals, &program.dyn_templates, normalizer.budget)?;
+        dyn_original::finish_methods(&mut normalizer, &program.modules, &mut program.dyn_templates)?;
+        call_regions::prepare(&mut program.modules, &program.dyn_templates, &mut budget)?;
         budget.drop_lineage_vec(mappings, span)?;
         Ok((modules, program))
     })();

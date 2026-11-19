@@ -434,11 +434,22 @@ fn imported_signature_types_preserve_their_real_nominal_owner() {
         .replace("import rules;", "import rules;import other;")
         .replace("x:rules.Stamp", "x:other.Stamp");
     reject(
-        "signature-same-layout-wrong-owner",
+        "signature-same-layout-wrong-call-argument",
         &[
             ("main", "import data;fn main()->i32=>0"),
             ("rules", rules),
             ("data", &forged),
+            ("other", "pub struct Stamp{n:i32}"),
+        ],
+        Some("E-GENERIC-ARGUMENT"),
+    );
+    let signature_only = forged.replace(".n+rules.get(&x)", ".n");
+    reject(
+        "signature-same-layout-wrong-owner",
+        &[
+            ("main", "import data;fn main()->i32=>0"),
+            ("rules", rules),
+            ("data", &signature_only),
             ("other", "pub struct Stamp{n:i32}"),
         ],
         Some("E-TRAIT-SIGNATURE"),

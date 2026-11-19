@@ -90,6 +90,7 @@ fn fixed_requirements(rows: &[SemanticRequirementRecipe], evidence: &mut Evidenc
 }
 struct Scan<'a, 'd, 'b, 'l> {
     definitions: &'d [&'a SemanticDefinition],
+    templates: &'a [dyn_original::Template],
     owner: usize,
     locals: Vec<(&'a str, Target)>,
     captures: &'b mut Vec<(usize, Vec<(&'a str, Target)>)>,
@@ -109,7 +110,7 @@ struct Scan<'a, 'd, 'b, 'l> {
     collect_targets: bool,
     resolved_targets: Vec<Target>,
 }
-fn signature(definition: &SemanticDefinition) -> Option<&SemanticSignatureRecipe> {
+pub(super) fn signature(definition: &SemanticDefinition) -> Option<&SemanticSignatureRecipe> {
     match &definition.body {
         SemanticDefinitionBody::FunctionWithBody { signature, .. }
         | SemanticDefinitionBody::Function { signature, .. } => Some(signature),
@@ -451,6 +452,10 @@ impl<'a> Scan<'a, '_, '_, '_> {
                     call_regions::signature(self.observations.as_deref_mut().unwrap(), caller, call,
                         Some(self.definitions[owner]), signature, &[], self.budget, span)?;
                 }
+                call_regions::observe_trait_declaration(
+                    self.observations.as_deref_mut().unwrap(), caller, call,
+                    self.definitions, self.definitions[owner], self.budget, span,
+                )?;
             }
             Target::Prototype(index, _) => match self.prototypes[index] {
                 Prototype::Code { signature, frames, .. } => {
@@ -627,6 +632,8 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 }
                 (SemanticFormal::Type { .. }, Arguments::Types(_)) => true,
                 (SemanticFormal::Type { .. }, Arguments::InferredTargets(_)) => true,
+                (SemanticFormal::Lifetime | SemanticFormal::Const { .. }, Arguments::InferredTargets(index)) =>
+                    self.elements[index][ordinal] == Target::Unknown,
                 (SemanticFormal::Type { .. }, Arguments::Written(values)) => {
                     matches!(values[ordinal], CoreGenericArgument::Type(_))
                 }
@@ -771,6 +778,20 @@ impl<'a> Scan<'a, '_, '_, '_> {
             SemanticTypeRecipe::Closure { definition, .. } => {
                 declaration_index(self.definitions, *definition, self.budget, span)?
                     .map_or(Target::Unknown, Target::Definition)
+            }
+            SemanticTypeRecipe::AssociatedType { receiver, application, member }
+                if application.arguments.is_empty() => {
+                let Target::NominalReceiver(actual) =
+                    self.bound_type(owner, receiver, context, depth + 1, span)?
+                    else { return Ok(Target::Unknown); };
+                let host = self.definitions[self.applications[actual].declaration];
+                if !host.parameters.is_empty() { return Ok(Target::Unknown); }
+                let Some((scope, ty)) = dyn_original::closed_associated_type(
+                    self.templates, host.id, application.declaration, *member, self.budget, span,
+                )? else { return Ok(Target::Unknown); };
+                let Some(scope) = declaration_index(self.definitions, scope, self.budget, span)?
+                    else { return Ok(Target::Unknown); };
+                self.bound_type(scope, ty, None, depth + 1, span)?
             }
             SemanticTypeRecipe::Formal(reference) => {
                 let Some(owner) = self.scope(owner, &reference.scope, span)? else {
@@ -1114,42 +1135,48 @@ impl<'a> Scan<'a, '_, '_, '_> {
     ) -> R<Target> {
         let Target::Definition(owner) = target else { return Ok(target); };
         let definition = self.definitions[owner];
-        let [SemanticFormal::Type { .. }] = definition.parameters.as_slice() else {
+        let traditional = matches!(definition.parameters.as_slice(), [SemanticFormal::Type { .. }]);
+        if definition.parameters.is_empty() {
             return Ok(target);
-        };
+        }
         let Some(signature) = signature(definition) else { return Ok(target); };
         if arguments.len() != signature.parameters.len()
             || !matches!(signature.result, SemanticTypeRecipe::Nominal { .. })
         {
             return Ok(target);
         }
-        let mut inferred = None;
+        let mut targets = Vec::new();
+        for _ in &definition.parameters {
+            self.budget.lineage_push(&mut targets, Target::Unknown, span)?;
+        }
+        let mut found = false;
         for (parameter, argument) in signature.parameters.iter().zip(arguments) {
             self.budget.node(span, depth)?;
-            if !matches!(&parameter.ty, SemanticTypeRecipe::Formal(reference)
-                if reference.scope == SemanticScopeRef::Ancestor(0) && reference.ordinal == 0)
-            {
-                continue;
+            let mut ty = &parameter.ty;
+            if let SemanticTypeRecipe::Address { inner, .. } = ty {
+                ty = inner;
             }
+            let SemanticTypeRecipe::Formal(reference) = ty else { continue; };
+            if reference.scope != SemanticScopeRef::Ancestor(0)
+                || !matches!(definition.parameters.get(reference.ordinal as usize),
+                    Some(SemanticFormal::Type { .. })) { continue; }
             let actual = self.target(argument, depth + 1)?;
             if actual == Target::Unknown {
-                return Ok(target);
-            }
-            inferred = Some(match inferred {
-                Some(previous) if previous != actual => {
-                    // These are effect candidates from distinct input
-                    // occurrences. Keep both until invocation instead of
-                    // using a shared ABI as evidence of Type equality.
-                    let index = self.alternatives.len();
-                    self.budget.lineage_push(self.alternatives, (previous, actual), span)?;
-                    Target::Alternatives(index)
+                if traditional {
+                    self.budget.drop_lineage_vec(targets, span)?;
+                    return Ok(target);
                 }
-                _ => actual,
-            });
+                continue;
+            }
+            let previous = &mut targets[reference.ordinal as usize];
+            if *previous != Target::Unknown && *previous != actual {
+                let index = self.alternatives.len();
+                self.budget.lineage_push(self.alternatives, (*previous, actual), span)?;
+                *previous = Target::Alternatives(index);
+            } else { *previous = actual; }
+            found = true;
         }
-        let Some(actual) = inferred else { return Ok(target); };
-        let mut targets = Vec::new();
-        self.budget.lineage_push(&mut targets, actual, span)?;
+        if !found { self.budget.drop_lineage_vec(targets, span)?; return Ok(target); }
         let index = self.elements.len();
         self.budget.lineage_push(self.elements, targets, span)?;
         Ok(self.application(owner, self.owner, Arguments::InferredTargets(index), None, span)?
@@ -2301,7 +2328,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
 /// It retains original prototypes before the ABI proposal discards detail.
 /// Unknown effect summaries never reject Source or create guessed roles.
 pub(super) fn observe_call_prototypes(
-    modules: &[(ModuleId, SemanticModule)], budget: &mut Budget<'_>,
+    modules: &[(ModuleId, SemanticModule)], templates: &[dyn_original::Template], budget: &mut Budget<'_>,
 ) -> R<Vec<call_regions::Observation>> {
     let span = Span::default();
     let mut definitions = Vec::new();
@@ -2338,7 +2365,7 @@ pub(super) fn observe_call_prototypes(
             for entry in environment { budget.lineage_push(&mut locals, *entry, span)?; }
         }
         let mut vertex = Vertex { explicit: None, suspend: false, known_suspend: false, edges: Vec::new(), consumes: Vec::new(), forwards: Vec::new() };
-        let mut scan = Scan { definitions: &definitions, owner: index, locals,
+        let mut scan = Scan { definitions: &definitions, templates, owner: index, locals,
             captures: &mut captures, contextual_inputs: &mut contextual_inputs, applications: &mut applications, store_elements: &mut store_elements,
             vertex: &mut vertex, evidence: None, budget, prototypes: &mut prototypes, alternatives: &mut alternatives, quantifiers: &mut quantifiers, elements: &mut elements, active_quantifiers: None, observations: Some(&mut observations), call: None, collect_targets: false, resolved_targets: Vec::new() };
         for (ordinal, parameter) in parameters.iter().enumerate() {
@@ -2394,6 +2421,7 @@ fn explicit_kind(
 fn propose_round(
     modules: &mut [(ModuleId, SemanticModule)],
     originals: &SourceDeclarationInventory<'_>,
+    templates: &[dyn_original::Template],
     evidence: &mut Evidence,
     budget: &mut Budget<'_>,
 ) -> R<bool> {
@@ -2463,6 +2491,7 @@ fn propose_round(
             }
             let mut scan = Scan {
                 definitions: &definitions,
+                templates,
                 owner: index,
                 locals,
                 captures: &mut captures,
@@ -2641,6 +2670,7 @@ fn propose_round(
 pub(super) fn propose(
     modules: &mut [(ModuleId, SemanticModule)],
     originals: &SourceDeclarationInventory<'_>,
+    templates: &[dyn_original::Template],
     budget: &mut Budget<'_>,
 ) -> R<()> {
     let mut evidence = Evidence { rows: Vec::new(), fixed_signatures: Vec::new() };
@@ -2662,7 +2692,7 @@ pub(super) fn propose(
     // explicitly Direct bodies remain fixed by their original declaration.
     loop {
         budget.node(Span::default(), 0)?;
-        let effects_changed = propose_round(modules, originals, &mut evidence, budget)?;
+        let effects_changed = propose_round(modules, originals, templates, &mut evidence, budget)?;
         let cleanup_changed = cleanup_candidates::propose(modules, originals, &mut evidence, budget)?;
         if !effects_changed && !cleanup_changed { break; }
     }
