@@ -577,8 +577,21 @@ impl Solver<'_, '_> {
     }
     pub(super) fn call_input_value(&mut self, frame: &mut Frame, value: &SemanticOriginalExpr,
         expected: Term, b: &mut Budget, depth: usize) -> CompileResult<Term> {
-        let deferred = self.deferred_call_type(expected, b)?;
-        self.call_argument(frame, value, deferred, b, depth + 1)?;
+        // A result context can resolve a call input to the caller's declared
+        // region before arguments are read. Check the explicit borrow against
+        // that region and its real source upper before settling the call.
+        let mut operand = value;
+        while let CoreExprKind::Group(inner) = &operand.kind {
+            b.spend(1, WORK)?;
+            operand = inner;
+        }
+        let contextual = matches!(operand.kind, CoreExprKind::Unary {
+            op: UnaryOp::Borrow | UnaryOp::BorrowMut, ..
+        }) && matches!(self.state.arena[self.type_root(expected, b)?],
+            Kind::Address { life, .. } if matches!(self.state.arena[self.root(life, b)?],
+                Kind::Life(Life::Formal(owner, _)) if owner == frame.definition));
+        let receiving = if contextual { expected } else { self.deferred_call_type(expected, b)? };
+        self.call_argument(frame, value, receiving, b, depth + 1)?;
         b.lookup(frame.expressions.len(), WORK)?;
         let actual = frame.expressions.get(&value.id).copied()
             .ok_or_else(|| fail("original call argument has no checked expression occurrence"))?;

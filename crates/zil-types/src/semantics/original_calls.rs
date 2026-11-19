@@ -1133,16 +1133,17 @@ impl Check<'_, '_> {
                             let Some(place) = receiver_place.as_ref() else {
                                 return Err(error);
                             };
-                            let SemanticOriginalTypeSource::Parameter(ordinal) = &place.root else {
-                                return Err(error);
+                            // The projected field borrows through the address already
+                            // held by this exact lexical root. A local Store window
+                            // carries the same source obligation as a borrowed input.
+                            let query = match place.root {
+                                SemanticOriginalTypeSource::Parameter(ordinal) => Query::Parameter(ordinal),
+                                SemanticOriginalTypeSource::Binding(node) => Query::Binding(node),
+                                _ => return Err(error),
                             };
-                            let root = self
-                                .proof
-                                .types
-                                .get(&(owner, Query::Parameter(*ordinal)))
-                                .ok_or_else(|| {
-                                bad("method field receiver has no original root parameter")
-                            })?;
+                            self.pay(self.proof.types.len().saturating_add(1).ilog2() as usize + 1, depth)?;
+                            let root = self.proof.types.get(&(owner, query))
+                                .ok_or_else(|| bad("method field receiver has no original root binding"))?;
                             let SemanticTypeRecipe::Address {
                                 mutable: available,
                                 lifetime,

@@ -105,7 +105,15 @@ impl CheckedContext {
             if !matches!(actual.ty,Type::Address{..}){continue;}
             if prepared.is_some() && index == 0 { b.spend(1)?; adapted.push(index); continue; }
             b.spend(original_regions.len())?;if original_regions.iter().any(|(ordinal,_)|*ordinal as usize==index){b.spend(1)?;adapted.push(index);continue;}
-            let exported=returned_input_head(signature,key,index,b)?;
+            let parameter = &signature.parameters[index].0;
+            b.spend(parameter.life.slots.len().saturating_add(signature.result.classes.len()))?;
+            // A named result window may be reached by a projected input and
+            // its separate ABI reborrow. Replay that ordinal's actual source
+            // just as for an exported fresh window, without specializing it.
+            let named_result_input = parameter.life.slots.iter().find(|slot| slot.path.is_empty())
+                .and_then(|slot| parameter.classes.get(slot.binder as usize))
+                .is_some_and(|head| matches!(head, ClassKey::Formal { .. }) && signature.result.classes.contains(head));
+            let exported=named_result_input || returned_input_head(signature,key,index,b)?;
             let local_window=self.original_local_call_window(caller,&signature.parameters[index].0,environment,b)?;
             let shared=matches!(actual.ty,Type::Address{mutable:false,..})&&matches!(signature.parameters[index].0.ty,Type::Address{mutable:false,..});
             if !retains_task_inputs&&!exported&&!local_window&&!(shared&&shared_reborrow_adapter(&self.site_index.producers,module,f,*argument,b)?){continue;}

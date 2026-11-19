@@ -20,6 +20,12 @@ impl CheckedContext {
         Ok(())
     }
 
+    pub(super) fn original_outlives(&self, key: ScopeKey, longer: ClassKey, shorter: ClassKey, b: &mut Budget) -> Check<()> {
+        let added = record_fact(&mut self.premises.borrow_mut().entry(key).or_default().relations.outlives, (longer,shorter), b)?;
+        if added { self.invalidate_closed_frames(); }
+        Ok(())
+    }
+
     pub(crate) fn evaluate_requirements(&self,module:&TypedModule,recipes:&[SemanticRequirementRecipe],environment:&EvalEnv,mode:RequirementMode,external:&mut impl ExternalProofs,active:&mut ActiveQueries,b:&mut Budget)->Check<()> {
         b.spend(recipes.len())?;
         if mode==RequirementMode::DeclarationPremise {
@@ -57,8 +63,7 @@ impl CheckedContext {
                         }
                         SemanticRequirementRecipe::Outlives{longer,shorter}=>{
                             let longer=self.life(module,longer,environment,b)?;let shorter=self.life(module,shorter,environment,b)?;
-                            let added = record_fact(&mut self.premises.borrow_mut().entry(key).or_default().relations.outlives, (longer,shorter), b)?;
-                            if added { self.invalidate_closed_frames(); }
+                            self.original_outlives(key, longer, shorter, b)?;
                         }
                         _=>{}
                     }

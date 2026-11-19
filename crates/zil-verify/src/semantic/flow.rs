@@ -1434,6 +1434,27 @@ impl CheckedContext {
             if source.is_none(){source=original.original_description_source(module,instance.definition,original_source,b)?;}
             expanded=original.type_recipe(module,instance.definition,original_source,environment,b)?;&expanded
         }else{source_recipe};
+        if let SemanticTypeRecipe::Address { lifetime: SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Formal(formal)), .. } = source_recipe
+            && formal.scope == SemanticScopeRef::Ancestor(0)
+            && let Some(source @ original::intrinsics::BufferSource::Address { .. }) = source
+            && let SemanticOperand::Value(value) = subject
+            && actual.ty == expected.ty
+        {
+            let frame = self.frame(environment, formal.scope, b)?;
+            b.spend(actual.life.slots.len().saturating_add(expected.life.slots.len()))?;
+            if let Some(slot) = actual.life.slots.iter().find(|row| row.path.is_empty())
+                && let Some(target) = expected.life.slots.iter().find(|row| row.path.is_empty() && row.mode == slot.mode)
+                && let Some(outer @ ClassKey::Outer { scope, operand: OperandKey::Value(id), path, mode }) = actual.classes.get(slot.binder as usize)
+                && *scope == frame.key && id == value && path.is_empty() && *mode == slot.mode
+                && let Some(required) = expected.classes.get(target.binder as usize)
+            {
+                // Original typing proved the parent reaches the named lifetime.
+                // Tie that permission to the actual root and ordered projection
+                // producing this SSA occurrence. Its child remains invariant.
+                self.intrinsic_buffer_source(module, instance, f, *value, source, b)?;
+                self.original_outlives(frame.key, outer.clone(), required.clone(), b)?;
+            }
+        }
         let (ordinal,description)=match source_recipe{
             SemanticTypeRecipe::Address{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}=>(*ordinal,false),
             SemanticTypeRecipe::Desc{lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Implicit{scope:SemanticScopeRef::Ancestor(0),ordinal}),..}=>(*ordinal,true),

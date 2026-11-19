@@ -505,6 +505,9 @@ impl CheckedOriginal {
             return Ok(effective);
         }}
         let actual=match mode{
+            PassingMode::Borrow | PassingMode::BorrowMut
+                if matches!(expression.kind, CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, .. }) =>
+                self.expression(module, context, expression, env, bindings, Some(expected), active, b),
             PassingMode::Borrow|PassingMode::BorrowMut|PassingMode::Describe=>{
                 let (source,place)=self.place(module,context,expression,env,bindings,active,b)?;if let Some(place)=place{self.read_original(module,context,&place,&source,env,false,active,b)?;}let actual=self.contextual_borrow_value(&source,expected,b)?;self.relate_value(&actual,expected,b)?;Ok(actual)
             },

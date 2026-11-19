@@ -312,6 +312,23 @@ fn independent_structural_and_nominal_premises_retain_store_lending_sources() {
     native("store-lending", STORE_LENDING, b"QAB", false);
 }
 #[test]
+fn forwarded_projected_borrow_uses_the_declared_source_even_for_equal_types() {
+    let source = "struct Holder{value:i32}
+fn choose<life a>(input:&'a i32,key:&i32)->Option<&'a i32>{return Option::<&'a i32>.Some(input)}
+fn forward<life a,life b>(wrapper:&'a Holder,other:&'b Holder,key:&i32)->Option<&'a i32>{return choose(&wrapper.value,key)}
+fn main()->i32{let first=Holder{value:42};let other=Holder{value:10};let zero=0;
+ match forward(&first,&other,&zero){Option.Some(answer)=>{return *answer-42},Option.None()=>{return 1}}}";
+    let good = compile_project(&project(source), &CompileOptions::default());
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    assert_eq!(good.verification_runs, 1);
+    let wrong = source.replace("choose(&wrapper.value,key)", "choose(&other.value,key)");
+    let rejected = compile_project(&project(&wrong), &CompileOptions::default());
+    assert_eq!(rejected.status, ResultCategory::SafeReject, "{}", rejected.to_json());
+    assert!(rejected.diagnostics.iter().any(|d| d.message.contains("distinct declared lifetime classes")),
+        "{}", rejected.to_json());
+}
+
+#[test]
 fn unused_definitions_check_life_origins_and_true_loop_break_edges() {
     let valid = "fn forever<T:Copy>(value:T)->T{while true{return value}}fn main()->i32{return forever(42)-42}";
     let report = compile_project(&project(valid), &CompileOptions::default());
