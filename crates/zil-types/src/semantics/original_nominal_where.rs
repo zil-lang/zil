@@ -184,14 +184,14 @@ impl<'a> NominalWhere<'a> {
             if !self.proof.complete.contains(caller) {
                 continue;
             }
-            for recipe in substitute::nominal_types(value, None, limits, left)? {
-                let SemanticTypeRecipe::Nominal { definition, .. } = &recipe else {
+            substitute::visit_nominal_types(value, None, limits, left, |recipe, limits, left| {
+                let SemanticTypeRecipe::Nominal { definition, .. } = recipe else {
                     return Err(bad(
                         "original nominal request collector changed its recipe kind",
                     ));
                 };
                 let definition = *definition;
-                let digest = protocol::recipe_key(&recipe, limits, left)?;
+                let digest = protocol::recipe_key(recipe, limits, left)?;
                 let key = (*caller, digest);
                 Self::fee(left, seen.len().saturating_add(1).ilog2() as usize + 2)?;
                 let mut duplicate = false;
@@ -204,15 +204,15 @@ impl<'a> NominalWhere<'a> {
                             left,
                             1,
                         )?;
-                        crate::dyn_metadata::semantic_operand_snapshot(&recipe, limits, left, 1)?;
-                        if previous.caller == *caller && previous.recipe == recipe {
+                        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+                        if previous.caller == *caller && &previous.recipe == recipe {
                             duplicate = true;
                             break;
                         }
                     }
                 }
                 if duplicate {
-                    continue;
+                    return Ok(());
                 }
                 if count >= limits.max_nodes {
                     return Err(Diagnostic::limit(
@@ -233,11 +233,12 @@ impl<'a> NominalWhere<'a> {
                 let index = rows.len();
                 rows.push(NominalRequest {
                     caller: *caller,
-                    recipe,
+                    recipe: copy_recipe(recipe, limits, left)?,
                 });
                 seen.entry(key).or_default().push((definition, index));
                 count += 1;
-            }
+                Ok(())
+            })?;
         }
         Self::fee(
             left,

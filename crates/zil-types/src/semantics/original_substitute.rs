@@ -17,6 +17,10 @@ pub(crate) struct DelayedType {
     pub bound_depth: u32,
     pub invocation_depth: u32,
 }
+struct NominalVisitor<'a> {
+    definition: Option<SemanticDefinitionId>,
+    visit: &'a mut dyn FnMut(&SemanticTypeRecipe, &Limits, &mut usize) -> R<()>,
+}
 struct Apply<'a, 'b> {
     substitution: &'a Substitution<'a>,
     type_equations: &'a [(SemanticTypeRecipe, SemanticTypeRecipe)],
@@ -35,7 +39,7 @@ struct Apply<'a, 'b> {
     allow_root_invocation: bool,
     forall: Option<(u32, u32, u32)>,
     inference_seen: Option<&'b mut bool>,
-    nominal_filter: Option<Option<SemanticDefinitionId>>,
+    nominal_filter: Option<NominalVisitor<'b>>,
 }
 fn bad(message: &str) -> Diagnostic {
     error("E-SEMANTIC-ORIGINAL", Span::default(), message)
@@ -710,14 +714,12 @@ impl<'a> Apply<'a, '_> {
     }
     fn ty(&mut self, ty: &mut SemanticTypeRecipe, depth: usize) -> R<()> {
         self.pay(depth)?;
-        if self.nominal_filter.is_some_and(|target|
-            matches!(ty, SemanticTypeRecipe::Nominal { definition, .. } if target.is_none_or(|target| *definition == target)))
-            && self.bound_depth == 0 && self.invocation_depth == 0
+        if self.bound_depth == 0 && self.invocation_depth == 0
+            && let Some(visitor) = &mut self.nominal_filter
+            && matches!(ty, SemanticTypeRecipe::Nominal { definition, .. }
+                if visitor.definition.is_none_or(|selected| *definition == selected))
         {
-            crate::dyn_metadata::semantic_operand_snapshot(ty, self.limits, self.left, 1)?;
-            if let Some(rows) = &mut self.delayed {
-                rows.push(DelayedType { ty: ty.clone(), bound_depth: 0, invocation_depth: 0 });
-            }
+            (visitor.visit)(ty, self.limits, self.left)?;
         }
         if matches!(ty, SemanticTypeRecipe::OriginalType { .. }) {
             if let Some(seen) = &mut self.inference_seen {
@@ -1500,12 +1502,30 @@ pub(crate) fn delayed_types(
 /// code domains and an opaque's callee-owned hidden body are not caller uses.
 /// `None` collects all declarations in one traversal of the immutable input;
 /// `Some` keeps the exact declaration filter. Neither mode establishes a bound.
-pub(crate) fn nominal_types(
+pub(super) fn visit_nominal_types(
     value: &SemanticTypeRecipe,
     definition: Option<SemanticDefinitionId>,
     limits: &Limits,
     left: &mut usize,
-) -> R<Vec<SemanticTypeRecipe>> {
+    mut visit: impl FnMut(&SemanticTypeRecipe, &Limits, &mut usize) -> R<()>,
+) -> R<()> {
+    // The immutable original proof already owns these leaf recipes. An
+    // opaque physical atom or a lookup has no source nominal declaration use
+    // in the substitution traversal.
+    if matches!(value,
+        SemanticTypeRecipe::Atom(_)
+            | SemanticTypeRecipe::Formal(_)
+            | SemanticTypeRecipe::SelfType { .. }
+            | SemanticTypeRecipe::Environment { .. }
+            | SemanticTypeRecipe::OriginalType { .. }
+            | SemanticTypeRecipe::UnresolvedNamed(_)
+            | SemanticTypeRecipe::Unsupported(_))
+    {
+        *left = left.checked_sub(1).filter(|_| limits.max_call_depth >= 1).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "original nominal request index work exceeded", None)
+        })?;
+        return Ok(());
+    }
     crate::dyn_metadata::semantic_operand_snapshot(value, limits, left, 1)?;
     let mut value = value.clone();
     let empty = BTreeMap::new();
@@ -1517,12 +1537,11 @@ pub(crate) fn nominal_types(
         invocation: &empty,
         shift: 0,
     };
-    let mut rows = Vec::new();
     Apply {
         substitution: &substitution,
         type_equations: &[],
         local_equations: &[],
-        delayed: Some(&mut rows),
+        delayed: None,
         limits,
         left,
         bound_depth: 0,
@@ -1536,17 +1555,25 @@ pub(crate) fn nominal_types(
         allow_root_invocation: true,
         forall: None,
         inference_seen: None,
-        nominal_filter: Some(definition),
+        nominal_filter: Some(NominalVisitor { definition, visit: &mut visit }),
     }
-    .ty(&mut value, 1)?;
-    *left = left.checked_sub(rows.len()).ok_or_else(|| {
-        Diagnostic::limit(
-            Phase::Types,
-            "original nominal request index work exceeded",
-            None,
-        )
+    .ty(&mut value, 1)
+}
+
+#[cfg(test)]
+pub(crate) fn nominal_types(
+    value: &SemanticTypeRecipe,
+    definition: Option<SemanticDefinitionId>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<Vec<SemanticTypeRecipe>> {
+    let mut result = Vec::new();
+    visit_nominal_types(value, definition, limits, left, |recipe, limits, left| {
+        crate::dyn_metadata::semantic_operand_snapshot(recipe, limits, left, 1)?;
+        result.push(recipe.clone());
+        Ok(())
     })?;
-    Ok(rows.into_iter().map(|row| row.ty).collect())
+    Ok(result)
 }
 pub(crate) fn replace_delayed(
     value: &SemanticTypeRecipe,
