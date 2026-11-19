@@ -316,6 +316,11 @@ fn main()->i32{let a=consume(pack(make(65),83));emit(88);let b=observe(pack(make
 #[test]
 fn one_concrete_closure_id_does_not_share_declared_modes_between_state_helpers() {
     let source = format!("{PREFIX}{MODES}");
+    source_rejected(
+        "observe-unbounded-at-exit", &source, Phase::Types, ResultCategory::SafeReject, "E-ORIGINAL-CLEANUP",
+    );
+    // The reusable callback remains in the incoming State after both calls.
+    let source = source.replace("fn observe<G:Fn()->i32>", "fn observe<G:Fn()->i32+SyncDrop>");
     let (module, _) = baseline("declared-mode-control", &source);
     assert_eq!(module.closures.len(), 1);
     assert_eq!(module.closures[0].kind, CallableKind::Fn);
@@ -357,6 +362,16 @@ fn main()->E!i32{return consume(pack(make()),false)?-67}
 #[test]
 fn fn_to_once_takes_the_callee_before_arguments_and_cleans_failed_preparation() {
     let source = format!("{PREFIX}{PREPARATION}");
+    source_rejected(
+        "once-unbounded-on-error", &source, Phase::Types, ResultCategory::SafeReject, "E-ORIGINAL-CLEANUP",
+    );
+    // A taken FnOnce is destroyed if argument evaluation exits before invocation.
+    // An infallible argument consumes the same callable without this obligation.
+    native("once-infallible", &source.replace("argument(fail)?", "2"), "CAXT", 0);
+    let source = source.replace(
+        "fn consume<G:FnOnce(i32)->i32>",
+        "fn consume<G:FnOnce(i32)->i32+SyncDrop>",
+    );
     let (module, _) = baseline("once-preparation-control", &source);
     let consume = module
         .functions
