@@ -656,3 +656,101 @@ fn shared_pipeline_reborrows_the_selected_original_input() {
         require_semantic_rejection(errors);
     }
 }
+
+#[test]
+fn range_call_uses_the_guarded_iteration_and_its_original_endpoints() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "range-call.zil", r#"
+        fn keep(value: i32) -> i32 { return value }
+        fn count(start: i32, end: i32) -> i32 {
+            var total = 0
+            for i in start..end { total += keep(i) }
+            return total
+        }
+        fn main() -> i32 { return count(1,4) - 6 }
+    "#);
+    let core = original_core(source, &limits, &target);
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    for changed in ["body", "end", "step"] {
+        let mut candidate = module.clone();
+        let f = candidate.functions.iter_mut().find(|f| f.name == "count").unwrap();
+        let (head, body, condition) = f.blocks.iter().find_map(|b| match b.terminator {
+            Terminator::Branch { then_block, condition, .. } => Some((b.id, then_block, condition)),
+            _ => None,
+        }).unwrap();
+        let guard = &f.blocks[head.0 as usize];
+        let comparison = guard.instructions.iter().find(|i| i.result == Some(condition)).unwrap();
+        let InstructionKind::Binary { op: BinaryOp::Less, left: current, .. } = comparison.kind else { panic!() };
+        let load = guard.instructions.iter().find(|i| i.result == Some(current)).unwrap();
+        let InstructionKind::Load(counter) = load.kind else { panic!() };
+        let body_block = &f.blocks[body.0 as usize];
+        let InstructionKind::Store { local: snapshot, value } = body_block.instructions[0].kind else { panic!() };
+        assert_eq!(value, current);
+        assert_eq!(f.locals[snapshot.0 as usize].ty, f.locals[counter.0 as usize].ty);
+        assert_ne!(snapshot, counter);
+        match changed {
+            "body" => {
+                let load = f.blocks[body.0 as usize].instructions.iter_mut().find(|ins| ins.kind == InstructionKind::Load(snapshot)).unwrap();
+                load.kind = InstructionKind::Load(counter);
+            }
+            "end" => {
+                let start = f.blocks[0].instructions.iter().find_map(|ins| match ins.kind {
+                    InstructionKind::Store { local, value } if local == counter => Some(value), _ => None,
+                }).unwrap();
+                let comparison = f.blocks[head.0 as usize].instructions.iter_mut().find(|i| i.result == Some(condition)).unwrap();
+                let InstructionKind::Binary { right: end, .. } = &mut comparison.kind else { panic!() };
+                assert_ne!(start, *end);
+                *end = start;
+            }
+            "step" => {
+                let step = f.blocks.iter_mut().find(|b| b.id != BlockId(0) && matches!(b.terminator, Terminator::Jump(to) if to == head)).unwrap();
+                let unit = step.instructions.iter_mut().find(|ins| ins.kind == InstructionKind::Constant(Constant::I32(1))).unwrap();
+                unit.kind = InstructionKind::Constant(Constant::I32(2));
+            }
+            _ => unreachable!(),
+        }
+        require_semantic_rejection(zil_analyze::analyze(&candidate, &limits).unwrap_err());
+        let mut derived = plan.clone();
+        derived.module_fingerprint = candidate.fingerprint();
+        let wire = wire::encode_module_candidate(&candidate, &derived, &limits).unwrap();
+        require_semantic_rejection(zil_verify::verify_module(candidate, derived, &target, &limits).unwrap_err());
+        require_semantic_rejection(zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err());
+    }
+}
+
+#[test]
+fn shared_pipeline_keeps_the_original_lexical_loan() {
+    let limits = Limits {
+        max_analysis_steps: 10_000_000,
+        ..Limits::default()
+    };
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "pipeline-local-address.zil",
+        r#"
+        fn read<life a>(x:&'a i32)->i32{return *x}
+        fn main()->i32{
+            var first=42
+            var second=17
+            let position=&mut first
+            let sibling=&mut second
+            let observed=position |> read
+            return observed+*position+*sibling-101
+        }
+    "#,
+    );
+    let core = original_core(source, &limits, &target);
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module, plan, &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+}

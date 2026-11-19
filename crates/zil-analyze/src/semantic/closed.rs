@@ -31,6 +31,7 @@ mod parameter_classes;
 mod pattern_places;
 mod persistent_slots;
 mod protocol_values;
+mod range_bindings;
 mod registration;
 mod registration_observe;
 mod registration_start;
@@ -97,6 +98,9 @@ struct Check<'a, 'i> {
     value_queries: std::cell::RefCell<BTreeSet<(SemanticInstanceId, ValueId)>>,
     /// Type-only zero-domain proofs for exact immutable SSA coordinates.
     closed_ssa_types: std::cell::RefCell<BTreeSet<(FunctionId, ValueId)>>,
+    // The local identifies immutable iteration storage in the selected world and body.
+    // Each observation still checks its actual operand and current permission.
+    range_locals: std::cell::RefCell<BTreeMap<(SemanticInstanceId, FunctionId, zil_base::NodeId, usize, usize, usize), LocalId>>,
     // A successful complete physical nominal classification grants no class
     // image or cleanup source. Those belong to the actual value and operation.
     formed_nominal_types: std::cell::RefCell<Option<(std::sync::Arc<()>, BTreeSet<(usize, usize, usize)>)>>,
@@ -134,6 +138,7 @@ pub(super) fn coordinate_field(
         capture_directories: Default::default(),
         value_queries: Default::default(),
         closed_ssa_types: Default::default(),
+        range_locals: Default::default(),
         formed_nominal_types: Default::default(),
         task_results: Default::default(),
         slot_queries: Default::default(),
@@ -1198,6 +1203,7 @@ pub(super) fn check(
         capture_directories: Default::default(),
         value_queries: std::cell::RefCell::new(BTreeSet::new()),
         closed_ssa_types: Default::default(),
+        range_locals: Default::default(),
         formed_nominal_types: Default::default(),
         task_results: Default::default(),
         slot_queries: Default::default(),

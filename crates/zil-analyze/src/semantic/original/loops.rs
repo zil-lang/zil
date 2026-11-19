@@ -12,6 +12,23 @@ struct RangeInput<'a> {
     binding: RangeBinding<'a>,
     element: Term,
     start: NodeId,
+    end: NodeId,
+}
+
+/// Source identity of each outer endpoint and the guarded per-iteration binding.
+/// The hidden counter is implementation storage and carries no independent source binding.
+#[derive(Clone, Copy)]
+pub(in crate::semantic) struct RangeSource {
+    pub(in crate::semantic) statement: NodeId,
+    pub(in crate::semantic) start: NodeId,
+    pub(in crate::semantic) end: NodeId,
+}
+
+impl Checked {
+    pub(in crate::semantic) fn range_source(&self, ordinal: u32, b: &mut Budget) -> CompileResult<Option<RangeSource>> {
+        b.lookup(self.range_bindings.len(), WORK)?;
+        Ok(self.range_bindings.get(&ordinal).copied())
+    }
 }
 
 pub(super) struct LoopFrame {
@@ -117,6 +134,7 @@ impl Solver<'_, '_> {
                 binding,
                 element,
                 start: start.id,
+                end: end.id,
             }),
             body,
             b,
@@ -190,6 +208,10 @@ impl Solver<'_, '_> {
             )?; }
         }
         if let Some(range) = range {
+            let source = pattern_places::PatternSubject {
+                node: range.start, success_projections: 0, anchor: None, path: Vec::new(), retained: None,
+            };
+            let first_origin = self.state.pattern_origins.len();
             match range.binding {
                 RangeBinding::Name(name) => {
                     b.lookup(frame.bindings.len(), WORK)?;
@@ -205,19 +227,9 @@ impl Solver<'_, '_> {
                         .locals
                         .last_mut()
                         .ok_or_else(|| fail("range induction binding disappeared"))?
-                        .anchor = Some(LocalAnchor::Binding(range.statement));
+                        .anchor = Some(self.pattern_anchor(frame.definition, &source, &[], None, b)?);
                 }
                 RangeBinding::Pattern(pattern) => {
-                    // The real induction slot is initialized from this exact
-                    // start expression. No fictitious integer value is assigned
-                    // to the Range expression as a whole.
-                    let source = pattern_places::PatternSubject {
-                        node: range.start,
-                        success_projections: 0,
-                        anchor: None,
-                        path: Vec::new(),
-                        retained: None,
-                    };
                     if !self.pattern_bind(
                         frame,
                         range.statement,
@@ -231,6 +243,15 @@ impl Solver<'_, '_> {
                     )? {
                         return Err(fail("original range binding pattern is refutable"));
                     }
+                }
+            }
+            for ordinal in first_origin..self.state.pattern_origins.len() {
+                let origin = &self.state.pattern_origins[ordinal];
+                if origin.borrow.is_none() && origin.path.is_empty() {
+                    b.lookup(self.state.range_bindings.len(), WORK)?;
+                    self.state.range_bindings.insert(ordinal as u32, RangeSource {
+                        statement: range.statement, start: range.start, end: range.end,
+                    });
                 }
             }
         }

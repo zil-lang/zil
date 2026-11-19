@@ -556,6 +556,9 @@ impl Check<'_, '_> {
         let origin = self
             .original
             .pattern_origin(ordinal, instance.definition, b)?;
+        if let Some(range) = self.original.range_source(ordinal, b)? {
+            return self.range_binding_local(instance, function, range.statement, range.start, range.end, depth, b);
+        }
         b.spend(
             origin
                 .subject

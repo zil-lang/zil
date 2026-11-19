@@ -1518,6 +1518,11 @@ pub enum CoreStatementKind<Annotation = Type> {
         value: CoreExpr<Annotation>,
         body: CoreBlock<Annotation>,
     },
+    /// Evaluate the two integer endpoints once, in order, outside the binding.
+    /// The strict upper-bound test introduces an immutable body-local copy
+    /// of the current integer for this iteration. Fallthrough and continue
+    /// advance the hidden counter once. Break and return leave the loop,
+    /// retiring body-local owners along their actual exit edge.
     ForRange {
         name: String,
         start: CoreExpr<Annotation>,
