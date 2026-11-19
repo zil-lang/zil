@@ -816,6 +816,17 @@ fn scalar_call_reads_its_original_capture_after_description_storage() {
     require_semantic_rejection(zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err());
 }
 
+fn stored_original_module(source: &str, limits: &Limits, target: &TargetProfile) -> TypedModule {
+    let core = original_core(SourceUnit::new(FileId(0), ModuleId(0), "stored-origin.zil", source), limits, target);
+    let program = CoreProgram {
+        root: ModuleId(0),
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule { core, imports: vec![], exports: vec![] }],
+    };
+    let prepared = zil_types::infer_program_for_ct(&program, limits).unwrap().into_prepared();
+    zil_types::check_prepared_program(&prepared, target, limits).unwrap().module
+}
+
 fn check_stored_origin_mutation(
     source: &str,
     mutate: impl FnOnce(&mut TypedModule),
@@ -824,14 +835,7 @@ fn check_stored_origin_mutation(
 ) {
     let limits = Limits::default();
     let target = TargetProfile::default();
-    let core = original_core(SourceUnit::new(FileId(0), ModuleId(0), "stored-origin.zil", source), &limits, &target);
-    let program = CoreProgram {
-        root: ModuleId(0),
-        source_fingerprint: core.source_fingerprint,
-        modules: vec![ProgramModule { core, imports: vec![], exports: vec![] }],
-    };
-    let prepared = zil_types::infer_program_for_ct(&program, &limits).unwrap().into_prepared();
-    let mut module = zil_types::check_prepared_program(&prepared, &target, &limits).unwrap().module;
+    let mut module = stored_original_module(source, &limits, &target);
     let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
     let wire = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
@@ -851,6 +855,79 @@ fn check_stored_origin_mutation(
         assert!(errors[0].message.contains(verify_reason), "{errors:?}");
         require_semantic_rejection(errors);
     }
+}
+
+#[test]
+fn nested_qualified_package_error_return_cannot_abandon_the_actual_child() {
+    let source = include_str!("../../../tests/fixtures/resource-packages/nested-qualified-failure.zil");
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let mut module = stored_original_module(source, &limits, &target);
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let good = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&good, &target, &limits).unwrap();
+
+    let function = module.functions.iter_mut().find(|f| f.name == "stop_after_make").unwrap();
+    let block = &mut function.blocks[0];
+    let drops = block.instructions.iter().enumerate().filter_map(|(index, op)| {
+        matches!(op.kind, InstructionKind::DropPackage { .. }).then_some(index)
+    }).collect::<Vec<_>>();
+    let [position] = drops.as_slice() else { panic!("expected the original error exit's one Package cleanup") };
+    assert!(matches!(block.instructions[position + 1].kind, InstructionKind::StorageDead(_)));
+    block.instructions.remove(*position);
+    let semantic = module.semantic.as_mut().unwrap();
+    for site in &mut semantic.sites {
+        let selected = semantic.instances.iter().any(|instance| {
+            instance.id == site.instance && instance.target ==
+                SemanticInstanceTarget::Function(SemanticFunctionTarget::Typed(function.id))
+        });
+        if selected && let SemanticSiteAddress::Typed { block: owner, instruction, .. } = &mut site.at
+            && *owner == block.id && *instruction > *position as u32
+        {
+            *instruction -= 1;
+        }
+    }
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(errors.iter().any(|d| d.category == ResultCategory::SafeReject && d.code == "E-ANALYZE-IR"
+        && d.message.contains("storage boundary discards an owned carrier in stop_after_make")), "{errors:?}");
+    plan.module_fingerprint = module.fingerprint();
+    let wrong = wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for checked in [zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&wrong, &target, &limits)] {
+        let errors = checked.err().expect("missing the original error-exit destructor");
+        assert!(errors.iter().any(|d| d.category == ResultCategory::SafeReject && d.code == "E-VERIFY-RESOURCE"
+            && d.message.contains("outstanding resource responsibility")), "{errors:?}");
+    }
+}
+
+#[test]
+fn two_exclusive_package_return_sources_remain_protected_to_the_last_use() {
+    let ended = include_str!("../../../tests/fixtures/resource-packages/branch-selected-exclusive-package.zil");
+    let use_selected = "    let pointer=selected.child.pointer\n    *pointer=*pointer+1";
+    let use_first = "    let other=left.child.pointer\n    *other=17";
+    let before = format!("{use_selected}\n{use_first}");
+    assert_eq!(ended.matches(&before).count(), 1);
+    let overlapping = ended.replace(&before, &format!("{use_first}\n{use_selected}"));
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let good = stored_original_module(ended, &limits, &target);
+    let mut plan = zil_analyze::analyze(&good, &limits).unwrap();
+    let bytes = wire::encode_module_candidate(&good, &plan, &limits).unwrap();
+    zil_verify::verify_module(good, plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let bad = stored_original_module(&overlapping, &limits, &target);
+    let check = |errors: Vec<zil_base::Diagnostic>| {
+        assert!(errors.iter().any(|d| d.category == ResultCategory::SafeReject
+            && d.code == "E-BORROW-CONFLICT" && d.span.is_some()
+            && std::iter::once(&d.message).chain(&d.notes).any(|note| note.contains("Parameter(0)"))), "{errors:?}");
+    };
+    check(zil_analyze::analyze(&bad, &limits).unwrap_err());
+    plan.module_fingerprint = bad.fingerprint();
+    let bytes = wire::encode_module_candidate(&bad, &plan, &limits).unwrap();
+    check(zil_verify::verify_module(bad, plan, &target, &limits).err().unwrap());
+    check(zil_verify::verify_module_bytes(&bytes, &target, &limits).err().unwrap());
 }
 
 #[test]
