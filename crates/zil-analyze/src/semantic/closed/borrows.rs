@@ -808,10 +808,7 @@ impl Check<'_, '_> {
         b: &mut Budget,
         depth: usize,
     ) -> CompileResult<Option<Value>> {
-        let definition = self.inventory.definition(instance.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { sites, .. } = &definition.body else {
-            return Err(fail("actual borrow omits its complete original definition"));
-        };
+        let index = self.inventory.original_index(instance.definition, b)?;
         let mut selected = None;
         for site in self
             .inventory
@@ -841,11 +838,7 @@ impl Check<'_, '_> {
             else {
                 continue;
             };
-            b.spend(sites.len(), WORK)?;
-            let recipe = sites
-                .iter()
-                .find(|recipe| recipe.id == site.recipe)
-                .ok_or_else(|| fail("actual borrow has no original recipe"))?;
+            let recipe = index.recipe(site.recipe, b)?;
             let SemanticSiteRecipeKind::TypeUse { expected } = &recipe.kind else {
                 return Err(fail("actual borrow changes its original role"));
             };

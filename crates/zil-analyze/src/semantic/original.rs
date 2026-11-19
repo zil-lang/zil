@@ -278,8 +278,18 @@ struct ReceivingPlace {
     source: Term,
     target: Term,
 }
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct ClosedNominalFormation {
+    definition: SemanticDefinitionId,
+    depth: usize,
+    depth_limit: usize,
+    node_limit: usize,
+    actuals: Vec<usize>,
+    fields: Vec<usize>,
+}
 pub(super) struct Checked {
     arena: Vec<Kind>,
+    closed_formations: std::cell::RefCell<BTreeMap<ClosedNominalFormation, value::Value>>,
     // Only complete immutable original worlds enter this directory. Each
     // result belongs to its exact term and bound on recursive depth.
     closed_values: Option<std::cell::RefCell<BTreeMap<(usize, Term, usize), value::Value>>>,
@@ -4509,6 +4519,7 @@ pub(super) fn check(
         indexes,
         state: Checked {
             arena: Vec::new(),
+            closed_formations: Default::default(),
             closed_values: None,
             frames: BTreeMap::new(),
             calls: BTreeMap::new(),
@@ -5692,28 +5703,10 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<(crate::semantic::value::Value, bool)>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("return injection has no complete original body"));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site {
-                continue;
-            }
-            let SemanticOriginalNode::Expression(node) = link.node else {
-                continue;
-            };
-            b.lookup(self.return_injections.len(), WORK)?;
-            if let Some((whole, error)) = self.return_injections.get(&(context.definition, node)) {
-                let value = self.value(*whole, context, program, inventory, b, 0)?;
-                if selected.replace((value, *error)).is_some() {
-                    return Err(fail("return injection has competing original occurrences"));
-                }
-            }
-        }
-        Ok(selected)
+        let Some(SemanticOriginalNode::Expression(node)) = inventory.original_index(context.definition, b)?.site_node(site, b)? else { return Ok(None); };
+        b.lookup(self.return_injections.len(), WORK)?;
+        let Some((whole, error)) = self.return_injections.get(&(context.definition, node)) else { return Ok(None); };
+        Ok(Some((self.value(*whole, context, program, inventory, b, 0)?, *error)))
     }
 
     pub(super) fn borrowed_source(
@@ -5724,45 +5717,28 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<borrow_places::Source>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("actual borrow has no complete original body"));
-        };
-        let mut found = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site == site {
-                let SemanticOriginalNode::Expression(node) = link.node else {
-                    continue;
-                };
-                b.lookup(self.borrows.len(), WORK)?;
-                if let Some(source) = self.borrows.get(&(context.definition, node)) {
-                    if found.is_some() {
-                        return Err(fail("actual borrow has competing original source anchors"));
-                    }
-                    b.spend(source.path.len(), WORK)?;
-                    found = Some(borrow_places::Source {
-                        role: source.role.as_ref().map(|role| -> CompileResult<_> {
-                            Ok((
-                                self.life_value(role.occurrence, context, inventory, b)?,
-                                role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
-                                self.life_value(role.selected, context, inventory, b)?,
-                                role.local,
-                            ))
-                        }).transpose()?,
-                        anchor: source.anchor,
-                        expression: source.expression,
-                        index: source.index,
-                        root: self.value(source.root, context, program, inventory, b, 0)?,
-                        path: source.path.clone(),
-                        inner: self.value(source.inner, context, program, inventory, b, 0)?,
-                        indirect: source.indirect,
-                        slice: source.slice,
-                    });
-                }
-            }
-        }
-        Ok(found)
+        let Some(SemanticOriginalNode::Expression(node)) = inventory.original_index(context.definition, b)?.site_node(site, b)? else { return Ok(None); };
+        b.lookup(self.borrows.len(), WORK)?;
+        let Some(source) = self.borrows.get(&(context.definition, node)) else { return Ok(None); };
+        b.spend(source.path.len(), WORK)?;
+        Ok(Some(borrow_places::Source {
+            role: source.role.as_ref().map(|role| -> CompileResult<_> {
+                Ok((
+                    self.life_value(role.occurrence, context, inventory, b)?,
+                    role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
+                    self.life_value(role.selected, context, inventory, b)?,
+                    role.local,
+                ))
+            }).transpose()?,
+            anchor: source.anchor,
+            expression: source.expression,
+            index: source.index,
+            root: self.value(source.root, context, program, inventory, b, 0)?,
+            path: source.path.clone(),
+            inner: self.value(source.inner, context, program, inventory, b, 0)?,
+            indirect: source.indirect,
+            slice: source.slice,
+        }))
     }
     pub(super) fn intrinsic(
         &self,

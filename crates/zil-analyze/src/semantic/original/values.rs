@@ -63,42 +63,23 @@ impl Checked {
         inventory: &Inventory<'_>,
         b: &mut Budget,
     ) -> CompileResult<Option<descriptions::Source>> {
-        let definition = inventory.definition(context.definition, b)?;
-        let SemanticDefinitionBody::FunctionWithBody { site_nodes, .. } = &definition.body else {
-            return Err(fail("original description has no complete body"));
-        };
-        let mut selected = None;
-        for link in site_nodes {
-            b.spend(1, WORK)?;
-            if link.site != site {
-                continue;
-            }
-            let SemanticOriginalNode::Expression(node) = link.node else {
-                continue;
-            };
-            b.lookup(self.descriptions.len(), WORK)?;
-            let Some(source) = self.descriptions.get(&(context.definition, node)) else {
-                continue;
-            };
-            b.spend(source.path.len(), WORK)?;
-            let source = descriptions::Source {
-                role: (
-                    self.life_value(source.role.occurrence, context, inventory, b)?,
-                    source.role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
-                    self.life_value(source.role.selected, context, inventory, b)?,
-                    source.role.local,
-                ),
-                anchor: source.anchor,
-                root: self.value(source.root, context, program, inventory, b, 0)?,
-                source: self.value(source.source, context, program, inventory, b, 0)?,
-                output: self.value(source.output, context, program, inventory, b, 0)?,
-                path: source.path.clone(),
-            };
-            if selected.replace(source).is_some() {
-                return Err(fail("description has competing original source operations"));
-            }
-        }
-        Ok(selected)
+        let Some(SemanticOriginalNode::Expression(node)) = inventory.original_index(context.definition, b)?.site_node(site, b)? else { return Ok(None); };
+        b.lookup(self.descriptions.len(), WORK)?;
+        let Some(source) = self.descriptions.get(&(context.definition, node)) else { return Ok(None); };
+        b.spend(source.path.len(), WORK)?;
+        Ok(Some(descriptions::Source {
+            role: (
+                self.life_value(source.role.occurrence, context, inventory, b)?,
+                source.role.upper.map(|upper| self.life_value(upper, context, inventory, b)).transpose()?,
+                self.life_value(source.role.selected, context, inventory, b)?,
+                source.role.local,
+            ),
+            anchor: source.anchor,
+            root: self.value(source.root, context, program, inventory, b, 0)?,
+            source: self.value(source.source, context, program, inventory, b, 0)?,
+            output: self.value(source.output, context, program, inventory, b, 0)?,
+            path: source.path.clone(),
+        }))
     }
     fn context<'a>(
         &self,
@@ -577,6 +558,25 @@ impl Checked {
         Ok(value)
     }
 
+    fn closed_formation(
+        &self, definition: SemanticDefinitionId, args: &[Argument], fields: &[Value], depth: usize, b: &mut Budget,
+    ) -> CompileResult<Option<ClosedNominalFormation>> {
+        b.spend(args.len().saturating_add(fields.len()), WORK)?;
+        let mut actuals = Vec::with_capacity(args.len());
+        for argument in args {
+            let Argument::Type(value) = argument else { return Ok(None); };
+            let Some(id) = value.closed_geometry_identity(b)? else { return Ok(None); };
+            actuals.push(id);
+        }
+        let mut parts = Vec::with_capacity(fields.len());
+        for field in fields {
+            let Some(id) = field.closed_geometry_identity(b)? else { return Ok(None); };
+            parts.push(id);
+        }
+        Ok(Some(ClosedNominalFormation { definition, depth, depth_limit: b.partial_depth,
+            node_limit: b.helper_nodes, actuals, fields: parts }))
+    }
+
     fn value_at(
         &self,
         root: Term,
@@ -702,7 +702,22 @@ impl Checked {
                     let field = self.value(*term, context, program, inventory, b, depth + 1)?;
                     Solver::push(&mut physical, field, b)?;
                 }
-                value::nominal(*definition, &actuals, &physical, program, self, inventory, b, depth + 1)
+                let key = if self.closed_values.is_some() && std::ptr::eq(program, inventory.program) {
+                    self.closed_formation(*definition, &actuals, &physical, depth + 1, b)?
+                } else { None };
+                let words = physical.len().saturating_add(actuals.len()).saturating_add(4);
+                if let Some(key) = &key {
+                    let cache = self.closed_formations.borrow();
+                    b.product(cache.len().checked_ilog2().map_or(1, |n| n as usize + 2), words, 1, WORK)?;
+                    if let Some(formed) = cache.get(key) { return formed.copy(b); }
+                }
+                let formed = value::nominal(*definition, &actuals, &physical, program, self, inventory, b, depth + 1)?;
+                if let Some(key) = key && formed.closed_geometry_identity(b)?.is_some() {
+                    let mut cache = self.closed_formations.borrow_mut();
+                    b.product(cache.len().checked_ilog2().map_or(1, |n| n as usize + 2), words, 1, WORK)?;
+                    cache.insert(key, formed.copy(b)?);
+                }
+                Ok(formed)
             }
             Kind::Wrapped(wrapper, inner) => {
                 let inner = self.value(*inner, context, program, inventory, b, depth + 1)?;
