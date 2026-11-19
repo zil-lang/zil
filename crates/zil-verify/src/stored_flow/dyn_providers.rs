@@ -675,6 +675,7 @@ pub(super) fn effects(
                 | InstructionKind::LoadStoredBorrow { .. }
                 | InstructionKind::StoreStoredBorrow { .. }
                 | InstructionKind::MakeAggregate { .. }
+                | InstructionKind::MakeManaged { .. }
                 | InstructionKind::ExtractField { .. }
                 | InstructionKind::MakePackage { .. }
                 | InstructionKind::ReadPackageField { .. }
