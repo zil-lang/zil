@@ -141,7 +141,11 @@ impl CheckedOriginal {
         let original=context.definition(module,target,b)?;
         let Some(parent)=original.parent else{return Ok(None);};
         let scope=context.definition(module,parent,b)?;
-        let SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait{declaration})=&scope.body else{return Ok(None);};
+        let declaration = match &scope.body {
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { declaration }) => *declaration,
+            SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl { trait_application, .. }) => trait_application.declaration,
+            _ => return Ok(None),
+        };
         let CoreExprKind::Member{object,member,owner:None}=&base.kind else{return Ok(None);};
         let mut node=object.as_ref();let mut parts=Vec::new();
         let receiver=loop{b.spend(1)?;match &node.kind{
@@ -165,8 +169,55 @@ impl CheckedOriginal {
         // the lexical Value namespace, including its original member ordinal.
         if applications.len()!=1{return Err(bad("original static member lacks one complete trait application"));}
         let(actual_declaration,trait_arguments,ordinal,method)=applications.pop().unwrap();
-        if actual_declaration!=*declaration||method!=target{return Err(bad("original static member declaration differs from its complete trait application"));}
-        let SemanticDefinitionBody::FunctionWithBody{signature,receiver_parameter:None,..}=&original.body else{return Err(bad("original static member requires a value receiver"));};
+        if actual_declaration != declaration {
+            return Err(bad("original static member declaration differs from its complete trait application"));
+        }
+        if method != target {
+            let provider = self.original_provider(module, context, &receiver, declaration, &trait_arguments, env, active, b)?
+                .ok_or_else(|| bad("type-qualified method has no unique implementing declaration"))?;
+            if provider.owner != scope.id {
+                return Err(bad("type-qualified method selects a different implementation"));
+            }
+            // The caller body may precede the provider body in the original
+            // programme. Check its slot here; universal body conformance is
+            // completed independently before any executable world is admitted.
+            let declarations = dynamic_metadata::dyn_declarations(module, provider.declaration, b)?;
+            let [implementation] = declarations.as_slice() else {
+                return Err(bad("qualified method has no unique original implementation"));
+            };
+            let methods = implementation.method_definitions.as_ref()
+                .ok_or_else(|| bad("original qualified provider has no member inventory"))?;
+            b.spend(methods.len())?;
+            let mut selected = None;
+            for body in methods {
+                let slot = implementation.members.get(body.member as usize)
+                    .ok_or_else(|| bad("original qualified method has no member slot"))?;
+                b.spend(slot.name.len().saturating_add(member.len()))?;
+                if body.scope == DynDefinitionScope::ImplOverride && slot.name == *member
+                    && matches!(slot.kind, DynMemberKind::Method(_))
+                    && selected.replace(body.id).is_some()
+                {
+                    return Err(bad("qualified method selects multiple original overrides"));
+                }
+            }
+            let owner = SemanticDynOwner::MethodDefinition(selected
+                .ok_or_else(|| bad("qualified method has no original override"))?);
+            let exact = if let Some(scopes) = dynamic_metadata::lexical_scopes(module, &owner, b)? {
+                scopes.as_slice() == [target]
+            } else {
+                let program = module.semantic.as_ref().ok_or_else(|| bad("qualified method has no original programme"))?;
+                b.spend(program.dyn_scopes.len())?;
+                let mut bindings = program.dyn_scopes.iter().filter(|row| row.owner == owner);
+                bindings.next().is_some_and(|row| row.scope == target) && bindings.next().is_none()
+            };
+            if !exact {
+                return Err(bad("qualified method selects a different original body"));
+            }
+        }
+        let target = method;
+        let original = context.definition(module,target,b)?;
+        let scope = context.definition(module,original.parent.ok_or_else(||bad("type-qualified method lacks its trait scope"))?,b)?;
+        let SemanticDefinitionBody::FunctionWithBody{signature,..}=&original.body else{return Err(bad("original static member has no callable signature"));};
         let mut selected=self.environment(module,context,target,active,b)?;
         let frame=selected.lexical.iter_mut().find(|row|row.definition==scope.id).ok_or_else(||bad("original static member omits its trait parent"))?;
         frame.actuals=self.resolve_arguments(&trait_arguments,0,b)?;
@@ -191,7 +242,15 @@ impl CheckedOriginal {
         self.execute_effect(env,prototype.call_kind,b)?;
         if let Some(expected)=expected{if !associated::has_projection(&prototype.result,b)?{self.unify(&prototype.result,expected,b)?;}}
         b.spend(prototype.parameters.len())?;let mut region_parameters=Vec::with_capacity(prototype.parameters.len());
-        for((argument,parameter),mode)in arguments.iter().zip(&prototype.parameters).zip(&prototype.modes){let parameter=self.normalize_original_type(module,context,parameter,env,active,b)?;let actual=self.argument(module,context,argument,&parameter,*mode,env,bindings,active,b)?;self.relate_value(&actual,&parameter,b)?;region_parameters.push(parameter);}
+        for (ordinal, ((argument, parameter), mode)) in arguments.iter()
+            .zip(&prototype.parameters).zip(&prototype.modes).enumerate()
+        {
+            let parameter = self.normalize_original_type(module, context, parameter, env, active, b)?;
+            let actual = self.argument_at_call(module, context, argument, &parameter, *mode,
+                Some((call.id, ordinal)), env, bindings, active, b)?;
+            self.relate_value(&actual, &parameter, b)?;
+            region_parameters.push(parameter);
+        }
         self.finish_call_heads(&outer_heads,call.id,b)?;
         self.remember_call_region_parameters(&region_parameters,call.id,env,b)?;
         for definition in [scope,original]{
@@ -209,7 +268,7 @@ impl CheckedOriginal {
         if rows.next().is_some(){return Err(bad("original static member Call occurrence is ambiguous"));}
         let actuals=self.resolve_arguments(&selected.lexical[0].actuals,0,b)?;
         self.remember_inferred_type_sources(module,env.current()?,site.id,original,signature,arguments,0,&written_slots,&actuals,b)?;
-        self.trait_calls.insert((env.current()?,site.id),super::trait_calls::TraitCall{receiver,declaration:*declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode:None,receiver_place:None});
+        self.trait_calls.insert((env.current()?,site.id),super::trait_calls::TraitCall{receiver,declaration,arguments:trait_arguments,member:ordinal,actuals,node:call.id,receiver_mode:None,receiver_place:None});
         if prototype.result_mode==PassingMode::Create{b.spend(1)?;self.created.insert((env.current()?,call.id));}
         Ok(Some(result))
     }

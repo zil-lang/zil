@@ -166,8 +166,15 @@ impl Solver<'_, '_> {
             Some(SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(recipe))) => {
                 self.recipe(frame, recipe, b, depth + 1).map(Some)
             }
-            // Concrete inherent and generic nominal applications require their
-            // own original provider selection, not a formal-trait premise.
+            Some(SemanticOriginalNameValue::Definition(id)) => {
+                let declaration = self.inventory.definition(*id, b)?;
+                if declaration.kind == SemanticDefinitionKind::Nominal
+                    && declaration.parameters.is_empty()
+                {
+                    return self.nominal(frame, *id, &[], b, depth + 1).map(Some);
+                }
+                Ok(None)
+            }
             _ => Ok(None),
         }
     }
@@ -486,6 +493,45 @@ impl Solver<'_, '_> {
         };
         let method =
             trait_members::member_scope(self.program, declaration, member, self.inventory, b)?;
+        if place.is_none()
+            && let Some(path) = sealed::path(callee, b, depth + 1)?
+            && let Some(SemanticOriginalNameValue::Definition(authored)) = self.inventory
+                .original_index(frame.definition, b)?
+                .name(SemanticOriginalNamespace::Value, &path, b)?
+            && *authored != method
+        {
+            let Some(parent) = self.inventory.definition(*authored, b)?.parent else {
+                return Ok(None);
+            };
+            let scope = self.inventory.definition(parent, b)?;
+            let SemanticDefinitionBody::Scope(SemanticScopeRecipe::TraitImpl {
+                declaration: implementation, ..
+            }) = &scope.body else {
+                return Ok(None);
+            };
+            let (provider, _) =
+                self.original_provider(frame, receiver, declaration, &trait_actuals, b, depth + 1)?;
+            if provider != parent {
+                return Err(fail("type-qualified member selects another implementation"));
+            }
+            let declared = self.inventory.original_dyn(declaration, b)?;
+            let slot = declared.members.get(member as usize)
+                .ok_or_else(|| fail("type-qualified trait member ordinal is absent"))?;
+            let actual = self.inventory.original_dyn(*implementation, b)?;
+            let mut selected = None;
+            for (ordinal, candidate) in actual.members.iter().enumerate() {
+                b.spend(slot.name.len().saturating_add(candidate.name.len() + 1), WORK)?;
+                if slot.name == candidate.name && slot.kind == candidate.kind
+                    && selected.replace(ordinal as u32).is_some()
+                {
+                    return Err(fail("type-qualified method has two implementing member slots"));
+                }
+            }
+            let ordinal = selected.ok_or_else(|| fail("type-qualified method has no implementing member slot"))?;
+            if trait_members::member_scope(self.program, *implementation, ordinal, self.inventory, b)? != *authored {
+                return Err(fail("type-qualified method names another implementation member"));
+            }
+        }
         let (method_actuals, parameters, result) = self.original_method_scheme(
             frame,
             receiver,
@@ -508,7 +554,7 @@ impl Solver<'_, '_> {
         else {
             return Err(fail("original trait method lost its signature"));
         };
-        if receiver_parameter.is_some() != anchor.is_some()
+        if anchor.is_some() && receiver_parameter.is_none()
             || parameters.len()
                 != arguments
                     .len()

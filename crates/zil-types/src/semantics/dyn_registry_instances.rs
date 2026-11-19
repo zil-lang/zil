@@ -395,21 +395,24 @@ pub(super) fn complete(
                     .get(*receiver_parameter as usize)
                     .and_then(|local| function.locals.get(local.0 as usize))
                     .ok_or_else(|| bad("Dyn receiver has no actual parameter local"))?;
-                let Type::Address { inner, .. } = &local.ty else {
-                    return Err(bad("Dyn method receiver is not an actual address"));
-                };
-                // Only the declared address of a Managed Self borrows the
-                // manager slot while selecting its payload as the impl subject.
                 let parameter = signature.parameters.get(*receiver_parameter as usize)
                     .ok_or_else(|| bad("Dyn receiver ordinal exceeds its original signature"))?;
-                let managed_receiver = matches!(&parameter.ty,
-                    SemanticTypeRecipe::Address { inner, .. } if matches!(inner.as_ref(),
-                        SemanticTypeRecipe::Managed(subject) if matches!(subject.as_ref(),
-                            SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) })));
-                let subject = match (inner.as_ref(), managed_receiver) {
-                    (Type::Managed(payload), true) => payload.as_ref(),
-                    (_, false) => inner.as_ref(),
-                    _ => return Err(bad("resource method address omits its declared manager head")),
+                // For static dispatch the declared Self can be a whole value.
+                // Its concrete subject must still match the original scope below.
+                let subject = match (&parameter.ty, &local.ty) {
+                    (SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) }, ty) => ty,
+                    (SemanticTypeRecipe::Address { mutable, inner, .. }, Type::Address { mutable: actual, inner: physical })
+                        if mutable == actual => match inner.as_ref() {
+                            SemanticTypeRecipe::Managed(subject) if matches!(subject.as_ref(),
+                                SemanticTypeRecipe::SelfType { scope: SemanticScopeRef::Ancestor(1) }) => {
+                                let Type::Managed(payload) = physical.as_ref() else {
+                                    return Err(bad("resource method address omits its declared manager head"));
+                                };
+                                payload.as_ref()
+                            }
+                            _ => physical.as_ref(),
+                        },
+                    _ => return Err(bad("method receiver differs from its original value or address shape")),
                 };
                 let value = crate::semantics::materialize::type_at(
                     program,
@@ -438,15 +441,15 @@ pub(super) fn complete(
                 for image in classes {
                     domain.bind(shifted(image, 0, limits, left)?, false, limits, left)?;
                 }
-                let header = function
-                    .storage_life
-                    .as_ref()
-                    .ok_or_else(|| bad("Dyn actual method has no complete header"))?;
+                let counts = match &function.storage_life {
+                    Some(header) => (header.fixed_binder_count, header.invocation_binder_count),
+                    None if classes.is_empty() && matches!(parameter.ty, SemanticTypeRecipe::SelfType {
+                        scope: SemanticScopeRef::Ancestor(1)
+                    }) => (0, 0),
+                    None => return Err(bad("Dyn actual method has no complete header")),
+                };
                 let mut embedding = Vec::new();
-                for (fixed, count) in [
-                    (true, header.fixed_binder_count),
-                    (false, header.invocation_binder_count),
-                ] {
+                for (fixed, count) in [(true, counts.0), (false, counts.1)] {
                     for ordinal in 0..count {
                         let binder = if fixed {
                             StorageBinder::Fixed(ordinal)

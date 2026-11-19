@@ -940,8 +940,20 @@ impl Check<'_, '_> {
                 target = Some(candidate);
             }
         }
+        let type_qualified = target.is_some();
         let self_type = match target {
-            Some(_) => self.source_self_type(owner, object, variables, depth + 1)?,
+            Some(authored) => {
+                let self_type = self.source_self_type(owner, object, variables, depth + 1)?;
+                let provider = self.definition(authored)?;
+                if let Some(declared) = self.provider_conformance(provider, depth + 1)? {
+                    let parent = self.definition(provider.parent.ok_or_else(|| {
+                        bad("type-qualified method implementation lacks its original parent")
+                    })?)?;
+                    self.solve_parent(owner, parent, &self_type, depth + 1)?;
+                    target = Some(declared);
+                }
+                self_type
+            }
             None => {
                 // A runtime receiver remains lexical. Candidate spellings come
                 // exclusively from actual original declaration bindings.
@@ -1081,8 +1093,9 @@ impl Check<'_, '_> {
         )?;
         let mut operands = Vec::new();
         let mut written = arguments.iter();
+        let implicit_receiver = receiver_parameter.filter(|_| !type_qualified);
         for ordinal in 0..signature.parameters.len() {
-            if *receiver_parameter == Some(ordinal as u32) {
+            if implicit_receiver == Some(ordinal as u32) {
                 operands.push(object.as_ref());
             } else {
                 operands.push(
@@ -1095,14 +1108,14 @@ impl Check<'_, '_> {
         if written.next().is_some() {
             return Err(bad("original method adds an undeclared argument"));
         }
-        let receiver_place = if receiver_parameter.is_some() {
+        let receiver_place = if implicit_receiver.is_some() {
             self.method_receiver_place(owner, object, variables, depth + 1)?
         } else {
             None
         };
         let mut receiver_borrow = None;
         let mut roles = Vec::new();
-        if let Some(ordinal) = receiver_parameter {
+        if let Some(ordinal) = implicit_receiver.as_ref() {
             let parameter = signature
                 .parameters
                 .get(*ordinal as usize)

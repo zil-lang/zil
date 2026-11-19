@@ -48,21 +48,40 @@ fn native(source: &str) {
 }
 #[test]
 fn nominal_impls_inherit_read_receiver_and_dispatch_by_concrete_type() {
-    native(
-        r#"
+    let source = r#"
 trait Measure{fn measure(self:&Self)->i32;}
 struct Point{x:i32}
 struct Area{w:i32,h:i32}
 impl Measure for Point{fn measure()->i32{return .x}}
 impl Measure for Area{fn measure(self:&Self)->i32{return .w * .h}}
 fn main()->i32{let p=Point{x:7};let r=Area{w:5,h:7};if p.measure()+r.measure()!=42{return 1};return Point.measure(&p)-7}
-"#,
+"#;
+    native(source);
+    // With identical physical layouts, the declared qualifier still fixes Self.
+    let same_layout = source
+        .replace("Area{w:i32,h:i32}", "Area{x:i32}")
+        .replace(".w * .h", ".x")
+        .replace("Area{w:5,h:7}", "Area{x:35}");
+    native(&same_layout);
+    let wrong = compile(&same_layout.replace("Point.measure(&p)", "Point.measure(&r)"));
+    assert_eq!(
+        wrong.status,
+        ResultCategory::SafeReject,
+        "{}",
+        wrong.to_json()
+    );
+    assert!(
+        wrong
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("rigid whole type")),
+        "{}",
+        wrong.to_json()
     );
 }
 #[test]
 fn mutable_and_static_trait_methods_use_existing_borrow_and_return_paths() {
-    native(
-        r#"
+    let source = r#"
 trait Change{fn set(self:&mut Self,value:i32);fn get(self:&Self)->i32;fn make(value:i32)->Self;}
 struct Cell{value:i32}
 impl Change for Cell{
@@ -71,7 +90,25 @@ impl Change for Cell{
  fn make(value:i32)->Self{return Cell{value:value}}
 }
 fn main()->i32{var c=Cell.make(2);c.set(42);return c.get()-42}
-"#,
+"#;
+    native(source);
+    let explicit = source
+        .replace("c.set(42)", "Cell.set(&mut c,42)")
+        .replace("c.get()", "Cell.get(&c)");
+    native(&explicit);
+    let shared = compile(&explicit.replace("Cell.set(&mut c,42)", "Cell.set(&c,42)"));
+    assert_eq!(
+        shared.status,
+        ResultCategory::SafeReject,
+        "{}",
+        shared.to_json()
+    );
+    assert!(
+        shared.diagnostics.iter().any(|d| d
+            .message
+            .contains("exclusive access through a shared actual")),
+        "{}",
+        shared.to_json()
     );
 }
 #[test]
