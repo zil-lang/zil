@@ -160,7 +160,7 @@ impl CheckedOriginal {
                         let binding = Binding { ty:actual, mutable:false,
                             identity:Binder::Local { definition:id, node:initializer.id, name:name.clone() } };
                         let resolved = self.resolved(&binding.ty, b)?;
-                        if matches!(&resolved, Ty::Atom(ty) if ty.is_b0_scalar()) {
+                        if matches!(&resolved, Ty::Atom(ty) if ty.is_b0_scalar()) || matches!(resolved, Ty::Variable(..) | Ty::SelfType(_)) {
                             b.spend(self.scalar_initializers.len().checked_ilog2().map_or(1, |n| n as usize + 2))?;
                             self.scalar_initializers.insert((id, initializer.id));
                         }

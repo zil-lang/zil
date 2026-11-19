@@ -161,6 +161,14 @@ impl Check<'_, '_> {
             b.spend(1, WORK)?;
             match &source.kind {
                 CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } => source = inner,
+                CoreExprKind::Name(_) => {
+                    let Some(anchor) = self.original.local_read_anchor(world.definition, source.id, b)? else {
+                        return Ok(true);
+                    };
+                    let (_, _, producer) = self.defining(function, value, b)?;
+                    let InstructionKind::Load(local) = producer.kind else { return Ok(false); };
+                    return Ok(self.anchored_local(world, function, anchor, b)? == local);
+                }
                 CoreExprKind::Member { object, .. } => {
                     let parent = self.original.source_type(world, SemanticScopeRef::Ancestor(0),
                         &SemanticOriginalTypeSource::Expression(object.id), self.program, self.inventory, b)?;

@@ -988,7 +988,7 @@ impl CheckedContext {
                 let (node, _, _) = recipe.ok_or_else(|| bad("scalar call argument lacks its original occurrence"))?;
                 let source = self.original.borrow().as_ref().ok_or_else(||bad("scalar Call has no checked original body"))?
                     .scalar_initializer(caller.definition, node, b)?.unwrap_or(node);
-                self.exact_expression_value(module, caller, f, *argument, source, b)
+                self.exact_expression_in(module, caller, f, *argument, source, Some(environment), b)
                     .map_err(|error| error.with_note(format!("actual scalar call {:?} SSA {:?} original expression {:?}", site.recipe, argument, node)))?;
             }
         }

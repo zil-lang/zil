@@ -406,3 +406,40 @@ fn direct_call_preserves_scalar_conversions_literals_and_inferred_arguments() {
         require_semantic_rejection(errors);
     }
 }
+
+#[test]
+fn generic_pipeline_preserves_its_original_parameter_before_preparation() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "pipeline-parameter.zil",
+        "fn identity<T:Copy>(x:T)->T{return x}\nfn pipe<T:Copy>(a:T,b:T)->T{return a |> identity}\nfn main()->i32{return pipe(42,17)-42}");
+    let core = original_core(source, &limits, &target);
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+
+    let caller = typed.functions.iter_mut().find(|f| f.parameters.len() == 2).unwrap();
+    let [left, right] = caller.parameters[..] else { unreachable!() };
+    assert_eq!(caller.locals[left.0 as usize].ty, Type::I32);
+    assert_eq!(caller.locals[right.0 as usize].ty, Type::I32);
+    let mut edits = 0;
+    for instruction in caller.blocks.iter_mut().flat_map(|block| &mut block.instructions) {
+        if let InstructionKind::Load(input) = &mut instruction.kind && *input == left {
+            *input = right;
+            edits += 1;
+        }
+    }
+    assert_eq!(edits, 1);
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    assert!(errors.iter().any(|d| d.message.contains("actual scalar Call argument")), "{errors:?}");
+    require_semantic_rejection(errors);
+    plan.module_fingerprint = typed.fingerprint();
+    let bytes = wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    for errors in [zil_verify::verify_module(typed, plan, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()] {
+        assert!(errors.iter().any(|d| d.notes.iter().any(|n| n.contains("actual scalar call"))), "{errors:?}");
+        require_semantic_rejection(errors);
+    }
+}

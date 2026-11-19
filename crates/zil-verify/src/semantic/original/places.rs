@@ -150,8 +150,29 @@ impl CheckedOriginal {
         }
         Ok(found)
     }
-    pub(in crate::semantic) fn scalar_input<'a>(&'a self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,b:&mut Budget)->Check<(&'a SemanticOriginalExpr,Type)>{
-        let Ty::Atom(carrier)=self.original_type(definition,&SemanticOriginalTypeSource::Expression(node),b)? else{return Err(bad("scalar source input lacks its independent original carrier"));};
+    pub(in crate::semantic) fn scalar_input<'a>(&'a self,module:&TypedModule,definition:SemanticDefinitionId,node:NodeId,environment:Option<&EvalEnv>,b:&mut Budget)->Check<(&'a SemanticOriginalExpr,Type)>{
+        let original = self.original_type(definition, &SemanticOriginalTypeSource::Expression(node), b)?;
+        let carrier = match original {
+            Ty::Atom(ty) => ty,
+            Ty::Variable(owner, _) | Ty::SelfType(owner) => {
+                let environment = environment.ok_or_else(|| bad("scalar source input lacks its actual lexical specialization"))?;
+                b.spend(environment.lexical.len())?;
+                let frame = environment.lexical.iter().find(|frame| frame.definition == owner)
+                    .ok_or_else(|| bad("scalar source input has no original declaration frame"))?;
+                let actual = match original {
+                    Ty::Variable(_, ordinal) => match frame.actuals.get(ordinal as usize) {
+                        Some(CheckedActual::Type(ty)) => Some(ty),
+                        _ => None,
+                    },
+                    _ => frame.self_type.as_ref(),
+                }.ok_or_else(|| bad("scalar source input has no concrete original Type argument"))?;
+                if !actual.ty.is_b0_scalar() || !actual.classes.is_empty() || !actual.statics.is_empty() {
+                    return Err(bad("scalar source input changes its complete original specialization"));
+                }
+                actual.ty.clone()
+            }
+            _ => return Err(bad("scalar source input lacks its independent original carrier")),
+        };
         if !carrier.is_integer()&&!carrier.is_float()&&!matches!(carrier,Type::Unit|Type::Bool){return Err(bad("source input is not an independently checked scalar expression"));}
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("scalar source input original owner is absent"))?;
         let expression=*function.expressions.get(&node).ok_or_else(||bad("scalar source input original expression is absent"))?;

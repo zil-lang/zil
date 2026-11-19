@@ -284,7 +284,10 @@ impl CheckedContext{
         };
         result.map_err(|error|error.with_note(format!("original assignment RHS {:?} expression {:?}, transparent operand {:?}, actual {:?}",caller.definition,node,operand,value)))
     }
-    pub(in crate::semantic::flow) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+    pub(in crate::semantic::flow) fn exact_expression_value(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+        self.exact_expression_in(module, caller, f, value, node, None, b)
+    }
+    pub(in crate::semantic::flow) fn exact_expression_in(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,mut value:ValueId,node:NodeId,environment:Option<&EvalEnv>,b:&mut Budget)->Check<()>{
         let recipes = self.original.borrow().as_ref()
             .ok_or_else(|| bad("address source occurrence has no complete original body"))?
             .expression_sites(caller.definition, node, b)?;
@@ -331,21 +334,21 @@ impl CheckedContext{
             if let InstructionKind::Load(local)=instruction.kind {
                 if let Some(source)=scalar_preparations::source(module,f,block,at,local,b)?{value=source;continue;}
             }
-            if sources.is_empty(){return self.scalar_expression_source(module,caller,f,value,node,b);}
+            if sources.is_empty(){return self.scalar_expression_source(module,caller,f,value,node,environment,b);}
             if let InstructionKind::ReborrowAddress{address,..}=instruction.kind{value=address;continue;}
             return Err(reject("E-VERIFY-SEMANTIC", Some(instruction.span),
                 "address input selects another same-typed original expression value").with_note(format!(
                 "original {:?} expression {:?}, exact source SSA {:?}; actual {:?} at {:?}:{at} has producer {:?}",caller.definition,node,sources,value,block,instruction.kind)));
         }
     }
-    fn scalar_expression_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,b:&mut Budget)->Check<()>{
+    fn scalar_expression_source(&self,module:&TypedModule,caller:&SemanticInstance,f:&TypedFunction,value:ValueId,node:NodeId,environment:Option<&EvalEnv>,b:&mut Budget)->Check<()>{
         let original=self.original.borrow();
-        let(expression,carrier)=original.as_ref().ok_or_else(||bad("scalar address input lacks its complete independent original proof"))?.scalar_input(module,caller.definition,node,b)?;
+        let(expression,carrier)=original.as_ref().ok_or_else(||bad("scalar address input lacks its complete independent original proof"))?.scalar_input(module,caller.definition,node,environment,b)?;
         if f.values.get(value.0 as usize)!=Some(&carrier){return Err(bad("address scalar input changes its complete original carrier"));}
         let(_,_,instruction)=self.site_index.producers.get(f,value,b)?;crate::check_instruction(module,f,instruction,b)?;
         match(&expression.kind,&instruction.kind){
-            (CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::CompileTime(inner),_)=>self.exact_expression_value(module,caller,f,value,inner.id,b),
-            (CoreExprKind::Sequence{bindings,value:inner},_)if bindings.is_empty()=>self.exact_expression_value(module,caller,f,value,inner.id,b),
+            (CoreExprKind::Group(inner)|CoreExprKind::Ascribed{value:inner,..}|CoreExprKind::CompileTime(inner),_)=>self.exact_expression_in(module,caller,f,value,inner.id,environment,b),
+            (CoreExprKind::Sequence{bindings,value:inner},_)if bindings.is_empty()=>self.exact_expression_in(module,caller,f,value,inner.id,environment,b),
             (CoreExprKind::Name(_),_)=>self.projected_buffer_source(module,caller,f,value,caller.definition,node,b),
             (CoreExprKind::Unit,InstructionKind::Constant(Constant::Unit))=>Ok(()),
             (CoreExprKind::Bool(original),InstructionKind::Constant(Constant::Bool(actual)))if original==actual=>Ok(()),
@@ -361,10 +364,10 @@ impl CheckedContext{
                 let expected=scalar::closed(&pattern,&carrier,module.target.pointer_width,b)?.ok_or_else(||bad("address signed scalar literal remains unresolved"))?;
                 if &expected!=actual{return Err(bad("address signed literal changes its exact original bits"));}Ok(())
             },
-            (CoreExprKind::Unary{op:UnaryOp::Dereference,operand},InstructionKind::ReadAddress{address})=>self.exact_expression_value(module,caller,f,*address,operand.id,b),
-            (CoreExprKind::Unary{op,operand},InstructionKind::Unary{op:actual,operand:input})if op==actual=>self.exact_expression_value(module,caller,f,*input,operand.id,b),
-            (CoreExprKind::Binary{op,left,right},InstructionKind::Binary{op:actual,left:a,right:z})if op==actual=>{self.exact_expression_value(module,caller,f,*a,left.id,b)?;self.exact_expression_value(module,caller,f,*z,right.id,b)},
-            (CoreExprKind::NumericConvert{value:input,..}|CoreExprKind::IntegerConvert{value:input,..},InstructionKind::ConvertInteger{value:actual,target}|InstructionKind::ConvertNumber{value:actual,target})if target==&carrier=>self.exact_expression_value(module,caller,f,*actual,input.id,b),
+            (CoreExprKind::Unary{op:UnaryOp::Dereference,operand},InstructionKind::ReadAddress{address})=>self.exact_expression_in(module,caller,f,*address,operand.id,environment,b),
+            (CoreExprKind::Unary{op,operand},InstructionKind::Unary{op:actual,operand:input})if op==actual=>self.exact_expression_in(module,caller,f,*input,operand.id,environment,b),
+            (CoreExprKind::Binary{op,left,right},InstructionKind::Binary{op:actual,left:a,right:z})if op==actual=>{self.exact_expression_in(module,caller,f,*a,left.id,environment,b)?;self.exact_expression_in(module,caller,f,*z,right.id,environment,b)},
+            (CoreExprKind::NumericConvert{value:input,..}|CoreExprKind::IntegerConvert{value:input,..},InstructionKind::ConvertInteger{value:actual,target}|InstructionKind::ConvertNumber{value:actual,target})if target==&carrier=>self.exact_expression_in(module,caller,f,*actual,input.id,environment,b),
             (CoreExprKind::Member{..}|CoreExprKind::ReceiverMember(_)|CoreExprKind::Index{..},_)=>self.original_projection_source(module,caller,f,value,caller.definition,node,true,b),
             _=>Err(unsupported("address scalar input lacks its complete original operation/operand correspondence",Some(expression.span))),
         }
