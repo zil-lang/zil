@@ -1353,7 +1353,15 @@ impl CheckedContext {
                 let SemanticOperand::Value(value) = subject else {
                     return Err(bad("original resource field read has no actual SSA result"));
                 };
-                self.original_projection_source(module, instance, f, *value, instance.definition, *node, true, b)?;
+                let payload = if let Some(expected_arm) = original.injection_arm(instance.definition, *node, b)? {
+                    let (_, _, producer) = self.site_index.producers.get(f, *value, b)?;
+                    crate::check_instruction(module, f, producer, b)?;
+                    match producer.kind {
+                        InstructionKind::MakeErrorUnion { is_error, value } if is_error == expected_arm => value,
+                        _ => return Err(bad("resource field result selects another original error-union arm")),
+                    }
+                } else { *value };
+                self.original_projection_source(module, instance, f, payload, instance.definition, *node, true, b)?;
             }
             source=original.original_address_source(module,instance.definition,original_source,b)?;
             if source.is_none(){source=original.original_description_source(module,instance.definition,original_source,b)?;}

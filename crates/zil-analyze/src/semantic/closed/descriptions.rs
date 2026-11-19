@@ -15,20 +15,35 @@ impl Check<'_, '_> {
             return Err(fail("original resource field read has no actual SSA result"));
         };
         let (block, index, read) = self.defining(function, *value, b)?;
-        let InstructionKind::ReadDesc { desc, index: field } = read.kind else {
-            return Err(fail("original resource field read has no actual description access"));
-        };
-        if field != source.field {
-            return Err(fail("actual resource read selects another original payload field"));
-        }
-        operations::available_before(function, (block, index, SemanticSiteEdge::Before), desc, b)?;
         let Type::Managed(payload) = &source.owner.ty else {
             return Err(fail("original resource field read loses its owning parent"));
         };
-        self.sealed_resource_place(
-            instance, function, desc, source.anchor, &source.root, &source.owner,
-            source.path, payload, b,
-        )
+        let at = (block, index, SemanticSiteEdge::Before);
+        match read.kind {
+            InstructionKind::ReadDesc { desc, index } => {
+                if index != source.field {
+                    return Err(fail("actual resource read selects another original payload field"));
+                }
+                operations::available_before(function, at, desc, b)?;
+                self.sealed_resource_place(
+                    instance, function, desc, source.anchor, &source.root, &source.owner,
+                    source.path, payload, b,
+                )
+            }
+            InstructionKind::ReadAddress { address } => {
+                operations::available_before(function, at, address, b)?;
+                let (block, index, projection) = self.defining(function, address, b)?;
+                let InstructionKind::AddressField { address: owner, index: field } = projection.kind else {
+                    return Err(fail("actual resource read has no projected payload address"));
+                };
+                if field != source.field {
+                    return Err(fail("actual resource read selects another original payload field"));
+                }
+                operations::available_before(function, (block, index, SemanticSiteEdge::Before), owner, b)?;
+                self.sealed_resource_address(instance, function, owner, source, payload, b)
+            }
+            _ => Err(fail("original resource field read has no actual description or address access")),
+        }
     }
 
     pub(super) fn source_description(

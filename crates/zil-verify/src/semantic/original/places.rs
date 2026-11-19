@@ -38,6 +38,16 @@ impl CheckedOriginal {
         Ok(self.resource_field_reads.contains(&(definition, node)))
     }
 
+    pub(in crate::semantic) fn injection_arm(
+        &self,
+        definition: SemanticDefinitionId,
+        node: NodeId,
+        b: &mut Budget,
+    ) -> Check<Option<bool>> {
+        b.spend(self.injections.len().checked_ilog2().map_or(1, |n| n as usize + 1))?;
+        Ok(self.injections.get(&(definition, node)).map(|(failed, _)| *failed))
+    }
+
     pub(in crate::semantic) fn original_stored_member(
         &self, owner: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget,
     ) -> Check<Option<(NodeId, u32)>> {

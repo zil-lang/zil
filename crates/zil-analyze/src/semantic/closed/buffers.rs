@@ -56,6 +56,22 @@ impl Check<'_, '_> {
                 }
                 Ok((Origin::Local(*local, block, index), fields))
             }
+            InstructionKind::BorrowPackageField { local, index: field, mutable } => {
+                let declaration = function.locals.get(local.0 as usize)
+                    .filter(|item| item.id == *local)
+                    .ok_or_else(|| fail("actual resource address has no Package local"))?;
+                if *mutable && !declaration.mutable {
+                    return Err(fail("actual resource address strengthens an immutable Package"));
+                }
+                let Some(Type::Address { inner, mutable: actual }) = function.values.get(id.0 as usize)
+                else { return Err(fail("actual Package field borrow has no result Address")); };
+                let selected = self.borrow_field_type(&declaration.ty, &[*field], b)?;
+                if actual != mutable || !geometry::same_type(inner, selected, b)? {
+                    return Err(fail("actual Package field borrow changes its whole selected field or mode"));
+                }
+                b.spend(1, WORK)?;
+                Ok((Origin::Local(*local, block, index), vec![*field]))
+            }
             InstructionKind::BorrowCapture { index, .. }
             | InstructionKind::ReadCapture { index } => Ok((Origin::Capture(*index), Vec::new())),
             InstructionKind::ReborrowAddress { address, mutable } => {
@@ -177,6 +193,56 @@ impl Check<'_, '_> {
                 ));
             }
         };
+        let Some(Type::Desc(actual)) = function.values.get(descriptor.0 as usize) else {
+            return Err(fail("actual resource observation has no complete description"));
+        };
+        if !geometry::same_type(actual, family, b)? {
+            return Err(fail("actual resource observation uses another complete description family"));
+        }
+        self.check_resource_origin(
+            instance, function, (block, index, instruction.span), origin, &path,
+            anchor, root, selected, expected_path, family, b,
+        )
+    }
+
+    pub(super) fn sealed_resource_address(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        address: ValueId,
+        source: &original::ResourceFieldSource<'_>,
+        family: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        let (block, index, instruction) = self.defining(function, address, b)?;
+        let Some(Type::Address { inner, .. }) = function.values.get(address.0 as usize) else {
+            return Err(fail("actual resource observation has no complete owner address"));
+        };
+        if !geometry::same_type(inner, &source.owner.ty, b)? {
+            return Err(fail("actual resource address changes its complete owning type"));
+        }
+        let (origin, path) = self.buffer_address_origin(function, address, b, 0)?;
+        self.check_resource_origin(
+            instance, function, (block, index, instruction.span), origin, &path,
+            source.anchor, &source.root, &source.owner, source.path, family, b,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn check_resource_origin(
+        &self,
+        instance: &SemanticInstance,
+        function: &TypedFunction,
+        at: (BlockId, usize, zil_base::Span),
+        origin: Origin,
+        path: &[u32],
+        anchor: original::LocalAnchor,
+        root: &Value,
+        selected: &Value,
+        expected_path: &[u32],
+        family: &Type,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
         // The semantic root of a replaceable manager is the current occupant.
         // Only an actual declaration/initializer witness can consume its physical field.
         let (slot, captured) = match origin {
@@ -195,12 +261,13 @@ impl Check<'_, '_> {
         let path = if slot.is_some() || captured.is_some() {
             path.strip_prefix(&[0]).ok_or_else(|| fail("original manager operation misses its binding cell element"))?
         } else {
-            path.as_slice()
+            path
         };
         b.spend(path.len().saturating_add(expected_path.len()), WORK)?;
         if path != expected_path {
             let mut errors = fail("actual resource description changes its original field path");
-            errors[0].span = Some(instruction.span);
+            let (block, index, span) = at;
+            errors[0].span = Some(span);
             errors[0].notes.push(format!(
                 "Original fields {expected_path:?}, actual fields {path:?} at function {}, block {}, instruction {index}.",
                 function.id.0, block.0
@@ -298,9 +365,7 @@ impl Check<'_, '_> {
         };
         crate::dyn_metadata::ty(payload, b)?;
         crate::dyn_metadata::ty(family, b)?;
-        if payload.as_ref() != family
-            || function.values.get(descriptor.0 as usize) != Some(&Type::Desc(payload.clone()))
-        {
+        if payload.as_ref() != family {
             return Err(fail(
                 "actual ByteBuffer operation uses another complete description family",
             ));

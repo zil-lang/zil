@@ -830,16 +830,15 @@ impl Check<'_, '_> {
             ) => {
                 let original_value = self.recipe_value(instance, recipe, b, 0)?;
                 let expected_type = &original_value.ty;
-                if let SemanticTypeRecipe::OriginalType {
+                let resource_read = if let SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
                 } = recipe
-                    && let Some(read) = self.original.resource_field_source(
+                {
+                    self.original.resource_field_source(
                         instance, *node, self.program, self.inventory, b,
                     )?
-                {
-                    self.checked_resource_field_read(instance, point.function, subject, &read, b)?;
-                }
+                } else { None };
                 if let SemanticTypeRecipe::OriginalType {
                     scope: SemanticScopeRef::Ancestor(0),
                     source: SemanticOriginalTypeSource::Expression(node),
@@ -919,6 +918,11 @@ impl Check<'_, '_> {
                         value,
                         b,
                     )?;
+                    if let Some(read) = &resource_read {
+                        self.checked_resource_field_read(
+                            instance, point.function, &SemanticOperand::Value(value), read, b,
+                        )?;
+                    }
                     if self.uses_full_value(&original_value.ty, b)?
                         && !self.capture_values_equal(
                             &self.ssa_value(instance, point.function, value, b, 0)?,
@@ -981,6 +985,9 @@ impl Check<'_, '_> {
                         }
                     }
                     return Ok(());
+                }
+                if let Some(read) = &resource_read {
+                    self.checked_resource_field_read(instance, point.function, subject, read, b)?;
                 }
                 let prepared_claim = if self.uses_full_value(&original_value.ty, b)? {
                     Some(self.original_claim(instance, expected, &original_value, b)?)

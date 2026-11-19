@@ -427,3 +427,82 @@ fn nested_resource_description_rejects_same_typed_substitutions() {
         }
     }
 }
+
+#[test]
+fn captured_resource_field_address_flows_into_the_original_result_arm() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::InstructionKind;
+
+    const SOURCE: &str = r#"enum Fault{Bad}
+resource R{n:i32;other:i32}
+package P{manages selected:R;manages sibling:R;serial:i32}
+fn factory()->impl FnMut(i32)->Fault!i32 {
+ var p=P{selected:R{n:42,other:70},sibling:R{n:9,other:11},serial:0};
+ return move code=>{if code==0 {return p.selected.n} p.serial+=1;return Fault.Bad}
+}
+fn result()->i32 {
+ var next=factory();
+ if let .err(_)=next(1) {if let .ok(n)=next(0) {return n}}
+ return 0
+}
+"#;
+    native(SOURCE, 42);
+
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "captured_resource_field.zil", SOURCE);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &unit,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+
+    for (selected, analysis_reason) in [
+        ("p.selected", "changes its original field path"),
+        ("p.selected.n", "selects another original payload field"),
+    ] {
+        let mut raw = module.clone();
+        let field = raw.functions.iter_mut()
+            .filter(|function| function.environment.is_some())
+            .flat_map(|function| &mut function.blocks)
+            .flat_map(|block| &mut block.instructions)
+            .find_map(|instruction| {
+                let span = instruction.span;
+                if SOURCE.get(span.start as usize..span.end as usize) != Some(selected) {
+                    return None;
+                }
+                match &mut instruction.kind {
+                    InstructionKind::BorrowPackageField { index, .. } if selected == "p.selected" => Some(index),
+                    InstructionKind::AddressField { index, .. } if selected == "p.selected.n" => Some(index),
+                    _ => None,
+                }
+            })
+            .expect("original read must use the captured owner's actual field address");
+        assert_eq!(*field, 0);
+        *field = 1;
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        for (errors, reason) in [
+            (analyzed, analysis_reason),
+            (zil_verify::verify_module(raw, claim, &target, &limits).unwrap_err(), "differs from the original ordered nominal/tuple field"),
+            (zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(), "differs from the original ordered nominal/tuple field"),
+        ] {
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            assert!(errors[0].message.contains(reason), "{errors:?}");
+        }
+    }
+}
