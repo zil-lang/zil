@@ -37,21 +37,7 @@ impl Eval<'_, '_, '_> {
                         | LifeNominalActual::QualifiedType { ty, .. } => ty,
                         _ => return Ok(false),
                     };
-                    inference::charge_type_snapshot(
-                        ty,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    inference::charge_type_snapshot(
-                        actual_ty,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    if ty != actual_ty {
+                    if !self.same_physical(ty, actual_ty)? {
                         return Ok(false);
                     }
                     let actual_life = match actual {
@@ -60,9 +46,9 @@ impl Eval<'_, '_, '_> {
                         _ => unreachable!(),
                     };
                     if let Some(actual_life) = actual_life {
-                        let _paid = self.copy_shape(actual_life)?;
-                        let _paid = self.copy_shape(life)?;
-                        if actual_life != life {
+                        if !crate::dyn_metadata::same_resolved_geometry(
+                            ty, life, ty, actual_life, self.limits, self.left,
+                        )? {
                             return Ok(false);
                         }
                     } else if let Type::Task { retained_life, .. }
@@ -380,30 +366,19 @@ impl Eval<'_, '_, '_> {
                     if !self.nominal_arguments_match(&expected, &instance.arguments)? {
                         continue;
                     }
-                    inference::charge_type_snapshot(
-                        &instance.ty,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
                     if let Some(hint) = hint {
-                        inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
-                        if &instance.ty != hint {
+                        if !self.same_physical(&instance.ty, hint)? {
                             let Some(physical_occurrence) = physical_occurrence else {
                                 continue;
                             };
-                            inference::charge_type_snapshot(
-                                physical_occurrence,
-                                Span::default(),
-                                self.limits,
-                                self.left,
-                                1,
-                            )?;
-                            if physical_occurrence != hint {
+                            if !self.same_physical(physical_occurrence, hint)? {
                                 continue;
                             }
                         }
+                    } else {
+                        inference::charge_type_snapshot(
+                            &instance.ty, Span::default(), self.limits, self.left, 1,
+                        )?;
                     }
                     if found.replace(instance).is_some() {
                         return Err(bad(

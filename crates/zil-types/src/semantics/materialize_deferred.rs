@@ -141,26 +141,10 @@ impl Eval<'_, '_, '_> {
                     (Some(before), row)
                 }
             };
-            inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
-            inference::charge_type_snapshot(&row.ty, Span::default(), self.limits, self.left, 1)?;
-            let matches = if &row.ty == hint {
+            let matches = if self.same_physical(&row.ty, hint)? {
                 true
             } else if let Some(before) = before {
-                inference::charge_type_snapshot(
-                    hint,
-                    Span::default(),
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                inference::charge_type_snapshot(
-                    before,
-                    Span::default(),
-                    self.limits,
-                    self.left,
-                    1,
-                )?;
-                before == hint
+                self.same_physical(before, hint)?
             } else {
                 false
             };
@@ -326,9 +310,7 @@ impl Eval<'_, '_, '_> {
                 let row = self.qualified_nominal(scope, *definition, arguments, hint, depth + 1)?;
                 let before = self.physical(hint)?;
                 if pass.mode == NominalPass::DiscoverStable {
-                    inference::charge_type_snapshot(&before, Span::default(), self.limits, self.left, 1)?;
-                    inference::charge_type_snapshot(&row.ty, Span::default(), self.limits, self.left, 1)?;
-                    if before != row.ty {
+                    if !self.same_physical(&before, &row.ty)? {
                         // A rewrite can change any later emitted type hint and
                         // requires fresh, post-rewrite occurrence selection.
                         pass.existing.clear();

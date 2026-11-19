@@ -33,6 +33,7 @@ fn resolved(
 ) -> SemanticTypeValue {
     SemanticTypeValue::Resolved { ty, life, classes }
 }
+
 /// A logical whole-type hint has an explicit source. It cannot be created
 /// from an arbitrary physical Type (notably the storage of a callback slot).
 #[derive(Clone, Copy)]
@@ -358,6 +359,13 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
     fn physical(&mut self, ty: &Type) -> R<Type> {
         inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
         Ok(ty.clone())
+    }
+    fn same_physical(&mut self, actual: &Type, expected: &Type) -> R<bool> {
+        // Equality visits paired rows only up to the first difference. A
+        // complete walk of the formed value bounds that comparison, and a
+        // match necessarily has the same complete physical depth and width.
+        inference::charge_type_snapshot(actual, Span::default(), self.limits, self.left, 1)?;
+        Ok(actual == expected)
     }
     fn operand(
         &mut self,
@@ -1044,27 +1052,12 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 if life.binder_count as usize != classes.len() {
                     return Err(bad("whole-type class directory omits intrinsic classes"));
                 }
-                if let Some(hint) = hint {
-                    let hint = hint.ty;
-                    inference::charge_type_snapshot(
-                        ty,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    inference::charge_type_snapshot(
-                        hint,
-                        Span::default(),
-                        self.limits,
-                        self.left,
-                        1,
-                    )?;
-                    if ty != hint {
-                        return Err(bad(
-                            "resolved type does not match its actual emitted operand",
-                        ));
-                    }
+                if let Some(hint) = hint
+                    && !self.same_physical(ty, hint.ty)?
+                {
+                    return Err(bad(
+                        "resolved type does not match its actual emitted operand",
+                    ));
                 }
                 let mut value = self.copy(value)?;
                 if let SemanticTypeValue::Resolved { ty, life, classes } = &mut value {
@@ -1165,12 +1158,9 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
         let actual = logical_operand(self.ledger, self.module, f, &operand, self.limits, self.left)?;
         if let Some(hint) = hint
             && !std::ptr::eq(actual.ty, hint.ty)
+            && !self.same_physical(actual.ty, hint.ty)?
         {
-            inference::charge_type_snapshot(actual.ty, Span::default(), self.limits, self.left, 1)?;
-            inference::charge_type_snapshot(hint.ty, Span::default(), self.limits, self.left, 1)?;
-            if actual.ty != hint.ty {
-                return Err(bad("inferred type and actual site type disagree"));
-            }
+            return Err(bad("inferred type and actual site type disagree"));
         }
         self.logical_type(scope, recipe, Some(actual), depth + 1)
     }
@@ -2315,9 +2305,7 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
             let SemanticTypeValue::Resolved { ty, .. } = &value else {
                 unreachable!()
             };
-            inference::charge_type_snapshot(ty, Span::default(), self.limits, self.left, 1)?;
-            inference::charge_type_snapshot(hint, Span::default(), self.limits, self.left, 1)?;
-            if ty != hint {
+            if !self.same_physical(ty, hint)? {
                 return Err(bad(&format!(
                     "original type recipe differs from its actual emitted complete type: instance {scope:?}, expected {}, actual {}",
                     ty.name(),

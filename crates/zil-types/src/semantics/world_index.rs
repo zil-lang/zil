@@ -6,6 +6,30 @@ pub(super) struct OriginalSite {
     pub node: Option<SemanticOriginalNode>,
 }
 pub(super) type BlockPoints = BTreeMap<usize, Rc<Vec<usize>>>;
+
+pub(super) struct BlockSites<'a> {
+    rows: std::iter::Peekable<std::collections::btree_map::Iter<'a, usize, Rc<Vec<usize>>>>,
+}
+
+impl<'a> BlockSites<'a> {
+    pub(super) fn new(rows: &'a BlockPoints) -> Self {
+        Self { rows: rows.iter().peekable() }
+    }
+
+    pub(super) fn at(&mut self, instruction: usize, left: &mut usize) -> R<Option<Rc<Vec<usize>>>> {
+        pay(left, 1)?;
+        let Some((&next, _)) = self.rows.peek().copied() else { return Ok(None); };
+        if next < instruction {
+            return Err(bad("ordered block traversal skipped an actual original site"));
+        }
+        if next == instruction {
+            Ok(self.rows.next().map(|(_, offsets)| offsets.clone()))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 pub(super) struct SiteRows<'a> {
     sites: &'a [SemanticSite],
     offsets: Option<Rc<Vec<usize>>>,

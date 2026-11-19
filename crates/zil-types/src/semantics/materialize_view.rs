@@ -182,7 +182,7 @@ impl<'a> ActualDirectory<'a> {
         };
         Ok(position.map(|offset| &program.instances[offset]))
     }
-    pub(super) fn find_source_definition<'p>(
+    pub(in crate::semantics) fn find_source_definition<'p>(
         &self,
         program: &'p SemanticModule,
         id: SemanticDefinitionId,
@@ -217,7 +217,7 @@ impl<'a> ActualDirectory<'a> {
             source.nominals.get(&declaration).map_or(&[], Vec::as_slice),
         ))
     }
-    pub(super) fn function_lookup_work(&self) -> usize {
+    pub(in crate::semantics) fn function_lookup_work(&self) -> usize {
         self.source.as_ref().map_or_else(
             || self.function_count(),
             |source| source.functions.len().saturating_add(1).ilog2() as usize + 1,

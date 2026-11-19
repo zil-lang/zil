@@ -214,7 +214,7 @@ fn populate_proposals(
         super::materialize::ActualDirectory::from_module_at(module, "creator_headers")
     };
     let mut changes = Vec::new();
-    'instances: for instance in &program.instances {
+    'instances: for (offset, instance) in program.instances.iter().enumerate() {
         pay(left, 1)?;
         if instance.environment.is_some() {
             continue;
@@ -223,20 +223,15 @@ fn populate_proposals(
         else {
             continue;
         };
-        pay(
-            left,
-            module
-                .functions
-                .len()
-                .saturating_add(program.definitions.len()),
-        )?;
-        let function = module
-            .functions
-            .iter()
-            .find(|function| function.id == id)
+        pay(left, view.function_lookup_work())?;
+        let function = view
+            .function(id)
             .ok_or_else(|| bad("ordinary header target is absent"))?;
+        let return_type = function
+            .return_type
+            .ok_or_else(|| bad("ordinary header target has no actual result type"))?;
         if let Some(requested) = requested {
-            let Type::Closure(closure) = stored::physical(&function.return_type) else {
+            let Type::Closure(closure) = stored::physical(return_type) else {
                 continue;
             };
             pay(left, requested.len().saturating_add(1).ilog2() as usize + 1)?;
@@ -244,10 +239,8 @@ fn populate_proposals(
                 continue;
             }
         }
-        let original = program
-            .definitions
-            .iter()
-            .find(|definition| definition.id == instance.definition)
+        let original = view
+            .find_source_definition(program, instance.definition, left)?
             .ok_or_else(|| bad("ordinary header original is absent"))?;
         let (SemanticDefinitionBody::Function { signature, .. }
         | SemanticDefinitionBody::FunctionWithBody { signature, .. }) = &original.body
@@ -313,7 +306,7 @@ fn populate_proposals(
             ledger,
             instance.id,
             &recipe,
-            Some(&function.return_type),
+            Some(return_type),
             limits,
             left,
         )?;
@@ -497,31 +490,23 @@ fn populate_proposals(
             || function.storage_life.as_ref() != Some(&proposed)
             || instance.header_embedding != embedding
         {
-            changes.push((instance.id, id, proposed, embedding));
+            changes.push((offset, id, proposed, embedding));
         }
     }
     drop(view);
     let progress = !changes.is_empty();
-    for (instance, function, header, embedding) in changes {
-        pay(
-            left,
-            module
-                .functions
-                .len()
-                .saturating_add(program.instances.len()),
-        )?;
-        module
-            .functions
-            .iter_mut()
-            .find(|row| row.id == function)
-            .ok_or_else(|| bad("ordinary header target disappeared"))?
-            .storage_life = Some(header);
-        program
-            .instances
-            .iter_mut()
-            .find(|row| row.id == instance)
-            .ok_or_else(|| bad("ordinary header scope disappeared"))?
-            .header_embedding = embedding;
+    for (offset, function, header, embedding) in changes {
+        pay(left, 2)?;
+        let ordinal = function.0 as usize;
+        let ordinal = if module.functions.get(ordinal).is_some_and(|row| row.id == function) {
+            ordinal
+        } else {
+            pay(left, module.functions.len())?;
+            module.functions.iter().position(|row| row.id == function)
+                .ok_or_else(|| bad("ordinary header target disappeared"))?
+        };
+        module.functions[ordinal].storage_life = Some(header);
+        program.instances[offset].header_embedding = embedding;
     }
     Ok(progress)
 }

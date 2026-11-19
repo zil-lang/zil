@@ -3,8 +3,97 @@
 use super::*;
 use crate::semantics::original::{IntrinsicCall, IntrinsicKind, RegistrationOp, TaskOp};
 
-pub(super) fn evaluate(
-    world: &mut World<'_, '_>,
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct ActualSite {
+    representative: SemanticInstanceId,
+    recipe: SemanticSiteId,
+    block: BlockId,
+    instruction: u32,
+}
+
+fn mixed_actuals<'p>(
+    world: &mut World<'p, '_>,
+    instance: &SemanticInstance,
+    original: &SemanticDefinition,
+    site: &'p SemanticSite,
+    proof: &super::super::original::Proof,
+    recipes: &[SemanticActualRecipe],
+    actuals: &'p [SemanticActual],
+) -> R<()> {
+    if actuals.len() != recipes.len() || site.instance != instance.id || original.id != instance.definition {
+        return Err(bad("sealed call changes its exact actual world or complete mixed arguments"));
+    }
+    world.pay(recipes.len())?;
+    if actuals.is_empty() {
+        return Ok(());
+    }
+    world.pay(index::search(world.index.type_contexts.len()))?;
+    let context = world.index.type_contexts.get(&instance.id).copied();
+    let key = match (context, &site.at) {
+        (Some(context), SemanticSiteAddress::Typed { block, instruction, edge: SemanticSiteEdge::After })
+            if context.definition == original.id => Some(ActualSite {
+                representative: context.representative,
+                recipe: site.recipe,
+                block: *block,
+                instruction: *instruction,
+            }),
+        _ => None,
+    };
+    let prior = if let Some(key) = key {
+        world.pay(index::search(world.intrinsic_actuals.len()))?;
+        world.intrinsic_actuals.get(&key).copied()
+    } else {
+        None
+    };
+    if let Some(Some(confirmed)) = prior {
+        world.pay(1)?;
+        if confirmed.len() == actuals.len() {
+            let mut equal = true;
+            for (confirmed, actual) in confirmed.iter().zip(actuals) {
+                crate::dyn_metadata::semantic_operand_snapshot(confirmed, world.limits, world.left, 1)?;
+                if confirmed != actual {
+                    equal = false;
+                    break;
+                }
+            }
+            if equal {
+                return Ok(());
+            }
+        }
+    }
+    for (recipe, actual) in recipes.iter().zip(actuals) {
+        let expected = super::super::materialize::actual_in_view(
+            world.program, &world.view, world.ledger, instance.id, recipe, world.limits, world.left,
+        )?;
+        crate::dyn_metadata::semantic_operand_snapshot(actual, world.limits, world.left, 1)?;
+        crate::dyn_metadata::semantic_operand_snapshot(&expected, world.limits, world.left, 1)?;
+        if actual != &expected {
+            return Err(bad("sealed call changes an independently solved mixed actual"));
+        }
+    }
+    if let Some(key) = key && prior.is_none() {
+        // No original callee result, invocation, creator or enclosing world
+        // may influence a reusable proof. Complete actuals are compared even
+        // on a hit; the actual operand and all live class equations follow.
+        let mut portable = true;
+        for recipe in recipes {
+            let SemanticActualRecipe::Type(recipe) = recipe else {
+                portable = false;
+                break;
+            };
+            if !type_contexts::portable(proof, original.id, recipe, world.limits, world.left, 0)? {
+                portable = false;
+                break;
+            }
+        }
+        world.pay(index::search(world.intrinsic_actuals.len()).saturating_add(1))?;
+        world.intrinsic_actuals.insert(key, portable.then_some(actuals));
+    }
+    Ok(())
+}
+
+pub(super) fn evaluate<'p>(
+    world: &mut World<'p, '_>,
     instance: &SemanticInstance,
     original: &SemanticDefinition,
     sites: &[&SemanticSite],
@@ -16,29 +105,25 @@ pub(super) fn evaluate(
     locals: &[Option<SharedType>],
     implicit: &BTreeMap<u32, SemanticClassExpr>,
 ) -> R<Option<SharedType>> {
-    let mut selected: Option<(IntrinsicCall, &SemanticSite)> = None;
+    let ledger = world.ledger;
+    let proof = ledger.original.borrow();
+    let mut selected = None;
     for site in world.point_sites(sites, block, index)? {
         let actuals = match &site.action {
             SemanticSiteAction::BodyCall { actuals } => Some(actuals.as_slice()),
             SemanticSiteAction::Construct { .. } => None,
             _ => continue,
         };
-        let ledger = world.ledger;
-        let proof = ledger.original.borrow();
         let proof = proof
             .as_ref()
             .ok_or_else(|| bad("intrinsic has no checked original Gamma"))?;
         let Some(call) = proof.intrinsics.get(&(original.id, site.recipe)) else {
             continue;
         };
-        if !matches!(
-            world.original_recipe(original, site.recipe)?.kind,
-            SemanticSiteRecipeKind::OriginalCall
-        ) && !(matches!(call.kind, IntrinsicKind::NominalConstructor { .. })
-            && matches!(
-                world.original_recipe(original, site.recipe)?.kind,
-                SemanticSiteRecipeKind::Construct { .. }
-            ))
+        let kind = &world.original_recipe(original, site.recipe)?.kind;
+        if !(matches!(kind, SemanticSiteRecipeKind::OriginalCall)
+            || matches!(call.kind, IntrinsicKind::NominalConstructor { .. })
+                && matches!(kind, SemanticSiteRecipeKind::Construct { .. }))
         {
             return Err(bad("sealed call changes its original operation recipe"));
         }
@@ -49,61 +134,16 @@ pub(super) fn evaluate(
             .calls
             .get(&(original.id, site.recipe))
             .ok_or_else(|| bad("sealed call has no full original mixed scheme solution"))?;
-        if actuals.is_some_and(|actuals| recipes.len() != actuals.len()) {
-            return Err(bad("sealed call omits complete mixed actuals"));
+        if let Some(actuals) = actuals {
+            mixed_actuals(world, instance, original, site, proof, recipes, actuals)?;
         }
-        world.pay(recipes.len())?;
-        for (recipe, actual) in recipes.iter().zip(actuals.into_iter().flatten()) {
-            let expected = super::super::materialize::actual_in_view(
-                world.program,
-                &world.view,
-                world.ledger,
-                instance.id,
-                recipe,
-                world.limits,
-                world.left,
-            )?;
-            crate::dyn_metadata::semantic_operand_snapshot(actual, world.limits, world.left, 1)?;
-            crate::dyn_metadata::semantic_operand_snapshot(&expected, world.limits, world.left, 1)?;
-            if actual != &expected {
-                return Err(bad(
-                    "sealed call changes an independently solved mixed actual",
-                ));
-            }
-        }
-        world.pay(call.parameters.len().saturating_add(1))?;
-        for parameter in &call.parameters {
-            crate::dyn_metadata::semantic_operand_snapshot(parameter, world.limits, world.left, 1)?;
-        }
-        crate::dyn_metadata::semantic_operand_snapshot(&call.result, world.limits, world.left, 1)?;
-        if let IntrinsicKind::DynCall {
-            parameter_modes, ..
-        } = &call.kind
-        {
-            world.pay(parameter_modes.len())?;
-        }
-        if let IntrinsicKind::RegistrationStart { providers, .. } = &call.kind {
-            world.pay(providers.len())?;
-        }
-        if let Some((signature, actuals)) = &call.worker_scheme {
-            crate::dyn_metadata::semantic_operand_snapshot(signature, world.limits, world.left, 1)?;
-            world.pay(actuals.len())?;
-            for actual in actuals {
-                crate::dyn_metadata::semantic_operand_snapshot(
-                    actual,
-                    world.limits,
-                    world.left,
-                    1,
-                )?;
-            }
-        }
-        selected = Some((call.clone(), site));
+        selected = Some((call, site));
     }
     let Some((call, site)) = selected else {
         return Ok(None);
     };
     world.pay(call.parameters.len())?;
-    identity(world, instance, site, &call, instruction, ty, implicit)?;
+    identity(world, instance, site, call, instruction, ty, implicit)?;
     let actual_effect = if let IntrinsicKind::DynCall { call_kind, .. } = &call.kind {
         *call_kind
     } else if matches!(
@@ -194,7 +234,7 @@ pub(super) fn evaluate(
         dynamic::call(
             world,
             instance,
-            &call,
+            call,
             site,
             instruction,
             &parameters,

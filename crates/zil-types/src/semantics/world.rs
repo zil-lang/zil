@@ -104,6 +104,7 @@ pub(super) struct World<'a, 'b> {
     receiver_adaptations: Vec<receiver::Adaptation>,
     index: index::Index,
     call_proofs: calls::Proofs,
+    intrinsic_actuals: BTreeMap<intrinsics::ActualSite, Option<&'a [SemanticActual]>>,
     entry_header_proofs: BTreeMap<SemanticInstanceId, bool>,
     types: types::Table<'a>,
     zero_scalars: [Option<SharedType>; 14],
@@ -1418,21 +1419,22 @@ impl<'p> World<'p, '_> {
         index::pay(self.left, offsets.as_ref().map_or(0, |rows| rows.len().saturating_add(1)))?;
         Ok(index::SiteRows::new(&self.program.sites, offsets))
     }
+
     fn constraints(
         &mut self,
         instance: &SemanticInstance,
         original: &SemanticDefinition,
         function: &'p TypedFunction,
         sites: &[&SemanticSite],
-        block: BlockId,
-        instruction: usize,
+        offsets: Option<Rc<Vec<usize>>>,
         edge: SemanticSiteEdge,
         values: &mut ssa::Values,
         locals: &[Option<SharedType>],
         declared: &mut Rc<BTreeMap<LocalId, SharedType>>,
         implicit: &mut BTreeMap<u32, SemanticClassExpr>,
     ) -> R<()> {
-        for site in self.point_sites(sites, block, instruction)? {
+        self.pay(offsets.as_ref().map_or(0, |rows| rows.len()))?;
+        for site in index::SiteRows::new(&self.program.sites, offsets) {
             if !matches!(site.at, SemanticSiteAddress::Typed { edge: actual, .. } if actual == edge)
             {
                 continue;
@@ -2715,6 +2717,12 @@ impl<'p> World<'p, '_> {
             self.value_roots = value_roots;
             self.local_roots = local_roots;
             let block = &f.blocks[block_index];
+            let block_key = (instance.id, block.id);
+            self.pay(index::search(self.index.points.len()))?;
+            let points = self.index.points.get(&block_key).cloned();
+            let no_points = index::BlockPoints::new();
+            let mut block_sites = index::BlockSites::new(points.as_deref().unwrap_or(&no_points));
+            self.last_point_block = Some((block_key, points.clone()));
             for (index, instruction) in block.instructions.iter().enumerate() {
                 self.pay(1)?;
                 self.current_point = Some((
@@ -2724,13 +2732,14 @@ impl<'p> World<'p, '_> {
                     index,
                     std::mem::discriminant(&instruction.kind),
                 ));
+                let rows = block_sites.at(index, self.left)?;
+                self.last_point_rows = Some(((instance.id, block.id, index), rows.clone()));
                 self.constraints(
                     instance,
                     original,
                     f,
                     &sites,
-                    block.id,
-                    index,
+                    rows.clone(),
                     SemanticSiteEdge::Before,
                     &mut values,
                     &locals,
@@ -4966,8 +4975,7 @@ impl<'p> World<'p, '_> {
                     original,
                     f,
                     &sites,
-                    block.id,
-                    index,
+                    rows,
                     SemanticSiteEdge::After,
                     &mut values,
                     &locals,
@@ -4975,13 +4983,14 @@ impl<'p> World<'p, '_> {
                     &mut implicit,
                 )?;
             }
+            let terminator_rows = block_sites.at(block.instructions.len(), self.left)?;
+            self.last_point_rows = Some(((instance.id, block.id, block.instructions.len()), terminator_rows.clone()));
             self.constraints(
                 instance,
                 original,
                 f,
                 &sites,
-                block.id,
-                block.instructions.len(),
+                terminator_rows,
                 SemanticSiteEdge::Before,
                 &mut values,
                 &locals,
@@ -5192,6 +5201,7 @@ fn program_at(
         receiver_adaptations: Vec::new(),
         index,
         call_proofs: Default::default(),
+        intrinsic_actuals: BTreeMap::new(),
         entry_header_proofs: BTreeMap::new(),
         types: types::Table::default(),
         zero_scalars: Default::default(),
