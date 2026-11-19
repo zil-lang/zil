@@ -1518,39 +1518,66 @@ impl<'a> Engine<'a, '_> {
                     .saturating_add(path.len()),
                 depth,
             )?;
-            let Some(mut target) = state
-                .names
-                .get_mut(&name)
-                .and_then(|stack| stack.last_mut())
-            else {
+            let Some(target) = state.names.get_mut(&name).and_then(|stack| stack.last_mut()) else {
                 return Ok(None);
             };
-            for field in path {
-                target = match target {
-                    Value::Fields(fields) => match fields.get_mut(&field) {
-                        Some(value) => value,
-                        None => {
-                            return Err(failure(
-                                "original cleanup place selects an absent complete product field",
-                            ));
-                        }
-                    },
-                    Value::Tuple(values) => {
-                        let index = field.parse::<usize>().map_err(|_| {
-                            failure("original cleanup tuple place has a nonordinal member")
-                        })?;
-                        values.get_mut(index).ok_or_else(|| {
-                            failure("original cleanup tuple place is out of range")
-                        })?
-                    }
-                    _ => return Ok(None),
-                };
-            }
-            self.pay(target.work().saturating_add(value.work()), depth)?;
-            Ok(Some(std::mem::replace(target, value)))
+            self.replace_path(target, &path, value, depth)
         })();
         self.record_cost("replace_place", cost_before, cost_children);
         result
+    }
+    // A join keeps alternatives as complete occupants. For a projected move
+    // or replacement, update the same declared path in every alternative and
+    // retain the associated siblings. An incomplete path publishes no change.
+    fn replace_path(
+        &mut self,
+        mut target: &mut Value,
+        path: &[String],
+        value: Value,
+        depth: usize,
+    ) -> R<Option<Value>> {
+        for (step, field) in path.iter().enumerate() {
+            match target {
+                Value::Choice(alternatives) => {
+                    self.pay(alternatives.len().saturating_mul(2).saturating_add(1), depth)?;
+                    if alternatives.is_empty() {
+                        return Err(failure("original cleanup projection has no reachable occupant"));
+                    }
+                    let mut survivors = Vec::with_capacity(alternatives.len());
+                    let mut removed = Vec::with_capacity(alternatives.len());
+                    for alternative in alternatives.iter() {
+                        let mut survivor = self.value_copy(alternative, depth + 1)?;
+                        let inserted = self.value_copy(&value, depth + 1)?;
+                        let Some(old) = self.replace_path(&mut survivor, &path[step..], inserted, depth + 1)? else {
+                            return Err(pending("original cleanup projection requires the selected path in every reachable occupant"));
+                        };
+                        survivors.push(survivor);
+                        removed.push(old);
+                    }
+                    let previous = self.choice(removed, depth + 1)?;
+                    *target = self.choice(survivors, depth + 1)?;
+                    return Ok(Some(previous));
+                }
+                Value::Fields(fields) => {
+                    self.pay(lookup_work(fields.len()).saturating_mul(field.len().saturating_add(1)), depth)?;
+                    target = fields.get_mut(field).ok_or_else(|| failure(
+                        "original cleanup place selects an absent complete product field"
+                    ))?;
+                }
+                Value::Tuple(values) => {
+                    self.pay(field.len().saturating_add(1), depth)?;
+                    let index = field.parse::<usize>().map_err(|_| failure(
+                        "original cleanup tuple place has a nonordinal member"
+                    ))?;
+                    target = values.get_mut(index).ok_or_else(|| failure(
+                        "original cleanup tuple place is out of range"
+                    ))?;
+                }
+                _ => return Ok(None),
+            }
+        }
+        self.pay(target.work().saturating_add(value.work()), depth)?;
+        Ok(Some(std::mem::replace(target, value)))
     }
     fn move_place(
         &mut self,
@@ -2790,7 +2817,7 @@ impl<'a> Engine<'a, '_> {
                         self.pay(2, depth)?;
                         self.choice(vec![a, b], depth + 1)?
                     };
-                    self.merge(state, &left, &right, depth)?;
+                    *state = self.merge(&left, &right, depth)?;
                     Ok(result)
                 }
                 CoreExprKind::Try(value) => {
@@ -2877,7 +2904,7 @@ impl<'a> Engine<'a, '_> {
                         Value::Plain
                     };
                     let run = self.copy(state, depth + 1)?;
-                    self.merge(state, &run, &skip, depth + 1)?;
+                    *state = self.merge(&run, &skip, depth + 1)?;
                     self.choice(vec![value, Value::Bool(!execute)], depth + 1)
                 }
                 CoreExprKind::Binary { left, right, .. }
@@ -3035,22 +3062,20 @@ impl<'a> Engine<'a, '_> {
         self.record_cost("condition", cost_before, cost_children);
         result
     }
-    fn merge(&mut self, output: &mut State, a: &State, b: &State, depth: usize) -> R<()> {
+    fn merge(&mut self, a: &State, b: &State, depth: usize) -> R<State> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
-        let result: R<()> = (|| {
+        let result: R<State> = (|| {
             self.pay(a.work().saturating_add(b.work()), depth)?;
             if !a.reachable {
-                *output = self.copy(b, depth + 1)?;
-                return Ok(());
+                return self.copy(b, depth + 1);
             }
             if !b.reachable {
-                *output = self.copy(a, depth + 1)?;
-                return Ok(());
+                return self.copy(a, depth + 1);
             }
             self.charge_state(a, depth + 1)?;
             self.charge_state(b, depth + 1)?;
-            *output = a.clone();
+            let mut output = a.clone();
             self.pay(b.tasks.len(), depth)?;
             output.tasks.extend(b.tasks.iter().copied());
             self.pay(a.task_sync.values().chain(b.task_sync.values()).fold(0usize,
@@ -3100,7 +3125,7 @@ impl<'a> Engine<'a, '_> {
                     *value = self.choice(vec![old, incoming], depth + 1)?;
                 }
             }
-            Ok(())
+            Ok(output)
         })();
         self.record_cost("merge", cost_before, cost_children);
         result
@@ -3116,6 +3141,27 @@ impl<'a> Engine<'a, '_> {
         let cost_children = self.method_cost_total;
         let result: R<()> = (|| {
             self.pay(value.work().saturating_add(1), depth)?;
+            // Bind every reachable projection of a nested choice with the same
+            // rule as the outer match. A name takes the whole chosen value.
+            if !matches!(pattern.kind, CorePatternKind::Name(_) | CorePatternKind::Wildcard)
+                && let Value::Choice(values) = value
+            {
+                let mut selected = None;
+                for alternative in values {
+                    if self.matches(pattern, &alternative, depth + 1)? == Some(false) {
+                        continue;
+                    }
+                    let mut branch = self.copy(state, depth + 1)?;
+                    self.pattern(pattern, alternative, &mut branch, depth + 1)?;
+                    if let Some(previous) = selected.take() {
+                        selected = Some(self.merge(&previous, &branch, depth + 1)?);
+                    } else {
+                        selected = Some(branch);
+                    }
+                }
+                *state = selected.ok_or_else(|| failure("original pattern has no reachable payload for its selected tag"))?;
+                return Ok(());
+            }
             match &pattern.kind {
                 CorePatternKind::Name(name) => {
                     // Pattern constructors not yet represented by an exact
@@ -3299,29 +3345,62 @@ impl<'a> Engine<'a, '_> {
         let cost_before = *self.left;
         let cost_children = self.method_cost_total;
         let result: R<Option<bool>> = (|| {
-            self.pay(value.work().saturating_add(1), depth)?;
+            self.pay(1, depth)?;
             Ok(match (&pattern.kind, value) {
                 (CorePatternKind::Name(_) | CorePatternKind::Wildcard, _) => Some(true),
+                (_, Value::Choice(alternatives)) => {
+                    self.pay(alternatives.len(), depth)?;
+                    let mut common = None;
+                    for alternative in alternatives {
+                        let Some(member) = self.matches(pattern, alternative, depth + 1)? else {
+                            return Ok(None);
+                        };
+                        if common.is_some_and(|other| other != member) { return Ok(None); }
+                        common = Some(member);
+                    }
+                    common
+                }
                 (CorePatternKind::Reference { pattern, .. }, value) => {
                     return self.matches(pattern, value, depth + 1);
                 }
                 (
-                    CorePatternKind::Variant { variant, .. }
-                    | CorePatternKind::Constructor { variant, .. },
-                    Value::Variant { name, .. },
-                ) => Some(variant == name),
+                    CorePatternKind::Variant { variant, fields: patterns, .. }
+                    | CorePatternKind::Constructor { variant, fields: patterns, .. },
+                    Value::Variant { name, fields },
+                ) => {
+                    if variant != name { return Ok(Some(false)); }
+                    self.product_matches(patterns, fields, depth + 1)?
+                }
+                (CorePatternKind::Tuple(patterns), Value::Tuple(fields)) =>
+                    self.product_matches(patterns, fields, depth + 1)?,
                 (
-                    CorePatternKind::ErrorArm { is_error, .. },
-                    Value::Error {
-                        is_error: actual, ..
-                    },
-                ) => Some(is_error == actual),
+                    CorePatternKind::ErrorArm { is_error, pattern: payload },
+                    Value::Error { is_error: actual, payload: value },
+                ) => {
+                    if is_error != actual { return Ok(Some(false)); }
+                    self.matches(payload, value, depth + 1)?
+                },
                 (CorePatternKind::Bool(expected), Value::Bool(actual)) => Some(expected == actual),
                 _ => None,
             })
         })();
         self.record_cost("matches", cost_before, cost_children);
         result
+    }
+    fn product_matches(&mut self, patterns: &[SemanticOriginalPattern], fields: &[Value], depth: usize) -> R<Option<bool>> {
+        self.pay(patterns.len().saturating_add(1), depth)?;
+        if patterns.len() != fields.len() {
+            return Err(failure("original constructor pattern changes source field arity"));
+        }
+        let mut result = Some(true);
+        for (pattern, field) in patterns.iter().zip(fields) {
+            match self.matches(pattern, field, depth + 1)? {
+                Some(false) => return Ok(Some(false)),
+                None => result = None,
+                Some(true) => {}
+            }
+        }
+        Ok(result)
     }
     fn selected(
         &mut self,

@@ -322,6 +322,43 @@ fn original_q06_duplicate_consumption_rejects() {
     frozen_case("negative-double-consume")
 }
 
+// §7. Moving one selected occupant at a join leaves the sibling field readable.
+#[test]
+fn projected_move_through_joined_variants_tracks_the_remaining_fields() {
+    let source = r#"resource Mark { pub code:i32 }
+pub enum Inner { Empty, Held(manages Mark) }
+pub enum State { Full(Inner,i32), Blank }
+pub package Record { pub state:State; code:i32 }
+fn choose(tag:bool, flag:bool)->Record {
+    let inner=if flag { Inner.Held(Mark{code:41}) }else{ Inner.Empty }
+    return if tag { Record{state:State.Full(inner,7),code:1} }else{ Record{state:State.Blank,code:2} }
+}
+fn run(tag:bool,flag:bool)->i32 {
+    let item=choose(tag,flag)
+    let selected=item.state
+    match selected {
+        State.Full(Inner.Held(mark),_)=>{return mark.code+item.code}
+        State.Full(Inner.Empty(),_)=>{return item.code}
+        State.Blank()=>{return item.code}
+    }
+}
+fn main()->i32{return run(true,true)+run(true,false)+run(false,true)-45}"#;
+    let type_check = |text: &str| {
+        compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), "joined.zil", text),
+            &CompileOptions { stop_after: Stage::Types, ..CompileOptions::default() },
+        )
+    };
+    let legal = type_check(source);
+    assert_eq!(legal.status, ResultCategory::Success, "{}", legal.to_json());
+    let duplicate = source.replace("match selected", "let again=item.state\n    match selected");
+    let rejected = type_check(&duplicate);
+    assert!(rejected.diagnostics.iter().any(|error|
+        error.phase == Phase::Types && error.code == "E-SEMANTIC-ORIGINAL"
+        && error.message.contains("field is not available")
+    ), "{}", rejected.to_json());
+}
+
 #[test]
 fn five_module_predeclared_native_matrix() {
     let p = project();
