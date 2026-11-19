@@ -28,6 +28,7 @@ struct SemanticActual {
 struct EnvBinding {
     // Physical syntax is separate from the source application used by inference.
     ty: Option<TypeRef>,
+    closure_result: Option<TypeRef>,
     semantic: Option<SemanticActual>,
     input: Option<u32>,
     resource_owner: bool,
@@ -61,6 +62,7 @@ impl Env {
                 EnvBinding {
                     resource_owner:ty.as_ref().is_some_and(|ty|matches!(&grouped(ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1)),
                     ty,
+                    closure_result: None,
                     semantic: None,
                     input: None,
                     closure_depth: self.closure_depth,
@@ -77,6 +79,7 @@ impl Env {
                 parameter.name.clone(),
                 EnvBinding {
                     ty: Some(parameter.ty.clone()),
+                    closure_result: None,
                     semantic: None,
                     input: Some(input),
                     resource_owner:parameter.give || matches!(&grouped(&parameter.ty).kind,TypeKind::Named{path,args} if path.as_slice()==["Managed"] && args.len()==1),
@@ -86,6 +89,28 @@ impl Env {
         }
         Ok(env)
     }
+}
+
+enum ExprHint {
+    Value(TypeRef),
+    ClosureResult(TypeRef),
+}
+
+impl ExprHint {
+    fn value(self) -> Option<TypeRef> {
+        match self {
+            Self::Value(ty) => Some(ty),
+            Self::ClosureResult(_) => None,
+        }
+    }
+}
+
+#[derive(Default)]
+enum ClosureReturns {
+    #[default]
+    Unseen,
+    Known(TypeRef),
+    Unknown,
 }
 #[path = "generic_budget.rs"]
 mod budget;
@@ -610,6 +635,7 @@ struct Engine<'a> {
     resolved_method_calls: trait_instances::Calls,
     method_calls: trait_instances::CallTargets,
     return_type: Option<TypeRef>,
+    closure_returns: Option<ClosureReturns>,
     // The original full enum result application, captured before a stored
     // signature replaces it with its physical name. Only body checking reads
     // this hint; the emitted function header remains physical.
@@ -734,6 +760,7 @@ impl<'a> Engine<'a> {
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
+            closure_returns: None,
             source_enum_return: None,
             signature_candidate: None,
             source_enum_return_active: false,
@@ -2376,6 +2403,7 @@ impl<'a> Engine<'a> {
                     .or_else(|| f.return_type.clone())
                     .unwrap_or_else(|| check::unit(f.span));
                 let saved_result = self.return_type.replace(body_result);
+                let saved_closure_returns = self.closure_returns.take();
                 let saved_source_enum_result =
                     std::mem::replace(&mut self.source_enum_return_active, source_enum_result);
                 let saved_callables = std::mem::replace(&mut self.active_callables, callable);
@@ -2393,6 +2421,7 @@ impl<'a> Engine<'a> {
                     FunctionBody::Declaration => {}
                 }
                 self.return_type = saved_result;
+                self.closure_returns = saved_closure_returns;
                 self.source_enum_return_active = saved_source_enum_result;
                 self.active_callables = saved_callables;
                 self.callable_name = saved_callable;
@@ -2800,12 +2829,17 @@ impl<'a> Engine<'a> {
                 if let Some(t) = ty {
                     self.ty(t, depth + 1)?;
                 }
-                let inferred = self.expr_expected(
+                let inferred = self.expr_hint(
                     value,
                     env,
                     source_enum.as_ref().or(ty.as_ref()),
                     depth + 1,
                 )?;
+                let (inferred, closure_result) = match inferred {
+                    Some(ExprHint::Value(ty)) => (Some(ty), None),
+                    Some(ExprHint::ClosureResult(result)) => (None, Some(result)),
+                    None => (None, None),
+                };
                 let actual = source_enum.or_else(|| ty.clone()).or(inferred);
                 if matches!(pattern.kind, PatternKind::RecordConstructor { .. }) {
                     self.enum_pattern(pattern, actual.as_ref(), env, depth + 1)?;
@@ -2816,6 +2850,7 @@ impl<'a> Engine<'a> {
                     if let PatternKind::Name(name) = &pattern.kind {
                         if let Some(binding) = env.bindings.get_mut(name) {
                             binding.input = input_origin;
+                            binding.closure_result = closure_result;
                         }
                     }
                 }
@@ -2846,7 +2881,11 @@ impl<'a> Engine<'a> {
                     self.budget.ty(result)?;
                 }
                 let expected = self.return_type.clone();
-                self.expr_expected(e, env, expected.as_ref(), depth + 1)?;
+                let actual = self.expr_expected(e, env, expected.as_ref(), depth + 1)?;
+                self.observe_closure_return(actual)?;
+            }
+            StmtKind::Return(None) if self.closure_returns.is_some() => {
+                self.observe_closure_return(Some(check::unit(s.span)))?;
             }
             StmtKind::Yield(e) | StmtKind::Expression(e) => {
                 self.expr(e, env, depth + 1)?;
@@ -3304,6 +3343,16 @@ impl<'a> Engine<'a> {
         expected: Option<&TypeRef>,
         depth: usize,
     ) -> R<Option<TypeRef>> {
+        Ok(self.expr_hint(e, env, expected, depth)?.and_then(ExprHint::value))
+    }
+
+    fn expr_hint(
+        &mut self,
+        e: &mut Expr,
+        env: &mut Env,
+        expected: Option<&TypeRef>,
+        depth: usize,
+    ) -> R<Option<ExprHint>> {
         // Keep an existing root event linear across constant folding, automatic
         // borrows, constructor/call rewrites and recursive contextual checking.
         // Any genuinely new event at the same root must be joined by the
@@ -3378,10 +3427,10 @@ impl<'a> Engine<'a> {
         env: &mut Env,
         expected: Option<&TypeRef>,
         depth: usize,
-    ) -> R<Option<TypeRef>> {
+    ) -> R<Option<ExprHint>> {
         self.tick(e.span, depth)?;
         if let Some(ty) = self.expr_constant_type(e, env, depth)? {
-            return self.expr_expected(e, env, Some(&ty), depth + 1);
+            return self.expr_hint(e, env, Some(&ty), depth + 1);
         }
         let anonymous_context =
             expected.filter(|ty| matches!(&grouped(ty).kind, TypeKind::Union(_)));
@@ -3394,7 +3443,7 @@ impl<'a> Engine<'a> {
         let store_success_context = expected.filter(|ty| stores::success(ty).is_some());
         let expected = expected.filter(|ty| !matches!(grouped(ty).kind, TypeKind::Error { .. }));
         if let Some(ty) = self.enum_expression(e, env, expected.or(error_context), depth)? {
-            return Ok(Some(ty));
+            return Ok(Some(ExprHint::Value(ty)));
         }
         let context = ExprExpectedContext {
             expected,
@@ -3412,15 +3461,12 @@ impl<'a> Engine<'a> {
         env: &mut Env,
         context: ExprExpectedContext<'_>,
         depth: usize,
-    ) -> R<Option<TypeRef>> {
-        match &mut e.kind {
+    ) -> R<Option<ExprHint>> {
+        let ty = match &mut e.kind {
             ExprKind::Ascribed { .. } => self.expr_variant_ascribed(e, env, depth),
-            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => self.expr_expected(
-                inner,
-                env,
-                context.expected.or(context.error_context),
-                depth + 1,
-            ),
+            ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
+                return self.expr_hint(inner, env, context.expected.or(context.error_context), depth + 1);
+            }
             ExprKind::Unary { .. } => self.expr_variant_unary(e, env, context, depth),
             ExprKind::Binary { .. } => self.expr_variant_binary(e, env, context, depth),
             ExprKind::Call { .. } => self.expr_call_normal(e, env, context, depth),
@@ -3431,12 +3477,15 @@ impl<'a> Engine<'a> {
             ExprKind::Slice { .. } => self.expr_variant_slice(e, env, context, depth),
             ExprKind::If { .. } => self.expr_variant_if(e, env, context, depth),
             ExprKind::Record { .. } => self.expr_variant_record(e, env, context, depth),
-            ExprKind::Closure { .. } => self.expr_variant_closure(e, env, context, depth),
+            ExprKind::Closure { .. } => {
+                return Ok(self.expr_variant_closure(e, env, context, depth)?.map(ExprHint::ClosureResult));
+            }
             ExprKind::MetaBlock(..) => self.expr_variant_meta_block(e, env, context, depth),
             ExprKind::Pipeline { .. } => self.expr_variant_pipeline(e, env, context, depth),
             ExprKind::Try(inner) => self.expr_try_result(inner, env, depth),
-            _ => self.expr_leaf_result(e, env, context.expected),
-        }
+            _ => return self.expr_leaf_result(e, env, context.expected),
+        }?;
+        Ok(ty.map(ExprHint::Value))
     }
 
     #[inline(never)]
@@ -3446,6 +3495,11 @@ impl<'a> Engine<'a> {
         env: &mut Env,
         depth: usize,
     ) -> R<Option<TypeRef>> {
+        if self.closure_returns.is_some() {
+            // An unannotated propagated error also contributes to the
+            // result. The explicit returns alone cannot determine its Type.
+            self.closure_returns = Some(ClosureReturns::Unknown);
+        }
         let result = match self.expr(inner, env, depth + 1)? {
             Some(TypeRef {
                 kind: TypeKind::Error { result, .. },
@@ -3462,7 +3516,7 @@ impl<'a> Engine<'a> {
         e: &mut Expr,
         env: &mut Env,
         expected: Option<&TypeRef>,
-    ) -> R<Option<TypeRef>> {
+    ) -> R<Option<ExprHint>> {
         let result = match &mut e.kind {
             ExprKind::Literal(Literal::Integer(text)) => {
                 if let Some(ty) = expected.filter(|ty| check::integer(ty)) {
@@ -3511,16 +3565,70 @@ impl<'a> Engine<'a> {
             ExprKind::Literal(Literal::Bool(_)) => Some(named("bool", e.span)),
             ExprKind::Name(name) => {
                 self.record_closure_input(name, env, e.span)?;
-                if let Some(Some(ty)) = env.get(name) {
-                    self.budget.ty(ty)?;
-                    Some(ty.clone())
+                if let Some(binding) = env.bindings.get(name) {
+                    if let Some(ty) = env.get(name).and_then(Option::as_ref) {
+                        self.budget.ty(ty)?;
+                        Some(ty.clone())
+                    } else if let Some(result) = &binding.closure_result {
+                        self.budget.ty(result)?;
+                        return Ok(Some(ExprHint::ClosureResult(result.clone())));
+                    } else {
+                        None
+                    }
                 } else {
-                    None
+                    self.function_value_hint(name, e.span)?
                 }
             }
             _ => None,
         };
-        Ok(result)
+        Ok(result.map(ExprHint::Value))
+    }
+
+    fn observe_closure_return(&mut self, actual: Option<TypeRef>) -> R<()> {
+        let Some(observed) = &mut self.closure_returns else {
+            return Ok(());
+        };
+        match (&*observed, actual) {
+            (ClosureReturns::Unknown, _) => {}
+            (ClosureReturns::Unseen, Some(ty)) => *observed = ClosureReturns::Known(ty),
+            (ClosureReturns::Known(previous), Some(ty))
+                if type_key(previous, &mut self.budget)? == type_key(&ty, &mut self.budget)? => {}
+            _ => *observed = ClosureReturns::Unknown,
+        }
+        Ok(())
+    }
+
+    fn function_value_hint(&mut self, name: &str, span: Span) -> R<Option<TypeRef>> {
+        self.stored_lookup_fee(self.signatures.len(), name.len(), span)?;
+        let Some(function) = self.signatures.get(name) else {
+            return Ok(None);
+        };
+        if !function.generics.is_empty()
+            || !function.where_clause.is_empty()
+            || !function.contract.is_empty()
+            || matches!(function.body, FunctionBody::Declaration)
+        {
+            return Ok(None);
+        }
+        let mut params = Vec::new();
+        for parameter in &function.params {
+            self.budget.node(parameter.span, 0)?;
+            if parameter.give || !parameter.attributes.is_empty() {
+                return Ok(None);
+            }
+            self.budget.ty(&parameter.ty)?;
+            params.push(parameter.ty.clone());
+        }
+        if let Some(result) = &function.return_type {
+            self.budget.ty(result)?;
+        }
+        let result = function.return_type.clone().unwrap_or_else(|| check::unit(span));
+        let mut ty = TypeRef {
+            kind: TypeKind::Function { params, result: Box::new(result) },
+            span,
+        };
+        self.ty(&mut ty, 0)?;
+        Ok(Some(ty))
     }
     fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
         let owner = self
@@ -3600,6 +3708,9 @@ impl<'a> Engine<'a> {
         }
         self.budget.text(&env.domain, Span::default())?;
         for binding in env.bindings.values() {
+            if let Some(result) = &binding.closure_result {
+                self.budget.ty(result)?;
+            }
             if let Some(source) = &binding.semantic {
                 self.budget
                     .ty(source.application.as_ref().expect("semantic source"))?;

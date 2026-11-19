@@ -1370,7 +1370,7 @@ impl Engine<'_> {
                     }
                 }
             } else {
-                let callee_type = self.expr(callee, env, depth + 1)?;
+                let callee_hint = self.expr_hint(callee, env, None, depth + 1)?;
                 if let Some(mut signature) = trait_signature {
                     if let Some(result) = &mut signature.return_type {
                         self.ty(result, depth + 1)?;
@@ -1380,10 +1380,14 @@ impl Engine<'_> {
                     // A dynamic call still has a statically known complete
                     // signature. Preserve its result for following source
                     // patterns; Types checks the actual call independently.
-                    let result = callee_type.as_ref().and_then(|ty| match &grouped(ty).kind {
-                        TypeKind::Function { result, .. } => Some(result.as_ref()),
-                        _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
-                    });
+                    let result = match &callee_hint {
+                        Some(ExprHint::ClosureResult(result)) => Some(result),
+                        Some(ExprHint::Value(ty)) => match &grouped(ty).kind {
+                            TypeKind::Function { result, .. } => Some(result.as_ref()),
+                            _ => callable::opaque_signature(ty).map(|(_, _, result)| result),
+                        },
+                        None => None,
+                    };
                     if let Some(result) = result {
                         self.budget.ty(result)?;
                     }

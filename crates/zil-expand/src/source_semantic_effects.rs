@@ -47,6 +47,11 @@ struct Application<'a> {
     owner: usize,
     context: Option<usize>,
 }
+struct EnumConstructor<'a> {
+    declaration: usize,
+    arguments: Arguments<'a>,
+    fields: &'a [SemanticTypeRecipe],
+}
 #[derive(Clone, Copy)]
 enum Prototype<'a> {
     Code { owner: usize, signature: &'a SemanticSignatureRecipe, context: Option<usize>, frames: Option<usize>, operation: Option<usize>, thin: bool },
@@ -1253,6 +1258,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 if target != Target::Unknown {
                     return Ok(target);
                 }
+                if let Some(constructor) = self.enum_constructor(expression, 0, depth + 1)? {
+                    return self.enum_constructor_result(expression, constructor, depth + 1);
+                }
             }
             CoreExprKind::ReceiverMember(member) => {
                 self.budget
@@ -1305,6 +1313,9 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 });
             }
             CoreExprKind::Call { callee, arguments } => {
+                if let Some(constructor) = self.enum_constructor(callee, arguments.len(), depth + 1)? {
+                    return self.enum_constructor_result(callee, constructor, depth + 1);
+                }
                 let called = self.target(callee, depth + 1)?;
                 if called == Target::Unknown && self.observations.is_some() {
                     // Method lookup uses the same lexical receiver navigation
@@ -1713,15 +1724,28 @@ impl<'a> Scan<'a, '_, '_, '_> {
         callee: &'a SemanticOriginalExpr,
         arity: usize,
         depth: usize,
-    ) -> R<bool> {
+    ) -> R<Option<EnumConstructor<'a>>> {
+        let mut name = callee;
+        let mut depth = depth;
+        while let CoreExprKind::Group(inner)
+            | CoreExprKind::TypeApply { callee: inner, .. }
+            | CoreExprKind::GenericApply { callee: inner, .. } = &name.kind
+        {
+            self.budget.node(name.span, depth)?;
+            name = inner;
+            depth += 1;
+        }
+        if !matches!(name.kind, CoreExprKind::Member { .. }) {
+            return Ok(None);
+        }
         let mut path = Vec::new();
-        let is_path = self.path(callee, &mut path, depth + 1)?;
+        let is_path = self.path(name, &mut path, depth + 1)?;
         let result = (|| {
             let Some((variant, owner)) = path.split_last() else {
-                return Ok(false);
+                return Ok(None);
             };
             if !is_path || owner.is_empty() {
-                return Ok(false);
+                return Ok(None);
             }
             self.budget.identity_work(self.locals.len(), callee.span)?;
             if self
@@ -1730,7 +1754,7 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 .rev()
                 .any(|(local, _)| *local == owner[0])
             {
-                return Ok(false);
+                return Ok(None);
             }
             self.budget.identity_work(
                 self.names().len().saturating_mul(owner.len() + 1),
@@ -1747,52 +1771,81 @@ impl<'a> Scan<'a, '_, '_, '_> {
                 {
                     continue;
                 }
-                let id = match &binding.value {
-                    SemanticOriginalNameValue::Definition(id) => *id,
+                let (id, arguments) = match &binding.value {
+                    SemanticOriginalNameValue::Definition(id) => (*id, Arguments::Semantic(&[])),
                     SemanticOriginalNameValue::Recipe(SemanticActualRecipe::Type(
-                        SemanticTypeRecipe::Nominal { definition, .. },
-                    )) => *definition,
-                    _ => return Ok(false),
+                        SemanticTypeRecipe::Nominal { definition, arguments },
+                    )) => (*definition, Arguments::Semantic(arguments)),
+                    _ => return Ok(None),
                 };
                 // A duplicate/ambiguous original namespace is not repaired by
                 // choosing the first possible declaration.
-                if selected.replace(id).is_some() {
-                    return Ok(false);
+                if selected.replace((id, arguments)).is_some() {
+                    return Ok(None);
                 }
             }
-            let Some(id) = selected else { return Ok(false) };
+            let Some((id, arguments)) = selected else { return Ok(None) };
             let Some(index) = declaration_index(self.definitions, id, self.budget, callee.span)?
             else {
-                return Ok(false);
+                return Ok(None);
             };
             let SemanticDefinitionBody::Nominal {
                 body: SemanticNominalBody::Enum { variants },
                 ..
             } = &self.definitions[index].body
             else {
-                return Ok(false);
+                return Ok(None);
             };
             self.budget.identity_work(
                 variants.len().saturating_mul(variant.len() + 1),
                 callee.span,
             )?;
-            let mut found = false;
+            let mut found = None;
             for row in variants {
                 if row.name == *variant {
-                    if found || row.fields.len() != arity {
-                        return Ok(false);
+                    if row.fields.len() != arity || found.replace(row.fields.as_slice()).is_some() {
+                        return Ok(None);
                     }
-                    if let (Some(call), Some(observations)) = (self.call, self.observations.as_deref_mut()) {
-                        call_regions::variant(observations, self.definitions[self.owner].id, call,
-                            self.definitions[index], &row.fields, self.budget, callee.span)?;
-                    }
-                    found = true;
                 }
             }
-            Ok(found)
+            Ok(found.map(|fields| EnumConstructor { declaration: index, arguments, fields }))
         })();
         self.budget.drop_lineage_vec(path, callee.span)?;
         result
+    }
+    fn enum_constructor_result(
+        &mut self,
+        callee: &'a SemanticOriginalExpr,
+        constructor: EnumConstructor<'a>,
+        mut depth: usize,
+    ) -> R<Target> {
+        // Carry the selected original enum application to later patterns, just
+        // like an application obtained from a declared parameter or result.
+        let mut expression = callee;
+        let mut actuals = None;
+        loop {
+            self.budget.node(expression.span, depth)?;
+            expression = match &expression.kind {
+                CoreExprKind::Member { object, .. } | CoreExprKind::Group(object) => object,
+                CoreExprKind::TypeApply { callee, type_arguments } => {
+                    if actuals.replace(Arguments::Types(type_arguments)).is_some() {
+                        return Ok(Target::Unknown);
+                    }
+                    callee
+                }
+                CoreExprKind::GenericApply { callee, arguments } => {
+                    if actuals.replace(Arguments::Written(arguments)).is_some() {
+                        return Ok(Target::Unknown);
+                    }
+                    callee
+                }
+                _ => break,
+            };
+            depth += 1;
+        }
+        Ok(self.application(
+            constructor.declaration, self.owner, actuals.unwrap_or(constructor.arguments), None, callee.span,
+        )?.map_or(Target::Unknown, Target::NominalReceiver))
     }
     fn invoke(
         &mut self,
@@ -1800,14 +1853,18 @@ impl<'a> Scan<'a, '_, '_, '_> {
         arity: Option<usize>,
         depth: usize,
     ) -> R<()> {
+        if let Some(arity) = arity
+            && let Some(constructor) = self.enum_constructor(callee, arity, depth + 1)?
+        {
+            if let (Some(call), Some(observations)) = (self.call, self.observations.as_deref_mut()) {
+                call_regions::variant(observations, self.definitions[self.owner].id, call,
+                    self.definitions[constructor.declaration], constructor.fields, self.budget, callee.span)?;
+            }
+            return self.edge(Target::Kind(CallKind::Direct), callee.span);
+        }
         let target = self.target(callee, depth + 1)?;
         if target != Target::Unknown {
             return self.edge(target, callee.span);
-        }
-        if let Some(arity) = arity
-            && self.enum_constructor(callee, arity, depth + 1)?
-        {
-            return self.edge(Target::Kind(CallKind::Direct), callee.span);
         }
         let receiver = match &callee.kind {
             CoreExprKind::Member { object, member, .. } => {

@@ -1107,6 +1107,8 @@ impl Engine<'_> {
                 self.ty(t, depth + 1)?;
             }
             let saved = std::mem::replace(&mut self.return_type, return_type.clone());
+            let returns = return_type.is_none().then(ClosureReturns::default);
+            let saved_returns = std::mem::replace(&mut self.closure_returns, returns);
             // This closure owns a separate result hint. The enclosing stored
             // enum's source clone charge resumes only after its body returns.
             let saved_source_enum_result =
@@ -1117,11 +1119,12 @@ impl Engine<'_> {
                 ArrowBody::Expression(e) => {
                     let expected = self.return_type.clone();
                     self.expr_expected(e, &mut inner, expected.as_ref(), depth + 1)
-                        .map(|_| ())
+                        .and_then(|actual| self.observe_closure_return(actual))
                 }
             };
             let recording = self.closure_recording.take();
-            self.return_type = saved;
+            let annotated = std::mem::replace(&mut self.return_type, saved);
+            let returns = std::mem::replace(&mut self.closure_returns, saved_returns);
             self.source_enum_return_active = saved_source_enum_result;
             body_result?;
             if let Some(recording) = recording {
@@ -1141,7 +1144,10 @@ impl Engine<'_> {
                     stored_nominal::erase_stored_type_lifetimes(ty);
                 }
             }
-            None
+            annotated.or(match returns {
+                Some(ClosureReturns::Known(ty)) => Some(ty),
+                _ => None,
+            })
         };
         Ok(result)
     }

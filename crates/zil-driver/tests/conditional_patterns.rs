@@ -476,6 +476,86 @@ fn conditional_pattern_array_record_and_callback_payloads() {
     );
 }
 #[test]
+fn conditional_pattern_observes_the_actual_enum_and_thin_code_types() {
+    native(
+        "struct R {values:[i64;2];} enum Packet<T:Copy> {Empty,Data(T,fn(i64)->i64),Other(T,fn(i64)->i64)} fn add(x:i64)->i64=>x+2;fn result()->i64 {let code=add;let packet=Packet::<R>.Data(R{values:[10,30]},code);if let Packet.Data(record,callback)=packet {return callback(record.values[0]+record.values[1])}return 0}",
+        42,
+    );
+    native(
+        "enum Packet {Data(i64,fn(i64)->i64),Other(i64,fn(i64)->i64)} fn add(x:i64)->i64=>x+2;fn result()->i64 {let packet=Packet.Other(40,add);if let Packet.Data(n,callback)=packet {return callback(n)}return 7}",
+        7,
+    );
+    for (text, reason) in [
+        (
+            "enum E {End,N(i64)} enum Other {End,N(i64)} fn result()->i64 {let produce=()=>(E.N(42),0i64);if let (Other.N(n),_)=produce() {return n}return 0}",
+            "pattern has different nominal enum type",
+        ),
+        (
+            "enum Packet {Data(fn(i64)->i64)} fn add(x:i32)->i64=>i64(x)+2;fn result()->i64 {let packet=Packet.Data(add);return 0}",
+            "generic parameter does not match argument type",
+        ),
+        (
+            "enum Packet {Data(fn(i64)->i64)} fn add(x:i64)->i64=>x+2;fn result()->i64 {let add=40i64;let packet=Packet.Data(add);return 0}",
+            "generic parameter does not match argument type",
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.diagnostics[0].message, reason, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn conditional_pattern_retains_the_original_code_and_same_typed_variant_identity() {
+    let unit = source("enum Packet{Data(i64,fn(i64)->i64),Other(i64,fn(i64)->i64)} fn first(n:i64)->i64=>n+2;fn second(n:i64)->i64=>n+7;fn result()->i64{let packet=Packet.Data(40,first);if let Packet.Data(n,callback)=packet{return callback(n)}return 0}");
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand_with_map_semantics(
+        &unit, &syntax, &limits, &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    ).unwrap().core;
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let other = module.functions.iter().find(|function| function.name.ends_with("second")).unwrap().id;
+    for (replace_code, analyze_reason, verify_reason) in [
+        (true, "selects another original specialization", "conflicting original target"),
+        (false, "changes its original member", "changes its original variant"),
+    ] {
+        let mut raw = module.clone();
+        let mut changed = false;
+        for instruction in raw.functions.iter_mut().flat_map(|function| &mut function.blocks)
+            .flat_map(|block| &mut block.instructions)
+        {
+            match &mut instruction.kind {
+                InstructionKind::FunctionRef { function } if replace_code => *function = other,
+                InstructionKind::MakeVariant { variant, .. } if !replace_code => *variant = 1,
+                _ => continue,
+            }
+            assert!(!changed, "this program constructs one enum and one code reference");
+            changed = true;
+        }
+        assert!(changed);
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        for (errors, reason) in [
+            (zil_analyze::analyze(&raw, &limits).unwrap_err(), analyze_reason),
+            (zil_verify::verify_module(raw, claim, &target, &limits).unwrap_err(), verify_reason),
+            (zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(), verify_reason),
+        ] {
+            assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+            assert!(errors[0].message.contains(reason), "{errors:?}");
+        }
+    }
+}
+#[test]
 fn conditional_pattern_scalar_ct_loops_and_closed_queries() {
     native(
         "fn sum(end:i64)->i64 {var i:i64=0;var total:i64=0;while let true=i<end {i+=1;if let 0=i%2 {continue} total+=i} return total} fn result()->i64 {if let 42=#(6*7) {return #(sum(7))} return 0}",
