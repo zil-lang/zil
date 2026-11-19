@@ -352,6 +352,16 @@ mod tests {
         for row in &program.instances {
             assert!(std::ptr::eq(row,context.instance(&module,row.id,&mut b).unwrap()));
         }
+        for row in program.definitions.iter().rev() {
+            assert!(std::ptr::eq(row,context.definition(&module,row.id,&mut b).unwrap()));
+            let unrelated=SemanticDefinitionId{module:zil_base::ModuleId(u32::MAX-1),..row.id};
+            assert!(context.definition(&module,unrelated,&mut b).is_err());
+        }
+        for row in program.instances.iter().rev() {
+            assert!(std::ptr::eq(row,context.instance(&module,row.id,&mut b).unwrap()));
+            let unrelated=SemanticInstanceId{module:zil_base::ModuleId(u32::MAX-1),..row.id};
+            assert!(context.instance(&module,unrelated,&mut b).is_err());
+        }
         let mut other=program.definitions[0].id;
         other.module=zil_base::ModuleId(u32::MAX);
         assert!(context.definition(&module,other,&mut b).unwrap_err().message.contains("absent"));

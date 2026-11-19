@@ -62,6 +62,8 @@ fn bad(message: &str) -> Diagnostic {
 /// source of builtin, visibility, ownership or runtime borrow authority.
 pub(crate) struct CheckedContext {
     pub(super) domain_only: Cell<bool>,
+    definition_rows: CatalogueRows,
+    instance_rows: CatalogueRows,
     definitions: BTreeMap<SemanticDefinitionId, usize>,
     instances: BTreeMap<SemanticInstanceId, usize>,
     site_index: sites::Index,
@@ -87,6 +89,30 @@ pub(crate) struct CheckedContext {
     shared_types: RefCell<BTreeMap<usize, (std::rc::Weak<CheckedTypeData>, (usize, usize))>>,
     constructed_types:
         RefCell<BTreeMap<type_storage::ConstructionKey, type_storage::ConstructedType>>,
+}
+
+/// A definition ordinal is local to its source module. A successful lookup
+/// remembers one physical slot, but every read rechecks the full row identity.
+/// The authoritative directories are populated monotonically over this input.
+#[derive(Default)]
+struct CatalogueRows(RefCell<Vec<Option<usize>>>);
+
+impl CatalogueRows {
+    fn get(&self, ordinal: usize, b: &mut Budget) -> Check<Option<usize>> {
+        b.spend(2)?;
+        Ok(self.0.borrow().get(ordinal).copied().flatten())
+    }
+
+    fn remember(&self, ordinal: usize, position: usize, width: usize, b: &mut Budget) -> Check<()> {
+        let mut rows = self.0.borrow_mut();
+        if rows.is_empty() {
+            b.spend(width)?;
+            rows.resize(width, None);
+        }
+        b.spend(1)?;
+        rows[ordinal] = Some(position);
+        Ok(())
+    }
 }
 
 /// A provisional constructor fact. It becomes trusted only when every actual
@@ -338,6 +364,13 @@ impl CheckedContext {
         {
             return Ok(row);
         }
+        let dense = self.site_index.same_module(module) && ordinal < program.definitions.len();
+        if dense
+            && let Some(position) = self.definition_rows.get(ordinal, b)?
+            && let Some(row) = program.definitions.get(position).filter(|row| row.id == id)
+        {
+            return Ok(row);
+        }
         b.spend(
             self.definitions
                 .len()
@@ -348,8 +381,12 @@ impl CheckedContext {
             .definitions
             .get(&id)
             .ok_or_else(|| bad("semantic definition is absent"))?;
-        program.definitions.get(*row).filter(|row| row.id == id)
-            .ok_or_else(|| bad("semantic definition index has no actual candidate row"))
+        let actual = program.definitions.get(*row).filter(|row| row.id == id)
+            .ok_or_else(|| bad("semantic definition index has no actual candidate row"))?;
+        if dense {
+            self.definition_rows.remember(ordinal, *row, program.definitions.len(), b)?;
+        }
+        Ok(actual)
     }
     pub(crate) fn instance<'m>(
         &self,
@@ -365,6 +402,13 @@ impl CheckedContext {
         {
             return Ok(row);
         }
+        let dense = self.site_index.same_module(module) && ordinal < program.instances.len();
+        if dense
+            && let Some(position) = self.instance_rows.get(ordinal, b)?
+            && let Some(row) = program.instances.get(position).filter(|row| row.id == id)
+        {
+            return Ok(row);
+        }
         b.spend(
             self.instances
                 .len()
@@ -375,8 +419,12 @@ impl CheckedContext {
             .instances
             .get(&id)
             .ok_or_else(|| bad("semantic instance is absent"))?;
-        program.instances.get(*row).filter(|row| row.id == id)
-            .ok_or_else(|| bad("semantic instance index has no actual candidate row"))
+        let actual = program.instances.get(*row).filter(|row| row.id == id)
+            .ok_or_else(|| bad("semantic instance index has no actual candidate row"))?;
+        if dense {
+            self.instance_rows.remember(ordinal, *row, program.instances.len(), b)?;
+        }
+        Ok(actual)
     }
 }
 
