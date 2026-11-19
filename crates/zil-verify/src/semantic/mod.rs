@@ -89,7 +89,6 @@ pub(crate) struct CheckedContext {
     original: RefCell<Option<original::CheckedOriginal>>,
     closure_boundaries: RefCell<Vec<ClosureBoundary>>,
     frozen_functions: BTreeMap<SemanticInstanceId, frozen::FrozenFunction>,
-    shared_types: RefCell<BTreeMap<usize, (std::rc::Weak<CheckedTypeData>, (usize, usize))>>,
     constructed_types:
         RefCell<BTreeMap<type_storage::ConstructionKey, type_storage::ConstructedType>>,
 }
@@ -240,33 +239,10 @@ impl CheckedContext {
         ty: &Type,
         b: &mut Budget,
     ) -> Check<std::rc::Rc<CheckedTypeData>> {
-        let ptr = ty as *const Type as usize;
-        let profile = (b.limits.max_nodes, b.limits.max_call_depth.min(128));
-        let fee = self
-            .shared_types
-            .borrow()
-            .len()
-            .checked_ilog2()
-            .map_or(1, |n| n as usize + 2);
-        b.spend(fee)?;
-        let known = self
-            .shared_types
-            .borrow()
-            .get(&ptr)
-            .and_then(|(cell, checked)| cell.upgrade().map(|cell| (cell, *checked)));
-        if let Some((cell, checked)) = known {
-            if checked != profile {
-                dynamic_metadata::bounds_type(ty, b)?;
-            }
-            return Ok(cell);
-        }
-        let cell = dynamic_metadata::validated_type_cell(ty, b)?;
-        b.spend(fee.saturating_add(2))?;
-        self.shared_types.borrow_mut().insert(
-            &cell.ty as *const Type as usize,
-            (std::rc::Rc::downgrade(&cell), profile),
-        );
-        Ok(cell)
+        // The structural catalogue holds registered input nodes and their
+        // owned snapshots. A temporary input is always copied after bounds
+        // checking and contributes no reusable borrowed address.
+        dynamic_metadata::validated_type_cell(ty, b)
     }
 
     pub(crate) fn register_closure_cursor(
