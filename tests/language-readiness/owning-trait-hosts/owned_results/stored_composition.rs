@@ -17,6 +17,36 @@ fn files() -> [(&'static str, &'static str); 4] {
     ]
 }
 
+#[test]
+fn owned_trait_result_keeps_nominal_error_and_receiver_ownership() {
+    let wrong_error = MODEL
+        .replace("import library", "import library\nenum OtherError { Allocation, Requested }")
+        .replace("fail:bool)->protocol.Error!Self", "fail:bool)->OtherError!Self")
+        .replacen("return protocol.Error.Allocation", "return OtherError.Allocation", 1)
+        .replacen("return protocol.Error.Requested", "return OtherError.Requested", 1);
+    let borrowed_field = MODEL.replace(
+        "return Item{data:give data,tag:self.tag+2}",
+        "return Item{data:give self.data,tag:self.tag+2}",
+    );
+    for (model, phase, message) in [
+        (&wrong_error, Phase::Expand, "impl result differs from trait declaration"),
+        (&borrowed_field, Phase::Types, "original give requires an owning lexical place"),
+    ] {
+        let modules = [
+            ("main", MAIN),
+            ("model", model.as_str()),
+            ("protocol", PROTOCOL),
+            ("library", LIBRARY),
+        ];
+        let report = compile_project(&project(&modules), &CompileOptions::default());
+        assert!(
+            report.diagnostics.iter().any(|d| d.phase == phase && d.message.contains(message)),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
 // Raw attacks additionally use the same provider bodies in one actual source
 // module. Only imports and their module qualifiers are removed; the delivered
 // positive program retains its original four-module bytes above. The raw

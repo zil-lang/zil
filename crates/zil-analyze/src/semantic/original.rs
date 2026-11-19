@@ -4986,13 +4986,10 @@ pub(super) fn check(
     }
     solver.check_cleanups(module, b)?;
     for frame in solver.state.frames.values() {
-        for value in frame
-            .parameters
-            .iter()
-            .chain(std::iter::once(&frame.result))
-        {
+        for value in &frame.parameters {
             solver.sized_original(*value, b, 0)?;
         }
+        solver.sized_method_result(frame, b)?;
     }
     for (owner, source, target) in std::mem::take(&mut solver.local_return_bounds) {
         b.lookup(solver.state.frames.len(), WORK)?;
@@ -5134,6 +5131,46 @@ impl Solver<'_, '_> {
             )?;
         }
         Ok(output)
+    }
+    // spec/trait-owned-results.md keeps the concrete provider responsible for its Self layout.
+    fn sized_method_result(&self, frame: &Frame, b: &mut Budget) -> CompileResult<()> {
+        if let Kind::ErrorUnion { error, result } = &self.state.arena[self.root(frame.result, b)?] {
+            if let Kind::SelfType(owner) = &self.state.arena[self.root(*result, b)?] {
+                let method = self.inventory.definition(frame.definition, b)?;
+                let declaration = self.inventory.definition(*owner, b)?;
+                let fixed_member = method.parent == Some(*owner)
+                    && method.kind == SemanticDefinitionKind::Method
+                    && method.parameters.is_empty() && declaration.parameters.is_empty()
+                    && matches!(declaration.body, SemanticDefinitionBody::Scope(SemanticScopeRecipe::Trait { .. }))
+                    && matches!(method.body, SemanticDefinitionBody::FunctionWithBody {
+                        body: SemanticOriginalFunctionBody::Declaration, receiver_parameter: Some(0), ..
+                    });
+                let plain_error = match &self.state.arena[self.root(*error, b)?] {
+                    Kind::Atom(ty) => ty.is_b0_scalar(),
+                    Kind::Nominal { arguments, .. } => arguments.is_empty(),
+                    _ => false,
+                };
+                if fixed_member && plain_error && !frame.parameters.is_empty() {
+                    let mut profile = true;
+                    for (index, parameter) in frame.parameters.iter().enumerate() {
+                        b.spend(1, WORK)?;
+                        profile &= match &self.state.arena[self.root(*parameter, b)?] {
+                            Kind::Address { inner, mutable, .. } if index == 0 || !mutable => {
+                                matches!(&self.state.arena[self.root(*inner, b)?], Kind::SelfType(actual) if actual == owner)
+                            }
+                            Kind::Atom(ty) if index != 0 => ty.is_b0_scalar(),
+                            _ => false,
+                        };
+                    }
+                    if profile {
+                        // Each concrete implementation supplies the complete Self layout.
+                        // The abstract signature still supplies a concrete error arm.
+                        return self.carrier_original(*error, true, b, 1);
+                    }
+                }
+            }
+        }
+        self.sized_original(frame.result, b, 0)
     }
     fn sized_original(&self, term: Term, b: &mut Budget, depth: usize) -> CompileResult<()> {
         self.carrier_original(term, false, b, depth)
