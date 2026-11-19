@@ -952,6 +952,242 @@ impl Builder<'_, '_, '_, '_> {
             span: pattern.span,
         })
     }
+    fn body_pipeline(
+        &mut self,
+        input: &s::Expr,
+        target: &s::Expr,
+        id: NodeId,
+        span: Span,
+        mint: &mut Mint,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticOriginalExpr> {
+        let input = self.body_child_expr(input, 0, mint, path, depth + 1)?;
+        let target = self.body_child_expr(target, 1, mint, path, depth + 1)?;
+        self.budget.lineage_bytes(32, span)?;
+        let name = format!("$pipe_input_{}", id.0);
+        let argument = CoreExpr {
+            id: self.body_generated_id(mint, input.span, depth + 1)?,
+            kind: CoreExprKind::Name(self.text(&name, input.span)?),
+            span: input.span,
+        };
+        let mut arguments = Vec::new();
+        self.push(&mut arguments, argument, span)?;
+        let call = CoreExpr {
+            id,
+            kind: CoreExprKind::Call {
+                callee: self.body_box(target, span)?,
+                arguments,
+            },
+            span,
+        };
+        let mut bindings = Vec::new();
+        self.push(&mut bindings, (name, input), span)?;
+        Ok(CoreExpr {
+            id: self.body_generated_id(mint, span, depth + 1)?,
+            kind: CoreExprKind::Sequence {
+                bindings,
+                value: self.body_box(call, span)?,
+            },
+            span,
+        })
+    }
+    fn body_generic_apply(
+        &mut self,
+        callee: &s::Expr,
+        arguments: &[s::GenericArg],
+        span: Span,
+        mint: &mut Mint,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticOriginalExprKind> {
+        let callee = self.body_child_expr(callee, 0, mint, path, depth + 1)?;
+        let mut result = Vec::new();
+        for (index, argument) in arguments.iter().enumerate() {
+            self.body_path(path, index + 1, span)?;
+            let argument = match argument {
+                s::GenericArg::Type(ty) if self.body_const_formal(ty)? => {
+                    let s::TypeKind::Named { path: names, .. } = &ty.kind else {
+                        return Err(error(
+                            ty.span,
+                            "original const formal lost its actual name syntax",
+                        ));
+                    };
+                    let id = self.body_id(
+                        mint,
+                        path,
+                        OriginalBodyNodeKind::Expression,
+                        ty.span,
+                        depth + 1,
+                    )?;
+                    CoreGenericArgument::Const(CoreExpr {
+                        id,
+                        kind: CoreExprKind::Name(self.text(&names[0], ty.span)?),
+                        span: ty.span,
+                    })
+                }
+                s::GenericArg::Type(ty) => {
+                    CoreGenericArgument::Type(self.body_type(ty, path, depth + 1)?)
+                }
+                s::GenericArg::Lifetime(name) => {
+                    CoreGenericArgument::Lifetime(self.text(name, span)?)
+                }
+                s::GenericArg::Const(value) => {
+                    CoreGenericArgument::Const(self.body_expr(value, mint, path, depth + 1)?)
+                }
+                s::GenericArg::AssociatedBinding(_) => {
+                    return Err(error(
+                        span,
+                        "associated binding is not an original call actual",
+                    ));
+                }
+            };
+            path.pop();
+            self.push(&mut result, argument, span)?;
+        }
+        Ok(CoreExprKind::GenericApply {
+            callee: self.body_box(callee, span)?,
+            arguments: result,
+        })
+    }
+    fn body_call(
+        &mut self,
+        callee: &s::Expr,
+        arguments: &[s::Argument],
+        span: Span,
+        mint: &mut Mint,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticOriginalExprKind> {
+        let callee = self.body_child_expr(callee, 0, mint, path, depth + 1)?;
+        let mut result = Vec::new();
+        for (index, argument) in arguments.iter().enumerate() {
+            let spread_id = if argument.spread {
+                Some(self.body_generated_id(mint, argument.span, depth + 1)?)
+            } else {
+                None
+            };
+            let value = self.body_child_expr(&argument.value, index + 1, mint, path, depth + 1)?;
+            let value = if let Some(spread_id) = spread_id {
+                // This node is source Call syntax, not a second
+                // evaluation of its actual argument expression.
+                CoreExpr {
+                    id: spread_id,
+                    kind: CoreExprKind::Spread(self.body_box(value, span)?),
+                    span: argument.span,
+                }
+            } else {
+                value
+            };
+            self.push(&mut result, value, span)?;
+        }
+        Ok(CoreExprKind::Call {
+            callee: self.body_box(callee, span)?,
+            arguments: result,
+        })
+    }
+    fn body_record(
+        &mut self,
+        ty: Option<&s::Expr>,
+        base: Option<&s::Expr>,
+        fields: &[s::RecordField],
+        id: NodeId,
+        span: Span,
+        mint: &mut Mint,
+        path: &mut Vec<u32>,
+        depth: usize,
+    ) -> R<SemanticOriginalExpr> {
+        let mut inferred_definition = None;
+        let ty = if let Some(ty) = ty {
+            let written_application = matches!(ty.kind, s::ExprKind::TypeApply { .. });
+            let ty = super::plan::type_expression(ty, self.budget)?;
+            if base.is_none()
+                && let Some(kind) =
+                    self.body_enum_record(&ty, fields, id, span, mint, path, depth + 1)?
+            {
+                let id = self.body_generated_id(mint, span, depth + 1)?;
+                return Ok(CoreExpr { id, kind, span });
+            }
+            if base.is_none()
+                && !written_application
+                && let s::TypeKind::Named { path: names, args } = &ty.kind
+                && args.is_empty()
+                && names.as_slice() != ["Self"]
+                && (self.builtin_shadow(names, ty.span)?
+                    || self.compiler_nominal(names, ty.span)?.is_none())
+                && let Some(row) = self.nominal_path(names, ty.span, false)?
+            {
+                if matches!(
+                    self.inventory.declarations[row].item.kind,
+                    s::ItemKind::Aggregate(_)
+                ) && !self.inventory.declarations[row].parameters().is_empty()
+                {
+                    // No application was written. Keep the declaration
+                    // and every real field for independent whole-mixed
+                    // inference instead of claiming an empty application.
+                    inferred_definition = Some(self.id(row));
+                }
+            }
+            // A fresh literal names the resource payload it creates.
+            // Explicit Ref/Desc and nested modes remain written Types;
+            // an update instead retains its ordinary existing value.
+            if inferred_definition.is_some() {
+                None
+            } else {
+                Some(if base.is_none() {
+                    self.body_local_annotation(&ty, path, depth + 1)?
+                } else {
+                    self.body_type(&ty, path, depth + 1)?
+                })
+            }
+        } else {
+            None
+        };
+        let base = base
+            .map(|base| self.body_child_expr(base, 0, mint, path, depth + 1))
+            .transpose()?;
+        let mut result = Vec::new();
+        for (index, field) in fields.iter().enumerate() {
+            let name = self.text(&field.name, field.span)?;
+            let value = if let Some(value) = &field.value {
+                self.body_child_expr(value, index + 1, mint, path, depth + 1)?
+            } else {
+                // Shorthand is one real lexical read, not a guessed
+                // field type or a clone of a specialized operand.
+                self.body_path(path, index + 1, field.span)?;
+                let id = self.body_id(
+                    mint,
+                    path,
+                    OriginalBodyNodeKind::Expression,
+                    field.span,
+                    depth + 1,
+                )?;
+                path.pop();
+                CoreExpr {
+                    id,
+                    kind: CoreExprKind::Name(self.text(&field.name, field.span)?),
+                    span: field.span,
+                }
+            };
+            self.push(&mut result, (name, value), field.span)?;
+        }
+        let kind = if let Some(base) = base {
+            CoreExprKind::RecordUpdate {
+                ty,
+                base: self.body_box(base, span)?,
+                fields: result,
+            }
+        } else {
+            match ty {
+                Some(ty) => CoreExprKind::Record { ty, fields: result },
+                None => CoreExprKind::RecordConstructor {
+                    definition: inferred_definition,
+                    fields: result,
+                },
+            }
+        };
+        Ok(CoreExpr { id, kind, span })
+    }
     fn body_expr(
         &mut self,
         value: &s::Expr,
@@ -969,7 +1205,13 @@ impl Builder<'_, '_, '_, '_> {
                 self.budget
                     .lineage_bytes(std::mem::size_of_val(units.as_slice()), span)?;
             }
-            let id = self.body_id(mint, path, OriginalBodyNodeKind::ForeignLiteral, span, depth)?;
+            let id = self.body_id(
+                mint,
+                path,
+                OriginalBodyNodeKind::ForeignLiteral,
+                span,
+                depth,
+            )?;
             return Ok(CoreExpr {
                 id,
                 kind: CoreExprKind::Literal(literal),
@@ -996,35 +1238,7 @@ impl Builder<'_, '_, '_, '_> {
                 CoreExprKind::Group(self.body_box(inner, span)?)
             }
             s::ExprKind::Pipeline { input, target } => {
-                let input = self.body_child_expr(input, 0, mint, path, depth + 1)?;
-                let target = self.body_child_expr(target, 1, mint, path, depth + 1)?;
-                self.budget.lineage_bytes(32, span)?;
-                let name = format!("$pipe_input_{}", id.0);
-                let argument = CoreExpr {
-                    id: self.body_generated_id(mint, input.span, depth + 1)?,
-                    kind: CoreExprKind::Name(self.text(&name, input.span)?),
-                    span: input.span,
-                };
-                let mut arguments = Vec::new();
-                self.push(&mut arguments, argument, span)?;
-                let call = CoreExpr {
-                    id,
-                    kind: CoreExprKind::Call {
-                        callee: self.body_box(target, span)?,
-                        arguments,
-                    },
-                    span,
-                };
-                let mut bindings = Vec::new();
-                self.push(&mut bindings, (name, input), span)?;
-                return Ok(CoreExpr {
-                    id: self.body_generated_id(mint, span, depth + 1)?,
-                    kind: CoreExprKind::Sequence {
-                        bindings,
-                        value: self.body_box(call, span)?,
-                    },
-                    span,
-                });
+                return self.body_pipeline(input, target, id, span, mint, path, depth);
             }
             s::ExprKind::Name(name) => CoreExprKind::Name(self.text(name, span)?),
             s::ExprKind::ReceiverMember(name) => {
@@ -1119,84 +1333,10 @@ impl Builder<'_, '_, '_, '_> {
                 }
             }
             s::ExprKind::TypeApply { callee, arguments } => {
-                let callee = self.body_child_expr(callee, 0, mint, path, depth + 1)?;
-                let mut result = Vec::new();
-                for (index, argument) in arguments.iter().enumerate() {
-                    self.body_path(path, index + 1, span)?;
-                    let argument =
-                        match argument {
-                            s::GenericArg::Type(ty) if self.body_const_formal(ty)? => {
-                                let s::TypeKind::Named { path: names, .. } = &ty.kind else {
-                                    return Err(error(
-                                        ty.span,
-                                        "original const formal lost its actual name syntax",
-                                    ));
-                                };
-                                let id = self.body_id(
-                                    mint,
-                                    path,
-                                    OriginalBodyNodeKind::Expression,
-                                    ty.span,
-                                    depth + 1,
-                                )?;
-                                CoreGenericArgument::Const(CoreExpr {
-                                    id,
-                                    kind: CoreExprKind::Name(self.text(&names[0], ty.span)?),
-                                    span: ty.span,
-                                })
-                            }
-                            s::GenericArg::Type(ty) => {
-                                CoreGenericArgument::Type(self.body_type(ty, path, depth + 1)?)
-                            }
-                            s::GenericArg::Lifetime(name) => {
-                                CoreGenericArgument::Lifetime(self.text(name, span)?)
-                            }
-                            s::GenericArg::Const(value) => CoreGenericArgument::Const(
-                                self.body_expr(value, mint, path, depth + 1)?,
-                            ),
-                            s::GenericArg::AssociatedBinding(_) => {
-                                return Err(error(
-                                    span,
-                                    "associated binding is not an original call actual",
-                                ));
-                            }
-                        };
-                    path.pop();
-                    self.push(&mut result, argument, span)?;
-                }
-                CoreExprKind::GenericApply {
-                    callee: self.body_box(callee, span)?,
-                    arguments: result,
-                }
+                self.body_generic_apply(callee, arguments, span, mint, path, depth)?
             }
             s::ExprKind::Call { callee, arguments } => {
-                let callee = self.body_child_expr(callee, 0, mint, path, depth + 1)?;
-                let mut result = Vec::new();
-                for (index, argument) in arguments.iter().enumerate() {
-                    let spread_id = if argument.spread {
-                        Some(self.body_generated_id(mint, argument.span, depth + 1)?)
-                    } else {
-                        None
-                    };
-                    let value =
-                        self.body_child_expr(&argument.value, index + 1, mint, path, depth + 1)?;
-                    let value = if let Some(spread_id) = spread_id {
-                        // This node is source Call syntax, not a second
-                        // evaluation of its actual argument expression.
-                        CoreExpr {
-                            id: spread_id,
-                            kind: CoreExprKind::Spread(self.body_box(value, span)?),
-                            span: argument.span,
-                        }
-                    } else {
-                        value
-                    };
-                    self.push(&mut result, value, span)?;
-                }
-                CoreExprKind::Call {
-                    callee: self.body_box(callee, span)?,
-                    arguments: result,
-                }
+                self.body_call(callee, arguments, span, mint, path, depth)?
             }
             s::ExprKind::Member { object, member } => {
                 let object = self.body_child_expr(object, 0, mint, path, depth + 1)?;
@@ -1246,95 +1386,16 @@ impl Builder<'_, '_, '_, '_> {
                 }
             }
             s::ExprKind::Record { ty, base, fields } => {
-                let mut inferred_definition = None;
-                let ty = if let Some(ty) = ty {
-                    let written_application = matches!(ty.kind, s::ExprKind::TypeApply { .. });
-                    let ty = super::plan::type_expression(ty, self.budget)?;
-                    if base.is_none()
-                        && let Some(kind) = self.body_enum_record(&ty, fields, id, span, mint, path, depth + 1)?
-                    {
-                        let id = self.body_generated_id(mint, span, depth + 1)?;
-                        return Ok(CoreExpr { id, kind, span });
-                    }
-                    if base.is_none()
-                        && !written_application
-                        && let s::TypeKind::Named { path: names, args } = &ty.kind
-                        && args.is_empty()
-                        && names.as_slice() != ["Self"]
-                        && (self.builtin_shadow(names, ty.span)?
-                            || self.compiler_nominal(names, ty.span)?.is_none())
-                        && let Some(row) = self.nominal_path(names, ty.span, false)?
-                    {
-                        if matches!(
-                            self.inventory.declarations[row].item.kind,
-                            s::ItemKind::Aggregate(_)
-                        ) && !self.inventory.declarations[row].parameters().is_empty()
-                        {
-                            // No application was written. Keep the declaration
-                            // and every real field for independent whole-mixed
-                            // inference instead of claiming an empty application.
-                            inferred_definition = Some(self.id(row));
-                        }
-                    }
-                    // A fresh literal names the resource payload it creates.
-                    // Explicit Ref/Desc and nested modes remain written Types;
-                    // an update instead retains its ordinary existing value.
-                    if inferred_definition.is_some() {
-                        None
-                    } else {
-                        Some(if base.is_none() {
-                            self.body_local_annotation(&ty, path, depth + 1)?
-                        } else {
-                            self.body_type(&ty, path, depth + 1)?
-                        })
-                    }
-                } else {
-                    None
-                };
-                let base = base
-                    .as_ref()
-                    .map(|base| self.body_child_expr(base, 0, mint, path, depth + 1))
-                    .transpose()?;
-                let mut result = Vec::new();
-                for (index, field) in fields.iter().enumerate() {
-                    let name = self.text(&field.name, field.span)?;
-                    let value = if let Some(value) = &field.value {
-                        self.body_child_expr(value, index + 1, mint, path, depth + 1)?
-                    } else {
-                        // Shorthand is one real lexical read, not a guessed
-                        // field type or a clone of a specialized operand.
-                        self.body_path(path, index + 1, field.span)?;
-                        let id = self.body_id(
-                            mint,
-                            path,
-                            OriginalBodyNodeKind::Expression,
-                            field.span,
-                            depth + 1,
-                        )?;
-                        path.pop();
-                        CoreExpr {
-                            id,
-                            kind: CoreExprKind::Name(self.text(&field.name, field.span)?),
-                            span: field.span,
-                        }
-                    };
-                    self.push(&mut result, (name, value), field.span)?;
-                }
-                if let Some(base) = base {
-                    CoreExprKind::RecordUpdate {
-                        ty,
-                        base: self.body_box(base, span)?,
-                        fields: result,
-                    }
-                } else {
-                    match ty {
-                        Some(ty) => CoreExprKind::Record { ty, fields: result },
-                        None => CoreExprKind::RecordConstructor {
-                            definition: inferred_definition,
-                            fields: result,
-                        },
-                    }
-                }
+                return self.body_record(
+                    ty.as_deref(),
+                    base.as_deref(),
+                    fields,
+                    id,
+                    span,
+                    mint,
+                    path,
+                    depth,
+                );
             }
             s::ExprKind::Closure {
                 move_capture,

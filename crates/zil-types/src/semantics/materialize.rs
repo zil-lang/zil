@@ -1376,6 +1376,121 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
     ) -> R<SemanticTypeValue> {
         self.node(depth)?;
         let value = match recipe {
+            SemanticTypeRecipe::Formal(reference) => {
+                let owner = self.ancestor(scope, reference.scope, depth + 1)?;
+                let mut value = self.type_actual(owner, reference.ordinal, depth + 1)?;
+                if let SemanticTypeValue::Resolved { classes, .. } = &mut value {
+                    for image in classes {
+                        if let SemanticClassExpr::IntrinsicClass {
+                            operand: SemanticOperand::TypeArgument { scope, .. },
+                            ..
+                        } = image
+                        {
+                            *scope = reference.scope;
+                        }
+                    }
+                }
+                value
+            }
+            SemanticTypeRecipe::Array { element, length } => {
+                self.array_type(scope, element, length, depth)?
+            }
+            _ => return self.construct_type(scope, recipe, hint, depth),
+        };
+        self.checked_type_hint(scope, value, hint)
+    }
+    fn array_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        element: &SemanticTypeRecipe,
+        length: &SemanticConstRecipe,
+        depth: usize,
+    ) -> R<SemanticTypeValue> {
+        let SemanticTypeValue::Resolved { ty, life, classes } =
+            self.ty(scope, element, None, depth + 1)?
+        else {
+            unreachable!()
+        };
+        if life.binder_count as usize != classes.len() {
+            return Err(bad(
+                "array element omits its complete intrinsic class domain",
+            ));
+        }
+        let length = self.constant(scope, length, &Type::Usize, depth + 1)?;
+        let Constant::Usize(length) = length else {
+            return Err(bad("array length has another original constant carrier"));
+        };
+        let length = u32::try_from(length)
+            .map_err(|_| bad("array length exceeds its complete runtime layout"))?;
+        if length as usize > self.limits.max_nodes {
+            return Err(Diagnostic::limit(
+                Phase::Types,
+                "array length exceeds semantic node budget",
+                None,
+            ));
+        }
+        self.fee(length as usize)?;
+        let mut array_life = empty();
+        array_life.binder_count = life.binder_count;
+        // Every physical element occurrence survives, including N=0.
+        // Element is the one complete type-domain projection; it
+        // grants neither a StoreElement premise nor a byte address.
+        for index in 0..length {
+            for slot in &life.slots {
+                self.fee(slot.path.len().saturating_add(2))?;
+                let mut path = vec![PlaceProjection::Field(index)];
+                path.extend_from_slice(&slot.path);
+                array_life.slots.push(StorageLifeSlot {
+                    path,
+                    ..slot.clone()
+                });
+            }
+        }
+        for row in &life.retained {
+            self.fee(row.path.len().saturating_add(2))?;
+            let mut path = vec![LifeTypeProjection::Element];
+            path.extend_from_slice(&row.path);
+            array_life.retained.push(StorageRetainedBinding {
+                path,
+                ..row.clone()
+            });
+        }
+        // Element is a complete type-domain boundary even when its
+        // classes have no physical slot or only a phantom occurrence.
+        self.fee(classes.len())?;
+        for class in 0..life.binder_count {
+            array_life.retained.push(StorageRetainedBinding {
+                path: vec![LifeTypeProjection::Element],
+                class,
+                binder: class,
+            });
+        }
+        for row in &life.nominal_arguments {
+            self.fee(row.path.len().saturating_add(2))?;
+            let mut path = vec![LifeTypeProjection::Element];
+            path.extend_from_slice(&row.path);
+            array_life.nominal_arguments.push(NominalLifeArgument {
+                path,
+                ..row.clone()
+            });
+        }
+        Ok(resolved(
+            Type::Array {
+                element: Box::new(ty),
+                length,
+            },
+            array_life,
+            classes,
+        ))
+    }
+    fn construct_type(
+        &mut self,
+        scope: SemanticInstanceId,
+        recipe: &SemanticTypeRecipe,
+        hint: Option<&Type>,
+        depth: usize,
+    ) -> R<SemanticTypeValue> {
+        let value = match recipe {
             SemanticTypeRecipe::Atom(ty) => resolved(self.physical(ty)?, empty(), Vec::new()),
             SemanticTypeRecipe::Exact(value) => {
                 crate::dyn_metadata::semantic_operand_snapshot(
@@ -1455,22 +1570,6 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                     })
                     .collect();
                 resolved(ty, life, classes)
-            }
-            SemanticTypeRecipe::Formal(reference) => {
-                let owner = self.ancestor(scope, reference.scope, depth + 1)?;
-                let mut value = self.type_actual(owner, reference.ordinal, depth + 1)?;
-                if let SemanticTypeValue::Resolved { classes, .. } = &mut value {
-                    for image in classes {
-                        if let SemanticClassExpr::IntrinsicClass {
-                            operand: SemanticOperand::TypeArgument { scope, .. },
-                            ..
-                        } = image
-                        {
-                            *scope = reference.scope;
-                        }
-                    }
-                }
-                value
             }
             SemanticTypeRecipe::SelfType { scope: selector } => {
                 let owner = self.ancestor(scope, *selector, depth + 1)?;
@@ -1625,84 +1724,6 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                         element: Box::new(ty),
                     },
                     life,
-                    classes,
-                )
-            }
-            SemanticTypeRecipe::Array { element, length } => {
-                let SemanticTypeValue::Resolved { ty, life, classes } =
-                    self.ty(scope, element, None, depth + 1)?
-                else {
-                    unreachable!()
-                };
-                if life.binder_count as usize != classes.len() {
-                    return Err(bad(
-                        "array element omits its complete intrinsic class domain",
-                    ));
-                }
-                let length = self.constant(scope, length, &Type::Usize, depth + 1)?;
-                let Constant::Usize(length) = length else {
-                    return Err(bad("array length has another original constant carrier"));
-                };
-                let length = u32::try_from(length)
-                    .map_err(|_| bad("array length exceeds its complete runtime layout"))?;
-                if length as usize > self.limits.max_nodes {
-                    return Err(Diagnostic::limit(
-                        Phase::Types,
-                        "array length exceeds semantic node budget",
-                        None,
-                    ));
-                }
-                self.fee(length as usize)?;
-                let mut array_life = empty();
-                array_life.binder_count = life.binder_count;
-                // Every physical element occurrence survives, including N=0.
-                // Element is the one complete type-domain projection; it
-                // grants neither a StoreElement premise nor a byte address.
-                for index in 0..length {
-                    for slot in &life.slots {
-                        self.fee(slot.path.len().saturating_add(2))?;
-                        let mut path = vec![PlaceProjection::Field(index)];
-                        path.extend_from_slice(&slot.path);
-                        array_life.slots.push(StorageLifeSlot {
-                            path,
-                            ..slot.clone()
-                        });
-                    }
-                }
-                for row in &life.retained {
-                    self.fee(row.path.len().saturating_add(2))?;
-                    let mut path = vec![LifeTypeProjection::Element];
-                    path.extend_from_slice(&row.path);
-                    array_life.retained.push(StorageRetainedBinding {
-                        path,
-                        ..row.clone()
-                    });
-                }
-                // Element is a complete type-domain boundary even when its
-                // classes have no physical slot or only a phantom occurrence.
-                self.fee(classes.len())?;
-                for class in 0..life.binder_count {
-                    array_life.retained.push(StorageRetainedBinding {
-                        path: vec![LifeTypeProjection::Element],
-                        class,
-                        binder: class,
-                    });
-                }
-                for row in &life.nominal_arguments {
-                    self.fee(row.path.len().saturating_add(2))?;
-                    let mut path = vec![LifeTypeProjection::Element];
-                    path.extend_from_slice(&row.path);
-                    array_life.nominal_arguments.push(NominalLifeArgument {
-                        path,
-                        ..row.clone()
-                    });
-                }
-                resolved(
-                    Type::Array {
-                        element: Box::new(ty),
-                        length,
-                    },
-                    array_life,
                     classes,
                 )
             }
@@ -2304,6 +2325,14 @@ impl<'a, 'm> Eval<'a, 'm, '_> {
                 )));
             }
         };
+        self.checked_type_hint(scope, value, hint)
+    }
+    fn checked_type_hint(
+        &mut self,
+        scope: SemanticInstanceId,
+        value: SemanticTypeValue,
+        hint: Option<&Type>,
+    ) -> R<SemanticTypeValue> {
         if let Some(hint) = hint {
             let SemanticTypeValue::Resolved { ty, .. } = &value else {
                 unreachable!()

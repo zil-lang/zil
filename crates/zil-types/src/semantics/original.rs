@@ -3585,6 +3585,16 @@ impl<'a> Check<'a, '_> {
                 let result = self.observe_member(owner, expression, variables, depth + 1)?;
                 self.record_expression_type(owner, expression.id, result)
             }
+            CoreExprKind::Index { object, index } => {
+                let object_ty = self.place(owner, object, variables, depth + 1)?;
+                let element = self.index_type(owner, &object_ty, index, variables, depth + 1)?;
+                if !self.copy_type(owner, &element, depth + 1)? {
+                    return Err(bad(
+                        "original indexed observation requires a whole-element Copy premise",
+                    ));
+                }
+                self.record_expression_type(owner, expression.id, element)
+            }
             CoreExprKind::Group(value) => {
                 let result = self.expr(owner, value, variables, wanted, depth + 1)?;
                 self.record_expression_type(owner, expression.id, result)
@@ -3987,16 +3997,6 @@ impl<'a> Check<'a, '_> {
                         length,
                     )))),
                 }
-            }
-            CoreExprKind::Index { object, index } => {
-                let object_ty = self.place(owner, object, variables, depth + 1)?;
-                let element = self.index_type(owner, &object_ty, index, variables, depth + 1)?;
-                if !self.copy_type(owner, &element, depth + 1)? {
-                    return Err(bad(
-                        "original indexed observation requires a whole-element Copy premise",
-                    ));
-                }
-                element
             }
             CoreExprKind::Slice { object, start, end } => {
                 let object_ty = self.place(owner, object, variables, depth + 1)?;
@@ -7068,6 +7068,69 @@ fn check_requested(
     }
 }
 
+fn callee_order(callers: &[Vec<usize>], mut remaining: Vec<usize>) -> Vec<usize> {
+    let count = remaining.len();
+    let mut order = Vec::with_capacity(count);
+    order.extend((0..count).filter(|i| remaining[*i] == 0));
+    let mut next = 0;
+    while next < order.len() {
+        let callee = order[next];
+        next += 1;
+        for &caller in &callers[callee] {
+            remaining[caller] -= 1;
+            if remaining[caller] == 0 {
+                order.push(caller);
+            }
+        }
+    }
+    // Keep the original declaration order for a recursive dependency and
+    // its dependents. The active-body and fixed-point checks govern them.
+    order.extend((0..count).filter(|i| remaining[*i] != 0));
+    order
+}
+
+/// Use original name bindings and direct sites as scheduling hints. Each
+/// call still resolves its target and checks the actuals in its lexical scope.
+fn original_body_order(check: &mut Check<'_, '_>) -> R<Vec<usize>> {
+    let definitions = &check.program.definitions;
+    let count = definitions.len();
+    check.pay(count.saturating_mul(6), 0)?;
+    let mut callers = vec![Vec::new(); count];
+    let mut remaining = vec![0; count];
+    for (caller, definition) in definitions.iter().enumerate() {
+        let SemanticDefinitionBody::FunctionWithBody { names, sites, .. } = &definition.body else {
+            continue;
+        };
+        if definition.kind == SemanticDefinitionKind::Closure {
+            continue;
+        }
+        check.pay(names.len().saturating_add(sites.len()), 0)?;
+        let names = names.iter().filter_map(|name| match name.value {
+            SemanticOriginalNameValue::Definition(target)
+                if name.namespace == SemanticOriginalNamespace::Value =>
+            {
+                Some(target)
+            }
+            _ => None,
+        });
+        let sites = sites.iter().filter_map(|site| match site.kind {
+            SemanticSiteRecipeKind::Call { target, .. } => Some(target),
+            _ => None,
+        });
+        for target in names.chain(sites) {
+            check.pay(count.saturating_add(1).ilog2() as usize + 5, 0)?;
+            let Some(&callee) = check.proof.definition_positions.get(&target) else {
+                continue;
+            };
+            if caller != callee && definitions[callee].kind != SemanticDefinitionKind::Closure {
+                callers[callee].push(caller);
+                remaining[caller] += 1;
+            }
+        }
+    }
+    Ok(callee_order(&callers, remaining))
+}
+
 fn check_complete(check: &mut Check<'_, '_>) -> R<BTreeSet<SemanticDefinitionId>> {
     let program = check.program;
     check.pay(1024, 0)?;
@@ -7078,7 +7141,8 @@ fn check_complete(check: &mut Check<'_, '_>) -> R<BTreeSet<SemanticDefinitionId>
         phase_start.saturating_sub(*check.left),
     );
     let phase_start = *check.left;
-    for definition in &program.definitions {
+    for index in original_body_order(check)? {
+        let definition = &program.definitions[index];
         if matches!(definition.body, SemanticDefinitionBody::Nominal { .. }) {
             check.canonical_carrier(definition, 0)?;
         }

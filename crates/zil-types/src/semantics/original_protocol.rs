@@ -1368,7 +1368,19 @@ impl<'a> Engine<'a, '_> {
         let result: R<Value> = (|| {
             self.pay(value.work(), depth)?;
             let ty = self.input_handle(owner, ty, depth + 1)?;
-            match self.category(owner, &ty, depth + 1)? {
+            let category = self.category(owner, &ty, depth + 1)?;
+            // The item expressions have run. A checked Copy array whose
+            // elements are all Plain has no element-specific protocol state.
+            if category == cleanup::Category::Copy
+                && matches!(ty.0.as_ref(), SemanticTypeRecipe::Array { .. })
+                && let Value::Tuple(values) = &value
+            {
+                self.pay(values.len(), depth)?;
+                if values.iter().all(|item| matches!(item, Value::Plain)) {
+                    return Ok(Value::Plain);
+                }
+            }
+            match category {
                 cleanup::Category::Copy | cleanup::Category::View => {
                     return self.view(value, depth + 1);
                 }
@@ -2423,324 +2435,6 @@ impl<'a> Engine<'a, '_> {
         let result: R<Value> = (|| {
             self.pay(1, depth)?;
             match &expr.kind {
-                CoreExprKind::Name(name) => {
-                    self.pay(
-                        name.len().saturating_add(lookup_work(state.names.len())),
-                        depth,
-                    )?;
-                    if let Some(value) = state.names.get(name).and_then(|s| s.last()) {
-                        self.value_copy(value, depth)
-                    } else {
-                        Ok(Value::Plain)
-                    }
-                }
-                CoreExprKind::Call { callee, arguments } => {
-                    let site = self.site(owner, expr.id, depth + 1)?;
-                    let callback = if let Some(site) = site {
-                        self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
-                        self.proof
-                            .intrinsics
-                            .get(&(owner, site))
-                            .is_some_and(|call| {
-                                matches!(call.kind, IntrinsicKind::ForeignCallback { .. })
-                            })
-                    } else {
-                        false
-                    };
-                    if callback {
-                        // The original scheme already authenticated the symbol. It
-                        // is a code address formation, with no runtime operand.
-                        return Ok(Value::Plain);
-                    }
-                    let once = if let Some(site) = site {
-                        self.pay(lookup_work(self.proof.callable_calls.len()), depth)?;
-                        self.proof
-                            .callable_calls
-                            .get(&(owner, site))
-                            .is_some_and(|call| call.kind == CallableKind::FnOnce)
-                    } else {
-                        false
-                    };
-                    let mut receiver = None;
-                    if let Some(site) = site {
-                        self.pay(lookup_work(self.proof.method_calls.len()), depth)?;
-                        if let Some(method) = self.proof.method_calls.get(&(owner, site)) {
-                            let declaration_id = method.declaration;
-                            crate::dyn_metadata::semantic_operand_snapshot(
-                                &method.signature,
-                                self.limits,
-                                self.left,
-                                1,
-                            )?;
-                            let signature = method.signature.clone();
-                            let declaration = self.definition(declaration_id)?;
-                            if let SemanticDefinitionBody::FunctionWithBody {
-                                receiver_parameter: Some(index),
-                                ..
-                            } = &declaration.body
-                            {
-                                let parameter=signature.parameters.get(*index as usize).ok_or_else(||failure("original method receiver ordinal is absent from its complete scheme"))?;
-                                receiver = Some((
-                                    *index as usize,
-                                    parameter.mode,
-                                    copy_recipe(&parameter.ty, self.limits, self.left)?,
-                                ));
-                            }
-                        }
-                    }
-                    let dynamic = site
-                        .and_then(|site| self.proof.intrinsics.get(&(owner, site)))
-                        .is_some_and(|call| matches!(call.kind, IntrinsicKind::DynCall { .. }));
-                    let mut callee_base = callee.as_ref();
-                    while let CoreExprKind::TypeApply { callee, .. }
-                    | CoreExprKind::GenericApply { callee, .. } = &callee_base.kind
-                    {
-                        self.pay(1, depth)?;
-                        callee_base = callee;
-                    }
-                    let object = if receiver.is_some() || dynamic {
-                        let CoreExprKind::Member { object, .. } = &callee_base.kind else {
-                            return Err(failure(
-                                "original receiver call has no actual source object",
-                            ));
-                        };
-                        Some(object.as_ref())
-                    } else {
-                        None
-                    };
-                    let source = object.unwrap_or(callee.as_ref());
-                    let mut callee_value = self.observe(owner, source, state, depth + 1)?;
-                    let callable = site.is_some_and(|site| self.proof.callable_calls.contains_key(&(owner, site)));
-                    let graph_callee = if self.graph_requested.contains(&owner) {
-                        Some(self.value_copy(&callee_value, depth + 1)?)
-                    } else { None };
-                    let consume_receiver = if let Some((_, mode, ty)) = &receiver {
-                        matches!(mode, PassingMode::Give | PassingMode::Move)
-                            || *mode == PassingMode::Infer
-                                && cleanup::category(
-                                    self.program,
-                                    self.proof,
-                                    owner,
-                                    ty,
-                                    self.limits,
-                                    self.left,
-                                )? == cleanup::Category::Own
-                    } else {
-                        false
-                    };
-                    let consume = once || consume_receiver;
-                    let temporary = self.place_path(source, depth + 1)?.is_none();
-                    let callee_slot = state.temporaries.len();
-                    if consume && !temporary {
-                        self.move_place(source, state, depth + 1)?;
-                    }
-                    let receiver_value = if object.is_some() {
-                        let value = self.value_copy(&callee_value, depth + 1)?;
-                        Some(self.view(value, depth + 1)?)
-                    } else {
-                        None
-                    };
-                    if !consume && !temporary {
-                        callee_value = self.view(callee_value, depth + 1)?;
-                    }
-                    // The view of a real stored receiver remains in the same
-                    // preparation inventory as owning callees. Argument-side
-                    // replacement must invalidate that exact occurrence too.
-                    if consume || temporary || callable {
-                        self.pay(1, depth)?;
-                        state.temporaries.push(callee_value);
-                    }
-                    // Provider symbols were checked in the declaration namespace. Only
-                    // runtime operands can transfer values into the preparation inventory.
-                    let runtime_arguments = if let Some(IntrinsicCall {
-                        kind: IntrinsicKind::RegistrationStart { form, .. }, ..
-                    }) = site.and_then(|site| self.proof.intrinsics.get(&(owner, site))) {
-                        let operands = form.operands(arguments).ok_or_else(||
-                            failure("registration loses its declared operand roles"))?;
-                        &arguments[operands.providers.len()..]
-                    } else { arguments.as_slice() };
-                    let mut values = self.items(owner, runtime_arguments, state, depth + 1)?;
-                    if let Some(value) = receiver_value {
-                        let ordinal = receiver.as_ref().map_or(0, |(index, _, _)| *index);
-                        if ordinal > values.len() {
-                            return Err(failure(
-                                "original receiver ordinal changes complete argument arity",
-                            ));
-                        }
-                        self.pay(values.len().saturating_add(1), depth)?;
-                        values.insert(ordinal, value);
-                    }
-                    let consuming_incoming = if once && state.reachable { Some(self.consumption_state(state, depth + 1)?) } else { None };
-                    let result = if state.reachable {
-                        if let (Some(site), Some(callee)) = (site, graph_callee) {
-                            self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
-                        }
-                        // Preserve this exact invocation's returned owner and
-                        // surviving input states before using unknown effects.
-                        // A reusable receiver stays borrowed; its phase facts
-                        // never establish cleanup of an uncalled environment.
-                        let returned = if callable {
-                            let prepared = self.value_copy(&state.temporaries[callee_slot], depth + 1)?;
-                            self.task_return_callable(owner, expr.id, callee_base.id,
-                                &prepared, &values, state, depth + 1)?
-                        } else { None };
-                        if let Some(returned) = returned { returned }
-                        else { self.call(owner, expr, arguments, &values, state, depth + 1)? }
-                    } else {
-                        Value::Plain
-                    };
-                    if consume || temporary || callable {
-                        let callee = state.temporaries.remove(callee_slot);
-                        if state.reachable {
-                            if once {
-                                let operation = self.proof.callable_calls.get(&(owner, site.ok_or_else(|| failure("consuming call lost its original site"))?))
-                                    .ok_or_else(|| failure("consuming call lost its complete original operation"))?.signature.call_kind;
-                                self.check_consuming_invocation(&callee, &values, operation, consuming_incoming.as_ref().ok_or_else(|| failure("consuming call lost its actual prepared inputs"))?, depth + 1)?;
-                            } else if !consume {
-                                self.drop_value(&callee, state, depth + 1)?;
-                            }
-                        }
-                    }
-                    Ok(result)
-                }
-                CoreExprKind::Unary { op, operand } => {
-                    let borrowing = matches!(
-                        op,
-                        UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference | UnaryOp::Give
-                    );
-                    let mut value = if borrowing {
-                        self.observe(owner, operand, state, depth + 1)?
-                    } else {
-                        self.expr(owner, operand, state, depth + 1)?
-                    };
-                    if *op == UnaryOp::Give {
-                        self.move_place(operand, state, depth + 1)?;
-                        if let Value::Root(_, _, owning, _) = &mut value {
-                            *owning = true;
-                        }
-                        return Ok(value);
-                    }
-                    if matches!(
-                        op,
-                        UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference
-                    ) {
-                        if let Value::Root(_, _, owning, _) = &mut value {
-                            *owning = false;
-                        }
-                    }
-                    if *op == UnaryOp::Not {
-                        if let Value::Valid {
-                            root,
-                            fresh,
-                            negated,
-                        } = value
-                        {
-                            return Ok(Value::Valid {
-                                root,
-                                fresh,
-                                negated: !negated,
-                            });
-                        }
-                        if let Value::Bool(value) = value {
-                            return Ok(Value::Bool(!value));
-                        }
-                        return Ok(Value::Plain);
-                    }
-                    if matches!(
-                        op,
-                        UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Give | UnaryOp::Dereference
-                    ) {
-                        Ok(value)
-                    } else {
-                        Ok(Value::Plain)
-                    }
-                }
-                CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
-                    self.expr(owner, value, state, depth + 1)
-                }
-                CoreExprKind::TypeApply { callee, .. }
-                | CoreExprKind::GenericApply { callee, .. } => {
-                    self.expr(owner, callee, state, depth + 1)
-                }
-                CoreExprKind::Tuple(items) | CoreExprKind::Array(items) => {
-                    Ok(Value::Tuple(self.items(owner, items, state, depth + 1)?))
-                }
-                CoreExprKind::Record { fields, .. }
-                | CoreExprKind::RecordConstructor { fields, .. } => {
-                    self.pay(fields.len(), depth)?;
-                    let start = state.temporaries.len();
-                    for (_, expr) in fields {
-                        let value = self.expr(owner, expr, state, depth + 1)?;
-                        state.temporaries.push(value);
-                    }
-                    let values: Vec<_> = state.temporaries.drain(start..).collect();
-                    let mut out = BTreeMap::new();
-                    for ((name, _), value) in fields.iter().zip(values) {
-                        self.pay(name.len().saturating_add(1), depth)?;
-                        out.insert(name.clone(), value);
-                    }
-                    Ok(Value::Fields(out))
-                }
-                CoreExprKind::RecordUpdate { base, fields, .. } => {
-                    let mut value = self.expr(owner, base, state, depth + 1)?;
-                    if !state.reachable {
-                        return Ok(Value::Plain);
-                    }
-                    let ty = self.query_type(owner, Query::Expression(base.id), depth + 1)?
-                        .ok_or_else(|| failure("original record update has no solved base type"))?;
-                    // Ordinary Copy parameters and results can carry Plain in
-                    // the cleanup engine. Reconstruct their declaration shape
-                    // without adding ownership identities or permissions.
-                    if matches!(value, Value::Plain)
-                        && self.category(owner, &ty, depth + 1)? == cleanup::Category::Copy
-                    {
-                        value = self.plain_value(owner, &ty, depth + 1)?;
-                    }
-                    if !matches!(value, Value::Fields(_)) {
-                        return Err(pending(
-                            "original record update requires the complete base field inventory",
-                        ));
-                    }
-                    let order = self.product_fields(owner, &ty, depth + 1)?
-                        .ok_or_else(|| failure("original record update loses its declared field order"))?;
-                    self.pay(1, depth)?;
-                    let slot = state.temporaries.len();
-                    state.temporaries.push(value);
-                    let mut prepared = BTreeMap::new();
-                    for (name, expression) in fields {
-                        let value = self.expr(owner, expression, state, depth + 1)?;
-                        if !state.reachable {
-                            state.temporaries.truncate(slot);
-                            return Ok(Value::Plain);
-                        }
-                        self.pay(name.len().saturating_add(lookup_work(prepared.len())).saturating_add(1), depth)?;
-                        if prepared.insert(name.as_str(), state.temporaries.len()).is_some() {
-                            return Err(failure("original record update repeats a prepared field"));
-                        }
-                        state.temporaries.push(value);
-                    }
-                    for (name, _) in order.iter() {
-                        self.pay(name.len().saturating_add(lookup_work(prepared.len())), depth)?;
-                        let Some(index) = prepared.remove(name.as_str()) else {
-                            continue;
-                        };
-                        let value = std::mem::replace(&mut state.temporaries[index], Value::Plain);
-                        let Value::Fields(base) = &mut state.temporaries[slot] else {
-                            return Err(failure("original record update lost its in-flight base"));
-                        };
-                        self.pay(name.len().saturating_add(lookup_work(base.len())), depth)?;
-                        let field = base.get_mut(name).ok_or_else(|| {
-                            failure("original record update selects an absent base field")
-                        })?;
-                        let old = std::mem::replace(field, value);
-                        self.drop_value(&old, state, depth + 1)?;
-                    }
-                    if !prepared.is_empty() {
-                        return Err(failure("original record update prepared a field outside its declaration"));
-                    }
-                    state.temporaries.truncate(slot + 1);
-                    Ok(state.temporaries.pop().expect("complete update base"))
-                }
                 CoreExprKind::Member { .. } => {
                     if let Some(value) =
                         self.nominal_value(owner, expr.id, &[], state, depth + 1)?
@@ -2762,132 +2456,6 @@ impl<'a> Engine<'a, '_> {
                         ));
                     }
                     Ok(Value::Plain)
-                }
-                CoreExprKind::Slice { object, start, end } => {
-                    // The original place rule already proves the array/slice and
-                    // integer endpoints. Slicing creates a view and transfers no
-                    // owning element or container responsibility.
-                    let source = self.observe(owner, object, state, depth + 1)?;
-                    let begin = state.temporaries.len();
-                    state.temporaries.push(self.view(source, depth + 1)?);
-                    for bound in start.iter().chain(end.iter()) {
-                        let value = self.expr(owner, bound, state, depth + 1)?;
-                        self.drop_value(&value, state, depth + 1)?;
-                    }
-                    state.temporaries.truncate(begin);
-                    Ok(Value::Plain)
-                }
-                CoreExprKind::Sequence { bindings, value } => {
-                    let mut old = Vec::new();
-                    let error_start = state.abrupt.len();
-                    self.pay(bindings.len(), depth)?;
-                    for (name, expr) in bindings {
-                        let value = self.expr(owner, expr, state, depth + 1)?;
-                        self.pay(name.len().saturating_add(1), depth)?;
-                        old.push((name.clone(), state.names.get(name).map_or(0, Vec::len)));
-                        state.names.entry(name.clone()).or_default().push(value);
-                    }
-                    let result = self.expr(owner, value, state, depth + 1)?;
-                    self.restore(state, &old, depth)?;
-                    let exits = state.abrupt.drain(error_start..).collect::<Vec<_>>();
-                    for mut exit in exits {
-                        self.restore(&mut exit, &old, depth + 1)?;
-                        state.abrupt.push(exit);
-                    }
-                    Ok(result)
-                }
-                CoreExprKind::If {
-                    condition,
-                    then_value,
-                    else_value,
-                } => {
-                    let condition = self.expr(owner, condition, state, depth + 1)?;
-                    let mut left = self.copy(state, depth)?;
-                    let mut right = self.copy(state, depth)?;
-                    self.condition(&condition, true, &mut left, depth)?;
-                    self.condition(&condition, false, &mut right, depth)?;
-                    let a = self.expr(owner, then_value, &mut left, depth + 1)?;
-                    let b = self.expr(owner, else_value, &mut right, depth + 1)?;
-                    // Unknown result provenance cannot supply a phase refinement.
-                    self.pay(a.work().saturating_add(b.work()), depth)?;
-                    let result = if !left.reachable {
-                        b
-                    } else if !right.reachable || a == b {
-                        a
-                    } else {
-                        self.pay(2, depth)?;
-                        self.choice(vec![a, b], depth + 1)?
-                    };
-                    *state = self.merge(&left, &right, depth)?;
-                    Ok(result)
-                }
-                CoreExprKind::Try(value) => {
-                    let value = self.expr(owner, value, state, depth + 1)?;
-                    let definition = self.definition(owner)?;
-                    if matches!(&definition.body,SemanticDefinitionBody::FunctionWithBody{protocol_contracts,..}if !protocol_contracts.is_empty())
-                    {
-                        return Err(pending(
-                            "original protocol ErrorUnion exits require their complete conditional table correlation",
-                        ));
-                    }
-                    let mut payloads = vec![value];
-                    let mut normal = Vec::new();
-                    while let Some(value) = payloads.pop() {
-                        self.pay(value.work().saturating_add(1), depth)?;
-                        match value {
-                            Value::Choice(values) => {
-                                self.pay(values.len(), depth)?;
-                                payloads.extend(values);
-                            }
-                            Value::Error {
-                                is_error: true,
-                                payload,
-                            } => {
-                                let mut exit = self.copy(state, depth + 1)?;
-                                exit.abrupt.clear();
-                                exit.control = Control::Return;
-                                exit.returned = Value::Error {
-                                    is_error: true,
-                                    payload,
-                                };
-                                for value in &exit.temporaries {
-                                    self.drop_value(value, &exit, depth + 1)?;
-                                }
-                                exit.temporaries.clear();
-                                self.pay(1, depth)?;
-                                state.abrupt.push(exit);
-                            }
-                            Value::Error {
-                                is_error: false,
-                                payload,
-                            } => normal.push(*payload),
-                            Value::Plain => {
-                                // The whole union is Copy; the two ordinary payload
-                                // branches have no owning cleanup responsibility.
-                                let mut exit = self.copy(state, depth + 1)?;
-                                exit.abrupt.clear();
-                                exit.control = Control::Return;
-                                exit.returned = Value::Plain;
-                                for value in &exit.temporaries {
-                                    self.drop_value(value, &exit, depth + 1)?;
-                                }
-                                exit.temporaries.clear();
-                                state.abrupt.push(exit);
-                                normal.push(Value::Plain);
-                            }
-                            _ => {
-                                return Err(pending(
-                                    "original cleanup propagation lacks its exact ErrorUnion payload inventory",
-                                ));
-                            }
-                        }
-                    }
-                    if normal.is_empty() {
-                        state.reachable = false;
-                        Ok(Value::Plain)
-                    } else {
-                        self.choice(normal, depth + 1)
-                    }
                 }
                 CoreExprKind::Binary {
                     op: op @ (BinaryOp::And | BinaryOp::Or),
@@ -2922,93 +2490,549 @@ impl<'a> Engine<'a, '_> {
                     self.expr(owner, value, state, depth + 1)?;
                     Ok(Value::Plain)
                 }
-                CoreExprKind::Closure { move_capture, .. } => {
-                    let child = self.closure_child(owner, expr.id, depth + 1)?;
-                    self.pay(
-                        self.proof.capture_names.len().saturating_add(1).ilog2() as usize
-                            + 1
-                            + lookup_work(self.proof.closure_move.len()),
-                        depth,
-                    )?;
-                    if self.proof.closure_move.get(&child.id) != Some(move_capture) {
-                        return Err(failure(
-                            "original cleanup closure mode differs from its true creator",
-                        ));
-                    }
-                    let names = self.proof.capture_names.get(&child.id).ok_or_else(|| {
-                        failure("original cleanup closure lacks its complete capture directory")
-                    })?;
-                    self.pay(
-                        names
-                            .iter()
-                            .fold(names.len(), |n, name| n.saturating_add(name.len())),
-                        depth,
-                    )?;
-                    self.pay(lookup_work(self.proof.capture_names.len()), depth)?;
-                    let names = self
-                        .proof
-                        .capture_names
-                        .get(&child.id)
-                        .ok_or_else(|| failure("original cleanup capture directory disappeared"))?
-                        .clone();
-                    let mut captures = BTreeMap::new();
-                    for name in names {
-                        let source = state
-                            .names
-                            .get(&name)
-                            .and_then(|stack| stack.last())
-                            .ok_or_else(|| {
-                                failure("original cleanup capture has no live creator binder")
-                            })?;
-                        let mut value = self.value_copy(source, depth + 1)?;
-                        let ty = self.capture_type(owner, expr.id, &name, child, depth + 1)?;
-                        let moved = *move_capture || self.inferred_capture_move(child.id, &name, depth + 1)?;
-                        if moved {
-                            if !cleanup::copy(
-                                self.program,
-                                self.proof,
-                                owner,
-                                &ty,
-                                self.limits,
-                                self.left,
-                            )? {
-                                *state
-                                    .names
-                                    .get_mut(&name)
-                                    .and_then(|stack| stack.last_mut())
-                                    .ok_or_else(|| {
-                                        failure("original cleanup capture lost its creator binder")
-                                    })? = Value::Plain;
-                            }
-                        } else {
-                            value = self.view(value, depth + 1)?;
-                        }
-                        self.pay(name.len().saturating_add(1), depth)?;
-                        captures.insert(name, value);
-                    }
-                    Ok(Value::Closure {
-                        definition: child.id,
-                        captures,
-                    })
-                }
-                CoreExprKind::Bool(value) => Ok(Value::Bool(*value)),
-                CoreExprKind::Literal(Constant::Bool(value)) => Ok(Value::Bool(*value)),
-                CoreExprKind::Literal(_)
-                | CoreExprKind::Integer(_)
-                | CoreExprKind::Float(_)
-                | CoreExprKind::String(_)
-                | CoreExprKind::Character(_)
-                | CoreExprKind::Unit => Ok(Value::Plain),
-                CoreExprKind::CompileTime(_)
-                | CoreExprKind::CompileTimeBlock(_)
-                | CoreExprKind::SyntaxQuote { .. } => Ok(Value::Plain),
-                _ => Err(pending(
-                    "original protocol operation requires its complete source evaluation rule",
-                )),
+                _ => self.operation_value(owner, expr, state, depth),
             }
         })();
         self.record_cost("expr_inner", cost_before, cost_children);
         result
+    }
+
+    fn operation_value(
+        &mut self,
+        owner: SemanticDefinitionId,
+        expr: &SemanticOriginalExpr,
+        state: &mut State,
+        depth: usize,
+    ) -> R<Value> {
+        match &expr.kind {
+            CoreExprKind::Name(name) => {
+                self.pay(
+                    name.len().saturating_add(lookup_work(state.names.len())),
+                    depth,
+                )?;
+                if let Some(value) = state.names.get(name).and_then(|s| s.last()) {
+                    self.value_copy(value, depth)
+                } else {
+                    Ok(Value::Plain)
+                }
+            }
+            CoreExprKind::Call { callee, arguments } => {
+                let site = self.site(owner, expr.id, depth + 1)?;
+                let callback = if let Some(site) = site {
+                    self.pay(lookup_work(self.proof.intrinsics.len()), depth)?;
+                    self.proof
+                        .intrinsics
+                        .get(&(owner, site))
+                        .is_some_and(|call| {
+                            matches!(call.kind, IntrinsicKind::ForeignCallback { .. })
+                        })
+                } else {
+                    false
+                };
+                if callback {
+                    // The original scheme already authenticated the symbol. It
+                    // is a code address formation, with no runtime operand.
+                    return Ok(Value::Plain);
+                }
+                let once = if let Some(site) = site {
+                    self.pay(lookup_work(self.proof.callable_calls.len()), depth)?;
+                    self.proof
+                        .callable_calls
+                        .get(&(owner, site))
+                        .is_some_and(|call| call.kind == CallableKind::FnOnce)
+                } else {
+                    false
+                };
+                let mut receiver = None;
+                if let Some(site) = site {
+                    self.pay(lookup_work(self.proof.method_calls.len()), depth)?;
+                    if let Some(method) = self.proof.method_calls.get(&(owner, site)) {
+                        let declaration_id = method.declaration;
+                        crate::dyn_metadata::semantic_operand_snapshot(
+                            &method.signature,
+                            self.limits,
+                            self.left,
+                            1,
+                        )?;
+                        let signature = method.signature.clone();
+                        let declaration = self.definition(declaration_id)?;
+                        if let SemanticDefinitionBody::FunctionWithBody {
+                            receiver_parameter: Some(index),
+                            ..
+                        } = &declaration.body
+                        {
+                            let parameter=signature.parameters.get(*index as usize).ok_or_else(||failure("original method receiver ordinal is absent from its complete scheme"))?;
+                            receiver = Some((
+                                *index as usize,
+                                parameter.mode,
+                                copy_recipe(&parameter.ty, self.limits, self.left)?,
+                            ));
+                        }
+                    }
+                }
+                let dynamic = site
+                    .and_then(|site| self.proof.intrinsics.get(&(owner, site)))
+                    .is_some_and(|call| matches!(call.kind, IntrinsicKind::DynCall { .. }));
+                let mut callee_base = callee.as_ref();
+                while let CoreExprKind::TypeApply { callee, .. }
+                | CoreExprKind::GenericApply { callee, .. } = &callee_base.kind
+                {
+                    self.pay(1, depth)?;
+                    callee_base = callee;
+                }
+                let object = if receiver.is_some() || dynamic {
+                    let CoreExprKind::Member { object, .. } = &callee_base.kind else {
+                        return Err(failure(
+                            "original receiver call has no actual source object",
+                        ));
+                    };
+                    Some(object.as_ref())
+                } else {
+                    None
+                };
+                let source = object.unwrap_or(callee.as_ref());
+                let mut callee_value = self.observe(owner, source, state, depth + 1)?;
+                let callable = site.is_some_and(|site| self.proof.callable_calls.contains_key(&(owner, site)));
+                let graph_callee = if self.graph_requested.contains(&owner) {
+                    Some(self.value_copy(&callee_value, depth + 1)?)
+                } else { None };
+                let consume_receiver = if let Some((_, mode, ty)) = &receiver {
+                    matches!(mode, PassingMode::Give | PassingMode::Move)
+                        || *mode == PassingMode::Infer
+                            && cleanup::category(
+                                self.program,
+                                self.proof,
+                                owner,
+                                ty,
+                                self.limits,
+                                self.left,
+                            )? == cleanup::Category::Own
+                } else {
+                    false
+                };
+                let consume = once || consume_receiver;
+                let temporary = self.place_path(source, depth + 1)?.is_none();
+                let callee_slot = state.temporaries.len();
+                if consume && !temporary {
+                    self.move_place(source, state, depth + 1)?;
+                }
+                let receiver_value = if object.is_some() {
+                    let value = self.value_copy(&callee_value, depth + 1)?;
+                    Some(self.view(value, depth + 1)?)
+                } else {
+                    None
+                };
+                if !consume && !temporary {
+                    callee_value = self.view(callee_value, depth + 1)?;
+                }
+                // The view of a real stored receiver remains in the same
+                // preparation inventory as owning callees. Argument-side
+                // replacement must invalidate that exact occurrence too.
+                if consume || temporary || callable {
+                    self.pay(1, depth)?;
+                    state.temporaries.push(callee_value);
+                }
+                // Provider symbols were checked in the declaration namespace. Only
+                // runtime operands can transfer values into the preparation inventory.
+                let runtime_arguments = if let Some(IntrinsicCall {
+                    kind: IntrinsicKind::RegistrationStart { form, .. }, ..
+                }) = site.and_then(|site| self.proof.intrinsics.get(&(owner, site))) {
+                    let operands = form.operands(arguments).ok_or_else(||
+                        failure("registration loses its declared operand roles"))?;
+                    &arguments[operands.providers.len()..]
+                } else { arguments.as_slice() };
+                let mut values = self.items(owner, runtime_arguments, state, depth + 1)?;
+                if let Some(value) = receiver_value {
+                    let ordinal = receiver.as_ref().map_or(0, |(index, _, _)| *index);
+                    if ordinal > values.len() {
+                        return Err(failure(
+                            "original receiver ordinal changes complete argument arity",
+                        ));
+                    }
+                    self.pay(values.len().saturating_add(1), depth)?;
+                    values.insert(ordinal, value);
+                }
+                let consuming_incoming = if once && state.reachable { Some(self.consumption_state(state, depth + 1)?) } else { None };
+                let result = if state.reachable {
+                    if let (Some(site), Some(callee)) = (site, graph_callee) {
+                        self.record_graph_call(owner, site, callee, &values, state, depth + 1)?;
+                    }
+                    // Preserve this exact invocation's returned owner and
+                    // surviving input states before using unknown effects.
+                    // A reusable receiver stays borrowed; its phase facts
+                    // never establish cleanup of an uncalled environment.
+                    let returned = if callable {
+                        let prepared = self.value_copy(&state.temporaries[callee_slot], depth + 1)?;
+                        self.task_return_callable(owner, expr.id, callee_base.id,
+                            &prepared, &values, state, depth + 1)?
+                    } else { None };
+                    if let Some(returned) = returned { returned }
+                    else { self.call(owner, expr, arguments, &values, state, depth + 1)? }
+                } else {
+                    Value::Plain
+                };
+                if consume || temporary || callable {
+                    let callee = state.temporaries.remove(callee_slot);
+                    if state.reachable {
+                        if once {
+                            let operation = self.proof.callable_calls.get(&(owner, site.ok_or_else(|| failure("consuming call lost its original site"))?))
+                                .ok_or_else(|| failure("consuming call lost its complete original operation"))?.signature.call_kind;
+                            self.check_consuming_invocation(&callee, &values, operation, consuming_incoming.as_ref().ok_or_else(|| failure("consuming call lost its actual prepared inputs"))?, depth + 1)?;
+                        } else if !consume {
+                            self.drop_value(&callee, state, depth + 1)?;
+                        }
+                    }
+                }
+                Ok(result)
+            }
+            CoreExprKind::Unary { op, operand } => {
+                let borrowing = matches!(
+                    op,
+                    UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference | UnaryOp::Give
+                );
+                let mut value = if borrowing {
+                    self.observe(owner, operand, state, depth + 1)?
+                } else {
+                    self.expr(owner, operand, state, depth + 1)?
+                };
+                if *op == UnaryOp::Give {
+                    self.move_place(operand, state, depth + 1)?;
+                    if let Value::Root(_, _, owning, _) = &mut value {
+                        *owning = true;
+                    }
+                    return Ok(value);
+                }
+                if matches!(
+                    op,
+                    UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Dereference
+                ) {
+                    if let Value::Root(_, _, owning, _) = &mut value {
+                        *owning = false;
+                    }
+                }
+                if *op == UnaryOp::Not {
+                    if let Value::Valid {
+                        root,
+                        fresh,
+                        negated,
+                    } = value
+                    {
+                        return Ok(Value::Valid {
+                            root,
+                            fresh,
+                            negated: !negated,
+                        });
+                    }
+                    if let Value::Bool(value) = value {
+                        return Ok(Value::Bool(!value));
+                    }
+                    return Ok(Value::Plain);
+                }
+                if matches!(
+                    op,
+                    UnaryOp::Borrow | UnaryOp::BorrowMut | UnaryOp::Give | UnaryOp::Dereference
+                ) {
+                    Ok(value)
+                } else {
+                    Ok(Value::Plain)
+                }
+            }
+            CoreExprKind::Group(value) | CoreExprKind::Ascribed { value, .. } => {
+                self.expr(owner, value, state, depth + 1)
+            }
+            CoreExprKind::TypeApply { callee, .. }
+            | CoreExprKind::GenericApply { callee, .. } => {
+                self.expr(owner, callee, state, depth + 1)
+            }
+            CoreExprKind::Tuple(items) | CoreExprKind::Array(items) => {
+                Ok(Value::Tuple(self.items(owner, items, state, depth + 1)?))
+            }
+            CoreExprKind::Record { fields, .. }
+            | CoreExprKind::RecordConstructor { fields, .. } => {
+                self.pay(fields.len(), depth)?;
+                let start = state.temporaries.len();
+                for (_, expr) in fields {
+                    let value = self.expr(owner, expr, state, depth + 1)?;
+                    state.temporaries.push(value);
+                }
+                let values: Vec<_> = state.temporaries.drain(start..).collect();
+                let mut out = BTreeMap::new();
+                for ((name, _), value) in fields.iter().zip(values) {
+                    self.pay(name.len().saturating_add(1), depth)?;
+                    out.insert(name.clone(), value);
+                }
+                Ok(Value::Fields(out))
+            }
+            CoreExprKind::RecordUpdate { base, fields, .. } => {
+                let mut value = self.expr(owner, base, state, depth + 1)?;
+                if !state.reachable {
+                    return Ok(Value::Plain);
+                }
+                let ty = self.query_type(owner, Query::Expression(base.id), depth + 1)?
+                    .ok_or_else(|| failure("original record update has no solved base type"))?;
+                // Ordinary Copy parameters and results can carry Plain in
+                // the cleanup engine. Reconstruct their declaration shape
+                // without adding ownership identities or permissions.
+                if matches!(value, Value::Plain)
+                    && self.category(owner, &ty, depth + 1)? == cleanup::Category::Copy
+                {
+                    value = self.plain_value(owner, &ty, depth + 1)?;
+                }
+                if !matches!(value, Value::Fields(_)) {
+                    return Err(pending(
+                        "original record update requires the complete base field inventory",
+                    ));
+                }
+                let order = self.product_fields(owner, &ty, depth + 1)?
+                    .ok_or_else(|| failure("original record update loses its declared field order"))?;
+                self.pay(1, depth)?;
+                let slot = state.temporaries.len();
+                state.temporaries.push(value);
+                let mut prepared = BTreeMap::new();
+                for (name, expression) in fields {
+                    let value = self.expr(owner, expression, state, depth + 1)?;
+                    if !state.reachable {
+                        state.temporaries.truncate(slot);
+                        return Ok(Value::Plain);
+                    }
+                    self.pay(name.len().saturating_add(lookup_work(prepared.len())).saturating_add(1), depth)?;
+                    if prepared.insert(name.as_str(), state.temporaries.len()).is_some() {
+                        return Err(failure("original record update repeats a prepared field"));
+                    }
+                    state.temporaries.push(value);
+                }
+                for (name, _) in order.iter() {
+                    self.pay(name.len().saturating_add(lookup_work(prepared.len())), depth)?;
+                    let Some(index) = prepared.remove(name.as_str()) else {
+                        continue;
+                    };
+                    let value = std::mem::replace(&mut state.temporaries[index], Value::Plain);
+                    let Value::Fields(base) = &mut state.temporaries[slot] else {
+                        return Err(failure("original record update lost its in-flight base"));
+                    };
+                    self.pay(name.len().saturating_add(lookup_work(base.len())), depth)?;
+                    let field = base.get_mut(name).ok_or_else(|| {
+                        failure("original record update selects an absent base field")
+                    })?;
+                    let old = std::mem::replace(field, value);
+                    self.drop_value(&old, state, depth + 1)?;
+                }
+                if !prepared.is_empty() {
+                    return Err(failure("original record update prepared a field outside its declaration"));
+                }
+                state.temporaries.truncate(slot + 1);
+                Ok(state.temporaries.pop().expect("complete update base"))
+            }
+            CoreExprKind::Slice { object, start, end } => {
+                // The original place rule already proves the array/slice and
+                // integer endpoints. Slicing creates a view and transfers no
+                // owning element or container responsibility.
+                let source = self.observe(owner, object, state, depth + 1)?;
+                let begin = state.temporaries.len();
+                state.temporaries.push(self.view(source, depth + 1)?);
+                for bound in start.iter().chain(end.iter()) {
+                    let value = self.expr(owner, bound, state, depth + 1)?;
+                    self.drop_value(&value, state, depth + 1)?;
+                }
+                state.temporaries.truncate(begin);
+                Ok(Value::Plain)
+            }
+            CoreExprKind::Sequence { bindings, value } => {
+                let mut old = Vec::new();
+                let error_start = state.abrupt.len();
+                self.pay(bindings.len(), depth)?;
+                for (name, expr) in bindings {
+                    let value = self.expr(owner, expr, state, depth + 1)?;
+                    self.pay(name.len().saturating_add(1), depth)?;
+                    old.push((name.clone(), state.names.get(name).map_or(0, Vec::len)));
+                    state.names.entry(name.clone()).or_default().push(value);
+                }
+                let result = self.expr(owner, value, state, depth + 1)?;
+                self.restore(state, &old, depth)?;
+                let exits = state.abrupt.drain(error_start..).collect::<Vec<_>>();
+                for mut exit in exits {
+                    self.restore(&mut exit, &old, depth + 1)?;
+                    state.abrupt.push(exit);
+                }
+                Ok(result)
+            }
+            CoreExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                let condition = self.expr(owner, condition, state, depth + 1)?;
+                let mut left = self.copy(state, depth)?;
+                let mut right = self.copy(state, depth)?;
+                self.condition(&condition, true, &mut left, depth)?;
+                self.condition(&condition, false, &mut right, depth)?;
+                let a = self.expr(owner, then_value, &mut left, depth + 1)?;
+                let b = self.expr(owner, else_value, &mut right, depth + 1)?;
+                // Unknown result provenance cannot supply a phase refinement.
+                self.pay(a.work().saturating_add(b.work()), depth)?;
+                let result = if !left.reachable {
+                    b
+                } else if !right.reachable || a == b {
+                    a
+                } else {
+                    self.pay(2, depth)?;
+                    self.choice(vec![a, b], depth + 1)?
+                };
+                *state = self.merge(&left, &right, depth)?;
+                Ok(result)
+            }
+            CoreExprKind::Try(value) => {
+                let value = self.expr(owner, value, state, depth + 1)?;
+                let definition = self.definition(owner)?;
+                if matches!(&definition.body,SemanticDefinitionBody::FunctionWithBody{protocol_contracts,..}if !protocol_contracts.is_empty())
+                {
+                    return Err(pending(
+                        "original protocol ErrorUnion exits require their complete conditional table correlation",
+                    ));
+                }
+                let mut payloads = vec![value];
+                let mut normal = Vec::new();
+                while let Some(value) = payloads.pop() {
+                    self.pay(value.work().saturating_add(1), depth)?;
+                    match value {
+                        Value::Choice(values) => {
+                            self.pay(values.len(), depth)?;
+                            payloads.extend(values);
+                        }
+                        Value::Error {
+                            is_error: true,
+                            payload,
+                        } => {
+                            let mut exit = self.copy(state, depth + 1)?;
+                            exit.abrupt.clear();
+                            exit.control = Control::Return;
+                            exit.returned = Value::Error {
+                                is_error: true,
+                                payload,
+                            };
+                            for value in &exit.temporaries {
+                                self.drop_value(value, &exit, depth + 1)?;
+                            }
+                            exit.temporaries.clear();
+                            self.pay(1, depth)?;
+                            state.abrupt.push(exit);
+                        }
+                        Value::Error {
+                            is_error: false,
+                            payload,
+                        } => normal.push(*payload),
+                        Value::Plain => {
+                            // The whole union is Copy; the two ordinary payload
+                            // branches have no owning cleanup responsibility.
+                            let mut exit = self.copy(state, depth + 1)?;
+                            exit.abrupt.clear();
+                            exit.control = Control::Return;
+                            exit.returned = Value::Plain;
+                            for value in &exit.temporaries {
+                                self.drop_value(value, &exit, depth + 1)?;
+                            }
+                            exit.temporaries.clear();
+                            state.abrupt.push(exit);
+                            normal.push(Value::Plain);
+                        }
+                        _ => {
+                            return Err(pending(
+                                "original cleanup propagation lacks its exact ErrorUnion payload inventory",
+                            ));
+                        }
+                    }
+                }
+                if normal.is_empty() {
+                    state.reachable = false;
+                    Ok(Value::Plain)
+                } else {
+                    self.choice(normal, depth + 1)
+                }
+            }
+            CoreExprKind::Closure { move_capture, .. } => {
+                let child = self.closure_child(owner, expr.id, depth + 1)?;
+                self.pay(
+                    self.proof.capture_names.len().saturating_add(1).ilog2() as usize
+                        + 1
+                        + lookup_work(self.proof.closure_move.len()),
+                    depth,
+                )?;
+                if self.proof.closure_move.get(&child.id) != Some(move_capture) {
+                    return Err(failure(
+                        "original cleanup closure mode differs from its true creator",
+                    ));
+                }
+                let names = self.proof.capture_names.get(&child.id).ok_or_else(|| {
+                    failure("original cleanup closure lacks its complete capture directory")
+                })?;
+                self.pay(
+                    names
+                        .iter()
+                        .fold(names.len(), |n, name| n.saturating_add(name.len())),
+                    depth,
+                )?;
+                self.pay(lookup_work(self.proof.capture_names.len()), depth)?;
+                let names = self
+                    .proof
+                    .capture_names
+                    .get(&child.id)
+                    .ok_or_else(|| failure("original cleanup capture directory disappeared"))?
+                    .clone();
+                let mut captures = BTreeMap::new();
+                for name in names {
+                    let source = state
+                        .names
+                        .get(&name)
+                        .and_then(|stack| stack.last())
+                        .ok_or_else(|| {
+                            failure("original cleanup capture has no live creator binder")
+                        })?;
+                    let mut value = self.value_copy(source, depth + 1)?;
+                    let ty = self.capture_type(owner, expr.id, &name, child, depth + 1)?;
+                    let moved = *move_capture || self.inferred_capture_move(child.id, &name, depth + 1)?;
+                    if moved {
+                        if !cleanup::copy(
+                            self.program,
+                            self.proof,
+                            owner,
+                            &ty,
+                            self.limits,
+                            self.left,
+                        )? {
+                            *state
+                                .names
+                                .get_mut(&name)
+                                .and_then(|stack| stack.last_mut())
+                                .ok_or_else(|| {
+                                    failure("original cleanup capture lost its creator binder")
+                                })? = Value::Plain;
+                        }
+                    } else {
+                        value = self.view(value, depth + 1)?;
+                    }
+                    self.pay(name.len().saturating_add(1), depth)?;
+                    captures.insert(name, value);
+                }
+                Ok(Value::Closure {
+                    definition: child.id,
+                    captures,
+                })
+            }
+            CoreExprKind::Bool(value) => Ok(Value::Bool(*value)),
+            CoreExprKind::Literal(Constant::Bool(value)) => Ok(Value::Bool(*value)),
+            CoreExprKind::Literal(_)
+            | CoreExprKind::Integer(_)
+            | CoreExprKind::Float(_)
+            | CoreExprKind::String(_)
+            | CoreExprKind::Character(_)
+            | CoreExprKind::Unit => Ok(Value::Plain),
+            CoreExprKind::CompileTime(_)
+            | CoreExprKind::CompileTimeBlock(_)
+            | CoreExprKind::SyntaxQuote { .. } => Ok(Value::Plain),
+            _ => Err(pending(
+                "original protocol operation requires its complete source evaluation rule",
+            )),
+        }
     }
     fn restore(&mut self, state: &mut State, old: &[(String, usize)], depth: usize) -> R<()> {
         let cost_before = *self.left;
@@ -4444,23 +4468,7 @@ impl<'a> Engine<'a, '_> {
             callers[callee].push(caller);
             remaining[caller] += 1;
         }
-        let mut order = Vec::with_capacity(count);
-        order.extend((0..count).filter(|i| remaining[*i] == 0));
-        let mut next = 0;
-        while next < order.len() {
-            let callee = order[next];
-            next += 1;
-            for &caller in &callers[callee] {
-                remaining[caller] -= 1;
-                if remaining[caller] == 0 {
-                    order.push(caller);
-                }
-            }
-        }
-        // Keep the original declaration order for a recursive dependency and
-        // its dependents. The active-body and fixed-point checks govern them.
-        order.extend((0..count).filter(|i| remaining[*i] != 0));
-        Ok(order)
+        Ok(callee_order(&callers, remaining))
     }
 
     fn function(&mut self, owner: SemanticDefinitionId, depth: usize) -> R<()> {

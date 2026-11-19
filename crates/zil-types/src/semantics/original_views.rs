@@ -1609,20 +1609,16 @@ impl Check<'_, '_> {
                 self.place_borrow_bound(owner, value, variables, depth + 1)?;
                 self.view_bound(owner, expression, variables, depth + 1)
             }
-            CoreExprKind::Member { object, .. }
-            | CoreExprKind::Slice { object, .. }
-            | CoreExprKind::Index { object, .. } => {
+            CoreExprKind::Member { object, .. } => {
                 self.place_borrow_bound(owner, object, variables, depth + 1)?;
                 self.view_bound(owner, expression, variables, depth + 1)
             }
-            CoreExprKind::Unary {
-                op: UnaryOp::Dereference,
-                operand,
-            } => {
-                self.place_borrow_bound(owner, operand, variables, depth + 1)?;
-                self.view_bound(owner, expression, variables, depth + 1)
-            }
-            CoreExprKind::Call { .. } => self.view_bound(owner, expression, variables, depth + 1),
+            // Each of these view rules establishes its operand's place bound
+            // before appending its own step. Walk that operand once per level.
+            CoreExprKind::Slice { .. }
+            | CoreExprKind::Index { .. }
+            | CoreExprKind::Unary { op: UnaryOp::Dereference, .. }
+            | CoreExprKind::Call { .. } => self.view_bound(owner, expression, variables, depth + 1),
             _ => Ok(()),
         }
     }

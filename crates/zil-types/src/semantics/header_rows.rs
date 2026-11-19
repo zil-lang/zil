@@ -334,9 +334,11 @@ fn physical_statics(
         limits: &'b Limits,
         left: &'b mut usize,
         nodes: usize,
+        leaves: usize,
     }
     impl Walk<'_, '_> {
         fn leaf(&mut self, ty: &Type, prefix: &[PlaceProjection]) -> R<()> {
+            self.leaves += 1;
             pay(self.left, self.life.slots.len().saturating_mul(prefix.len().saturating_add(1)))?;
             let mut selected = None;
             for (ordinal, slot) in self.life.slots.iter().enumerate() {
@@ -399,11 +401,14 @@ fn physical_statics(
                     if *length as usize > self.limits.max_nodes {
                         return Err(Diagnostic::limit(Phase::Types, "physical header array length exceeded", None));
                     }
-                    pay(self.left, *length as usize)?;
+                    let prior_leaves = self.leaves;
                     for ordinal in 0..*length {
+                        pay(self.left, 1)?;
                         prefix.push(PlaceProjection::Field(ordinal));
                         self.visit(element, prefix, depth + 1)?;
                         prefix.pop();
+                        // Every index has the same physical element type.
+                        if self.leaves == prior_leaves { break; }
                     }
                     Ok(())
                 }
@@ -437,7 +442,7 @@ fn physical_statics(
         }
     }
     pay(left, life.slots.len().saturating_add(1))?;
-    let mut walk = Walk { life, seen: vec![false; life.slots.len()], base, out, limits, left, nodes: 0 };
+    let mut walk = Walk { life, seen: vec![false; life.slots.len()], base, out, limits, left, nodes: 0, leaves: 0 };
     walk.visit(ty, &mut Vec::new(), 0)?;
     if walk.seen.iter().any(|seen| !seen) {
         return Err(bad("header variable slot is not an actual physical borrow leaf"));

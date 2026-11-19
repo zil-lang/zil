@@ -104,6 +104,14 @@ enum Value<'a> {
     },
     Function(usize),
 }
+// Release argument-evaluation temporaries before entering the callee's body.
+enum CallOutcome<'a> {
+    Value(Value<'a>),
+    Defined {
+        owner: usize,
+        inputs: Vec<Value<'a>>,
+    },
+}
 struct Flow<'a> {
     value: Option<Value<'a>>,
     live: bool,
@@ -140,9 +148,16 @@ struct TypeFrame<'a> {
     arguments: &'a [SemanticActualRecipe],
     context: Option<usize>,
 }
+struct PlainCall {
+    target: usize,
+    inputs: usize,
+    depth: usize,
+    shutdown: bool,
+}
 struct Walk<'a, 'b, 'l> {
     definitions: &'a [&'a SemanticDefinition],
     active: Vec<usize>,
+    last_plain_call: Option<PlainCall>,
     frames: Vec<TypeFrame<'a>>,
     context: Option<usize>,
     execution: bool,
@@ -231,9 +246,7 @@ impl<'a> Walk<'a, '_, '_> {
             Value::Alternatives(fields) => {
                 Value::Alternatives(self.copy_values(fields, depth + 1)?)
             }
-            Value::Tuple(fields) => {
-                Value::Tuple(self.copy_values(fields, depth + 1)?)
-            }
+            Value::Tuple(fields) => Value::Tuple(self.copy_values(fields, depth + 1)?),
             Value::Record(fields) => {
                 let mut result = copy_rows(fields.len(), self.budget)?;
                 for (name, field) in fields {
@@ -1554,6 +1567,7 @@ impl<'a> Walk<'a, '_, '_> {
         }
         self.budget
             .lineage_push(&mut self.active, owner, Span::default())?;
+        let caller_cache = self.last_plain_call.take();
         let publish = self.publish;
         if inputs.is_some() {
             self.publish = false;
@@ -1610,6 +1624,7 @@ impl<'a> Walk<'a, '_, '_> {
             self.bodies[owner] = true;
         }
         self.active.pop();
+        self.last_plain_call = caller_cache;
         self.publish = publish;
         self.shutdown = shutdown;
         self.frames.truncate(frames);
@@ -1751,11 +1766,34 @@ impl<'a> Walk<'a, '_, '_> {
             self.shutdown &= leaf;
             return Ok(declared);
         }
+        // The replay runs with fresh operand and execution state. Within one
+        // nonpublishing caller, identical plain inputs carry no place or owner
+        // identity. Only a complete plain return and its shutdown bit qualify.
+        let plain = !self.publish && matches!(declared, Value::Plain)
+            && definition.environment.is_empty();
+        if plain {
+            self.budget.identity_work(inputs.len(), Span::default())?;
+        }
+        let plain = plain && inputs.iter().all(|value| matches!(value, Value::Plain));
+        if plain && let Some(previous) = &self.last_plain_call
+            && (previous.target, previous.inputs, previous.depth) == (owner, inputs.len(), depth)
+        {
+            self.shutdown &= previous.shutdown;
+            return Ok(Value::Plain);
+        }
         let flow = self.function_flow_inputs(owner, Some(inputs), depth + 1)?;
         self.shutdown &= flow.shutdown && !flow.incomplete;
         let Some(value) = flow.value.filter(|_| !flow.live && !flow.incomplete) else {
             return Ok(declared);
         };
+        if plain && matches!(value, Value::Plain) {
+            self.last_plain_call = Some(PlainCall {
+                target: owner,
+                inputs: inputs.len(),
+                depth,
+                shutdown: flow.shutdown,
+            });
+        }
         if let Value::Callable {
             definition,
             scope,
@@ -1914,6 +1952,41 @@ impl<'a> Walk<'a, '_, '_> {
     ) -> R<Value<'a>> {
         self.budget.node(expression.span, depth)?;
         use CoreExprKind as E;
+        // A call within a binary operand may evaluate another original body.
+        // Neither operation needs the storage used for aggregate construction.
+        let value = match &expression.kind {
+            E::Call { callee, arguments } => {
+                match self.call_expr(owner, env, callee, arguments, expression.span, depth)? {
+                    CallOutcome::Value(value) => value,
+                    CallOutcome::Defined { owner, inputs } => {
+                        self.call_result(owner, &inputs, depth + 1)?
+                    }
+                }
+            }
+            E::Closure { move_capture, .. } => {
+                return self.closure_expr(owner, env, expression, *move_capture, depth);
+            }
+            E::Binary { left, right, .. }
+            | E::Range {
+                start: left,
+                end: right,
+            } => {
+                self.expr(owner, env, left, depth + 1)?;
+                self.expr(owner, env, right, depth + 1)?;
+                Value::Plain
+            }
+            _ => self.operand_value(owner, env, expression, depth)?,
+        };
+        self.finish_expr(value, depth)
+    }
+    fn operand_value(
+        &mut self,
+        owner: usize,
+        env: &mut Env<'a>,
+        expression: &'a SemanticOriginalExpr,
+        depth: usize,
+    ) -> R<Value<'a>> {
+        use CoreExprKind as E;
         let value = match &expression.kind {
             E::Name(name) => {
                 if let Some(value) = self.lookup(env, name, depth + 1)? {
@@ -2004,443 +2077,6 @@ impl<'a> Walk<'a, '_, '_> {
                 self.prepared = prepared;
                 Value::Record(values)
             }
-            E::Call { callee, arguments } => {
-                let target = self.target(owner, env, callee, depth + 1)?;
-                let mut head = callee.as_ref();
-                while let E::Group(inner)
-                | E::TypeApply { callee: inner, .. }
-                | E::GenericApply { callee: inner, .. } = &head.kind
-                {
-                    head = inner;
-                }
-                let primitive = match &head.kind {
-                    E::Name(name)
-                        if target.is_none()
-                            && self.lookup(env, name, depth + 1)?.is_none()
-                            && crate::primitive_name(name) =>
-                    {
-                        Some(name.as_str())
-                    }
-                    _ => None,
-                };
-                let callable = if primitive.is_some() {
-                    Value::Plain
-                } else {
-                    self.expr(owner, env, callee, depth + 1)?
-                };
-                let position = self.place(owner, env, callee, depth + 1)?;
-                let primitive_place = if matches!(
-                    primitive,
-                    Some(
-                        "task_poll_close"
-                            | "task_poll"
-                            | "task_request_cancel"
-                            | "async_registration_poll_close"
-                            | "async_registration_request_close"
-                    )
-                ) {
-                    if let Some(argument) = arguments.first() {
-                        self.place(owner, env, argument, depth + 1)?
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                };
-                let saved_prepared = self.prepared;
-                let base = self.prepared_values.len();
-                let consuming = matches!(
-                    &callable,
-                    Value::Callable {
-                        kind: CallableKind::FnOnce,
-                        ..
-                    }
-                );
-                if consuming {
-                    self.take(owner, env, callee, depth + 1)?;
-                }
-                self.park(
-                    callable,
-                    consuming || position.is_none(),
-                    callee.span,
-                    depth + 1,
-                )?;
-                let mut mutated = Vec::new();
-                for (ordinal, argument) in arguments.iter().enumerate() {
-                    let value = self.expr(owner, env, argument, depth + 1)?;
-                    if let Value::View {
-                        place,
-                        mutable: true,
-                    } = &value
-                    {
-                        let place = self.place_copy(place, depth + 1)?;
-                        self.budget
-                            .lineage_push(&mut mutated, place, argument.span)?;
-                    }
-                    let parameters = match &self.prepared_values[base] {
-                        Value::Callable { signature, .. } => Some(signature.parameters.as_slice()),
-                        Value::Function(index) => signature(self.definitions[*index])
-                            .map(|signature| signature.parameters.as_slice()),
-                        _ => target
-                            .and_then(|index| signature(self.definitions[index]))
-                            .map(|signature| signature.parameters.as_slice()),
-                    };
-                    let parameter =
-                        if matches!(primitive, Some("task_create" | "task_create_owned"))
-                            && ordinal != 0
-                        {
-                            match self.prepared_values.get(base + 1) {
-                                Some(Value::Function(index)) => signature(self.definitions[*index])
-                                    .and_then(|signature| signature.parameters.get(ordinal - 1)),
-                                _ => None,
-                            }
-                        } else {
-                            parameters.and_then(|parameters| parameters.get(ordinal))
-                        };
-                    let owned = parameter.is_some_and(|parameter| {
-                        !matches!(
-                            parameter.ty,
-                            SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
-                        )
-                    });
-                    if owned {
-                        self.transfer(owner, env, argument, &value, depth + 1)?;
-                    }
-                    self.park(value, owned, argument.span, depth + 1)?;
-                }
-                for place in mutated {
-                    self.invalidate(env, &place, depth + 1)?;
-                    if primitive.is_none() {
-                        if let Some(value) = self.place_value_mut(owner, env, &place, depth + 1)? {
-                            Self::forget_mutated(self.budget, value, depth + 1)?;
-                        }
-                    }
-                }
-                if let Some(place) = &primitive_place {
-                    self.invalidate(env, place, depth + 1)?;
-                }
-                self.budget.identity_work(arguments.len(), expression.span)?;
-                let mut callable = self.prepared_values.remove(base);
-                let inputs = self.unpark(base, expression.span)?;
-                self.prepared = saved_prepared;
-                // A stored non-consuming receiver is read after all argument
-                // effects. Its pre-argument clone cannot supply later state.
-                if !consuming {
-                    if let Some(place) = &position {
-                        if let Some(current) = self.place_value_mut(owner, env, place, depth + 1)? {
-                            callable = self.copy(current, depth + 1)?;
-                        }
-                    }
-                }
-                if primitive.is_some_and(|name| {
-                    name.starts_with("async_registration_") || name == "c_register_async"
-                }) {
-                    self.shutdown = false;
-                }
-                if matches!(primitive, Some("task_yield" | "task_await")) {
-                    self.execution = true;
-                    self.known_execution = true;
-                }
-                match callable {
-                    Value::Callable {
-                        scope,
-                        kind,
-                        signature,
-                        suspend,
-                        known_suspend,
-                        shutdown,
-                        after,
-                        ready,
-                        ..
-                    } => {
-                        self.shutdown &= shutdown;
-                        self.execution |= suspend;
-                        self.known_execution |= known_suspend;
-                        if kind != CallableKind::FnOnce {
-                            if let Some(place) = &position {
-                                self.invalidate(env, place, depth + 1)?;
-                                if let Some(Value::Callable { cleanup, .. }) =
-                                    self.place_value_mut(owner, env, place, depth + 1)?
-                                {
-                                    *cleanup = after;
-                                }
-                            } else {
-                                self.early_cleanup |= after;
-                                self.early_body_cleanup |= after;
-                            }
-                        }
-                        if ready.is_some() && kind != CallableKind::FnOnce {
-                            if let Some(place) = position {
-                                Value::Poll(place)
-                            } else {
-                                self.ty(scope, &signature.result, depth + 1)?
-                            }
-                        } else {
-                            self.ty(scope, &signature.result, depth + 1)?
-                        }
-                    }
-                    Value::Function(index) => {
-                        self.execution |= signature(self.definitions[index])
-                            .is_none_or(|signature| signature.call_kind == CallKind::Suspend);
-                        self.known_execution |= self.evidence.rows[index].function;
-                        self.call_result(index, &inputs, depth + 1)?
-                    }
-                    _ => {
-                        if let Some(index) = target {
-                            self.known_execution |= self.evidence.rows[index].function;
-                            self.call_result(index, &inputs, depth + 1)?
-                        } else if matches!(
-                            primitive,
-                            Some("task_poll_close" | "async_registration_poll_close")
-                        ) {
-                            if let Some(place) = primitive_place {
-                                if matches!(
-                                    self.place_value_mut(owner, env, &place, depth + 1)?,
-                                    Some(Value::Task | Value::SyncTask | Value::SettledTask)
-                                ) {
-                                    Value::Poll(place)
-                                } else {
-                                    Value::Plain
-                                }
-                            } else {
-                                Value::Plain
-                            }
-                        } else if matches!(primitive, Some("task_create" | "task_create_owned")) {
-                            let task = if let Some(Value::Function(worker)) = inputs.first() {
-                                if self.worker_shutdown(*worker, &inputs[1..], depth + 1)? {
-                                    Value::SyncTask
-                                } else {
-                                    Value::Task
-                                }
-                            } else {
-                                Value::Task
-                            };
-                            let mut values = Vec::new();
-                            let mut error = Vec::new();
-                            if primitive == Some("task_create_owned") {
-                                let mut inputs = inputs.into_iter();
-                                inputs.next();
-                                let mut owned = Vec::new();
-                                for input in inputs {
-                                    self.budget
-                                        .lineage_push(&mut owned, input, expression.span)?;
-                                }
-                                self.budget.lineage_push(
-                                    &mut error,
-                                    ("inputs", Value::Tuple(owned)),
-                                    expression.span,
-                                )?;
-                                self.budget.lineage_push(
-                                    &mut error,
-                                    ("reason", Value::Plain),
-                                    expression.span,
-                                )?;
-                            }
-                            for (is_error, value) in [(true, Value::Record(error)), (false, task)] {
-                                self.budget.lineage_bytes(
-                                    std::mem::size_of::<Value<'a>>(),
-                                    expression.span,
-                                )?;
-                                self.budget.lineage_push(
-                                    &mut values,
-                                    Value::Error {
-                                        is_error,
-                                        value: Box::new(value),
-                                    },
-                                    expression.span,
-                                )?;
-                            }
-                            Value::Alternatives(values)
-                        } else if primitive == Some("c_register_async") {
-                            Value::Task
-                        } else if matches!(
-                            primitive,
-                            Some(
-                                "task_valid"
-                                    | "task_yield"
-                                    | "task_request_cancel"
-                                    | "async_registration_request_close"
-                                    | "async_registration_finish_destroy_checked"
-                                    | "task_finish_destroy"
-                                    | "task_finish_destroy_checked"
-                                    | "task_poll"
-                            )
-                        ) {
-                            Value::Plain
-                        } else {
-                            self.shutdown = false;
-                            Value::Unknown
-                        }
-                    }
-                }
-            }
-            E::Closure { move_capture, .. } => {
-                let definition = self.definitions[owner];
-                let SemanticDefinitionBody::FunctionWithBody {
-                    sites, site_nodes, ..
-                } = &definition.body
-                else {
-                    return Ok(Value::Unknown);
-                };
-                self.budget.identity_work(
-                    sites.len().saturating_add(site_nodes.len()),
-                    expression.span,
-                )?;
-                let mut child = None;
-                for node in site_nodes {
-                    if node.node != SemanticOriginalNode::Expression(expression.id) {
-                        continue;
-                    }
-                    if let Some(SemanticSiteRecipe {
-                        kind: SemanticSiteRecipeKind::Closure { definition, .. },
-                        ..
-                    }) = sites.iter().find(|site| site.id == node.site)
-                    {
-                        let found = declaration_index(
-                            self.definitions,
-                            *definition,
-                            self.budget,
-                            expression.span,
-                        )?;
-                        if child.is_some() && child != found {
-                            return Err(error(
-                                expression.span,
-                                "opaque cleanup has ambiguous original creator",
-                            ));
-                        }
-                        child = found;
-                    }
-                }
-                let Some(child) = child else {
-                    return Ok(Value::Unknown);
-                };
-                if self.definitions[child].parent != Some(definition.id) {
-                    return Err(error(
-                        expression.span,
-                        "opaque cleanup creator changes original parent",
-                    ));
-                }
-                let SemanticDefinitionBody::FunctionWithBody {
-                    signature: child_signature,
-                    parameters,
-                    body: SemanticOriginalFunctionBody::Defined(body),
-                    ..
-                } = &self.definitions[child].body
-                else {
-                    return Ok(Value::Unknown);
-                };
-                let mut captured = Vec::new();
-                for slot in &self.definitions[child].environment {
-                    self.budget.node(expression.span, depth + 1)?;
-                    let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
-                        source: SemanticOriginalTypeSource::NameAt { at, name },
-                        ..
-                    }) = &slot.source
-                    else {
-                        return Ok(Value::Unknown);
-                    };
-                    if *at != SemanticOriginalNode::Expression(expression.id) {
-                        return Err(error(
-                            expression.span,
-                            "opaque cleanup capture selects another creator",
-                        ));
-                    }
-                    let value = if *move_capture {
-                        self.lookup(env, name, depth + 1)?.unwrap_or(Value::Unknown)
-                    } else {
-                        Value::Plain
-                    };
-                    self.budget.lineage_push(
-                        &mut captured,
-                        (name.as_str(), value),
-                        expression.span,
-                    )?;
-                    if *move_capture {
-                        self.budget.identity_work(
-                            env.len().saturating_mul(name.len().saturating_add(1)),
-                            expression.span,
-                        )?;
-                        if let Some(index) = env.iter().rposition(|(binding, _)| *binding == name) {
-                            self.invalidate(
-                                env,
-                                &Place {
-                                    owner,
-                                    index,
-                                    fields: Vec::new(),
-                                },
-                                depth + 1,
-                            )?;
-                        }
-                        for (binding, value) in env.iter_mut().rev() {
-                            self.budget.text(name, expression.span)?;
-                            if *binding == name {
-                                *value = Value::Plain;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // Uncalled cleanup owns only captures, never hypothetical
-                // invocation inputs which have not been supplied.
-                let cleanup = self.residual(&captured, depth + 1)?;
-                let mut unknown_write = Cleanup::NONE;
-                for (_, value) in &captured {
-                    unknown_write |= self.unknown_write_cleanup(value, depth + 1)?;
-                }
-                let held = std::mem::replace(&mut self.held_captures, captured.len());
-                for (parameter, ty) in parameters.iter().zip(&child_signature.parameters) {
-                    let value = self.ty(child, &ty.ty, depth + 1)?;
-                    self.budget.lineage_push(
-                        &mut captured,
-                        (parameter.name.as_str(), value),
-                        parameter.span,
-                    )?;
-                }
-                let shutdown = std::mem::replace(&mut self.shutdown, true);
-                let execution = std::mem::replace(&mut self.execution, false);
-                let known_execution = std::mem::replace(&mut self.known_execution, false);
-                let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
-                let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
-                let operands = self.enter_operand_frame();
-                let mut flow = self.block(child, &mut captured, body, depth + 1)?;
-                flow.cleanup |= self.early_cleanup;
-                flow.body_cleanup |= self.early_body_cleanup;
-                if flow.live {
-                    flow.cleanup |= self.residual(&captured, depth + 1)?;
-                    flow.body_cleanup |=
-                        self.residual(&captured[self.held_captures..], depth + 1)?;
-                }
-                let pending = self.execution || flow.cleanup.may || flow.incomplete;
-                flow.shutdown = self.shutdown;
-                if self.publish && flow.body_cleanup.asynchronous {
-                    self.budget.node(expression.span, depth)?;
-                    self.bodies[child] = true;
-                }
-                let known = self.known_execution
-                    || flow.cleanup.asynchronous
-                    || self.evidence.rows[child].function;
-                self.shutdown = shutdown;
-                self.execution = execution;
-                self.known_execution = known_execution;
-                self.held_captures = held;
-                self.early_cleanup = early;
-                self.early_body_cleanup = early_body;
-                self.leave_operand_frame(operands);
-                Value::Callable {
-                    definition: Some(child),
-                    scope: child,
-                    kind: CallableKind::FnMut,
-                    signature: child_signature,
-                    suspend: pending || child_signature.call_kind == CallKind::Suspend,
-                    known_suspend: known,
-                    shutdown: flow.shutdown,
-                    cleanup,
-                    initial: cleanup,
-                    unknown_write,
-                    after: flow.cleanup,
-                    ready: flow.ready.known(),
-                }
-            }
             E::If {
                 condition,
                 then_value,
@@ -2474,15 +2110,6 @@ impl<'a> Walk<'a, '_, '_> {
                 env.truncate(base);
                 value
             }
-            E::Binary { left, right, .. }
-            | E::Range {
-                start: left,
-                end: right,
-            } => {
-                self.expr(owner, env, left, depth + 1)?;
-                self.expr(owner, env, right, depth + 1)?;
-                Value::Plain
-            }
             E::TypeApply { callee, .. } | E::GenericApply { callee, .. } => {
                 self.expr(owner, env, callee, depth + 1)?
             }
@@ -2497,9 +2124,456 @@ impl<'a> Walk<'a, '_, '_> {
             // a previously owned Task was transferred or synchronously closed.
             _ => Value::Unknown,
         };
+        Ok(value)
+    }
+    fn finish_expr(&mut self, value: Value<'a>, depth: usize) -> R<Value<'a>> {
         let cleanup = self.pending(&value, depth + 1)?;
         self.shutdown &= !cleanup.may;
         Ok(value)
+    }
+    fn call_expr(
+        &mut self,
+        owner: usize,
+        env: &mut Env<'a>,
+        callee: &'a SemanticOriginalExpr,
+        arguments: &'a [SemanticOriginalExpr],
+        span: Span,
+        depth: usize,
+    ) -> R<CallOutcome<'a>> {
+        use CoreExprKind as E;
+        let target = self.target(owner, env, callee, depth + 1)?;
+        let mut head = callee;
+        while let E::Group(inner)
+        | E::TypeApply { callee: inner, .. }
+        | E::GenericApply { callee: inner, .. } = &head.kind
+        {
+            head = inner;
+        }
+        let primitive = match &head.kind {
+            E::Name(name)
+                if target.is_none()
+                    && self.lookup(env, name, depth + 1)?.is_none()
+                    && crate::primitive_name(name) =>
+            {
+                Some(name.as_str())
+            }
+            _ => None,
+        };
+        let callable = if primitive.is_some() {
+            Value::Plain
+        } else {
+            self.expr(owner, env, callee, depth + 1)?
+        };
+        let position = self.place(owner, env, callee, depth + 1)?;
+        let primitive_place = if matches!(
+            primitive,
+            Some(
+                "task_poll_close"
+                    | "task_poll"
+                    | "task_request_cancel"
+                    | "async_registration_poll_close"
+                    | "async_registration_request_close"
+            )
+        ) {
+            if let Some(argument) = arguments.first() {
+                self.place(owner, env, argument, depth + 1)?
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let saved_prepared = self.prepared;
+        let base = self.prepared_values.len();
+        let consuming = matches!(
+            &callable,
+            Value::Callable {
+                kind: CallableKind::FnOnce,
+                ..
+            }
+        );
+        if consuming {
+            self.take(owner, env, callee, depth + 1)?;
+        }
+        self.park(
+            callable,
+            consuming || position.is_none(),
+            callee.span,
+            depth + 1,
+        )?;
+        let mut mutated = Vec::new();
+        for (ordinal, argument) in arguments.iter().enumerate() {
+            let value = self.expr(owner, env, argument, depth + 1)?;
+            if let Value::View {
+                place,
+                mutable: true,
+            } = &value
+            {
+                let place = self.place_copy(place, depth + 1)?;
+                self.budget
+                    .lineage_push(&mut mutated, place, argument.span)?;
+            }
+            let parameters = match &self.prepared_values[base] {
+                Value::Callable { signature, .. } => Some(signature.parameters.as_slice()),
+                Value::Function(index) => signature(self.definitions[*index])
+                    .map(|signature| signature.parameters.as_slice()),
+                _ => target
+                    .and_then(|index| signature(self.definitions[index]))
+                    .map(|signature| signature.parameters.as_slice()),
+            };
+            let parameter =
+                if matches!(primitive, Some("task_create" | "task_create_owned")) && ordinal != 0 {
+                    match self.prepared_values.get(base + 1) {
+                        Some(Value::Function(index)) => signature(self.definitions[*index])
+                            .and_then(|signature| signature.parameters.get(ordinal - 1)),
+                        _ => None,
+                    }
+                } else {
+                    parameters.and_then(|parameters| parameters.get(ordinal))
+                };
+            let owned = parameter.is_some_and(|parameter| {
+                !matches!(
+                    parameter.ty,
+                    SemanticTypeRecipe::Address { .. } | SemanticTypeRecipe::Desc { .. }
+                )
+            });
+            if owned {
+                self.transfer(owner, env, argument, &value, depth + 1)?;
+            }
+            self.park(value, owned, argument.span, depth + 1)?;
+        }
+        for place in mutated {
+            self.invalidate(env, &place, depth + 1)?;
+            if primitive.is_none() {
+                if let Some(value) = self.place_value_mut(owner, env, &place, depth + 1)? {
+                    Self::forget_mutated(self.budget, value, depth + 1)?;
+                }
+            }
+        }
+        if let Some(place) = &primitive_place {
+            self.invalidate(env, place, depth + 1)?;
+        }
+        self.budget.identity_work(arguments.len(), span)?;
+        let mut callable = self.prepared_values.remove(base);
+        let inputs = self.unpark(base, span)?;
+        self.prepared = saved_prepared;
+        // A stored non-consuming receiver is read after all argument
+        // effects. Its pre-argument clone cannot supply later state.
+        if !consuming {
+            if let Some(place) = &position {
+                if let Some(current) = self.place_value_mut(owner, env, place, depth + 1)? {
+                    callable = self.copy(current, depth + 1)?;
+                }
+            }
+        }
+        if primitive.is_some_and(|name| {
+            name.starts_with("async_registration_") || name == "c_register_async"
+        }) {
+            self.shutdown = false;
+        }
+        if matches!(primitive, Some("task_yield" | "task_await")) {
+            self.execution = true;
+            self.known_execution = true;
+        }
+        let value = match callable {
+            Value::Callable {
+                scope,
+                kind,
+                signature,
+                suspend,
+                known_suspend,
+                shutdown,
+                after,
+                ready,
+                ..
+            } => {
+                self.shutdown &= shutdown;
+                self.execution |= suspend;
+                self.known_execution |= known_suspend;
+                if kind != CallableKind::FnOnce {
+                    if let Some(place) = &position {
+                        self.invalidate(env, place, depth + 1)?;
+                        if let Some(Value::Callable { cleanup, .. }) =
+                            self.place_value_mut(owner, env, place, depth + 1)?
+                        {
+                            *cleanup = after;
+                        }
+                    } else {
+                        self.early_cleanup |= after;
+                        self.early_body_cleanup |= after;
+                    }
+                }
+                if ready.is_some() && kind != CallableKind::FnOnce {
+                    if let Some(place) = position {
+                        Value::Poll(place)
+                    } else {
+                        self.ty(scope, &signature.result, depth + 1)?
+                    }
+                } else {
+                    self.ty(scope, &signature.result, depth + 1)?
+                }
+            }
+            Value::Function(index) => {
+                self.execution |= signature(self.definitions[index])
+                    .is_none_or(|signature| signature.call_kind == CallKind::Suspend);
+                self.known_execution |= self.evidence.rows[index].function;
+                return Ok(CallOutcome::Defined {
+                    owner: index,
+                    inputs,
+                });
+            }
+            _ => {
+                if let Some(index) = target {
+                    self.known_execution |= self.evidence.rows[index].function;
+                    return Ok(CallOutcome::Defined {
+                        owner: index,
+                        inputs,
+                    });
+                } else if matches!(
+                    primitive,
+                    Some("task_poll_close" | "async_registration_poll_close")
+                ) {
+                    if let Some(place) = primitive_place {
+                        if matches!(
+                            self.place_value_mut(owner, env, &place, depth + 1)?,
+                            Some(Value::Task | Value::SyncTask | Value::SettledTask)
+                        ) {
+                            Value::Poll(place)
+                        } else {
+                            Value::Plain
+                        }
+                    } else {
+                        Value::Plain
+                    }
+                } else if matches!(primitive, Some("task_create" | "task_create_owned")) {
+                    let task = if let Some(Value::Function(worker)) = inputs.first() {
+                        if self.worker_shutdown(*worker, &inputs[1..], depth + 1)? {
+                            Value::SyncTask
+                        } else {
+                            Value::Task
+                        }
+                    } else {
+                        Value::Task
+                    };
+                    let mut values = Vec::new();
+                    let mut error = Vec::new();
+                    if primitive == Some("task_create_owned") {
+                        let mut inputs = inputs.into_iter();
+                        inputs.next();
+                        let mut owned = Vec::new();
+                        for input in inputs {
+                            self.budget.lineage_push(&mut owned, input, span)?;
+                        }
+                        self.budget.lineage_push(
+                            &mut error,
+                            ("inputs", Value::Tuple(owned)),
+                            span,
+                        )?;
+                        self.budget
+                            .lineage_push(&mut error, ("reason", Value::Plain), span)?;
+                    }
+                    for (is_error, value) in [(true, Value::Record(error)), (false, task)] {
+                        self.budget
+                            .lineage_bytes(std::mem::size_of::<Value<'a>>(), span)?;
+                        self.budget.lineage_push(
+                            &mut values,
+                            Value::Error {
+                                is_error,
+                                value: Box::new(value),
+                            },
+                            span,
+                        )?;
+                    }
+                    Value::Alternatives(values)
+                } else if primitive == Some("c_register_async") {
+                    Value::Task
+                } else if matches!(
+                    primitive,
+                    Some(
+                        "task_valid"
+                            | "task_yield"
+                            | "task_request_cancel"
+                            | "async_registration_request_close"
+                            | "async_registration_finish_destroy_checked"
+                            | "task_finish_destroy"
+                            | "task_finish_destroy_checked"
+                            | "task_poll"
+                    )
+                ) {
+                    Value::Plain
+                } else {
+                    self.shutdown = false;
+                    Value::Unknown
+                }
+            }
+        };
+        Ok(CallOutcome::Value(value))
+    }
+    fn closure_expr(
+        &mut self,
+        owner: usize,
+        env: &mut Env<'a>,
+        expression: &'a SemanticOriginalExpr,
+        move_capture: bool,
+        depth: usize,
+    ) -> R<Value<'a>> {
+        let definition = self.definitions[owner];
+        let SemanticDefinitionBody::FunctionWithBody {
+            sites, site_nodes, ..
+        } = &definition.body
+        else {
+            return Ok(Value::Unknown);
+        };
+        self.budget.identity_work(
+            sites.len().saturating_add(site_nodes.len()),
+            expression.span,
+        )?;
+        let mut child = None;
+        for node in site_nodes {
+            if node.node != SemanticOriginalNode::Expression(expression.id) {
+                continue;
+            }
+            if let Some(SemanticSiteRecipe {
+                kind: SemanticSiteRecipeKind::Closure { definition, .. },
+                ..
+            }) = sites.iter().find(|site| site.id == node.site)
+            {
+                let found =
+                    declaration_index(self.definitions, *definition, self.budget, expression.span)?;
+                if child.is_some() && child != found {
+                    return Err(error(
+                        expression.span,
+                        "opaque cleanup has ambiguous original creator",
+                    ));
+                }
+                child = found;
+            }
+        }
+        let Some(child) = child else {
+            return Ok(Value::Unknown);
+        };
+        if self.definitions[child].parent != Some(definition.id) {
+            return Err(error(
+                expression.span,
+                "opaque cleanup creator changes original parent",
+            ));
+        }
+        let SemanticDefinitionBody::FunctionWithBody {
+            signature: child_signature,
+            parameters,
+            body: SemanticOriginalFunctionBody::Defined(body),
+            ..
+        } = &self.definitions[child].body
+        else {
+            return Ok(Value::Unknown);
+        };
+        let mut captured = Vec::new();
+        for slot in &self.definitions[child].environment {
+            self.budget.node(expression.span, depth + 1)?;
+            let SemanticActualRecipe::Type(SemanticTypeRecipe::OriginalType {
+                source: SemanticOriginalTypeSource::NameAt { at, name },
+                ..
+            }) = &slot.source
+            else {
+                return Ok(Value::Unknown);
+            };
+            if *at != SemanticOriginalNode::Expression(expression.id) {
+                return Err(error(
+                    expression.span,
+                    "opaque cleanup capture selects another creator",
+                ));
+            }
+            let value = if move_capture {
+                self.lookup(env, name, depth + 1)?.unwrap_or(Value::Unknown)
+            } else {
+                Value::Plain
+            };
+            self.budget
+                .lineage_push(&mut captured, (name.as_str(), value), expression.span)?;
+            if move_capture {
+                self.budget.identity_work(
+                    env.len().saturating_mul(name.len().saturating_add(1)),
+                    expression.span,
+                )?;
+                if let Some(index) = env.iter().rposition(|(binding, _)| *binding == name) {
+                    self.invalidate(
+                        env,
+                        &Place {
+                            owner,
+                            index,
+                            fields: Vec::new(),
+                        },
+                        depth + 1,
+                    )?;
+                }
+                for (binding, value) in env.iter_mut().rev() {
+                    self.budget.text(name, expression.span)?;
+                    if *binding == name {
+                        *value = Value::Plain;
+                        break;
+                    }
+                }
+            }
+        }
+        // Uncalled cleanup owns only captures, never hypothetical
+        // invocation inputs which have not been supplied.
+        let cleanup = self.residual(&captured, depth + 1)?;
+        let mut unknown_write = Cleanup::NONE;
+        for (_, value) in &captured {
+            unknown_write |= self.unknown_write_cleanup(value, depth + 1)?;
+        }
+        let held = std::mem::replace(&mut self.held_captures, captured.len());
+        for (parameter, ty) in parameters.iter().zip(&child_signature.parameters) {
+            let value = self.ty(child, &ty.ty, depth + 1)?;
+            self.budget.lineage_push(
+                &mut captured,
+                (parameter.name.as_str(), value),
+                parameter.span,
+            )?;
+        }
+        let shutdown = std::mem::replace(&mut self.shutdown, true);
+        let execution = std::mem::replace(&mut self.execution, false);
+        let known_execution = std::mem::replace(&mut self.known_execution, false);
+        let early = std::mem::replace(&mut self.early_cleanup, Cleanup::NONE);
+        let early_body = std::mem::replace(&mut self.early_body_cleanup, Cleanup::NONE);
+        let operands = self.enter_operand_frame();
+        let mut flow = self.block(child, &mut captured, body, depth + 1)?;
+        flow.cleanup |= self.early_cleanup;
+        flow.body_cleanup |= self.early_body_cleanup;
+        if flow.live {
+            flow.cleanup |= self.residual(&captured, depth + 1)?;
+            flow.body_cleanup |= self.residual(&captured[self.held_captures..], depth + 1)?;
+        }
+        let pending = self.execution || flow.cleanup.may || flow.incomplete;
+        flow.shutdown = self.shutdown;
+        if self.publish && flow.body_cleanup.asynchronous {
+            self.budget.node(expression.span, depth)?;
+            self.bodies[child] = true;
+        }
+        let known =
+            self.known_execution || flow.cleanup.asynchronous || self.evidence.rows[child].function;
+        self.shutdown = shutdown;
+        self.execution = execution;
+        self.known_execution = known_execution;
+        self.held_captures = held;
+        self.early_cleanup = early;
+        self.early_body_cleanup = early_body;
+        self.leave_operand_frame(operands);
+        let value = Value::Callable {
+            definition: Some(child),
+            scope: child,
+            kind: CallableKind::FnMut,
+            signature: child_signature,
+            suspend: pending || child_signature.call_kind == CallKind::Suspend,
+            known_suspend: known,
+            shutdown: flow.shutdown,
+            cleanup,
+            initial: cleanup,
+            unknown_write,
+            after: flow.cleanup,
+            ready: flow.ready.known(),
+        };
+        self.finish_expr(value, depth)
     }
     fn pattern_owns(&mut self, pattern: &SemanticOriginalPattern, depth: usize) -> R<bool> {
         self.budget.node(pattern.span, depth)?;
@@ -2722,6 +2796,299 @@ impl<'a> Walk<'a, '_, '_> {
         }
         Ok(output)
     }
+    // Return expressions may enter another complete function body. Evaluate
+    // them after releasing the current statement's branch and loop storage.
+    fn statement(
+        &mut self,
+        owner: usize,
+        env: &mut Env<'a>,
+        output: &mut Flow<'a>,
+        statement: &'a SemanticOriginalStatement,
+        depth: usize,
+    ) -> R<std::ops::ControlFlow<Option<&'a SemanticOriginalExpr>>> {
+        use CoreStatementKind as S;
+        match &statement.kind {
+            S::Binding {
+                name,
+                initializer,
+                ty,
+                ..
+            } => {
+                let mut value = if let Some(expr) = initializer {
+                    let value = self.expr(owner, env, expr, depth + 1)?;
+                    self.transfer(owner, env, expr, &value, depth + 1)?;
+                    if matches!(expr.kind, CoreExprKind::Name(_))
+                        && matches!(value, Value::Task | Value::SyncTask | Value::SettledTask)
+                    {
+                        Value::Plain
+                    } else {
+                        value
+                    }
+                } else if let Some(ty) = ty {
+                    self.ty(owner, ty, depth + 1)?
+                } else {
+                    Value::Unknown
+                };
+                if matches!(value, Value::Unknown) {
+                    if let Some(ty) = ty {
+                        let declared = self.ty(owner, ty, depth + 1)?;
+                        if self.pending(&declared, depth + 1)?.asynchronous {
+                            value = declared;
+                        }
+                    }
+                }
+                self.invalidate(
+                    env,
+                    &Place {
+                        owner,
+                        index: env.len(),
+                        fields: Vec::new(),
+                    },
+                    depth + 1,
+                )?;
+                self.budget
+                    .lineage_push(env, (name.as_str(), value), statement.span)?;
+            }
+            S::TupleBinding {
+                pattern,
+                initializer,
+                ..
+            } => {
+                let value = self.expr(owner, env, initializer, depth + 1)?;
+                if self.pattern_owns(pattern, depth + 1)? {
+                    self.transfer(owner, env, initializer, &value, depth + 1)?;
+                }
+                output.drop_value(self.pattern(env, pattern, value, depth + 1)?);
+            }
+            S::Return(expression) => return Ok(std::ops::ControlFlow::Break(expression.as_ref())),
+            S::Expression(expr) | S::Yield(expr) => {
+                let value = self.expr(owner, env, expr, depth + 1)?;
+                output.drop_value(self.pending(&value, depth + 1)?);
+            }
+            S::CompoundAssign { value, .. } => {
+                self.expr(owner, env, value, depth + 1)?;
+            }
+            S::Assign {
+                target,
+                value: expression,
+            } => {
+                let mut value = self.expr(owner, env, expression, depth + 1)?;
+                self.transfer(owner, env, expression, &value, depth + 1)?;
+                if let Some(place) = self.place(owner, env, target, depth + 1)? {
+                    self.invalidate(env, &place, depth + 1)?;
+                    Self::invalidate_value(self.budget, &mut value, &place, depth + 1)?;
+                    if let Some(old) = self.place_value_mut(owner, env, &place, depth + 1)? {
+                        output.drop_value(self.pending(old, depth + 1)?);
+                        *old = value;
+                    } else {
+                        output.drop_value(self.pending(&value, depth + 1)?);
+                    }
+                } else {
+                    output.drop_value(self.pending(&value, depth + 1)?);
+                }
+            }
+            S::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                self.expr(owner, env, condition, depth + 1)?;
+                let mut other = self.env_copy(env, depth + 1)?;
+                let left = self.block(owner, env, then_body, depth + 1)?;
+                let right = if let Some(body) = else_body {
+                    self.block(owner, &mut other, body, depth + 1)?
+                } else {
+                    Flow::new()
+                };
+                let live = left.live || right.live;
+                if left.live && right.live {
+                    self.merge_env(env, other, depth + 1)?;
+                } else if right.live {
+                    *env = other;
+                }
+                self.absorb(output, left, depth + 1)?;
+                self.absorb(output, right, depth + 1)?;
+                output.live = live;
+            }
+            S::Match { value, arms } => {
+                let subject = self.expr(owner, env, value, depth + 1)?;
+                let mut continuing = None;
+                for arm in arms {
+                    let copied = self.copy(&subject, depth + 1)?;
+                    for selected in self.select(&arm.pattern, copied, depth + 1)? {
+                        let mut branch = self.env_copy(env, depth + 1)?;
+                        let before = branch.len();
+                        if Self::pattern_ready(&arm.pattern) == Some(true) {
+                            self.refine_ready(owner, &mut branch, &selected, depth + 1)?;
+                        }
+                        if self.pattern_owns(&arm.pattern, depth + 1)? {
+                            self.transfer(owner, &mut branch, value, &selected, depth + 1)?;
+                        }
+                        output.drop_value(self.pattern(
+                            &mut branch,
+                            &arm.pattern,
+                            selected,
+                            depth + 1,
+                        )?);
+                        let mut flow = self.block(owner, &mut branch, &arm.body, depth + 1)?;
+                        if flow.live {
+                            flow.drop_value(self.residual(&branch[before..], depth + 1)?);
+                        }
+                        branch.truncate(before);
+                        for exit in flow.breaks.iter_mut().chain(&mut flow.continues) {
+                            exit.truncate(before);
+                        }
+                        if flow.live {
+                            self.join_exit_env(&mut continuing, branch, depth + 1)?;
+                        }
+                        self.absorb(output, flow, depth + 1)?;
+                    }
+                }
+                output.live = continuing.is_some();
+                if let Some(branch) = continuing {
+                    *env = branch;
+                }
+                if arms.is_empty() {
+                    output.drop_value(Cleanup::ABSTRACT);
+                }
+            }
+            S::Block(body) | S::Unsafe(body) => {
+                let flow = self.block(owner, env, body, depth + 1)?;
+                output.live = flow.live;
+                self.absorb(output, flow, depth + 1)?;
+            }
+            S::Loop(body) => {
+                let flow = self.loop_flow(owner, env, body, None, None, false, depth + 1)?;
+                output.live = flow.live;
+                self.absorb(output, flow, depth + 1)?;
+            }
+            S::While { condition, body } => {
+                let skip = !matches!(condition.kind, CoreExprKind::Bool(true));
+                let flow =
+                    self.loop_flow(owner, env, body, Some(condition), None, skip, depth + 1)?;
+                output.live = flow.live;
+                self.absorb(output, flow, depth + 1)?;
+            }
+            S::WhileLet {
+                pattern,
+                value,
+                body,
+            } => {
+                let flow = self.loop_flow(
+                    owner,
+                    env,
+                    body,
+                    Some(value),
+                    Some(pattern),
+                    true,
+                    depth + 1,
+                )?;
+                output.live = flow.live;
+                self.absorb(output, flow, depth + 1)?;
+            }
+            S::ForRange {
+                start, end, body, ..
+            } => {
+                self.expr(owner, env, start, depth + 1)?;
+                self.expr(owner, env, end, depth + 1)?;
+                let flow = self.loop_flow(owner, env, body, None, None, true, depth + 1)?;
+                output.live = flow.live;
+                self.absorb(output, flow, depth + 1)?;
+            }
+            S::ForEach { iterator, body, .. } => {
+                self.expr(owner, env, iterator, depth + 1)?;
+                let flow = self.loop_flow(owner, env, body, None, None, true, depth + 1)?;
+                output.live = flow.live;
+                self.absorb(output, flow, depth + 1)?;
+            }
+            S::Defer(body) => {
+                let mut deferred = self.env_copy(env, depth + 1)?;
+                let flow = self.block(owner, &mut deferred, body, depth + 1)?;
+                output.cleanup |= flow.cleanup;
+                output.body_cleanup |= flow.body_cleanup;
+                output.incomplete |= flow.incomplete
+                    || flow.value.is_some()
+                    || !flow.breaks.is_empty()
+                    || !flow.continues.is_empty();
+            }
+            S::IfLet {
+                pattern,
+                value,
+                then_body,
+                else_body,
+            } => {
+                let subject = self.expr(owner, env, value, depth + 1)?;
+                let mut other = self.env_copy(env, depth + 1)?;
+                let before = env.len();
+                if Self::pattern_ready(pattern) == Some(true) {
+                    self.refine_ready(owner, env, &subject, depth + 1)?;
+                }
+                if Self::pattern_ready(pattern) == Some(false) {
+                    self.refine_ready(owner, &mut other, &subject, depth + 1)?;
+                }
+                if self.pattern_owns(pattern, depth + 1)? {
+                    self.transfer(owner, env, value, &subject, depth + 1)?;
+                }
+                output.drop_value(self.pattern(env, pattern, subject, depth + 1)?);
+                let mut left = self.block(owner, env, then_body, depth + 1)?;
+                if left.live {
+                    left.drop_value(self.residual(&env[before..], depth + 1)?);
+                }
+                env.truncate(before);
+                for exit in left.breaks.iter_mut().chain(&mut left.continues) {
+                    exit.truncate(before);
+                }
+                let right = if let Some(body) = else_body {
+                    self.block(owner, &mut other, body, depth + 1)?
+                } else {
+                    Flow::new()
+                };
+                let live = left.live || right.live;
+                if left.live && right.live {
+                    self.merge_env(env, other, depth + 1)?;
+                } else if right.live {
+                    *env = other;
+                }
+                self.absorb(output, left, depth + 1)?;
+                self.absorb(output, right, depth + 1)?;
+                output.live = live;
+            }
+            S::With { name, value, body } => {
+                let value = self.expr(owner, env, value, depth + 1)?;
+                let before = env.len();
+                self.budget
+                    .lineage_push(env, (name.as_str(), value), statement.span)?;
+                let mut flow = self.block(owner, env, body, depth + 1)?;
+                if flow.live {
+                    flow.drop_value(self.residual(&env[before..], depth + 1)?);
+                }
+                env.truncate(before);
+                for exit in flow.breaks.iter_mut().chain(&mut flow.continues) {
+                    exit.truncate(before);
+                }
+                output.live = flow.live;
+                self.absorb(output, flow, depth + 1)?;
+            }
+            S::Break => {
+                let exit = self.env_copy(env, depth + 1)?;
+                self.budget
+                    .lineage_push(&mut output.breaks, exit, statement.span)?;
+                output.live = false;
+            }
+            S::Continue => {
+                let exit = self.env_copy(env, depth + 1)?;
+                self.budget
+                    .lineage_push(&mut output.continues, exit, statement.span)?;
+                output.live = false;
+            }
+            S::Unsupported(_) => {
+                output.drop_value(Cleanup::ABSTRACT);
+                output.incomplete = true;
+            }
+            S::CompileTime(_) => {}
+        }
+        Ok(std::ops::ControlFlow::Continue(()))
+    }
     fn block(
         &mut self,
         owner: usize,
@@ -2737,302 +3104,24 @@ impl<'a> Walk<'a, '_, '_> {
                 break;
             }
             self.budget.node(statement.span, depth + 1)?;
-            use CoreStatementKind as S;
-            match &statement.kind {
-                S::Binding {
-                    name,
-                    initializer,
-                    ty,
-                    ..
-                } => {
-                    let mut value = if let Some(expr) = initializer {
-                        let value = self.expr(owner, env, expr, depth + 1)?;
-                        self.transfer(owner, env, expr, &value, depth + 1)?;
-                        if matches!(expr.kind, CoreExprKind::Name(_))
-                            && matches!(value, Value::Task | Value::SyncTask | Value::SettledTask)
-                        {
-                            Value::Plain
-                        } else {
-                            value
-                        }
-                    } else if let Some(ty) = ty {
-                        self.ty(owner, ty, depth + 1)?
-                    } else {
-                        Value::Unknown
-                    };
-                    if matches!(value, Value::Unknown) {
-                        if let Some(ty) = ty {
-                            let declared = self.ty(owner, ty, depth + 1)?;
-                            if self.pending(&declared, depth + 1)?.asynchronous {
-                                value = declared;
-                            }
-                        }
-                    }
-                    self.invalidate(
-                        env,
-                        &Place {
-                            owner,
-                            index: env.len(),
-                            fields: Vec::new(),
-                        },
-                        depth + 1,
-                    )?;
-                    self.budget
-                        .lineage_push(env, (name.as_str(), value), statement.span)?;
-                }
-                S::TupleBinding {
-                    pattern,
-                    initializer,
-                    ..
-                } => {
-                    let value = self.expr(owner, env, initializer, depth + 1)?;
-                    if self.pattern_owns(pattern, depth + 1)? {
-                        self.transfer(owner, env, initializer, &value, depth + 1)?;
-                    }
-                    output.drop_value(self.pattern(env, pattern, value, depth + 1)?);
-                }
-                S::Return(expression) => {
-                    let value = if let Some(expr) = expression {
-                        let value = self.expr(owner, env, expr, depth + 1)?;
-                        self.transfer(owner, env, expr, &value, depth + 1)?;
-                        value
-                    } else {
-                        Value::Plain
-                    };
-                    output.cleanup |= self.residual(env, depth + 1)?;
-                    output.body_cleanup |= self.residual(&env[self.held_captures..], depth + 1)?;
-                    output.ready =
-                        output
-                            .ready
-                            .join(self.ready_cleanup(owner, env, &value, depth + 1)?);
-                    self.result(&mut output.value, Some(value), depth + 1)?;
-                    output.live = false;
-                }
-                S::Expression(expr) | S::Yield(expr) => {
+            if let std::ops::ControlFlow::Break(expression) =
+                self.statement(owner, env, &mut output, statement, depth)?
+            {
+                let value = if let Some(expr) = expression {
                     let value = self.expr(owner, env, expr, depth + 1)?;
-                    output.drop_value(self.pending(&value, depth + 1)?);
-                }
-                S::CompoundAssign { value, .. } => {
-                    self.expr(owner, env, value, depth + 1)?;
-                }
-                S::Assign {
-                    target,
-                    value: expression,
-                } => {
-                    let mut value = self.expr(owner, env, expression, depth + 1)?;
-                    self.transfer(owner, env, expression, &value, depth + 1)?;
-                    if let Some(place) = self.place(owner, env, target, depth + 1)? {
-                        self.invalidate(env, &place, depth + 1)?;
-                        Self::invalidate_value(self.budget, &mut value, &place, depth + 1)?;
-                        if let Some(old) = self.place_value_mut(owner, env, &place, depth + 1)? {
-                            output.drop_value(self.pending(old, depth + 1)?);
-                            *old = value;
-                        } else {
-                            output.drop_value(self.pending(&value, depth + 1)?);
-                        }
-                    } else {
-                        output.drop_value(self.pending(&value, depth + 1)?);
-                    }
-                }
-                S::If {
-                    condition,
-                    then_body,
-                    else_body,
-                } => {
-                    self.expr(owner, env, condition, depth + 1)?;
-                    let mut other = self.env_copy(env, depth + 1)?;
-                    let left = self.block(owner, env, then_body, depth + 1)?;
-                    let right = if let Some(body) = else_body {
-                        self.block(owner, &mut other, body, depth + 1)?
-                    } else {
-                        Flow::new()
-                    };
-                    let live = left.live || right.live;
-                    if left.live && right.live {
-                        self.merge_env(env, other, depth + 1)?;
-                    } else if right.live {
-                        *env = other;
-                    }
-                    self.absorb(&mut output, left, depth + 1)?;
-                    self.absorb(&mut output, right, depth + 1)?;
-                    output.live = live;
-                }
-                S::Match { value, arms } => {
-                    let subject = self.expr(owner, env, value, depth + 1)?;
-                    let mut continuing = None;
-                    for arm in arms {
-                        let copied = self.copy(&subject, depth + 1)?;
-                        for selected in self.select(&arm.pattern, copied, depth + 1)? {
-                            let mut branch = self.env_copy(env, depth + 1)?;
-                            let before = branch.len();
-                            if Self::pattern_ready(&arm.pattern) == Some(true) {
-                                self.refine_ready(owner, &mut branch, &selected, depth + 1)?;
-                            }
-                            if self.pattern_owns(&arm.pattern, depth + 1)? {
-                                self.transfer(owner, &mut branch, value, &selected, depth + 1)?;
-                            }
-                            output.drop_value(self.pattern(
-                                &mut branch,
-                                &arm.pattern,
-                                selected,
-                                depth + 1,
-                            )?);
-                            let mut flow = self.block(owner, &mut branch, &arm.body, depth + 1)?;
-                            if flow.live {
-                                flow.drop_value(self.residual(&branch[before..], depth + 1)?);
-                            }
-                            branch.truncate(before);
-                            for exit in flow.breaks.iter_mut().chain(&mut flow.continues) {
-                                exit.truncate(before);
-                            }
-                            if flow.live {
-                                self.join_exit_env(&mut continuing, branch, depth + 1)?;
-                            }
-                            self.absorb(&mut output, flow, depth + 1)?;
-                        }
-                    }
-                    output.live = continuing.is_some();
-                    if let Some(branch) = continuing {
-                        *env = branch;
-                    }
-                    if arms.is_empty() {
-                        output.drop_value(Cleanup::ABSTRACT);
-                    }
-                }
-                S::Block(body) | S::Unsafe(body) => {
-                    let flow = self.block(owner, env, body, depth + 1)?;
-                    output.live = flow.live;
-                    self.absorb(&mut output, flow, depth + 1)?;
-                }
-                S::Loop(body) => {
-                    let flow = self.loop_flow(owner, env, body, None, None, false, depth + 1)?;
-                    output.live = flow.live;
-                    self.absorb(&mut output, flow, depth + 1)?;
-                }
-                S::While { condition, body } => {
-                    let skip = !matches!(condition.kind, CoreExprKind::Bool(true));
-                    let flow =
-                        self.loop_flow(owner, env, body, Some(condition), None, skip, depth + 1)?;
-                    output.live = flow.live;
-                    self.absorb(&mut output, flow, depth + 1)?;
-                }
-                S::WhileLet {
-                    pattern,
-                    value,
-                    body,
-                } => {
-                    let flow = self.loop_flow(
-                        owner,
-                        env,
-                        body,
-                        Some(value),
-                        Some(pattern),
-                        true,
-                        depth + 1,
-                    )?;
-                    output.live = flow.live;
-                    self.absorb(&mut output, flow, depth + 1)?;
-                }
-                S::ForRange {
-                    start, end, body, ..
-                } => {
-                    self.expr(owner, env, start, depth + 1)?;
-                    self.expr(owner, env, end, depth + 1)?;
-                    let flow = self.loop_flow(owner, env, body, None, None, true, depth + 1)?;
-                    output.live = flow.live;
-                    self.absorb(&mut output, flow, depth + 1)?;
-                }
-                S::ForEach { iterator, body, .. } => {
-                    self.expr(owner, env, iterator, depth + 1)?;
-                    let flow = self.loop_flow(owner, env, body, None, None, true, depth + 1)?;
-                    output.live = flow.live;
-                    self.absorb(&mut output, flow, depth + 1)?;
-                }
-                S::Defer(body) => {
-                    let mut deferred = self.env_copy(env, depth + 1)?;
-                    let flow = self.block(owner, &mut deferred, body, depth + 1)?;
-                    output.cleanup |= flow.cleanup;
-                    output.body_cleanup |= flow.body_cleanup;
-                    output.incomplete |= flow.incomplete
-                        || flow.value.is_some()
-                        || !flow.breaks.is_empty()
-                        || !flow.continues.is_empty();
-                }
-                S::IfLet {
-                    pattern,
-                    value,
-                    then_body,
-                    else_body,
-                } => {
-                    let subject = self.expr(owner, env, value, depth + 1)?;
-                    let mut other = self.env_copy(env, depth + 1)?;
-                    let before = env.len();
-                    if Self::pattern_ready(pattern) == Some(true) {
-                        self.refine_ready(owner, env, &subject, depth + 1)?;
-                    }
-                    if Self::pattern_ready(pattern) == Some(false) {
-                        self.refine_ready(owner, &mut other, &subject, depth + 1)?;
-                    }
-                    if self.pattern_owns(pattern, depth + 1)? {
-                        self.transfer(owner, env, value, &subject, depth + 1)?;
-                    }
-                    output.drop_value(self.pattern(env, pattern, subject, depth + 1)?);
-                    let mut left = self.block(owner, env, then_body, depth + 1)?;
-                    if left.live {
-                        left.drop_value(self.residual(&env[before..], depth + 1)?);
-                    }
-                    env.truncate(before);
-                    for exit in left.breaks.iter_mut().chain(&mut left.continues) {
-                        exit.truncate(before);
-                    }
-                    let right = if let Some(body) = else_body {
-                        self.block(owner, &mut other, body, depth + 1)?
-                    } else {
-                        Flow::new()
-                    };
-                    let live = left.live || right.live;
-                    if left.live && right.live {
-                        self.merge_env(env, other, depth + 1)?;
-                    } else if right.live {
-                        *env = other;
-                    }
-                    self.absorb(&mut output, left, depth + 1)?;
-                    self.absorb(&mut output, right, depth + 1)?;
-                    output.live = live;
-                }
-                S::With { name, value, body } => {
-                    let value = self.expr(owner, env, value, depth + 1)?;
-                    let before = env.len();
-                    self.budget
-                        .lineage_push(env, (name.as_str(), value), statement.span)?;
-                    let mut flow = self.block(owner, env, body, depth + 1)?;
-                    if flow.live {
-                        flow.drop_value(self.residual(&env[before..], depth + 1)?);
-                    }
-                    env.truncate(before);
-                    for exit in flow.breaks.iter_mut().chain(&mut flow.continues) {
-                        exit.truncate(before);
-                    }
-                    output.live = flow.live;
-                    self.absorb(&mut output, flow, depth + 1)?;
-                }
-                S::Break => {
-                    let exit = self.env_copy(env, depth + 1)?;
-                    self.budget
-                        .lineage_push(&mut output.breaks, exit, statement.span)?;
-                    output.live = false;
-                }
-                S::Continue => {
-                    let exit = self.env_copy(env, depth + 1)?;
-                    self.budget
-                        .lineage_push(&mut output.continues, exit, statement.span)?;
-                    output.live = false;
-                }
-                S::Unsupported(_) => {
-                    output.drop_value(Cleanup::ABSTRACT);
-                    output.incomplete = true;
-                }
-                S::CompileTime(_) => {}
+                    self.transfer(owner, env, expr, &value, depth + 1)?;
+                    value
+                } else {
+                    Value::Plain
+                };
+                output.cleanup |= self.residual(env, depth + 1)?;
+                output.body_cleanup |= self.residual(&env[self.held_captures..], depth + 1)?;
+                output.ready =
+                    output
+                        .ready
+                        .join(self.ready_cleanup(owner, env, &value, depth + 1)?);
+                self.result(&mut output.value, Some(value), depth + 1)?;
+                output.live = false;
             }
         }
         if output.live {
@@ -3111,6 +3200,7 @@ fn propose_inner(
             let mut walk = Walk {
                 definitions: &definitions,
                 active: Vec::new(),
+                last_plain_call: None,
                 frames: Vec::new(),
                 context: None,
                 execution: false,
