@@ -1,6 +1,7 @@
 //! Linear proposals consumed only after the real Core node has been minted.
 //! A token is a request-local address, never a provenance/capability proof.
 use super::*;
+use std::num::NonZeroUsize;
 use zil_base::NodeId;
 
 #[cfg(test)]
@@ -51,7 +52,10 @@ pub(crate) struct Ledger {
     entries: Vec<Option<Pending>>,
     // One coordinate bucket per actual owner/node. Role and occurrence are
     // still exact within the bucket; no type or recipe chooses an owner.
-    emitted: Vec<((SemanticInstanceId, NodeId), Vec<Completed>)>,
+    emitted: Vec<((SemanticInstanceId, NodeId), Option<NonZeroUsize>)>,
+    // A shared array keeps distinct completion rows without allocating a
+    // separate vector for each minted node. Links are one-based positions.
+    completed: Vec<Completed>,
     injection_payloads: Vec<(SemanticInstanceId, NodeId, NodeId, Injection)>,
     // Real instances use a single request-wide ordinal across modules. Body-free
     // scopes leave vacant slots. Lookup additionally checks the actual module.
@@ -59,6 +63,7 @@ pub(crate) struct Ledger {
     templates: Vec<OriginalTemplate>,
 }
 struct Completed {
+    next: Option<NonZeroUsize>,
     creator: NodeId,
     occurrence: u32,
     recipe: SemanticSiteId,
@@ -130,7 +135,7 @@ impl Ledger {
             count
                 .checked_mul(std::mem::size_of::<(
                     (SemanticInstanceId, NodeId),
-                    Vec<Completed>,
+                    Option<NonZeroUsize>,
                 )>())
                 .ok_or_else(|| {
                     Diagnostic::limit(
@@ -148,6 +153,7 @@ impl Ledger {
                 Some(span),
             )
         })?;
+        let mut events = 0usize;
         for (marker, creator, node) in wanted {
             budget.identity_work(1, span)?;
             let pending = self
@@ -160,8 +166,34 @@ impl Ledger {
                     "actual emission directory changes its Core creator",
                 ));
             }
-            self.emitted.push(((pending.instance, node), Vec::new()));
+            events = events.checked_add(pending.events.len()).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "completed emission directory count overflow",
+                    Some(span),
+                )
+            })?;
+            self.emitted.push(((pending.instance, node), None));
         }
+        budget.lineage_bytes(
+            events
+                .checked_mul(std::mem::size_of::<Completed>())
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Expand,
+                        "completed emission directory allocation overflow",
+                        Some(span),
+                    )
+                })?,
+            span,
+        )?;
+        self.completed.try_reserve_exact(events).map_err(|_| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "completed emission directory allocation failed",
+                Some(span),
+            )
+        })?;
         budget.identity_work(
             count
                 .saturating_mul(count.checked_ilog2().map_or(1, |n| n as usize + 1))
@@ -174,6 +206,12 @@ impl Ledger {
         // recipe, creator or role has been consumed or discarded here.
         self.emitted.dedup_by_key(|(key, _)| *key);
         Ok(())
+    }
+    fn completions(&self, head: Option<NonZeroUsize>) -> impl Iterator<Item = &Completed> {
+        std::iter::successors(
+            head.map(|index| &self.completed[index.get() - 1]),
+            |event| event.next.map(|index| &self.completed[index.get() - 1]),
+        )
     }
     fn clone_events(events: &[Event], budget: &mut Budget<'_>, span: Span) -> R<Vec<Event>> {
         budget.lineage_bytes(
@@ -635,11 +673,9 @@ impl Ledger {
         span: Span,
     ) -> R<s::SemanticContextMarker> {
         budget.identity_work(1, span)?;
-        let owner = self
-            .owner(instance)
-            .ok_or_else(|| {
-                unavailable("semantic event has no actual original specialization owner")
-            })?;
+        let owner = self.owner(instance).ok_or_else(|| {
+            unavailable("semantic event has no actual original specialization owner")
+        })?;
         if owner.creator.is_some() {
             return Err(unavailable(
                 "original specialization cannot append events after Core emission began",
@@ -798,35 +834,35 @@ impl Ledger {
         let key = (instance, node);
         lookup_work(self.emitted.len(), budget, span)?;
         let position = self.emitted.binary_search_by_key(&key, |(key, _)| *key);
-        if let Ok(index) = position {
-            let rows = &self.emitted[index].1;
-            for old in rows {
-                budget.identity_work(1, span)?;
-                if old.occurrence == occurrence && old.role == role {
-                    return Err(unavailable(
-                        "source semantic actual emission identity is reused",
-                    ));
-                }
+        let previous = position.ok().and_then(|index| self.emitted[index].1);
+        for old in self.completions(previous) {
+            budget.identity_work(1, span)?;
+            if old.occurrence == occurrence && old.role == role {
+                return Err(unavailable(
+                    "source semantic actual emission identity is reused",
+                ));
             }
         }
         let completed = Completed {
+            next: previous,
             creator,
             occurrence,
             recipe: pending.events[event].recipe,
             role,
         };
+        let head = NonZeroUsize::new(self.completed.len() + 1)
+            .expect("one-based completion index fits the allocated vector");
+        budget.lineage_push(&mut self.completed, completed, span)?;
         match position {
-            Ok(index) => budget.lineage_push(&mut self.emitted[index].1, completed, span)?,
+            Ok(index) => self.emitted[index].1 = Some(head),
             Err(index) => {
                 // Direct incremental users do not supply a complete mint log.
                 // Insert into the same exact sorted directory and pay moves.
                 let row_bytes =
-                    std::mem::size_of::<((SemanticInstanceId, NodeId), Vec<Completed>)>();
+                    std::mem::size_of::<((SemanticInstanceId, NodeId), Option<NonZeroUsize>)>();
                 budget
                     .identity_work((self.emitted.len() - index).saturating_mul(row_bytes), span)?;
-                let mut rows = Vec::new();
-                budget.lineage_push(&mut rows, completed, span)?;
-                budget.lineage_push(&mut self.emitted, (key, rows), span)?;
+                budget.lineage_push(&mut self.emitted, (key, Some(head)), span)?;
                 self.emitted[index..].rotate_right(1);
             }
         }
@@ -1094,7 +1130,12 @@ impl Ledger {
     }
     pub(crate) fn finish(&self, budget: &mut Budget<'_>, span: Span) -> R<()> {
         budget.identity_work(self.entries.len().saturating_add(self.owners.len()), span)?;
-        if self.owners.iter().flatten().any(|owner| owner.creator.is_none()) {
+        if self
+            .owners
+            .iter()
+            .flatten()
+            .any(|owner| owner.creator.is_none())
+        {
             return Err(unavailable(
                 "original specialization has no actual emitted Core creator",
             ));
@@ -1112,7 +1153,7 @@ impl Ledger {
                     .emitted
                     .binary_search_by_key(&(*instance, *payload), |(key, _)| *key)
                 {
-                    for row in &self.emitted[index].1 {
+                    for row in self.completions(self.emitted[index].1) {
                         budget.identity_work(1, span)?;
                         // Occurrence deliberately does not collapse here:
                         // exactly one physical payload must select this role.
@@ -1241,7 +1282,8 @@ mod tests {
             .emitted
             .binary_search_by_key(&(instance(0), NodeId(12)), |(key, _)| *key)
             .unwrap();
-        ledger.emitted[index].1.pop();
+        let head = ledger.emitted[index].1.unwrap();
+        ledger.emitted[index].1 = ledger.completed[head.get() - 1].next;
         ledger.finish(&mut budget, span).unwrap();
         ledger.injection_payloads[0].1 = NodeId(99);
         assert!(ledger.finish(&mut budget, span).is_err());
@@ -1604,7 +1646,13 @@ mod tests {
             .unwrap();
         assert!(
             ledger
-                .bind_creator(foreign_owner, definition, NodeId(4), &mut budget, Span::default())
+                .bind_creator(
+                    foreign_owner,
+                    definition,
+                    NodeId(4),
+                    &mut budget,
+                    Span::default()
+                )
                 .is_err()
         );
         let marker = ledger
@@ -1647,23 +1695,11 @@ mod tests {
                 .is_err()
         );
         ledger
-            .bind_creator(
-                owner,
-                definition,
-                NodeId(4),
-                &mut budget,
-                Span::default(),
-            )
+            .bind_creator(owner, definition, NodeId(4), &mut budget, Span::default())
             .unwrap();
         assert!(
             ledger
-                .bind_creator(
-                    owner,
-                    definition,
-                    NodeId(4),
-                    &mut budget,
-                    Span::default()
-                )
+                .bind_creator(owner, definition, NodeId(4), &mut budget, Span::default())
                 .is_err()
         );
         ledger
