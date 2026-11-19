@@ -123,6 +123,15 @@ pub(crate) fn admit_owned(
             return Ok(*has_stores);
         }
     }
+    let module_key = module as *const TypedModule as usize;
+    let formed = if budget.geometry_module == Some(module_key) && budget.has_owned_store_package()
+        && matches!(ty, Type::Package { .. }) {
+        let type_id = crate::semantic::geometry::type_identity(ty, budget)?;
+        let key = (module_key, budget.partial_depth, budget.helper_nodes, type_id);
+        budget.lookup(budget.formed_pod_products.len(), "formed ordinary Store Product lookup")?;
+        if budget.formed_pod_products.contains(&key) { return Ok(true); }
+        Some(key)
+    } else { None };
     let has_stores = admit_shape(ty, budget, true, Some(module), false)?;
     fn stores(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         let Type::Package { fields, .. } = package_storage(ty) else {
@@ -151,7 +160,28 @@ pub(crate) fn admit_owned(
         budget.spend(3, "ordinary Product admission memo publication and release")?;
         budget.admitted_owned_products.insert(key, has_stores);
     }
+    if has_stores && let Some(key) = formed && only_pod_stores_and_scalars(ty, budget)? {
+        budget.lookup(budget.formed_pod_products.len(), "formed ordinary Store Product publication")?;
+        budget.formed_pod_products.insert(key);
+    }
     Ok(has_stores)
+}
+
+// A positive row covers immutable ordinary data and sealed POD Store declarations.
+// Other owner families and current physical places keep their own checks.
+fn only_pod_stores_and_scalars(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    budget.spend(1, "ordinary Store Product family")?;
+    match ty {
+        Type::Package { fields, .. } => {
+            for (_, field) in fields {
+                if !only_pod_stores_and_scalars(field, budget)? { return Ok(false); }
+            }
+            Ok(true)
+        }
+        Type::Managed(payload) => Ok(matches!(payload.as_ref(), Type::OwnedStore { element }
+            if !matches!(element.as_ref(), Type::Package { .. } | Type::Managed(_)))),
+        other => Ok(other.is_b0_scalar()),
+    }
 }
 
 #[track_caller]

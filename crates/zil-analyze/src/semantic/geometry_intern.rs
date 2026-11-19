@@ -25,6 +25,7 @@ pub(crate) struct TypeRecord {
     id: usize,
     raw_work: usize,
     construction: Option<Arc<Construction>>,
+    plain_comparison: bool,
 }
 #[derive(PartialEq, Eq, Hash)]
 struct Construction {
@@ -377,6 +378,8 @@ fn add_type(
         moved.saturating_add(1),
         "semantic geometry Type record allocation",
     )?;
+    let ty = node(owner, selector)?;
+    let plain_comparison = shallow_nominal_head(ty) && plain_comparison_type(ty, b)?;
     let rows = b.geometry_type_catalog.entry(key).or_default();
     rows.try_reserve(1)
         .map_err(|_| quota("geometry Type record allocation failed"))?;
@@ -386,6 +389,7 @@ fn add_type(
         id,
         raw_work,
         construction: None,
+        plain_comparison,
     });
     Ok(id)
 }
@@ -473,11 +477,79 @@ pub(super) fn retain_payload(parent: &Type, payload: &Type, b: &mut Budget) -> C
     // The actual payload pointer above still has to belong to this owner.
     retain_child(&owner, Child::Inner, b)
 }
+// Before the raw walk, a bucket key may inspect only this fixed-size prefix.
+// The complete compared witness, including every name and every ordered field,
+// was already bounded in this exact module/limit profile.
+fn shallow_nominal_head(mut ty: &Type) -> bool {
+    for _ in 0..3 {
+        match ty {
+            Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } => return true,
+            Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner)
+            | Type::OwnedStore { element: inner } | Type::Array { element: inner, .. } => ty = inner,
+            _ => return false,
+        }
+    }
+    false
+}
+
+// Called once after complete bounded formation. These physical constructors
+// compare a tag, fixed-size fields, bounded strings, and ordered sequences.
+// A different input can be inspected at most to the end of this known tree.
+fn plain_comparison_type(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    b.spend(1, "bounded nominal comparison family")?;
+    match ty {
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            for (_, field) in fields { if !plain_comparison_type(field, b)? { return Ok(false); } }
+        }
+        Type::Enum { variants, .. } => {
+            b.spend(variants.len(), "bounded nominal comparison family")?;
+            for (_, fields) in variants {
+                for field in fields { if !plain_comparison_type(field, b)? { return Ok(false); } }
+            }
+        }
+        Type::Tuple(fields) => {
+            for field in fields { if !plain_comparison_type(field, b)? { return Ok(false); } }
+        }
+        Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner)
+        | Type::OwnedStore { element: inner } | Type::Array { element: inner, .. } =>
+            return plain_comparison_type(inner, b),
+        ty => return Ok(ty.is_b0_scalar()),
+    }
+    Ok(true)
+}
+
 /// The authenticated coordinate supplies both the type identity and the
 /// structural comparison bound. On a miss, measure the complete type once.
 fn bounded_type_candidate(ty: &Type, b: &mut Budget) -> CompileResult<(usize, u64, Option<usize>)> {
     if let Some((id, work)) = registered_type(ty, b)? {
         return Ok((work, 0, Some(id)));
+    }
+    if shallow_nominal_head(ty) {
+        let digest = type_bucket(ty, b)?;
+        let key = (b.geometry_module, limits(b), digest);
+        b.lookup(b.geometry_type_catalog.len(), "bounded nominal comparison bucket")?;
+        let width = b.geometry_type_catalog.get(&key).map_or(0, Vec::len);
+        b.spend(width.saturating_add(1), "bounded nominal comparison candidates")?;
+        let candidates = b.geometry_type_catalog.get(&key).cloned().unwrap_or_default();
+        let mut complete = true;
+        for candidate in candidates {
+            if !candidate.plain_comparison {
+                complete = false;
+                continue;
+            }
+            b.spend(candidate.raw_work, "bounded complete physical nominal equality")?;
+            if node(&candidate.owner, candidate.node)? == ty {
+                if let Some(roots) = matched_input_scope(ty, b)? {
+                    publish_matched_input(ty, roots, candidate.owner, candidate.node, candidate.id, candidate.raw_work, b)?;
+                }
+                return Ok((candidate.raw_work, digest, Some(candidate.id)));
+            }
+        }
+        if complete {
+            let before = b.remaining();
+            crate::dyn_metadata::ty(ty, b)?;
+            return Ok((before - b.remaining(), digest, None));
+        }
     }
     let before = b.remaining();
     crate::dyn_metadata::ty(ty, b)?;
@@ -639,6 +711,7 @@ pub(super) fn construct(
         id: receipt.type_id,
         raw_work: receipt.raw_work,
         construction: Some(Arc::new(construction)),
+        plain_comparison: false,
     });
     Ok(owner)
 }
@@ -840,6 +913,26 @@ pub(super) fn field_equal(
 #[cfg(test)]
 mod bucket_tests {
     use super::*;
+
+    #[test]
+    fn nominal_bucket_proves_whole_ordered_types_and_rechecks_cold_limits() {
+        let field = |ty| Type::Record { name: "R".into(), fields: vec![("x".into(), ty)] };
+        let signed = field(Type::I64);
+        let unsigned = field(Type::U64);
+        let mut b = Budget::new(&zil_base::Limits::default());
+        let id = type_identity(&signed, &mut b).unwrap();
+        assert_eq!(id, type_identity(&signed.clone(), &mut b).unwrap());
+        assert_ne!(id, type_identity(&unsigned, &mut b).unwrap());
+        let nested = field((0..10).fold(Type::I64, |ty, _| Type::Tuple(vec![ty])));
+        let mut cold = Budget::new(&zil_base::Limits::default());
+        cold.partial_depth = 2;
+        assert!(type_identity(&nested, &mut cold).is_err());
+        b.partial_depth = 2;
+        assert!(type_identity(&signed, &mut b).is_ok());
+        assert!(type_identity(&nested, &mut b).is_err());
+        b.helper_nodes = 0;
+        assert!(type_identity(&signed, &mut b).is_err());
+    }
 
     #[test]
     fn equal_nominal_heads_keep_different_children_and_domains_separate() {
