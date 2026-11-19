@@ -128,7 +128,8 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<O
                     return Ok(None);
                 }
                 let indirect_targets = match &i.kind {
-                    InstructionKind::FunctionRef { function }
+                    InstructionKind::Call { function, .. }
+                    | InstructionKind::FunctionRef { function }
                     | InstructionKind::ForeignFunctionRef { function }
                     | InstructionKind::SuspendCall { function, .. }
                     | InstructionKind::ForeignCall { function, .. }
@@ -173,50 +174,9 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<O
                     let member = stored
                         .get(target.0 as usize)
                         .ok_or_else(|| bad("composition referenced function absent"))?;
-                    if stored[index] || *member != stored[index] {
+                    if *member != stored[index] || stored[index] && !matches!(i.kind, InstructionKind::Call { .. }) {
                         return Ok(None);
                     }
-                }
-                let InstructionKind::Call {
-                    function,
-                    arguments,
-                } = &i.kind
-                else {
-                    continue;
-                };
-                let target = module
-                    .functions
-                    .get(function.0 as usize)
-                    .ok_or_else(|| bad("composition call target absent"))?;
-                if stored[index] == stored[function.0 as usize] {
-                    continue;
-                }
-                b.spend(
-                    arguments
-                        .len()
-                        .saturating_add(target.parameters.len())
-                        .saturating_add(1),
-                    "composition scalar seam",
-                )?;
-                let scalar = target.call_kind == CallKind::Direct
-                    && target.environment.is_none()
-                    && target.foreign.is_none()
-                    && target.storage_life.is_none()
-                    && target.callable_contract.is_none()
-                    && target.callable_return_contract.is_none()
-                    && target.reference_return_bound.is_none()
-                    && target.protocol_contracts.is_empty()
-                    && target.parameters.len() == 1
-                    && arguments.len() == 1
-                    && target.return_type == Type::I32
-                    && target
-                        .locals
-                        .get(target.parameters[0].0 as usize)
-                        .is_some_and(|l| l.ty == Type::I32)
-                    && f.values.get(arguments[0].0 as usize) == Some(&Type::I32)
-                    && i.result.and_then(|v| f.values.get(v.0 as usize)) == Some(&Type::I32);
-                if !scalar {
-                    return Ok(None);
                 }
             }
         }

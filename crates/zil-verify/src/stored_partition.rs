@@ -86,7 +86,7 @@ fn stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bo
     Ok(found)
 }
 
-fn forbidden_stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
+fn connected_storage(ty: &Type, budget: &mut Budget) -> Check<bool> {
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         budget.spend(1)?;
@@ -101,22 +101,9 @@ fn forbidden_stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
             | Type::ByteBuffer
             | Type::FunctionPointer { .. }
             | Type::BorrowedFunctionPointer { .. } => return Ok(true),
-            Type::ForeignCallback { parameters, result } => {
-                budget.spend(parameters.len().saturating_add(1))?;
-                native_values::target(&module.target, None)?;
-                native_values::callback_signature(parameters, result, None)?;
-                // Work admission only; the real ForeignFunctionRef target,
-                // C call and stored permissions are independent consumers.
-            }
-            Type::Closure(id) => {
-                let definition = closures::definition(module, *id, None)?;
-                if !stored_callables::finite(module, *id) {
-                    return Ok(true);
-                }
-                stored_callables::captured_profile(module, definition, budget)?;
-                // No payload or root is inferred here. The stored solver
-                // consumes this actual environment's full capture directory.
-            }
+            // Indirect targets and callback environments need the connected
+            // program proof. Their signatures and captures are checked there.
+            Type::ForeignCallback { .. } | Type::Closure(_) => return Ok(true),
             Type::BorrowedStorage { storage, .. }
             | Type::Address { inner: storage, .. }
             | Type::Array {
@@ -138,22 +125,6 @@ fn forbidden_stored_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
         }
     }
     Ok(false)
-}
-
-fn pure_boundary(f: &TypedFunction) -> bool {
-    f.call_kind == CallKind::Direct
-        && f.foreign.is_none()
-        && f.environment.is_none()
-        && f.storage_life.is_none()
-        && f.reference_return_bound.is_none()
-        && f.callable_contract.is_none()
-        && f.callable_return_contract.is_none()
-        && f.protocol_contracts.is_empty()
-        && f.return_type == Type::I32
-        && f.parameters.len() == 1
-        && f.locals
-            .get(f.parameters[0].0 as usize)
-            .is_some_and(|l| l.ty == Type::I32)
 }
 
 pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<Vec<bool>>> {
@@ -186,30 +157,8 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
     if mask.iter().all(|v| *v) {
         return Ok(None);
     }
-    // The small mixed lane only transports ordinary scalar boundaries. Rich
-    // owner/description/heap graphs instead require the existing complete
-    // stored solver for every actual function, including the ordinary peers.
-    // This is more verification work, not an exemption for a resource table,
-    // a cross-domain call, a capture source or an owner cleanup obligation.
-    for resource in &module.resources {
-        budget.spend(1)?;
-        if stored_type(module, &resource.payload, budget)? {
-            return Ok(None);
-        }
-    }
-    for (index, function) in module.functions.iter().enumerate() {
-        if !mask[index] {
-            continue;
-        }
-        for ty in std::iter::once(&function.return_type)
-            .chain(function.locals.iter().map(|row| &row.ty))
-            .chain(&function.values)
-        {
-            if forbidden_stored_type(module, ty, budget)? {
-                return Ok(None);
-            }
-        }
-    }
+    // Independent CFG components can use separate solvers. Every executable
+    // edge between components selects the complete proof, regardless of ABI.
     for definition in &module.closures {
         budget.spend(1)?;
         let Some(stored) = mask.get(definition.function.0 as usize) else {
@@ -219,12 +168,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                 "closure entry is outside the function table",
             ));
         };
-        if *stored {
-            if !stored_callables::finite(module, definition.id) {
-                return Ok(None);
-            }
-            stored_callables::captured_profile(module, definition, budget)?;
-        }
+        if *stored { return Ok(None); }
     }
     budget.spend(module.dyn_vtables.len())?;
     for table in &module.dyn_vtables {
@@ -247,8 +191,6 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
             return Ok(None);
         }
     }
-    // This first mixed slice has no stored-domain owned carrier or closure.
-    // Ordinary Task/Registration/resource definitions remain checked globally.
     for (index, f) in module.functions.iter().enumerate() {
         if mask[index] {
             let mut forbidden = false;
@@ -256,7 +198,7 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                 .chain(f.locals.iter().map(|l| &l.ty))
                 .chain(&f.values)
             {
-                forbidden |= forbidden_stored_type(module, ty, budget)?;
+                forbidden |= connected_storage(ty, budget)?;
             }
             if forbidden {
                 return Ok(None);
@@ -265,77 +207,31 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
         for block in &f.blocks {
             budget.spend(block.instructions.len())?;
             for i in &block.instructions {
-                let target = match i.kind {
+                let targets = match i.kind {
                     InstructionKind::Call { function, .. }
                     | InstructionKind::SuspendCall { function, .. }
                     | InstructionKind::ForeignCall { function, .. }
                     | InstructionKind::FunctionRef { function }
-                    | InstructionKind::ForeignFunctionRef { function } => Some(function),
+                    | InstructionKind::ForeignFunctionRef { function } => [Some(function), None, None],
                     InstructionKind::TaskCreate { worker, .. }
                     | InstructionKind::TaskCreateOwned { worker, .. }
                     | InstructionKind::TaskStart { worker, .. }
-                    | InstructionKind::WithScopedThread { worker, .. } => Some(worker),
-                    _ => None,
-                };
-                let Some(target) = target else { continue };
-                let target = target.0 as usize;
-                let Some(other) = module.functions.get(target) else {
-                    return Err(reject(
-                        "E-VERIFY-STORED-PARTITION",
-                        Some(i.span),
-                        "function edge target is absent",
-                    ));
-                };
-                if mask[index] == mask[target] {
-                    continue;
-                }
-                let InstructionKind::Call { arguments, .. } = &i.kind else {
-                    return Ok(None);
-                };
-                budget.spend(arguments.len().saturating_add(2))?;
-                if other.call_kind != CallKind::Direct {
-                    return Err(reject(
-                        "E-VERIFY-CALL",
-                        Some(i.span),
-                        "mixed stored/ordinary edge uses a direct Call for a non-Direct function",
-                    ));
-                }
-                if !pure_boundary(other)
-                    || arguments.len() != other.parameters.len()
-                    || arguments
-                        .iter()
-                        .any(|id| f.values.get(id.0 as usize) != Some(&Type::I32))
-                    || i.result.and_then(|id| f.values.get(id.0 as usize))
-                        != Some(&other.return_type)
-                {
-                    return Ok(None);
-                }
-            }
-            for i in &block.instructions {
-                let mut targets = Vec::new();
-                match i.kind {
-                    InstructionKind::WithForeignCallback {
-                        register, close, ..
+                    | InstructionKind::WithScopedThread { worker, .. } => [Some(worker), None, None],
+                    InstructionKind::MakeClosure { closure, .. } => {
+                        [Some(closures::definition(module, closure, Some(i.span))?.function), None, None]
                     }
-                    | InstructionKind::RegistrationStart {
-                        register, close, ..
-                    } => targets.extend([register, close]),
-                    InstructionKind::AsyncRegistrationStart {
-                        register,
-                        request_close,
-                        poll_drain,
-                        ..
-                    } => targets.extend([register, request_close, poll_drain]),
-                    _ => {}
-                }
-                budget.spend(targets.len())?;
-                for target in targets {
-                    if mask
-                        .get(target.0 as usize)
-                        .is_none_or(|stored| *stored != mask[index])
-                    {
-                        return Ok(None);
-                    }
+                    InstructionKind::WithForeignCallback { register, close, .. }
+                    | InstructionKind::RegistrationStart { register, close, .. } => [Some(register), Some(close), None],
+                    InstructionKind::AsyncRegistrationStart { register, request_close, poll_drain, .. } =>
+                        [Some(register), Some(request_close), Some(poll_drain)],
+                    _ => [None; 3],
+                };
+                for target in targets.into_iter().flatten() {
+                    budget.spend(1)?;
+                    let target_domain = mask.get(target.0 as usize).ok_or_else(|| reject(
+                        "E-VERIFY-STORED-PARTITION", Some(i.span), "function edge target is absent",
+                    ))?;
+                    if mask[index] != *target_domain { return Ok(None); }
                 }
             }
         }
