@@ -42,19 +42,17 @@ pub(super) struct Incoming {
     pub source: Source,
     pub origin: Option<OriginalLoan>,
 }
-pub(super) fn snapshot_incoming(
-    value: &Incoming, limits: &Limits, left: &mut usize,
-) -> R<Incoming> {
+pub(super) fn share_incoming(value: &Rc<Incoming>, left: &mut usize) -> R<Rc<Incoming>> {
     *left = left.checked_sub(1).ok_or_else(|| Diagnostic::limit(
         Phase::Types, "incoming source receipt snapshot exceeded", None))?;
-    Ok(Incoming { source: snapshot_source(&value.source, limits, left)?, origin: value.origin.clone() })
+    Ok(value.clone())
 }
 pub(super) fn incoming(
     world: &mut World<'_, '_>, operand: ValueId, source: Source,
-) -> R<Incoming> {
+) -> R<Rc<Incoming>> {
     world.pay(index::search(world.value_role_sources.len()).saturating_add(1))?;
     let origin = world.value_role_sources.get(&operand).and_then(|value| value.origin.clone());
-    Ok(Incoming { source, origin })
+    Ok(Rc::new(Incoming { source, origin }))
 }
 
 pub(super) fn stable_origin(
@@ -422,7 +420,7 @@ pub(super) fn moved_capture(
         return Ok(false);
     }
     world.pay(index::search(world.value_role_sources.len()))?;
-    let Some(Incoming { source: Source::Class(incoming), .. }) = world.value_role_sources.get(&operand) else {
+    let Some(Incoming { source: Source::Class(incoming), .. }) = world.value_role_sources.get(&operand).map(Rc::as_ref) else {
         return Ok(false);
     };
     crate::dyn_metadata::semantic_operand_snapshot(incoming, world.limits, world.left, 1)?;

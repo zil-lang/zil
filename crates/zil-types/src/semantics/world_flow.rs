@@ -21,10 +21,10 @@ pub(super) struct State {
     pub unsafe_regions: Vec<u32>,
     pub owners: BTreeMap<LocalId, ScopeId>,
     pub vacant: BTreeSet<(LocalId, Vec<PlaceProjection>)>,
-    pub role_sources: BTreeMap<LocalId, roles::Incoming>,
-    pub value_role_sources: BTreeMap<ValueId, roles::Incoming>,
-    pub reborrows: BTreeMap<ValueId, arguments::Edge>,
-    pub reservations: BTreeMap<ReservationId, reservations::Reservation>,
+    pub role_sources: BTreeMap<LocalId, Rc<roles::Incoming>>,
+    pub value_role_sources: BTreeMap<ValueId, Rc<roles::Incoming>>,
+    pub reborrows: BTreeMap<ValueId, Rc<arguments::Edge>>,
+    pub reservations: BTreeMap<ReservationId, Rc<reservations::Reservation>>,
     pub value_roots: BTreeMap<ValueId, BTreeSet<arguments::Root>>,
     pub local_roots: BTreeMap<LocalId, BTreeSet<arguments::Root>>,
 }
@@ -67,28 +67,6 @@ impl State {
         for value in self.implicit.values() {
             crate::dyn_metadata::semantic_operand_snapshot(value, world.limits, world.left, 1)?;
         }
-        let mut role_sources = BTreeMap::new();
-        for (local, source) in &self.role_sources {
-            role_sources.insert(*local, roles::snapshot_incoming(source, world.limits, world.left)?);
-        }
-        let mut value_role_sources = BTreeMap::new();
-        for (value, source) in &self.value_role_sources {
-            value_role_sources.insert(*value, roles::snapshot_incoming(source, world.limits, world.left)?);
-        }
-        let mut reborrows = BTreeMap::new();
-        for (value, edge) in &self.reborrows {
-            reborrows.insert(
-                *value,
-                arguments::Edge {
-                    parent: edge.parent,
-                    source: roles::copy_source(world, &edge.source)?,
-                },
-            );
-        }
-        let mut reservations = BTreeMap::new();
-        for (id, reservation) in &self.reservations {
-            reservations.insert(*id, super::reservations::snapshot(world, reservation)?);
-        }
         let mut value_roots = BTreeMap::new();
         for (value, roots) in &self.value_roots {
             value_roots.insert(*value, arguments::copy_roots(world, roots)?);
@@ -111,10 +89,12 @@ impl State {
             unsafe_regions: self.unsafe_regions.clone(),
             owners: self.owners.clone(),
             vacant: self.vacant.clone(),
-            role_sources,
-            value_role_sources,
-            reborrows,
-            reservations,
+            // Reaching worlds own independent dictionaries; only the exact
+            // immutable proof payload of each existing entry is shared.
+            role_sources: self.role_sources.clone(),
+            value_role_sources: self.value_role_sources.clone(),
+            reborrows: self.reborrows.clone(),
+            reservations: self.reservations.clone(),
             value_roots,
             local_roots,
         };
@@ -177,23 +157,23 @@ impl State {
             || !same_map(world, &self.implicit, &other.implicit, |world, image| {
                 crate::dyn_metadata::semantic_operand_snapshot(image, world.limits, world.left, 1)
             })?
-            || !same_map(
+            || !same_shared_map(
                 world,
                 &self.role_sources,
                 &other.role_sources,
                 charge_incoming,
             )?
-            || !same_map(
+            || !same_shared_map(
                 world,
                 &self.value_role_sources,
                 &other.value_role_sources,
                 charge_incoming,
             )?
-            || !same_map(world, &self.reborrows, &other.reborrows, |world, edge| {
+            || !same_shared_map(world, &self.reborrows, &other.reborrows, |world, edge| {
                 world.pay(1)?;
                 charge_source(world, &edge.source)
             })?
-            || !same_map(
+            || !same_shared_map(
                 world,
                 &self.reservations,
                 &other.reservations,
@@ -305,24 +285,46 @@ fn same_map<K: Ord, V: Eq>(
     right: &BTreeMap<K, V>,
     mut charge: impl FnMut(&mut World<'_, '_>, &V) -> R<()>,
 ) -> R<bool> {
+    compare_map(world, left, right, |world, left, right| {
+        charge(world, left)?;
+        charge(world, right)?;
+        Ok(left == right)
+    })
+}
+fn same_shared_map<K: Ord, V: Eq>(
+    world: &mut World<'_, '_>,
+    left: &BTreeMap<K, Rc<V>>,
+    right: &BTreeMap<K, Rc<V>>,
+    mut charge: impl FnMut(&mut World<'_, '_>, &V) -> R<()>,
+) -> R<bool> {
+    compare_map(world, left, right, |world, left, right| {
+        if Rc::ptr_eq(left, right) {
+            return Ok(true);
+        }
+        charge(world, left)?;
+        charge(world, right)?;
+        Ok(left == right)
+    })
+}
+fn compare_map<K: Ord, V>(
+    world: &mut World<'_, '_>,
+    left: &BTreeMap<K, V>,
+    right: &BTreeMap<K, V>,
+    mut same: impl FnMut(&mut World<'_, '_>, &V, &V) -> R<bool>,
+) -> R<bool> {
     world.pay(1)?;
     if left.len() != right.len() {
         return Ok(false);
     }
     for ((left_key, left), (right_key, right)) in left.iter().zip(right) {
         world.pay(4)?;
-        if left_key != right_key {
-            return Ok(false);
-        }
-        charge(world, left)?;
-        charge(world, right)?;
-        if left != right {
+        if left_key != right_key || !same(world, left, right)? {
             return Ok(false);
         }
     }
     Ok(true)
 }
-fn charge_incoming(world: &mut World<'_, '_>, source: &roles::Incoming) -> R<()> {
+pub(super) fn charge_incoming(world: &mut World<'_, '_>, source: &roles::Incoming) -> R<()> {
     world.pay(source.origin.as_ref().map_or(0, |origin| origin.anchors.len()).saturating_add(1))?;
     charge_source(world, &source.source)
 }

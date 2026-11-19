@@ -94,10 +94,10 @@ pub(super) struct World<'a, 'b> {
     stale_values: std::collections::BTreeSet<ValueId>,
     stale_locals: std::collections::BTreeSet<LocalId>,
     vacant: std::collections::BTreeSet<(LocalId, Vec<PlaceProjection>)>,
-    role_sources: BTreeMap<LocalId, roles::Incoming>,
-    value_role_sources: BTreeMap<ValueId, roles::Incoming>,
-    reborrows: BTreeMap<ValueId, arguments::Edge>,
-    reservations: BTreeMap<ReservationId, reservations::Reservation>,
+    role_sources: BTreeMap<LocalId, Rc<roles::Incoming>>,
+    value_role_sources: BTreeMap<ValueId, Rc<roles::Incoming>>,
+    reborrows: BTreeMap<ValueId, Rc<arguments::Edge>>,
+    reservations: BTreeMap<ReservationId, Rc<reservations::Reservation>>,
     value_roots: BTreeMap<ValueId, std::collections::BTreeSet<arguments::Root>>,
     local_roots: BTreeMap<LocalId, std::collections::BTreeSet<arguments::Root>>,
     argument_witnesses: Vec<arguments::Witness>,
@@ -2286,12 +2286,11 @@ impl<'p> World<'p, '_> {
     }
     fn same_invocation_facts(
         &mut self,
-        first: &(Option<roles::Incoming>, Option<std::collections::BTreeSet<arguments::Root>>),
-        other: &(Option<roles::Incoming>, Option<std::collections::BTreeSet<arguments::Root>>),
+        first: &(Option<Rc<roles::Incoming>>, Option<std::collections::BTreeSet<arguments::Root>>),
+        other: &(Option<Rc<roles::Incoming>>, Option<std::collections::BTreeSet<arguments::Root>>),
     ) -> R<()> {
         for role in [&first.0, &other.0].into_iter().flatten() {
-            roles::snapshot_incoming(role, self.limits, self.left)?;
-            self.pay(role.origin.as_ref().map_or(0, |origin| origin.anchors.len()))?;
+            flow::charge_incoming(self, role)?;
         }
         for roots in [&first.1, &other.1].into_iter().flatten() {
             self.pay(roots.len())?;
@@ -2605,7 +2604,7 @@ impl<'p> World<'p, '_> {
                     _ => None,
                 };
                 let mut propagated_role = propagated_role
-                    .map(|source| roles::snapshot_incoming(source, self.limits, self.left))
+                    .map(|source| roles::share_incoming(source, self.left))
                     .transpose()?;
                 let mut propagated_roots = std::collections::BTreeSet::new();
                 match &instruction.kind {
@@ -2825,7 +2824,7 @@ impl<'p> World<'p, '_> {
                                 Some(roles::incoming(self, operand, source)?)
                             } else {
                                 self.value_role_sources.get(&operand)
-                                    .map(|source| roles::snapshot_incoming(source, self.limits, self.left))
+                                    .map(|source| roles::share_incoming(source, self.left))
                                     .transpose()?
                             };
                             if let Some(expected) = declared.get(local) {
@@ -3208,10 +3207,10 @@ impl<'p> World<'p, '_> {
                             self.pay(1)?;
                             self.reborrows.insert(
                                 result,
-                                arguments::Edge {
+                                Rc::new(arguments::Edge {
                                     parent: *address,
                                     source,
-                                },
+                                }),
                             );
                             // The actual parent SSA has already been checked;
                             // its Static source is not inferred from a proposed
@@ -4561,10 +4560,11 @@ impl<'p> World<'p, '_> {
                                     // any parent original-expression receipt;
                                     // record_source forms this leaf's own full
                                     // field trace at its real expression boundary.
-                                    propagated_role = Some(roles::Incoming {
+                                    self.pay(1)?;
+                                    propagated_role = Some(Rc::new(roles::Incoming {
                                         source: roles::outer(self, &selected)?,
                                         origin: None,
-                                    });
+                                    }));
                                     places::borrow_mode(ty, *mutable)?;
                                     let result = instruction.result.ok_or_else(|| {
                                         bad("stored reborrow has no actual result")

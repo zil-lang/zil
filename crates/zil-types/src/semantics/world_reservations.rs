@@ -16,17 +16,6 @@ pub(super) struct Reservation {
     pub expected: SharedType,
     pub roots: BTreeSet<arguments::Root>,
 }
-pub(super) fn snapshot(world: &mut World<'_, '_>, value: &Reservation) -> R<Reservation> {
-    world.pay(value.path.len().saturating_add(3))?;
-    let roots = arguments::copy_roots(world, &value.roots)?;
-    Ok(Reservation {
-        target: value.target.clone(),
-        path: value.path.clone(),
-        parent: value.parent.clone(),
-        expected: value.expected.clone(),
-        roots,
-    })
-}
 pub(super) fn charge(world: &mut World<'_, '_>, value: &Reservation) -> R<()> {
     world.pay(value.path.len().saturating_add(3))?;
     crate::dyn_metadata::semantic_operand_snapshot(
@@ -147,13 +136,13 @@ pub(super) fn reserve(
     )?;
     world.reservations.insert(
         id,
-        Reservation {
+        Rc::new(Reservation {
             target: root,
             path: path.to_vec(),
             parent,
             expected,
             roots,
-        },
+        }),
     );
     Ok(())
 }

@@ -2109,8 +2109,8 @@ pub(super) fn record_source(
         roles::snapshot_source(&incoming.source, world.limits, world.left)?
     } else { roles::outer(world, &actual)? };
     world.pay(index::search(world.value_role_sources.len()).saturating_add(1))?;
-    world.value_role_sources.insert(operand, roles::Incoming { source: image,
-        origin: Some(roles::OriginalLoan { node, mint: operand, anchors: Rc::new(anchors) }) });
+    world.value_role_sources.insert(operand, Rc::new(roles::Incoming { source: image,
+        origin: Some(roles::OriginalLoan { node, mint: operand, anchors: Rc::new(anchors) }) }));
     Ok(())
 }
 
