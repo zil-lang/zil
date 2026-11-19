@@ -1210,7 +1210,7 @@ fn local_value(
         {
             super::resources::product::admit_owned(module, inner, budget)
         } else {
-            super::resources::product::admit_borrowed(inner, budget).map(|_| false)
+            super::resources::product::admit_borrowed(module, inner, budget).map(|_| false)
         };
     }
     if super::resources::product::nested(ty)

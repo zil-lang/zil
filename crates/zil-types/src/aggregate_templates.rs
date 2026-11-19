@@ -780,7 +780,14 @@ pub(super) fn rebind_type(
         let old = if let Type::Package { name, .. } = ty {
             charge(name.len().saturating_add(products.borrow().entries.len()))?;
             let view = products.borrow();
-            if let Some(origin) = view.entries.get(name) {
+            // Callable specialization may already have annotated the physical
+            // field tree. A declared Product still takes its identity from its
+            // original family and every substituted argument, including phantoms.
+            let origin = view.entries.get(name).or_else(|| {
+                let (source, _) = name.rsplit_once(":closure")?;
+                view.entries.get(source)
+            });
+            if let Some(origin) = origin {
                 let mut work = 1usize;
                 for a in &origin.arguments {
                     work = work.saturating_add(inference::type_snapshot_work(a, span, limits)?);

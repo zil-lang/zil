@@ -2532,7 +2532,7 @@ impl Flow<'_> {
                             {
                                 product::admit_owned(self.module, ty, budget)?;
                             } else {
-                                product::admit(ty, budget)?;
+                                product::admit_borrowed(self.module, ty, budget)?;
                             }
                         }
                         if (!ty.is_copy_value() && !matches!(ty, Type::Closure(_)) && !shared_owned)
@@ -2758,7 +2758,7 @@ impl Flow<'_> {
                     {
                         product::admit_owned(self.module, ty, budget)?;
                     } else {
-                        product::admit(ty, budget)?;
+                        product::admit_borrowed(self.module, ty, budget)?;
                     }
                     let Type::Package { fields, .. } = package_storage(ty) else {
                         unreachable!("Package borrow")

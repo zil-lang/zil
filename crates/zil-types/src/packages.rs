@@ -431,15 +431,18 @@ impl Builder<'_, '_> {
         &mut self,
         target: &CoreExpr,
     ) -> R<Option<(ValueId, ClosureId, CallableKind)>> {
-        let CoreExprKind::Member {
-            object,
-            member,
-            owner,
-        } = &target.kind
-        else {
-            return Ok(None);
-        };
-        let (source, from_store) = match &object.kind {
+        let mut base = target;
+        let mut selectors = Vec::new();
+        while let CoreExprKind::Member { object, member, owner } = &base.kind {
+            if selectors.len() >= self.limits.max_call_depth {
+                return Err(Diagnostic::limit(Phase::Types, "callback projection depth exceeded", Some(base.span)));
+            }
+            self.member_owner_work(owner.as_ref(), base.span)?;
+            self.closures.snapshot(2, base.span)?;
+            selectors.push((member, owner.as_ref(), base.span));
+            base = object;
+        }
+        let (source, from_store) = match &base.kind {
             CoreExprKind::Name(name) => (name, false),
             CoreExprKind::Call { callee, arguments }
                 if matches!(
@@ -469,7 +472,6 @@ impl Builder<'_, '_> {
         let Some(local) = self.lookup(source) else {
             return Ok(None);
         };
-        self.member_owner_work(owner.as_ref(), target.span)?;
         let ty = &self.function.locals[local.0 as usize].ty;
         let element = if from_store {
             dynamic_store::element(ty)
@@ -478,26 +480,24 @@ impl Builder<'_, '_> {
         } else {
             None
         };
-        if let Some(element) = element {
-            member_owner::check_member_owner(element, owner.as_ref(), target.span)?;
+        let Some(mut selected) = element else { return Ok(None); };
+        for (member, owner, span) in selectors.into_iter().rev() {
+            member_owner::check_member_owner(selected, owner, span)?;
+            let Type::Package { fields, .. } = selected else { return Ok(None); };
+            self.closures.snapshot(fields.len().saturating_mul(member.len().saturating_add(1)), span)?;
+            let Some((_, child)) = fields.iter().find(|(name, _)| name == member) else {
+                return Ok(None);
+            };
+            selected = child;
         }
-        let Some(Type::Package { fields, .. }) = element else {
-            return Ok(None);
-        };
-        self.closures.snapshot(
-            fields.len().saturating_mul(member.len().saturating_add(1)),
-            target.span,
-        )?;
-        let Some((_, Type::Closure(id))) = fields.iter().find(|(name, _)| name == member) else {
-            return Ok(None);
-        };
+        let Type::Closure(id) = selected else { return Ok(None); };
         let id = *id;
         let kind = self.field_callable_kind(id, target)?;
         if kind == CallableKind::FnOnce {
             return Err(error(
                 "E-CLOSURE-MODE",
                 target.span,
-                "FnOnce requires an owned Store element obtained by pop",
+                "FnOnce requires ownership of the selected callback",
             ));
         }
         let (address, _) = self.borrow_place_mode(target, kind == CallableKind::FnMut)?;

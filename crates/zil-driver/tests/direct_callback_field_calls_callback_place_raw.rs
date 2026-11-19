@@ -224,6 +224,31 @@ fn nested_value_package_borrow_checks_the_complete_field_path() {
 }
 
 #[test]
+fn generic_receiver_preserves_each_selector_inside_a_borrowed_product() {
+    let source = NESTED_VALUE_PACKAGES
+        .replace("fn main()", "fn relay<F: Value + FnMut(i32)->i32>(root:&mut Pair<Pair<F>>, n:i32)->i32 {return (root.right.left)(n)}\nfn main()")
+        .replace("(&mut root.right.left)(1)", "relay(&mut root, 1)");
+    let limits = Limits::default();
+    let module = value_package_module(&source);
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    pair("nested-receiver-control", &source, module.clone(), plan.clone(), None);
+    for (expected, sibling) in [(2, 1), (1, 2)] {
+        let mut changed = module.clone();
+        let helper = changed.functions.iter_mut().find(|f| f.parameters.first().is_some_and(|id|
+            matches!(&f.locals[id.0 as usize].ty, Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Package { .. })))).unwrap();
+        let selected = helper.blocks.iter_mut().flat_map(|block| &mut block.instructions)
+            .find_map(|instruction| match &mut instruction.kind {
+                I::AddressField { index, .. } if *index == expected => Some(index),
+                _ => None,
+            }).expect("each original field is selected in the concrete helper");
+        *selected = sibling;
+        assert!(zil_analyze::analyze(&changed, &limits).is_err());
+        pair("nested-receiver-sibling", &source, changed, plan.clone(), Some("E-VERIFY-SEMANTIC"));
+    }
+}
+
+#[test]
 fn forwarded_child_package_keeps_its_actual_holder_and_receiver() {
     use zil_ir::PlaceProjection::Field;
 

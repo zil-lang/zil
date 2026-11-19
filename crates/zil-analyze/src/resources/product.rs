@@ -40,7 +40,7 @@ pub(crate) fn admit_capture_head(
     {
         admit_owned(module, ty, budget).map(|_| ())
     } else {
-        admit(ty, budget)
+        admit_borrowed(module, ty, budget)
     }
 }
 
@@ -89,12 +89,11 @@ pub(crate) fn admit_callback_head(
     Ok(true)
 }
 
-/// A borrowed nested Product retains its old finite field profile. A valid
-/// owner outside that profile is unsupported at this boundary; malformed
-/// Product identities still fail the independent structural check.
+/// A loan preserves the identity of each nested field. Callable leaves must
+/// resolve to their own complete environment, while the lender keeps the debt.
 #[track_caller]
-pub(crate) fn admit_borrowed(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
-    admit_shape(ty, budget, false, None, true).map(|_| ())
+pub(crate) fn admit_borrowed(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    admit_shape(ty, budget, false, Some(module), true).map(|_| ())
 }
 
 /// Admission for ordinary complete ownership, independent of element/capture
@@ -273,8 +272,7 @@ fn admit_shape(
                 _ if qualified && crate::stored_flow::shared_record_child(ty, budget)? => {}
                 _ if qualified && crate::stored_flow::shared_array_shape(ty, budget)? => {}
                 ty if ty.is_copy_value() => {}
-                Type::Closure(id) if module.is_some_and(|_| stores) => {
-                    let actual = module.expect("ordinary Product has an actual module");
+                Type::Closure(id) if let Some(actual) = module => {
                     if !crate::callable_fields::environment(actual, *id, budget)? {
                         return Err(error("Product callback lacks its independently complete environment"));
                     }

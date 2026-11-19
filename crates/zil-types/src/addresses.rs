@@ -535,7 +535,7 @@ impl Builder<'_, '_> {
         }
         let shared_owned = !mutable
             && (packages::product::supported(&field)
-                || packages::product::owned_supported(&field)
+                || packages::ordinary(&field)
                 || matches!(&field, Type::Managed(payload)
                     if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
         if !field.is_copy_value() && !matches!(field, Type::Closure(_)) && !shared_owned {
@@ -903,7 +903,7 @@ impl Builder<'_, '_> {
                 let borrowed_owned = (matches!(&field, Type::Managed(_))
                     && resources::supported(&field))
                     || packages::product::supported(&field)
-                    || packages::product::owned_supported(&field)
+                    || packages::ordinary(&field)
                     || !mutable
                         && matches!(&field, Type::Managed(payload)
                             if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
