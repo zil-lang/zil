@@ -2,7 +2,7 @@
 //! These cursors prove neither types nor the fidelity of an actual instruction.
 use super::*;
 mod locations;
-pub(super) use locations::Selected;
+pub(super) use locations::{Selected, SelectedFunction};
 
 pub(super) struct Index<'a> {
     pub(super) definitions: BTreeMap<SemanticDefinitionId, Function<'a>>,

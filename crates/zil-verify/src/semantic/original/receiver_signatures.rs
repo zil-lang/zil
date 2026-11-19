@@ -441,7 +441,7 @@ impl CheckedOriginal {
                 ));
             };
             if !self.receiver_source_life(owner, &life, &mut BTreeSet::new(), b)?
-                && !self.receiver_captured_field(module, owner, value, b)?
+                && !self.receiver_captured_field(module, owner, function, value.id, b)?
             {
                 return Err(bad(
                     "Receiver lending return is not grounded in its exact original capture/view",
@@ -457,15 +457,35 @@ impl CheckedOriginal {
     }
 
     fn receiver_captured_field(
-        &self, module: &TypedModule, owner: SemanticDefinitionId, mut value: &SemanticOriginalExpr,
+        &self, module: &TypedModule, owner: SemanticDefinitionId, function: &index::SelectedFunction<'_>, mut value: NodeId,
         b: &mut Budget,
     ) -> Check<bool> {
-        while let CoreExprKind::Group(inner) | CoreExprKind::Ascribed { value: inner, .. } = &value.kind {
+        let syntax = self.source_grammar.as_ref().ok_or_else(|| bad("receiver result lacks its checked source grammar"))?
+            .place_syntax(owner, b)?;
+        let mut seen = BTreeSet::new();
+        loop {
             b.spend(1)?;
-            value = inner;
+            if seen.len() >= b.limits.max_call_depth || !seen.insert(value) {
+                return Err(limit("receiver result alias chain exceeds its source depth"));
+            }
+            use index::PlaceOperation;
+            value = match syntax.expression(value, b)?.operation {
+                PlaceOperation::Group(inner) | PlaceOperation::Ascribed(inner) => inner,
+                PlaceOperation::Name => {
+                    b.spend(self.value_bindings.len().saturating_add(1).ilog2() as usize + 1)?;
+                    let Some(Binder::Local { definition, node, .. }) = self.value_bindings.get(&(owner, value))
+                    else { return Ok(false); };
+                    if *definition != owner { return Ok(false); }
+                    let Some(statement) = function.statement(*node, b)? else { return Ok(false); };
+                    let CoreStatementKind::Binding { mutable: false, initializer: Some(initializer), .. } = &statement.kind
+                    else { return Ok(false); };
+                    initializer.id
+                }
+                PlaceOperation::Member { .. } => break,
+                _ => return Ok(false),
+            };
         }
-        if !matches!(value.kind, CoreExprKind::Member { .. }) { return Ok(false); }
-        let (root, projections) = self.address_place(module, owner, value.id, b)?;
+        let (root, projections) = self.address_place(module, owner, value, b)?;
         let intrinsics::AddressRoot::Place(root) = root else { return Ok(false); };
         b.spend(projections.len().saturating_add(1))?;
         if projections.is_empty() || !projections.iter().all(|step| matches!(step, intrinsics::AddressProjection::Field(_))) {

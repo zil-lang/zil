@@ -324,10 +324,15 @@ mod additional_source_cases {
                 .iter()
                 .any(|r| r.position.base == StorageBase::Receiver)
         );
-        super::accepted_typed("shared-capture-fixed-result", text, module);
+        super::accepted_typed("captured-holder-fixed-data-result", text, module);
+        let ascribed = text.replace(
+            "move()=>holder.pointer",
+            "move()=>{let view:&'a i32=holder.pointer;return view}",
+        );
+        super::accepted("captured-holder-fixed-data-ascribed", &ascribed);
         let early_write = text.replace(
-            " let result=*pointer\n value=43",
-            " value=43\n let result=*pointer",
+            " let old=*pointer\n a=21",
+            " a=21\n let old=*pointer",
         );
         let errors = zil_analyze::analyze(&typed(&early_write), &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-BORROW-CONFLICT");
