@@ -8303,7 +8303,8 @@ fn derive_cfg(
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
     let order = static_summary_order(module, SummaryCohort::Stored, b)?;
-    loop {
+    'solve: loop {
+        let checked_external_updates = b.stored_slot_updates;
         let mut changed = false;
         for position in 0..module.functions.len() {
             let index = order.as_ref().map_or(position, |order| order[position]);
@@ -9217,6 +9218,13 @@ fn derive_cfg(
                     &reservations,
                     b,
                 )?;
+            }
+            // A real write or callable seed can first reveal mutable external
+            // storage during transfer. Rebuild earlier callees under the same
+            // mode before consuming their parameter after-states. This flag
+            // only advances once during an analysis.
+            if !checked_external_updates && b.stored_slot_updates {
+                continue 'solve;
             }
             facts_work(&actual, b)?;
             if order.is_some() {
