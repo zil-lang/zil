@@ -135,6 +135,15 @@ impl ActiveQueries {
             next_token: 0,
         }
     }
+    // A leaf reads a sealed operand or forms an atom, so it cannot reenter
+    // another query. It still occupies one level in the current session.
+    fn check_leaf(&self, b: &mut Budget) -> Check<()> {
+        b.spend(1)?;
+        if self.frames.len() >= b.limits.max_call_depth.min(128) {
+            return Err(limit("semantic/witness dependency depth exceeded"));
+        }
+        Ok(())
+    }
     pub(crate) fn fresh(&mut self, b: &mut Budget) -> Check<FrameToken> {
         b.spend(1)?;
         let token = self.next_token;

@@ -11,21 +11,102 @@ impl CheckedContext {
         active: &mut ActiveQueries,
         b: &mut Budget,
     ) -> Check<CheckedType> {
+        dynamic_metadata::recipe(recipe, b)?;
+        self.evaluate_bounded_type(module, recipe, environment, external, active, b)
+    }
+
+    /// The caller walked this recipe as the whole input or as a physical child
+    /// of that input's signature/type. A recipe obtained from a different
+    /// declaration or reconstructed original expression enters at evaluate_type.
+    fn evaluate_bounded_type(
+        &self,
+        module: &TypedModule,
+        recipe: &SemanticTypeRecipe,
+        environment: &EvalEnv,
+        external: &mut impl ExternalProofs,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<CheckedType> {
         let previous=b.diagnostic_progress.as_ref().and_then(|progress|progress.recipe);
         if let Some(progress)=&mut b.diagnostic_progress{
             progress.recipes_started=progress.recipes_started.saturating_add(1);
             progress.recipe=Some((recipe as *const SemanticTypeRecipe as usize,std::mem::discriminant(recipe),environment.lexical.first().map(|frame|frame.definition),environment.lexical.first().map(|frame|frame.key),environment.at));
         }
-        let result=(||{
-            dynamic_metadata::recipe(recipe,b)?;
-            let key=DependencyKey{kind:QueryKind::Type,token:active.fresh(b)?};
-            active.with_query(key,b,|active,b|self.type_inner(module,recipe,environment,external,active,b))
-        })();
+        let result = self.interpret_type(module, recipe, environment, external, active, b);
         if let Some(progress)=&mut b.diagnostic_progress{
             if result.is_ok(){progress.recipes_completed=progress.recipes_completed.saturating_add(1);}
             progress.recipe=previous;
         }
         result
+    }
+    fn interpret_type(
+        &self,
+        module: &TypedModule,
+        recipe: &SemanticTypeRecipe,
+        environment: &EvalEnv,
+        external: &mut impl ExternalProofs,
+        active: &mut ActiveQueries,
+        b: &mut Budget,
+    ) -> Check<CheckedType> {
+        match recipe {
+            SemanticTypeRecipe::Atom(ty) => {
+                active.check_leaf(b)?;
+                if !(ty.is_b0_scalar()
+                    || matches!(
+                        ty,
+                        Type::ForeignHandle
+                            | Type::CWideString
+                            | Type::ByteBuffer
+                            | Type::SyncCell(_)
+                    ))
+                {
+                    return Err(bad("Atom is not a true atomic type"));
+                }
+                dynamic_metadata::ty(ty, b)?;
+                Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),
+                    life: empty_life(),
+                    classes: vec![],
+                    origins: vec![],
+                    statics: vec![],
+                })
+            }
+            SemanticTypeRecipe::Formal(reference) => {
+                active.check_leaf(b)?;
+                match self.formal(environment, reference, b)? {
+                    CheckedActual::Type(value) => {
+                        value.charge_clone(b)?;
+                        Ok(value.clone())
+                    }
+                    _ => Err(bad("Type recipe selects a different formal kind")),
+                }
+            }
+            SemanticTypeRecipe::Environment { scope, ordinal } => {
+                active.check_leaf(b)?;
+                match self.environment_actual(environment, *scope, *ordinal, b)? {
+                    CheckedActual::Type(value) => {
+                        value.charge_clone(b)?;
+                        Ok(value.clone())
+                    }
+                    _ => Err(bad(
+                        "Type recipe selects a different sealed environment kind",
+                    )),
+                }
+            }
+            SemanticTypeRecipe::SelfType { scope } => {
+                active.check_leaf(b)?;
+                let value = self
+                    .frame(environment, *scope, b)?
+                    .self_type
+                    .as_ref()
+                    .ok_or_else(|| bad("SelfType has no independently selected receiver"))?;
+                value.charge_clone(b)?;
+                Ok(value.clone())
+            }
+            _ => {
+                let key=DependencyKey{kind:QueryKind::Type,token:active.fresh(b)?};
+                active.with_query(key,b,|active,b|self.type_inner(module,recipe,environment,external,active,b))
+            }
+        }
     }
     fn type_inner(
         &self,
@@ -77,26 +158,6 @@ impl CheckedContext {
                 let signature=self.evaluate_signature(module,signature,environment,external,active,b)?;
                 if *kind==SemanticCodeKind::ForeignCallback{self.foreign_callback_code(module,&signature,b)}else{self.ordinary_code(module,*kind,&signature,b)}
             }
-            SemanticTypeRecipe::Atom(ty) => {
-                if !(ty.is_b0_scalar()
-                    || matches!(
-                        ty,
-                        Type::ForeignHandle
-                            | Type::CWideString
-                            | Type::ByteBuffer
-                            | Type::SyncCell(_)
-                    ))
-                {
-                    return Err(bad("Atom is not a true atomic type"));
-                }
-                dynamic_metadata::ty(ty, b)?;
-                Ok(CheckedType {type_cell: crate::semantic::CheckedTypeData::new(ty.clone()),
-                    life: empty_life(),
-                    classes: vec![],
-                    origins: vec![],
-                    statics: vec![],
-                })
-            }
             SemanticTypeRecipe::Exact(exact) => {
                 let mut classes = Vec::new();
                 for class in &exact.classes {
@@ -104,40 +165,11 @@ impl CheckedContext {
                 }
                 self.construct_value(module, &exact.ty, &exact.life, classes, b)
             }
-            SemanticTypeRecipe::Formal(reference) => {
-                match self.formal(environment, reference, b)? {
-                    CheckedActual::Type(value) => {
-                        value.charge_clone(b)?;
-                        Ok(value.clone())
-                    }
-                    _ => Err(bad("Type recipe selects a different formal kind")),
-                }
-            }
-            SemanticTypeRecipe::Environment { scope, ordinal } => {
-                match self.environment_actual(environment, *scope, *ordinal, b)? {
-                    CheckedActual::Type(value) => {
-                        value.charge_clone(b)?;
-                        Ok(value.clone())
-                    }
-                    _ => Err(bad(
-                        "Type recipe selects a different sealed environment kind",
-                    )),
-                }
-            }
-            SemanticTypeRecipe::SelfType { scope } => {
-                let value = self
-                    .frame(environment, *scope, b)?
-                    .self_type
-                    .as_ref()
-                    .ok_or_else(|| bad("SelfType has no independently selected receiver"))?;
-                value.charge_clone(b)?;
-                Ok(value.clone())
-            }
             SemanticTypeRecipe::Address {
                 lifetime, inner, ..
             }
             | SemanticTypeRecipe::Desc { lifetime, inner } => {
-                let child = self.evaluate_type(module, inner, environment, external, active, b)?;
+                let child = self.evaluate_bounded_type(module, inner, environment, external, active, b)?;
                 let mode = match recipe {
                     SemanticTypeRecipe::Address { mutable: true, .. } => {
                         StoredBorrowMode::ExclusiveAddress
@@ -165,7 +197,7 @@ impl CheckedContext {
                 b.spend(recipes.len())?;
                 let mut fields = Vec::with_capacity(recipes.len());
                 for recipe in recipes {
-                    fields.push(self.evaluate_type(
+                    fields.push(self.evaluate_bounded_type(
                         module,
                         recipe,
                         environment,
@@ -184,7 +216,7 @@ impl CheckedContext {
                 )
             }
             SemanticTypeRecipe::Managed(inner) => {
-                let child = self.evaluate_type(module, inner, environment, external, active, b)?;
+                let child = self.evaluate_bounded_type(module, inner, environment, external, active, b)?;
                 dynamic_witness::semantic_external::construct(
                     self,
                     environment,
@@ -196,7 +228,7 @@ impl CheckedContext {
             }
             SemanticTypeRecipe::Array { element, length } => {
                 let child =
-                    self.evaluate_type(module, element, environment, external, active, b)?;
+                    self.evaluate_bounded_type(module, element, environment, external, active, b)?;
                 let carrier = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(Type::Usize),
                     life: empty_life(),
                     classes: vec![],
@@ -242,7 +274,7 @@ impl CheckedContext {
             | SemanticTypeRecipe::Mutex(inner)
             | SemanticTypeRecipe::Registration(inner)
             | SemanticTypeRecipe::AsyncRegistration(inner) => {
-                let child = self.evaluate_type(module, inner, environment, external, active, b)?;
+                let child = self.evaluate_bounded_type(module, inner, environment, external, active, b)?;
                 use PhysicalConstructor as K;
                 let kind = match recipe {
                     SemanticTypeRecipe::Slice(_) => K::Slice,
@@ -270,7 +302,7 @@ impl CheckedContext {
                 payload: result,
                 retained,
             } => {
-                let child = self.evaluate_type(module, result, environment, external, active, b)?;
+                let child = self.evaluate_bounded_type(module, result, environment, external, active, b)?;
                 let checked = if matches!(recipe, SemanticTypeRecipe::Task { .. }) {
                     self.retained_task_shape(module, retained, environment, external, active, b)?
                 } else {
@@ -339,9 +371,9 @@ impl CheckedContext {
                 Ok(value)
             }
             SemanticTypeRecipe::ErrorUnion { error, result } => {
-                let error = self.evaluate_type(module, error, environment, external, active, b)?;
+                let error = self.evaluate_bounded_type(module, error, environment, external, active, b)?;
                 let result =
-                    self.evaluate_type(module, result, environment, external, active, b)?;
+                    self.evaluate_bounded_type(module, result, environment, external, active, b)?;
                 let mut value = CheckedType {type_cell: crate::semantic::CheckedTypeData::new(Type::ErrorUnion {
                         error: Box::new(error.raw_type_copy(b)?),
                         result: Box::new(result.raw_type_copy(b)?),
@@ -371,7 +403,7 @@ impl CheckedContext {
                 member,
             } => {
                 let receiver =
-                    self.evaluate_type(module, receiver, environment, external, active, b)?;
+                    self.evaluate_bounded_type(module, receiver, environment, external, active, b)?;
                 let application =
                     self.application(module, application, environment, external, active, b)?;
                 match external.query(
@@ -738,7 +770,7 @@ impl CheckedContext {
         let mut parameters = Vec::new();
         for (ordinal, parameter) in recipe.parameters.iter().enumerate() {
             let value =
-                self.evaluate_type(module, &parameter.ty, &environment, external, active, b)?;
+                self.evaluate_bounded_type(module, &parameter.ty, &environment, external, active, b)?;
             let value = self.signature_mode_type(
                 module,
                 &parameter.ty,
@@ -753,9 +785,9 @@ impl CheckedContext {
         }
         let result = if let Some(receiver)=receiver{
             let SemanticTypeRecipe::Address{mutable:false,inner,..}=&recipe.result else{return Err(bad("Callable Receiver role escapes its root shared result"));};
-            let child=self.evaluate_type(module,inner,&environment,external,active,b)?;
+            let child=self.evaluate_bounded_type(module,inner,&environment,external,active,b)?;
             dynamic_witness::semantic_external::construct(self,&environment,dynamic_witness::semantic_external::Constructor::Address{mode:StoredBorrowMode::SharedAddress,outer:Some(receiver)},&[child],active,b)?
-        }else{self.evaluate_type(module, &recipe.result, &environment, external, active, b)?};
+        }else{self.evaluate_bounded_type(module, &recipe.result, &environment, external, active, b)?};
         let result = self.signature_mode_type(
             module,
             &recipe.result,
@@ -897,5 +929,41 @@ mod constructed_task_descendant_tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod bounded_recipe_tests {
+    use super::*;
+
+    #[test]
+    fn interpreting_a_child_still_obeys_the_current_query_depth_and_the_complete_root_width() {
+        let limits = Limits::default();
+        let bytes = include_bytes!("fixtures/ordinary-identity-complete-head.wire");
+        let (module, _) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();
+        let context = CheckedContext::catalogue(&module, &mut Budget::new(&limits)).unwrap();
+        let env = EvalEnv { lexical: vec![], assumptions: vec![], images: vec![],
+            bounds: vec![], invocations: vec![], at: None };
+        let mut proofs = dynamic_witness::semantic_external::Proofs::default();
+        let leaf = SemanticTypeRecipe::Atom(Type::I32);
+        let mut limited = limits.clone();
+        limited.max_call_depth = 8;
+        let mut budget = Budget::new(&limited);
+        let mut active = ActiveQueries::new();
+        for id in 0..7 {
+            active.frames.push(DependencyKey { kind: QueryKind::Type, token: FrameToken(id) });
+        }
+        let value = context.evaluate_type(&module, &leaf, &env, &mut proofs, &mut active, &mut budget).unwrap();
+        assert_eq!(value.ty, Type::I32);
+        active.frames.push(DependencyKey { kind: QueryKind::Type, token: FrameToken(7) });
+        let error = context.evaluate_type(&module, &leaf, &env, &mut proofs, &mut active, &mut budget).unwrap_err();
+        assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+        assert!(error.message.contains("dependency depth"), "{error:?}");
+
+        limited.max_nodes = 3;
+        let wide = SemanticTypeRecipe::Tuple(vec![leaf; 7]);
+        let error = context.evaluate_type(&module, &wide, &env, &mut proofs,
+            &mut ActiveQueries::new(), &mut Budget::new(&limited)).unwrap_err();
+        assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     }
 }
