@@ -34,7 +34,7 @@ impl CheckedOriginal {
 
     pub(in crate::semantic) fn indirect_signature_recipe(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,environment:&EvalEnv,b:&mut Budget)->Check<SemanticSignatureRecipe>{
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("indirect call has no complete original function"))?;
-        let Some(index::Node::Expression(call))=function.nodes.get(&site)else{return Err(bad("indirect call source is not an original expression"));};
+        let Some(index::Node::Expression(call))=function.node(site,b)?else{return Err(bad("indirect call source is not an original expression"));};
         let source=self.callable_source(module,definition,call.id,b)?;
         let ty=self.original_type(definition,&SemanticOriginalTypeSource::Expression(source),b)?;
         let SemanticTypeRecipe::Code{kind,signature}=self.reify_type(module,&ty,environment,b)? else{return Err(bad("indirect call callee lacks its original complete code scheme"));};
@@ -272,7 +272,7 @@ impl CheckedOriginal {
         let function = index.definitions.get(&owner).ok_or_else(|| bad("inherited argument has no original caller"))?;
         let direct_local = |site, ordinal: u32, b: &mut Budget| -> Check<Option<NodeId>> {
             b.spend(1)?;
-            let Some(index::Node::Expression(call)) = function.nodes.get(&site) else { return Ok(None) };
+            let Some(index::Node::Expression(call)) = function.node(site,b)? else { return Ok(None) };
             let CoreExprKind::Call { arguments, .. } = &call.kind else { return Ok(None) };
             let Some(argument) = arguments.get(ordinal as usize) else { return Ok(None) };
             let CoreExprKind::Unary { op: UnaryOp::Borrow | UnaryOp::BorrowMut, operand } = &argument.kind else { return Ok(None) };

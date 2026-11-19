@@ -106,7 +106,7 @@ impl CheckedOriginal {
             let index = self.source_index(module, &[env.current()?], b)?;
             let function = index.definitions.get(&env.current()?)
                 .ok_or_else(|| bad("Task constructor has no original caller body"))?;
-            let Some(index::Node::Expression(call)) = function.nodes.get(&site) else {
+            let Some(index::Node::Expression(call)) = function.node(site,b)? else {
                 return Err(bad("Task constructor has no exact original Call occurrence"));
             };
             let call_node = call.id;

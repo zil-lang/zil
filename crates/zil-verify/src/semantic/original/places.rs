@@ -53,7 +53,7 @@ impl CheckedOriginal {
         if !self.checked.contains(&definition){return Err(bad("persistent callback binder lacks its complete original proof"));}
         let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("persistent callback binder has no original function"))?;
-        let Some(index::Node::Statement(statement))=function.nodes.get(&site)else{return Err(bad("persistent callback cell selects no original declaration"));};
+        let Some(index::Node::Statement(statement))=function.node(site,b)?else{return Err(bad("persistent callback cell selects no original declaration"));};
         let CoreStatementKind::Binding{mutable:true,initializer:Some(initializer),..}=&statement.kind else{return Err(bad("persistent callback cell does not represent an initialized mutable binder"));};
         Ok((statement.id,initializer.id))
     }
@@ -166,7 +166,8 @@ impl CheckedOriginal {
         let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("record spread original body is absent"))?;
         let mut found=None;
-        for expression in function.expressions.values(){
+        for &node in function.record_updates(){
+            let expression=function.expression(node,b)?.ok_or_else(||bad("original record update expression is absent"))?;
             b.spend(1)?;
             if expression.span!=span{continue;}
             if let CoreExprKind::RecordUpdate{base,fields,..}=&expression.kind {
@@ -207,7 +208,7 @@ impl CheckedOriginal {
         };
         if !carrier.is_integer()&&!carrier.is_float()&&!matches!(carrier,Type::Unit|Type::Bool){return Err(bad("source input is not an independently checked scalar expression"));}
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("scalar source input original owner is absent"))?;
-        let expression=*function.expressions.get(&node).ok_or_else(||bad("scalar source input original expression is absent"))?;
+        let expression=function.expression(node,b)?.ok_or_else(||bad("scalar source input original expression is absent"))?;
         Ok((expression,carrier))
     }
     pub(in crate::semantic) fn tuple_give_operand(

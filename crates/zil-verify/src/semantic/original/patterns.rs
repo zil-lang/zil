@@ -111,7 +111,7 @@ impl CheckedOriginal {
 
     fn pattern_binding_source(&self,module:&TypedModule,definition:SemanticDefinitionId,statement:NodeId,path:&[u32],b:&mut Budget)->Check<PatternSource>{
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("pattern owner has no original body"))?;
-        let statement=function.statements.get(&statement).ok_or_else(||bad("pattern binding statement is absent"))?;
+        let statement=function.statement(statement,b)?.ok_or_else(||bad("pattern binding statement is absent"))?;
         let(subject,mut pattern,mut consumed,mutable)=match &statement.kind{
             CoreStatementKind::Match{value,arms}=>{let arm=*path.first().ok_or_else(||bad("match binder omits its original arm ordinal"))?;let selected=arms.get(arm as usize).ok_or_else(||bad("match binder arm is absent"))?;(value,&selected.pattern,1usize,false)},
             CoreStatementKind::IfLet{value,pattern,..}|CoreStatementKind::WhileLet{value,pattern,..}=>(value,pattern,0,false),

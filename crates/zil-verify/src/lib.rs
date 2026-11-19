@@ -419,6 +419,9 @@ struct DiagnosticProgress {
     original: Option<(usize, usize, SemanticDefinitionId)>,
     world: Option<(usize, usize, SemanticInstanceId, FunctionId)>,
     original_body_walks: usize,
+    original_cursor_queries: usize,
+    original_cursor_edges: usize,
+    original_cursor_children: usize,
     original_body_revisits: usize,
     original_statement_and_expression_visits: usize,
     recipes_started: usize,
@@ -496,6 +499,7 @@ struct Budget {
     diagnostic_costs: Option<BTreeMap<(&'static str, u32), (usize, usize)>>,
     diagnostic_metadata_caller: Option<&'static std::panic::Location<'static>>,
     diagnostic_progress: Option<DiagnosticProgress>,
+    diagnostic_body_definitions: Option<BTreeSet<SemanticDefinitionId>>,
     callable_source_functions: Vec<FunctionId>,
     pending_callable_sources: Vec<FunctionId>,
     returned_environment_sources: bool,
@@ -644,6 +648,7 @@ impl Budget {
             structural: None,
             diagnostic_costs: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS").map(|_| BTreeMap::new()),
             diagnostic_metadata_caller: None,
+            diagnostic_body_definitions: None,
             diagnostic_progress: std::env::var_os("ZIL_VERIFY_PROFILE_COSTS")
                 .map(|_| DiagnosticProgress::default()),
             callable_source_functions: Vec::new(),
@@ -1110,9 +1115,11 @@ fn check_module_budget(
     let prior_structure = budget.structural.take();
     let prior_capture_classes = std::mem::take(&mut budget.semantic_capture_classes);
     let prior_progress = budget.diagnostic_progress;
+    let prior_body_definitions = budget.diagnostic_body_definitions.take();
     let report_scans = std::env::var_os("ZIL_VERIFY_PROFILE_SCANS").is_some();
     if report_scans {
         budget.diagnostic_progress = Some(DiagnosticProgress::default());
+        budget.diagnostic_body_definitions = Some(BTreeSet::new());
     }
     let result = (|| {
         budget.diagnostic_stage("immutable registration");
@@ -1761,8 +1768,11 @@ fn check_module_budget(
         eprintln!("verify-original-body completed={} walks={} revisits={} statement_and_expression_visits={} cfg_block_visits={}",
             result.is_ok(), progress.original_body_walks, progress.original_body_revisits,
             progress.original_statement_and_expression_visits, progress.block_visits);
+        eprintln!("verify-original-cursors queries={} path_edges={} shallow_children={}",
+            progress.original_cursor_queries, progress.original_cursor_edges, progress.original_cursor_children);
     }
     budget.diagnostic_progress = prior_progress;
+    budget.diagnostic_body_definitions = prior_body_definitions;
     result
 }
 

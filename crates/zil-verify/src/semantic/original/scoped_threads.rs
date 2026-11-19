@@ -45,7 +45,7 @@ impl CheckedOriginal {
     pub(in crate::semantic) fn scoped_cell_arguments(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Vec<NodeId>>{
         let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("synchronization original caller is absent"))?;
-        let Some(index::Node::Expression(node))=function.nodes.get(&site)else{return Err(bad("synchronization original Call occurrence is absent"));};
+        let Some(index::Node::Expression(node))=function.node(site,b)?else{return Err(bad("synchronization original Call occurrence is absent"));};
         let CoreExprKind::Call{arguments,..}=&node.kind else{return Err(bad("synchronization selects another original expression"));};
         b.spend(arguments.len())?;
         Ok(arguments.iter().map(|value|value.id).collect())

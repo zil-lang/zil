@@ -1,6 +1,8 @@
 //! Bounded structural indices for the complete original operation grammar.
 //! These cursors prove neither types nor the fidelity of an actual instruction.
 use super::*;
+mod locations;
+pub(super) use locations::Selected;
 
 pub(super) struct Index<'a> {
     pub(super) definitions: BTreeMap<SemanticDefinitionId, Function<'a>>,
@@ -20,6 +22,7 @@ pub(super) struct Function<'a> {
     pub(super) receiver_parameter: Option<u32>,
     pub(super) site_nodes: &'a [SemanticOriginalSiteNode],
     pub(super) body: &'a SemanticOriginalFunctionBody,
+    locations: std::rc::Rc<locations::Locations>,
     pub(super) expressions: BTreeMap<NodeId, &'a SemanticOriginalExpr>,
     pub(super) statements: BTreeMap<NodeId, &'a SemanticOriginalStatement>,
     /// The statement is the original binder occurrence, not a Typed LocalId.
@@ -40,7 +43,7 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
         if !ids.insert(definition.id) {
             return Err(bad("duplicate original definition identity in body index"));
         }
-        let Some(mut function)=function(definition,false,b)? else {continue;};
+        let Some(mut function)=function(definition,b)? else {continue;};
         function.bind_sites(b)?;
         result.definitions.insert(definition.id, function);
     }
@@ -79,7 +82,7 @@ pub(super) fn build<'a>(module: &'a TypedModule, b: &mut Budget) -> Check<Index<
     Ok(result)
 }
 
-fn function<'a>(definition:&'a SemanticDefinition,revisit:bool,b:&mut Budget)->Check<Option<Function<'a>>> {
+fn function<'a>(definition:&'a SemanticDefinition,b:&mut Budget)->Check<Option<Function<'a>>> {
     let (signature, sites, parameters, receiver_parameter, site_nodes, body) = match &definition.body {
         SemanticDefinitionBody::Function { .. } => return Err(bad("original function inventory omits its complete body")),
         SemanticDefinitionBody::FunctionWithBody { signature, sites, parameters, receiver_parameter, site_nodes, body, .. } =>
@@ -100,14 +103,16 @@ fn function<'a>(definition:&'a SemanticDefinition,revisit:bool,b:&mut Budget)->C
     b.spend(parameters.len().saturating_add(1))?;
     let mut function = Function {
         definition, signature, sites, parameters, receiver_parameter, site_nodes, body,
-        expressions: BTreeMap::new(), statements: BTreeMap::new(), bindings: BTreeMap::new(),
+        locations: std::rc::Rc::default(), expressions: BTreeMap::new(), statements: BTreeMap::new(), bindings: BTreeMap::new(),
         nodes: BTreeMap::new(), closures: BTreeMap::new(),
     };
     if let SemanticOriginalFunctionBody::Defined(body) = body {
         function.walk(body, b)?;
         if let Some(progress) = &mut b.diagnostic_progress {
             progress.original_body_walks += 1;
-            progress.original_body_revisits += usize::from(revisit);
+            if let Some(seen) = &mut b.diagnostic_body_definitions {
+                progress.original_body_revisits += usize::from(!seen.insert(definition.id));
+            }
             progress.original_statement_and_expression_visits +=
                 function.statements.len() + function.expressions.len();
         }
@@ -131,6 +136,7 @@ struct Directory {
 }
 struct DefinitionCursor {
     ordinal:usize,
+    locations: std::rc::Rc<locations::Locations>,
     nodes:BTreeMap<SemanticSiteId,SemanticOriginalNode>,
     closures:BTreeMap<NodeId,SemanticDefinitionId>,
     recipes:BTreeMap<(bool,NodeId,Role),Vec<(usize,SemanticSiteId)>>,
@@ -422,7 +428,7 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
             compile_time_uses.insert(definition.id, uses);
         }
         let places = PlaceSyntax::new(function, b)?;
-        definitions.insert(definition.id,DefinitionCursor{ordinal,nodes,closures:function.closures.clone(),recipes,implicit_heads,places});
+        definitions.insert(definition.id,DefinitionCursor{ordinal,locations:function.locations.clone(),nodes,closures:function.closures.clone(),recipes,implicit_heads,places});
     }
     // The full grammar, including unused definitions and actual worlds, was
     // traversed by build. Share its exact allocation when it is held by the
@@ -437,32 +443,9 @@ pub(super) fn snapshot(module:&TypedModule,index:&Index<'_>,b:&mut Budget)->Chec
     };
     Ok(SourceIndex{input,directory:Directory{definitions,compile_time_uses},shape_caps:(b.limits.max_nodes,b.limits.max_call_depth.min(128))})
 }
-pub(super) fn select<'a>(source:&'a SourceIndex,requested:&[SemanticDefinitionId],b:&mut Budget)->Check<Index<'a>>{
-    source.bounds(b)?;
-    let program=source.program()?;
-    let directory=&source.directory;
-    let mut definitions=BTreeMap::new();
-    for id in requested{
-        b.spend(directory.definitions.len().checked_ilog2().map_or(1,|n|n as usize+2))?;
-        if definitions.contains_key(id){continue;}
-        let cursor=directory.definitions.get(id).ok_or_else(||bad("original local cursor selects no fully checked function definition"))?;
-        let definition=program.definitions.get(cursor.ordinal).filter(|definition|definition.id==*id).ok_or_else(||bad("original local cursor changes its immutable definition identity"))?;
-        let mut function=function(definition,true,b)?.ok_or_else(||bad("original local cursor changes its checked function kind"))?;
-        let rows=function.expressions.len().saturating_add(function.statements.len()).saturating_add(cursor.nodes.len());
-        b.spend(cursor.nodes.len().saturating_mul(rows.checked_ilog2().map_or(1,|n|n as usize+2)).saturating_add(cursor.closures.len()))?;
-        for(site,node)in &cursor.nodes{
-            let node=match node{
-                SemanticOriginalNode::Expression(id)=>Node::Expression(*function.expressions.get(id).ok_or_else(||bad("checked original cursor expression is absent from its exact body"))?),
-                SemanticOriginalNode::Statement(id)=>Node::Statement(*function.statements.get(id).ok_or_else(||bad("checked original cursor statement is absent from its exact body"))?),
-            };
-            function.nodes.insert(*site,node);
-        }
-        function.closures=cursor.closures.clone();
-        definitions.insert(*id,function);
-    }
-    Ok(Index{definitions})
-}
+pub(super) use locations::select;
 
+#[derive(Clone, Copy)]
 enum Work<'a> {
     Block(&'a SemanticOriginalBlock),
     Statement(&'a SemanticOriginalStatement),
@@ -474,28 +457,20 @@ enum Work<'a> {
     Argument(&'a SemanticOriginalGenericArgument),
 }
 
-impl<'a> Function<'a> {
-    fn walk(&mut self, body: &'a SemanticOriginalBlock, b: &mut Budget) -> Check<()> {
-        let mut pending = vec![Work::Block(body)];
-        let mut ids = BTreeSet::new();
-        while let Some(work) = pending.pop() {
-            b.spend(2)?;
-            match work {
+impl<'a> Work<'a> {
+    fn children(self, pending: &mut Vec<Work<'a>>, b: &mut Budget) -> Check<()> {
+            match self {
                 Work::Block(block) => {
                     b.spend(block.statements.len())?;
                     pending.extend(block.statements.iter().rev().map(Work::Statement));
                 }
                 Work::Statement(statement) => {
-                    if !ids.insert(statement.id) { return Err(bad("duplicate original body node identity")); }
-                    self.statements.insert(statement.id, statement);
                     use CoreStatementKind::*;
                     match &statement.kind {
                         Binding { initializer, .. } => {
-                            self.bindings.insert(statement.id, statement);
                             if let Some(value) = initializer { pending.push(Work::Expression(value)); }
                         }
                         TupleBinding { pattern, initializer, .. } => {
-                            self.bindings.insert(statement.id, statement);
                             pending.push(Work::Expression(initializer)); pending.push(Work::Pattern(pattern));
                         }
                         Assign { target, value } | CompoundAssign { target, value, .. } => {
@@ -508,21 +483,17 @@ impl<'a> Function<'a> {
                             pending.push(Work::Block(then_body)); pending.push(Work::Expression(condition));
                         }
                         IfLet { pattern, value, then_body, else_body } => {
-                            self.bindings.insert(statement.id, statement);
                             if let Some(body) = else_body { pending.push(Work::Block(body)); }
                             pending.push(Work::Block(then_body)); pending.push(Work::Expression(value)); pending.push(Work::Pattern(pattern));
                         }
                         While { condition, body } => { pending.push(Work::Block(body)); pending.push(Work::Expression(condition)); }
                         WhileLet { pattern, value, body } => {
-                            self.bindings.insert(statement.id, statement);
                             pending.push(Work::Block(body)); pending.push(Work::Expression(value)); pending.push(Work::Pattern(pattern));
                         }
                         ForRange { start, end, body, .. } => {
-                            self.bindings.insert(statement.id, statement);
                             pending.push(Work::Block(body)); pending.push(Work::Expression(end)); pending.push(Work::Expression(start));
                         }
                         ForEach { pattern, iterator, body } => {
-                            self.bindings.insert(statement.id, statement);
                             pending.push(Work::Block(body)); pending.push(Work::Expression(iterator)); pending.push(Work::Pattern(pattern));
                         }
                         Match { value, arms } => {
@@ -532,7 +503,6 @@ impl<'a> Function<'a> {
                         }
                         Block(body) | Defer(body) | Unsafe(body) | Loop(body) => pending.push(Work::Block(body)),
                         With { value, body, .. } => {
-                            self.bindings.insert(statement.id, statement);
                             pending.push(Work::Block(body)); pending.push(Work::Expression(value));
                         }
                         CompileTime(statement) => pending.push(Work::Statement(statement)),
@@ -541,8 +511,6 @@ impl<'a> Function<'a> {
                     }
                 }
                 Work::Expression(expression) => {
-                    if !ids.insert(expression.id) { return Err(bad("duplicate original body node identity")); }
-                    self.expressions.insert(expression.id, expression);
                     use CoreExprKind::*;
                     match &expression.kind {
                         MakeDynBorrow { source, .. } | MakeDynOwned { source, .. } => pending.push(Work::Expression(source)),
@@ -625,10 +593,41 @@ impl<'a> Function<'a> {
                     SemanticOriginalGenericArgument::Type(_) | SemanticOriginalGenericArgument::Lifetime(_) => {}
                 },
             }
-        }
         Ok(())
     }
-
+}
+impl<'a> Function<'a> {
+    fn walk(&mut self, body: &'a SemanticOriginalBlock, b: &mut Budget) -> Check<()> {
+        let locations = std::rc::Rc::get_mut(&mut self.locations).ok_or_else(|| bad("original syntax was published before its body was indexed"))?;
+        let mut pending = vec![(Work::Block(body), None)];
+        let mut children = Vec::new();
+        while let Some((work, parent)) = pending.pop() {
+            b.spend(2)?;
+            let location = locations.push(parent, b)?;
+            match work {
+                Work::Statement(statement) => {
+                    locations.record(statement.id, location, b)?;
+                    self.statements.insert(statement.id, statement);
+                    use CoreStatementKind::*;
+                    if matches!(&statement.kind, Binding{..} | TupleBinding{..} | IfLet{..} | WhileLet{..} | ForRange{..} | ForEach{..} | With{..}) {
+                        self.bindings.insert(statement.id, statement);
+                    }
+                    if matches!(&statement.kind, Return(Some(_))) { locations.returns.push(statement.id); }
+                }
+                Work::Expression(expression) => {
+                    locations.record(expression.id, location, b)?;
+                    self.expressions.insert(expression.id, expression);
+                    if matches!(&expression.kind, CoreExprKind::RecordUpdate{..}) { locations.updates.push(expression.id); }
+                }
+                _ => {}
+            }
+            work.children(&mut children, b)?;
+            b.spend(children.len().saturating_mul(2))?;
+            pending.extend(children.drain(..).enumerate().map(|(slot, child)| (child, Some((location, slot)))));
+        }
+        locations.finish(b)?;
+        Ok(())
+    }
     fn bind_sites(&mut self, b: &mut Budget) -> Check<()> {
         if self.sites.len() != self.site_nodes.len() { return Err(bad("original site directory omits or adds a node correspondence")); }
         b.spend(self.sites.len().saturating_add(self.site_nodes.len()))?;

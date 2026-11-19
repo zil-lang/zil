@@ -352,7 +352,7 @@ impl CheckedOriginal {
         _module: &TypedModule,
         definitions: &[SemanticDefinitionId],
         b: &mut Budget,
-    ) -> Check<index::Index<'s>> {
+    ) -> Check<index::Selected<'s>> {
         let source = self
             .source_grammar
             .as_ref()

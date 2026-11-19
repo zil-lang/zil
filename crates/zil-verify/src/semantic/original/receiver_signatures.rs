@@ -165,7 +165,8 @@ impl CheckedOriginal {
         let expression = index
             .definitions
             .get(&owner)
-            .and_then(|function| function.expressions.get(&node))
+            .ok_or_else(|| bad("owned Receiver view has no exact original owner"))?
+            .expression(node,b)?
             .ok_or_else(|| bad("owned Receiver view has no exact original source expression"))?;
         if self.inline_capture_place(owner, expression, b)? {
             b.spend(1)?;
@@ -387,7 +388,8 @@ impl CheckedOriginal {
             .get(&owner)
             .ok_or_else(|| bad("Receiver lending has no complete original body"))?;
         let mut returns = Vec::new();
-        for statement in function.statements.values() {
+        for &node in function.returns() {
+            let statement = function.statement(node,b)?.ok_or_else(||bad("original return statement is absent"))?;
             b.spend(1)?;
             let CoreStatementKind::Return(Some(value)) = &statement.kind else {
                 continue;

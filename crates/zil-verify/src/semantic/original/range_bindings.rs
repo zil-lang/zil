@@ -17,7 +17,7 @@ impl CheckedOriginal {
         if self.bindings.contains_key(&(definition,statement)){return Ok(None);}
         let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("range source original owner is absent"))?;
-        let Some(statement)=function.statements.get(&statement)else{return Ok(None);};
+        let Some(statement)=function.statement(statement,b)?else{return Ok(None);};
         let(name,start,end)=match &statement.kind {
             CoreStatementKind::ForRange{name,start,end,..}=>(name,start,end),
             CoreStatementKind::ForEach{pattern,iterator,..}=>{

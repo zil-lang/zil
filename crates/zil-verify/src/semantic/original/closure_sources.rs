@@ -169,7 +169,7 @@ impl CheckedOriginal {
     )->Check<SemanticLifeRecipe>{
         let index=self.source_index(module,&[definition],b)?;
         let function=index.definitions.get(&definition).ok_or_else(||bad("temporary description lacks its original call body"))?;
-        let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{
+        let Some(index::Node::Expression(call))=function.node(site,b)?else{
             return Err(bad("temporary description has no exact original Call occurrence"));
         };
         if self.original_call_site(definition,call.id,b)?.1!=site{
@@ -324,7 +324,7 @@ impl CheckedOriginal {
         let implicit=function.definition.implicit_lifetimes.iter().find(|row|row.ordinal==ordinal).ok_or_else(||bad("implicit capture has no original lifetime occurrence"))?;
         let mut selected=None;
         for site in function.sites.iter().filter(|site|site.occurrence_path==implicit.occurrence_path){
-            b.spend(1)?;let Some(index::Node::Expression(expression))=function.nodes.get(&site.id)else{continue;};
+            b.spend(1)?;let Some(index::Node::Expression(expression))=function.node(site.id,b)?else{continue;};
             let CoreExprKind::Name(name)=&expression.kind else{return Err(bad("implicit captured head does not select its exact original free Name occurrence"));};
             let binding=self.free_values.get(&child).and_then(|bindings|bindings.get(name)).ok_or_else(||bad("implicit capture Name is not an original lexical free value"))?;
             let captured=Binder::Capture{definition:child,source:Box::new(binding.identity.clone())};
@@ -335,7 +335,7 @@ impl CheckedOriginal {
             // minimum arbitrary NodeId or a selected same-typed capture.
             let mut first=None;
             for candidate in function.sites{
-                b.spend(1)?;let Some(index::Node::Expression(read))=function.nodes.get(&candidate.id)else{continue;};
+                b.spend(1)?;let Some(index::Node::Expression(read))=function.node(candidate.id,b)?else{continue;};
                 if !matches!(read.kind,CoreExprKind::Name(_))||self.value_bindings.get(&(child,read.id))!=Some(&captured){continue;}
                 if first.as_ref().is_none_or(|path:&Vec<u32>|candidate.occurrence_path<*path){first=Some(candidate.occurrence_path.clone());}
             }
@@ -350,12 +350,12 @@ impl CheckedOriginal {
 impl CheckedOriginal {
     pub(in crate::semantic) fn static_literal(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,b:&mut Budget)->Check<Option<Vec<u8>>>{
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static literal original body is absent"))?;
-        let expression=match function.nodes.get(&site).copied(){Some(index::Node::Expression(expression))=>expression,Some(index::Node::Statement(statement))=>match &statement.kind{CoreStatementKind::Binding{initializer:Some(expression),..}=>expression,_=>return Ok(None)},None=>return Ok(None)};
+        let expression=match function.node(site,b)?{Some(index::Node::Expression(expression))=>expression,Some(index::Node::Statement(statement))=>match &statement.kind{CoreStatementKind::Binding{initializer:Some(expression),..}=>expression,_=>return Ok(None)},None=>return Ok(None)};
         self.checked_static_literal(definition,expression,b)
     }
     pub(in crate::semantic) fn static_call_literals(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,receiver_argument:bool,b:&mut Budget)->Check<Option<(usize,Vec<(usize,Vec<u8>)>)>>{
         let index=self.source_index(module,&[definition],b)?;let function=index.definitions.get(&definition).ok_or_else(||bad("static Call literal has no exact original body"))?;
-        let Some(index::Node::Expression(call))=function.nodes.get(&site).copied()else{return Ok(None);};
+        let Some(index::Node::Expression(call))=function.node(site,b)?else{return Ok(None);};
         let CoreExprKind::Call{arguments,..}=&call.kind else{return Ok(None);};
         if !self.call_targets.contains_key(&(definition,site))&&!self.trait_calls.contains_key(&(definition,site))&&!self.callable_nodes.contains_key(&(definition,call.id)){return Ok(None);}
         let offset=usize::from(receiver_argument&&self.trait_calls.get(&(definition,site)).is_some_and(|row|row.receiver_mode.is_some()));

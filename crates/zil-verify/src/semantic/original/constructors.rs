@@ -100,7 +100,7 @@ impl CheckedOriginal{
     pub(in crate::semantic) fn variant_operand_nodes(&self, module: &TypedModule, definition: SemanticDefinitionId, site: SemanticSiteId, b: &mut Budget) -> Check<Vec<NodeId>> {
         let index = self.source_index(module, &[definition], b)?;
         let function = index.definitions.get(&definition).ok_or_else(|| bad("owning enum constructor has no original function"))?;
-        let Some(index::Node::Expression(expression)) = function.nodes.get(&site) else {
+        let Some(index::Node::Expression(expression)) = function.node(site,b)? else {
             return Err(bad("owning enum constructor has no exact original operand occurrence"));
         };
         let CoreExprKind::Call { arguments, .. } = &expression.kind else {
@@ -117,7 +117,7 @@ impl CheckedOriginal{
         let index = self.source_index(module, &[definition], b)?;
         let function = index.definitions.get(&definition)
             .ok_or_else(|| bad("Tuple constructor has no original function"))?;
-        let Some(index::Node::Expression(expression)) = function.nodes.get(&site) else {
+        let Some(index::Node::Expression(expression)) = function.node(site,b)? else {
             return Err(bad("Tuple constructor has no exact original operand occurrence"));
         };
         let CoreExprKind::Tuple(fields) = &expression.kind else {
@@ -278,7 +278,7 @@ impl CheckedOriginal {
     pub(in crate::semantic) fn checked_result_constructor(&self,module:&TypedModule,definition:SemanticDefinitionId,site:SemanticSiteId,variant:Option<u32>,b:&mut Budget)->Check<bool>{
         let index=self.source_index(module,&[definition],b)?;
         let Some(function)=index.definitions.get(&definition) else{return Ok(false);};
-        let Some(index::Node::Expression(expression))=function.nodes.get(&site) else{return Ok(false);};
+        let Some(index::Node::Expression(expression))=function.node(site,b)? else{return Ok(false);};
         if let Some(variant)=variant {
             let Some(constructor)=self.constructors.get(&(definition,site)) else{return Ok(false);};
             if constructor.variant!=variant{return Ok(false);}
