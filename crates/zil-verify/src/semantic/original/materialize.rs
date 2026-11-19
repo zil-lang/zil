@@ -61,7 +61,7 @@ impl CheckedOriginal {
                 return Ok(SemanticTypeRecipe::Address{mutable:*mutable,lifetime:self.reify_outer(module,life,env,b)?,inner:Box::new(SemanticTypeRecipe::OriginalType{scope:self.scope(definition,env,b)?,source:SemanticOriginalTypeSource::Expression(operand)})});
             }
         }}
-        self.reify_type(module,&value,env,b)
+        self.reify_resolved_at(module,value,env,0,b)
     }
     pub(super) fn borrow_operand_source(&self,_module:&TypedModule,owner:SemanticDefinitionId,source:&SemanticOriginalTypeSource,b:&mut Budget)->Check<Option<NodeId>>{
         if !matches!(source,SemanticOriginalTypeSource::Expression(_)|SemanticOriginalTypeSource::Binding(_)|SemanticOriginalTypeSource::NameAt{..}){return Ok(None);}
@@ -107,11 +107,13 @@ impl CheckedOriginal {
     }
     pub(super) fn scope(&self,id:SemanticDefinitionId,env:&EvalEnv,b:&mut Budget)->Check<SemanticScopeRef>{b.spend(env.lexical.len())?;env.lexical.iter().position(|frame|frame.definition==id).map(|depth|SemanticScopeRef::Ancestor(depth as u32)).ok_or_else(||bad("original symbolic term escapes the actual real lexical scope"))}
     pub(super) fn reify_type(&self,module:&TypedModule,ty:&Ty,env:&EvalEnv,b:&mut Budget)->Check<SemanticTypeRecipe>{
-        self.reify_type_at(module,ty,env,0,b)
+        let complete=self.resolved(ty,b)?;
+        self.reify_resolved_at(module,complete,env,0,b)
     }
-    fn reify_type_at(&self,module:&TypedModule,ty:&Ty,env:&EvalEnv,depth:usize,b:&mut Budget)->Check<SemanticTypeRecipe>{
+    /// Recursion consumes children of the same completed substitution. A new
+    /// symbolic argument or captured term still enters through reify_type.
+    fn reify_resolved_at(&self,module:&TypedModule,ty:Ty,env:&EvalEnv,depth:usize,b:&mut Budget)->Check<SemanticTypeRecipe>{
         b.spend(1)?;if depth>b.limits.max_call_depth.min(128){return Err(limit("original term instantiation depth exceeded"));}
-        let ty=self.resolved(ty,b)?;
         Ok(match ty{
             Ty::Atom(ty)=>SemanticTypeRecipe::Atom(ty),
             Ty::SealedError(kind)=>SemanticTypeRecipe::Exact(Box::new(SemanticExactTypeRecipe{ty:kind.ty(),life:empty_life(),classes:vec![]})),
@@ -119,8 +121,8 @@ impl CheckedOriginal {
             Ty::SelfType(definition)=>SemanticTypeRecipe::SelfType{scope:self.scope(definition,env,b)?},
             Ty::Nominal(definition,arguments)=>{let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Nominal{definition,arguments:recipes}},
             Ty::Opaque(definition,arguments)=>{let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Opaque{definition,arguments:recipes,hidden:Box::new(SemanticTypeRecipe::OriginalType{scope:SemanticScopeRef::Ancestor(0),source:SemanticOriginalTypeSource::Result})}},
-            Ty::Projection{receiver,declaration,arguments,member}=>{let receiver=Box::new(self.reify_type_at(module,&receiver,env,depth+1,b)?);let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::AssociatedType{receiver,application:Box::new(SemanticTraitRecipe{declaration,arguments:recipes}),member}},
-            Ty::Tuple(fields)=>{let mut recipes=Vec::new();for field in &fields{recipes.push(self.reify_type_at(module,field,env,depth+1,b)?);}SemanticTypeRecipe::Tuple(recipes)},
+            Ty::Projection{receiver,declaration,arguments,member}=>{let receiver=Box::new(self.reify_resolved_at(module,*receiver,env,depth+1,b)?);let mut recipes=Vec::new();for argument in &arguments{recipes.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::AssociatedType{receiver,application:Box::new(SemanticTraitRecipe{declaration,arguments:recipes}),member}},
+            Ty::Tuple(fields)=>{let mut recipes=Vec::new();for field in fields{recipes.push(self.reify_resolved_at(module,field,env,depth+1,b)?);}SemanticTypeRecipe::Tuple(recipes)},
             Ty::Address{mutable,life,inner}=>{
                 let captured = match (&life, inner.as_ref()) {
                     (Life::Invocation(..), Ty::Atom(Type::SyncCell(cell))) if !mutable =>
@@ -131,31 +133,32 @@ impl CheckedOriginal {
                     Some(capture) => SemanticOuterLifeRecipe::Class(capture),
                     None => self.reify_outer(module,&life,env,b)?,
                 };
-                SemanticTypeRecipe::Address{mutable,lifetime,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)}
+                SemanticTypeRecipe::Address{mutable,lifetime,inner:Box::new(self.reify_resolved_at(module,*inner,env,depth+1,b)?)}
             },
-            Ty::Desc{life,inner}=>SemanticTypeRecipe::Desc{lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)},
-            Ty::Slice(inner)=>SemanticTypeRecipe::Slice(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
-            Ty::Managed(inner)=>SemanticTypeRecipe::Managed(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
+            Ty::Desc{life,inner}=>SemanticTypeRecipe::Desc{lifetime:self.reify_outer(module,&life,env,b)?,inner:Box::new(self.reify_resolved_at(module,*inner,env,depth+1,b)?)},
+            Ty::Slice(inner)=>SemanticTypeRecipe::Slice(Box::new(self.reify_resolved_at(module,*inner,env,depth+1,b)?)),
+            Ty::Managed(inner)=>SemanticTypeRecipe::Managed(Box::new(self.reify_resolved_at(module,*inner,env,depth+1,b)?)),
             Ty::Dyn(value)=>SemanticTypeRecipe::Dyn{owned:value.owned,interface:Box::new(self.reify_dyn(module,&value,env,b)?)},
-            Ty::Carrier{kind,child,retained}=>{let child=Box::new(self.reify_type_at(module,&child,env,depth+1,b)?);match kind{CarrierKind::Mutex=>SemanticTypeRecipe::Mutex(child),CarrierKind::MutexGuard=>SemanticTypeRecipe::MutexGuard{payload:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Task=>SemanticTypeRecipe::Task{result:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Registration=>SemanticTypeRecipe::Registration(child),CarrierKind::AsyncRegistration=>SemanticTypeRecipe::AsyncRegistration(child)}},
-            Ty::Store(inner)=>SemanticTypeRecipe::OwnedStore(Box::new(self.reify_type_at(module,&inner,env,depth+1,b)?)),
-            Ty::Array(element,length)=>SemanticTypeRecipe::Array{element:Box::new(self.reify_type_at(module,&element,env,depth+1,b)?),length:Box::new(self.reify_constant(module,&length,env,b)?)},
-            Ty::ErrorUnion(error,result)=>SemanticTypeRecipe::ErrorUnion{error:Box::new(self.reify_type_at(module,&error,env,depth+1,b)?),result:Box::new(self.reify_type_at(module,&result,env,depth+1,b)?)},
+            Ty::Carrier{kind,child,retained}=>{let child=Box::new(self.reify_resolved_at(module,*child,env,depth+1,b)?);match kind{CarrierKind::Mutex=>SemanticTypeRecipe::Mutex(child),CarrierKind::MutexGuard=>SemanticTypeRecipe::MutexGuard{payload:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Task=>SemanticTypeRecipe::Task{result:child,retained:Box::new(self.reify_retained(module,&retained,env,b)?)},CarrierKind::Registration=>SemanticTypeRecipe::Registration(child),CarrierKind::AsyncRegistration=>SemanticTypeRecipe::AsyncRegistration(child)}},
+            Ty::Store(inner)=>SemanticTypeRecipe::OwnedStore(Box::new(self.reify_resolved_at(module,*inner,env,depth+1,b)?)),
+            Ty::Array(element,length)=>SemanticTypeRecipe::Array{element:Box::new(self.reify_resolved_at(module,*element,env,depth+1,b)?),length:Box::new(self.reify_constant(module,&length,env,b)?)},
+            Ty::ErrorUnion(error,result)=>SemanticTypeRecipe::ErrorUnion{error:Box::new(self.reify_resolved_at(module,*error,env,depth+1,b)?),result:Box::new(self.reify_resolved_at(module,*result,env,depth+1,b)?)},
             Ty::Closure(definition,arguments,environment)=>{let mut checked=Vec::new();let mut sealed=Vec::new();for argument in &arguments{checked.push(self.reify_argument(module,argument,env,b)?);}for argument in &environment{sealed.push(self.reify_argument(module,argument,env,b)?);}SemanticTypeRecipe::Closure{definition,arguments:checked,environment:sealed}},
             Ty::Infer(_)=>return Err(bad("original inferred type remains unsolved at the executable boundary")),
             Ty::Code{kind,parameters,result,modes,result_mode,call_kind,bound_lifetimes,invocation_lifetimes}=>{
                 if parameters.len()!=modes.len(){return Err(bad("original code value omits a complete parameter mode"));}
                 let frame=Self::code_invocation_frame(&parameters,&result,invocation_lifetimes,b)?;
-                let position=|ty:&Ty,b:&mut Budget|->Check<SemanticTypeRecipe>{
-                    if let Ty::Address{mutable,life:life@Life::Invocation(_,index),inner}=ty {
-                        if frame.get(*index as usize)==Some(life){
-                            return Ok(SemanticTypeRecipe::Address{mutable:*mutable,lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(*index)),inner:Box::new(self.reify_type_at(module,inner,env,depth+1,b)?)});
-                        }
+                let position=|ty:Ty,b:&mut Budget|->Check<SemanticTypeRecipe>{
+                    match ty {
+                        Ty::Address{mutable,life:Life::Invocation(owner,index),inner}
+                            if frame.get(index as usize)==Some(&Life::Invocation(owner,index)) => {
+                                Ok(SemanticTypeRecipe::Address{mutable,lifetime:SemanticOuterLifeRecipe::Class(SemanticLifeRecipe::Invocation(index)),inner:Box::new(self.reify_resolved_at(module,*inner,env,depth+1,b)?)})
+                            }
+                        other=>self.reify_resolved_at(module,other,env,depth+1,b),
                     }
-                    self.reify_type_at(module,ty,env,depth+1,b)
                 };
-                let mut values=Vec::new();for(ty,mode)in parameters.iter().zip(modes){values.push(SemanticParameterRecipe{ty:position(ty,b)?,mode});}
-                SemanticTypeRecipe::Code{kind,signature:Box::new(SemanticSignatureRecipe{bound_lifetimes,invocation_lifetimes,parameters:values,result:position(&result,b)?,result_mode,call_kind})}
+                let mut values=Vec::new();for(ty,mode)in parameters.into_iter().zip(modes){values.push(SemanticParameterRecipe{ty:position(ty,b)?,mode});}
+                SemanticTypeRecipe::Code{kind,signature:Box::new(SemanticSignatureRecipe{bound_lifetimes,invocation_lifetimes,parameters:values,result:position(*result,b)?,result_mode,call_kind})}
             },
             Ty::Function(_)=>return Err(bad("original static function value lacks its explicit complete code coercion")),
         })
@@ -290,5 +293,39 @@ impl CheckedOriginal {
             }
         }
         Ok(false)
+    }
+}
+
+#[cfg(test)]
+mod resolved_tree_tests {
+    use super::*;
+
+    #[test]
+    fn reification_traverses_a_solved_tuple_once_and_keeps_scope_and_depth() {
+        let (module, _) = crate::tests::baseline();
+        let mut original = CheckedOriginal::default();
+        original.substitutions.insert(0, Ty::Atom(Type::I32));
+        let env = EvalEnv { lexical: vec![], assumptions: vec![], images: vec![], bounds: vec![], invocations: vec![], at: None };
+        let nested = |depth:usize, leaf:Ty|(0..depth).fold(leaf, |leaf,_|Ty::Tuple(vec![leaf]));
+        let run = |depth| {
+            let mut b=Budget::new(&Limits::default());
+            let before=b.remaining;
+            let mut recipe=original.reify_type(&module, &nested(depth,Ty::Infer(0)), &env,&mut b).unwrap();
+            for _ in 0..depth {
+                let SemanticTypeRecipe::Tuple(mut fields)=recipe else {panic!("missing original tuple")};
+                assert_eq!(fields.len(),1);
+                recipe=fields.pop().unwrap();
+            }
+            assert_eq!(recipe,SemanticTypeRecipe::Atom(Type::I32));
+            before-b.remaining
+        };
+        assert!(run(32)<=run(16)*2+2);
+        let owner=SemanticDefinitionId{module:zil_base::ModuleId(1),index:7};
+        let mut b=Budget::new(&Limits::default());
+        let missing=Ty::Address{mutable:false,life:Life::Formal(owner,3),inner:Box::new(Ty::Atom(Type::I32))};
+        let problem=original.reify_type(&module,&nested(4,missing),&env,&mut b).unwrap_err();
+        assert!(problem.message.contains("escapes the actual real lexical scope"));
+        b.limits.max_call_depth=4;
+        assert_eq!(original.reify_type(&module,&nested(5,Ty::Infer(0)),&env,&mut b).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
     }
 }

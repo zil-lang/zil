@@ -333,10 +333,12 @@ pub(super) fn type_success(ty: &Type, depth: usize, b: &mut Budget) -> Check<()>
     buckets[bucket].recent=Some(key);
     Ok(())
 }
+// Only registered immutable rows can publish success. Its full profile and
+// identity remain part of each read, and a new Structure owns fresh tables.
 pub(super) fn recipe_known<T:'static>(value:&T,b:&mut Budget)->Check<bool>{
-    let Some(state)=&b.structural else{return Ok(false);};let fee=lookup(state.recipes.len()).saturating_add(lookup(state.recipe_success.len()));
+    let Some(state)=&b.structural else{return Ok(false);};let fee=lookup(state.recipe_success.len());
     b.spend(fee)?;let state=b.structural.as_ref().unwrap();let key=(TypeId::of::<T>(),value as *const T as usize);
-    Ok(state.recipes.contains(&key)&&state.recipe_success.contains(&(key,profile(b))))
+    Ok(state.recipe_success.contains(&(key,profile(b))))
 }
 pub(super) fn recipe_success<T:'static>(value:&T,b:&mut Budget)->Check<()>{
     let Some(state)=&b.structural else{return Ok(());};let key=(TypeId::of::<T>(),value as *const T as usize);
@@ -367,9 +369,9 @@ pub(crate) fn source_program_bounds(program: &SemanticModule, b: &mut Budget) ->
 }
 pub(super) fn declaration_known(value:&DynDeclaration,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<bool>{
     let Some(state)=&b.structural else{return Ok(false);};let ptr=value as *const DynDeclaration as usize;
-    let fee=lookup(state.declaration_nodes.len()).saturating_add(lookup(state.declaration_success.len()));
+    let fee=lookup(state.declaration_success.len());
     b.spend(fee)?;let state=b.structural.as_ref().unwrap();
-    Ok(state.declaration_nodes.contains(&ptr)&&state.declaration_success.contains(&(ptr,owner,profile(b))))
+    Ok(state.declaration_success.contains(&(ptr,owner,profile(b))))
 }
 pub(super) fn declaration_success(value:&DynDeclaration,owner:Option<SemanticDefinitionId>,b:&mut Budget)->Check<()>{
     let Some(state)=&b.structural else{return Ok(());};let ptr=value as *const DynDeclaration as usize;
@@ -803,6 +805,63 @@ mod tests{
     fn budget(module:&TypedModule)->Budget{
         let mut b=Budget::new(&Limits::default());
         b.structural=Some(Structure::register(module,&mut b).unwrap());b
+    }
+    #[test]
+    fn recipe_and_dynamic_declaration_hits_require_registered_originals_profiles_and_owner() {
+        let limits = Limits::default();
+        let (mut module, _) = zil_ir::wire::decode_module_candidate(
+            include_bytes!("../semantic/fixtures/ordinary-identity-complete-head.wire"), &limits,
+        ).unwrap();
+        module.dyn_declarations.push(
+        DynDeclaration {
+            implicit_lifetimes: Some(vec![]),
+            id: LifeDeclarationId {
+                module: zil_base::ModuleId(0),
+                declaration: zil_base::NodeId(7),
+                compiler: false,
+            },
+            identity: LifeDeclarationIdentity {
+                package: "witness-test".into(),
+                module_path: vec![],
+                declaration_path: vec!["OriginalTrait".into()],
+                generation_path: vec![],
+            },
+            kind: DynDeclarationKind::Trait,
+            parameters: vec![LifeParameterKind::Type],
+            members: vec![],
+            self_pattern: None,
+            implemented_trait: None,
+            direct_supertraits: Some(vec![]),
+            requirements: Some(vec![]),
+            associated_definitions: Some(vec![]),
+            method_signatures: Some(vec![]),
+            method_definitions: Some(vec![]),
+        }
+        );
+        let mut b = budget(&module);
+        let program = module.semantic.as_ref().unwrap();
+        let owner = &program.definitions[0];
+        let signature = program.definitions.iter().find_map(|d| match &d.body {
+            SemanticDefinitionBody::FunctionWithBody { signature, .. } => Some(signature),
+            _ => None,
+        }).unwrap();
+        assert!(!recipe_known(signature, &mut b).unwrap());
+        super::super::bounds_recipe(signature, &mut b).unwrap();
+        assert!(recipe_known(signature, &mut b).unwrap());
+        let temporary = signature.clone();
+        super::super::bounds_recipe(&temporary, &mut b).unwrap();
+        assert!(!recipe_known(&temporary, &mut b).unwrap());
+        let decl = module.dyn_declarations.last().unwrap();
+        declaration_success(decl, Some(owner.id), &mut b).unwrap();
+        assert!(declaration_known(decl, Some(owner.id), &mut b).unwrap());
+        assert!(!declaration_known(decl, None, &mut b).unwrap());
+        let temporary = decl.clone();
+        declaration_success(&temporary, Some(owner.id), &mut b).unwrap();
+        assert!(!declaration_known(&temporary, Some(owner.id), &mut b).unwrap());
+        b.limits.max_nodes=1;
+        assert!(!recipe_known(signature, &mut b).unwrap());
+        assert!(!declaration_known(decl, Some(owner.id), &mut b).unwrap());
+        assert_eq!(super::super::bounds_recipe(signature, &mut b).unwrap_err().category,zil_base::ResultCategory::ResourceLimit);
     }
     #[test]
     fn lexical_scope_directory_keeps_owner_kinds_namespaces_and_duplicate_claims(){
