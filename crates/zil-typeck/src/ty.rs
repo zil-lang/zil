@@ -67,6 +67,11 @@ pub enum TyData {
         ok: Ty,
         err: Ty,
     },
+    /// `fn(P...) -> R`: non-capturing function pointer.
+    FnPtr {
+        params: Vec<Ty>,
+        result: Ty,
+    },
     /// The n-th type parameter of the enclosing generic declaration.
     Param(u32),
     Var(VarId),
@@ -153,6 +158,9 @@ impl Types {
             TyData::Opaque(OpaqueKind::OwnedStore(elem)) => self.occurs(v, *elem),
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => false,
             TyData::ErrorUnion { ok, err } => self.occurs(v, *ok) || self.occurs(v, *err),
+            TyData::FnPtr { params, result } => {
+                params.iter().any(|t| self.occurs(v, *t)) || self.occurs(v, *result)
+            }
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -319,6 +327,14 @@ impl Types {
                 let err = self.zonk(err)?;
                 self.intern(TyData::ErrorUnion { ok, err })
             }
+            TyData::FnPtr { params, result } => {
+                let params = params
+                    .iter()
+                    .map(|t| self.zonk(*t))
+                    .collect::<Option<Vec<_>>>()?;
+                let result = self.zonk(result)?;
+                self.intern(TyData::FnPtr { params, result })
+            }
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -367,6 +383,11 @@ impl Types {
                 let ok = self.subst(ok, args);
                 let err = self.subst(err, args);
                 self.intern(TyData::ErrorUnion { ok, err })
+            }
+            TyData::FnPtr { params, result } => {
+                let params = params.iter().map(|t| self.subst(*t, args)).collect();
+                let result = self.subst(result, args);
+                self.intern(TyData::FnPtr { params, result })
             }
             TyData::Unit
             | TyData::Bool

@@ -266,6 +266,16 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 ok: self.lower_ty(ok, span)?,
                 err: self.lower_ty(err, span)?,
             },
+            TyData::FnPtr { params, result } => {
+                let mut ps = Vec::with_capacity(params.len());
+                for p in params {
+                    ps.push(self.lower_ty(p, span)?);
+                }
+                TyKind::FnPtr {
+                    params: ps,
+                    result: self.lower_ty(result, span)?,
+                }
+            }
             TyData::Var(_) | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
@@ -684,7 +694,9 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Binary { .. }
             | ExprKind::Logical { .. }
             | ExprKind::Convert { .. }
+            | ExprKind::FnRef(_)
             | ExprKind::Call { .. }
+            | ExprKind::IndirectCall { .. }
             | ExprKind::Adt { .. }
             | ExprKind::Tuple(_)
             | ExprKind::Array(_)
@@ -820,6 +832,13 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             ExprKind::Describe(inner) => Rvalue::Describe {
                 place: self.place(inner),
             },
+            ExprKind::FnRef(f) => match self.mono.instance(*f, Vec::new(), e.span) {
+                Some(id) => Rvalue::FnRef(id),
+                None => {
+                    self.failed = true;
+                    Rvalue::Use(Operand::Const(ConstValue::Unit))
+                }
+            },
             ExprKind::ErrorInject { ok, value } => {
                 let ty = self.ty(e.ty, e.span);
                 Rvalue::ErrorUnion {
@@ -842,6 +861,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Deref(_)
             | ExprKind::Logical { .. }
             | ExprKind::Call { .. }
+            | ExprKind::IndirectCall { .. }
             | ExprKind::If { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
@@ -913,6 +933,22 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 self.terminate(
                     Terminator::Call {
                         callee: Callee::Direct(f),
+                        args: operands,
+                        dest,
+                        target,
+                        cancel: None,
+                    },
+                    span,
+                );
+                self.cur = target;
+            }
+            ExprKind::IndirectCall { callee, args } => {
+                let target_fn = self.operand(callee);
+                let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
+                let target = self.new_block(span);
+                self.terminate(
+                    Terminator::Call {
+                        callee: Callee::Indirect(target_fn),
                         args: operands,
                         dest,
                         target,
@@ -1046,6 +1082,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Deref(_)
             | ExprKind::Borrow { .. }
             | ExprKind::Give(_)
+            | ExprKind::FnRef(_)
             | ExprKind::Describe(_)
             | ExprKind::ErrorInject { .. }
             | ExprKind::Unary { .. }
@@ -1429,6 +1466,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             }
             ExprKind::Lit(_) | ExprKind::Local(_) => {}
             ExprKind::Call { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::FnRef(_)
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::ManagedCreate { .. }

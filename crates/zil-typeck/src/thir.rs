@@ -106,9 +106,14 @@ pub enum ExprKind {
     Convert {
         operand: Box<Expr>,
     },
+    FnRef(FnRef),
     Call {
         callee: FnRef,
         type_args: Vec<Ty>,
+        args: Vec<Expr>,
+    },
+    IndirectCall {
+        callee: Box<Expr>,
         args: Vec<Expr>,
     },
     ForeignCall {
@@ -182,7 +187,9 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Binary { .. }
         | ExprKind::Logical { .. }
         | ExprKind::Convert { .. }
+        | ExprKind::FnRef(_)
         | ExprKind::Call { .. }
+        | ExprKind::IndirectCall { .. }
         | ExprKind::ForeignCall { .. }
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }

@@ -581,3 +581,136 @@ fn ct_eval_trap_is_rejected_at_compile_time() {
         "expected E-CT-EVAL, got {err:?}"
     );
 }
+
+// ---- multi-module imports, visibility, function pointers -------------------
+
+#[test]
+fn multi_module_stream_support_modules_are_admitted() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            (
+                "io",
+                include_str!("../../../examples/mainline/stream/io.zil"),
+            ),
+            (
+                "model",
+                include_str!("../../../examples/mainline/stream/model.zil"),
+            ),
+            (
+                "tokens",
+                include_str!("../../../examples/mainline/stream/tokens.zil"),
+            ),
+            (
+                "transform",
+                include_str!("../../../examples/mainline/stream/transform.zil"),
+            ),
+        ],
+        None,
+    )
+    .expect("stream support modules lower");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn private_item_in_imported_module_is_not_visible() {
+    let err = zil_typeck::lower_sources(
+        &[
+            (
+                "helper",
+                "fn secret() -> i32 { return 1 }\npub fn ok() -> i32 { return 2 }",
+            ),
+            (
+                "main",
+                "import helper\nfn main() -> i32 { return helper.secret() }",
+            ),
+        ],
+        None,
+    )
+    .unwrap_err();
+    assert!(
+        err.iter().any(|d| d.code == "E-NAME-UNRESOLVED"),
+        "expected E-NAME-UNRESOLVED, got {err:?}"
+    );
+}
+
+#[test]
+fn function_pointer_array_and_indirect_call_execute_in_interp() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            (
+                "transform",
+                "pub fn double(v: i32) -> i32 => v * 2\npub fn offset(v: i32) -> i32 => v + 11",
+            ),
+            (
+                "main",
+                "import transform\n\
+                 fn run(i: i32, x: i32) -> i32 {\n\
+                     let cbs: [fn(i32) -> i32; 2] = [transform.double, transform.offset]\n\
+                     let f = cbs[i % 2]\n\
+                     return f(x)\n\
+                 }",
+            ),
+        ],
+        None,
+    )
+    .expect("fn ptr program lowers");
+    let run_id = lowered
+        .roots
+        .iter()
+        .find(|(n, _)| n == "main.run")
+        .map(|(_, id)| *id)
+        .expect("main.run");
+    let cert = solve(&lowered.module);
+    let verified = zil_check::check_module(lowered.module, &cert, CheckBudget { steps: STEPS })
+        .expect("verified");
+    let budget = zil_interp::EvalBudget {
+        steps: 10_000,
+        call_depth: 16,
+    };
+    let r0 = zil_interp::evaluate(
+        &verified,
+        run_id,
+        vec![
+            zil_interp::Value::Int {
+                ty: zil_ir::body::IntTy::I32,
+                bits: 0,
+            },
+            zil_interp::Value::Int {
+                ty: zil_ir::body::IntTy::I32,
+                bits: 21,
+            },
+        ],
+        budget,
+    )
+    .expect("run(0, 21)");
+    assert_eq!(
+        r0,
+        zil_interp::Value::Int {
+            ty: zil_ir::body::IntTy::I32,
+            bits: 42,
+        }
+    );
+    let r1 = zil_interp::evaluate(
+        &verified,
+        run_id,
+        vec![
+            zil_interp::Value::Int {
+                ty: zil_ir::body::IntTy::I32,
+                bits: 1,
+            },
+            zil_interp::Value::Int {
+                ty: zil_ir::body::IntTy::I32,
+                bits: 21,
+            },
+        ],
+        budget,
+    )
+    .expect("run(1, 21)");
+    assert_eq!(
+        r1,
+        zil_interp::Value::Int {
+            ty: zil_ir::body::IntTy::I32,
+            bits: 32,
+        }
+    );
+}

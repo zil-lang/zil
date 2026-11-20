@@ -1,17 +1,21 @@
-//! resolve + collect: the item table of a program and the semantic form of
-//! every declaration.
+//! resolve + collect: the item table of a single- or multi-module program
+//! and the semantic form of every declaration.
 //!
 //! Declarations become templates over their own type parameters
 //! (`TyData::Param`). Field identity is "declaration + variant + ordinal";
 //! names are kept for diagnostics and source resolution only.
 
+use crate::ModuleInput;
 use crate::diag;
 use crate::thir::{FnRef, ForeignRef};
 use crate::ty::{AdtRef, OpaqueKind, Ty, TyData, Types};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use zil_base::{Diagnostic, Span};
 use zil_ir::body::{AdtKind, FloatTy, IntTy};
 use zil_syntax::ast;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ModIdx(pub u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemRef {
@@ -49,6 +53,8 @@ pub struct ParamInfo {
 
 #[derive(Clone, Debug)]
 pub struct FnDecl<'a> {
+    pub module: ModIdx,
+    /// Canonical qualified name (or bare name for an unnamed root module).
     pub name: String,
     pub generics: Vec<GenericInfo>,
     pub params: Vec<ParamInfo>,
@@ -104,12 +110,21 @@ impl AdtDecl {
     }
 }
 
+#[derive(Default)]
+pub struct ModuleScope {
+    pub path: String,
+    pub names: HashMap<String, ItemRef>,
+    pub publics: HashSet<String>,
+    pub imports: HashMap<String, ModIdx>,
+}
+
 pub struct Items<'a> {
+    pub modules: Vec<ModuleScope>,
+    pub mod_by_path: HashMap<String, ModIdx>,
     pub fns: Vec<FnDecl<'a>>,
     pub adts: Vec<AdtDecl>,
     pub foreigns: Vec<ForeignDeclInfo>,
     pub adt_kinds: Vec<AdtKind>,
-    pub names: HashMap<String, ItemRef>,
 }
 
 impl<'a> Items<'a> {
@@ -121,6 +136,45 @@ impl<'a> Items<'a> {
     }
     pub fn foreign(&self, f: ForeignRef) -> &ForeignDeclInfo {
         &self.foreigns[f.0 as usize]
+    }
+
+    /// Resolves a bare or module-qualified item path from module `from`.
+    pub fn lookup_item(&self, from: ModIdx, path: &[String]) -> Option<ItemRef> {
+        lookup_item_in(&self.modules, &self.mod_by_path, from, path)
+    }
+}
+
+fn lookup_item_in(
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    from: ModIdx,
+    path: &[String],
+) -> Option<ItemRef> {
+    match path {
+        [name] => modules[from.0 as usize].names.get(name).copied(),
+        [alias, name] => {
+            let target = modules[from.0 as usize]
+                .imports
+                .get(alias)
+                .copied()
+                .or_else(|| mod_by_path.get(alias).copied())?;
+            let scope = &modules[target.0 as usize];
+            if target != from && !scope.publics.contains(name) {
+                return None;
+            }
+            scope.names.get(name).copied()
+        }
+        parts if parts.len() >= 3 => {
+            let mod_path = parts[..parts.len() - 1].join(".");
+            let name = parts.last()?;
+            let target = *mod_by_path.get(&mod_path)?;
+            let scope = &modules[target.0 as usize];
+            if target != from && !scope.publics.contains(name) {
+                return None;
+            }
+            scope.names.get(name).copied()
+        }
+        _ => None,
     }
 }
 
@@ -145,102 +199,175 @@ pub fn scalar_type(name: &str) -> Option<TyData> {
     })
 }
 
-/// Builds the item table of one module and collects every declaration.
-pub fn collect<'a>(
-    module: &'a ast::Module,
+fn qualify(mod_path: &str, name: &str) -> String {
+    if mod_path.is_empty() {
+        name.to_string()
+    } else {
+        format!("{mod_path}.{name}")
+    }
+}
+
+/// Builds the item table of a program (one or more modules) and collects
+/// every declaration.
+pub fn collect_program<'a>(
+    inputs: &[ModuleInput<'a>],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> Items<'a> {
     let mut items = Items {
+        modules: Vec::with_capacity(inputs.len()),
+        mod_by_path: HashMap::new(),
         fns: Vec::new(),
         adts: Vec::new(),
         foreigns: Vec::new(),
         adt_kinds: Vec::new(),
-        names: HashMap::new(),
     };
-    // Pass 1: names and ADT kinds.
-    let mut adt_asts: Vec<AdtAst<'a>> = Vec::new();
-    let mut fn_asts: Vec<&ast::Function> = Vec::new();
-    let mut foreign_asts: Vec<(&str, &ast::Function, Span)> = Vec::new();
-    let mut impl_asts: Vec<(&ast::ImplBlock, Span)> = Vec::new();
-    for item in &module.items {
-        let (name, r) = match &item.kind {
-            ast::ItemKind::Function(f) => {
-                fn_asts.push(f);
-                (&f.name, ItemRef::Fn(FnRef(fn_asts.len() as u32 - 1)))
-            }
-            ast::ItemKind::Aggregate(a) => {
-                let kind = match a.kind {
-                    ast::AggregateKind::Struct => AdtKind::Record,
-                    ast::AggregateKind::Package => AdtKind::Package,
-                    ast::AggregateKind::Resource => AdtKind::Resource,
-                };
-                items.adt_kinds.push(kind);
-                adt_asts.push(AdtAst::Aggregate(a, item.span));
-                (&a.name, ItemRef::Adt(AdtRef(adt_asts.len() as u32 - 1)))
-            }
-            ast::ItemKind::Enum(e) => {
-                items.adt_kinds.push(AdtKind::Enum);
-                adt_asts.push(AdtAst::Enum(e, item.span));
-                (&e.name, ItemRef::Adt(AdtRef(adt_asts.len() as u32 - 1)))
-            }
-            ast::ItemKind::Extern { abi, function } => {
-                foreign_asts.push((abi.as_str(), function, item.span));
-                (
-                    &function.name,
-                    ItemRef::Foreign(ForeignRef(foreign_asts.len() as u32 - 1)),
-                )
-            }
-            ast::ItemKind::Impl(imp) => {
-                impl_asts.push((imp, item.span));
-                continue;
-            }
-            ast::ItemKind::Import(_) => {
-                diags.push(diag::unsupported("imports", item.span));
-                continue;
-            }
-            ast::ItemKind::Trait(_) => {
-                diags.push(diag::unsupported("trait declarations", item.span));
-                continue;
-            }
-            ast::ItemKind::TypeAlias(_) => {
-                diags.push(diag::unsupported("type aliases", item.span));
-                continue;
-            }
-            ast::ItemKind::Const(_) => {
-                diags.push(diag::unsupported("constant items", item.span));
-                continue;
-            }
-            ast::ItemKind::Meta(_) => {
-                diags.push(diag::unsupported("meta items", item.span));
-                continue;
-            }
-        };
-        if items.names.insert(name.clone(), r).is_some() {
-            diags.push(diag::error(
-                diag::NAME_DUPLICATE,
-                item.span,
-                format!("`{name}` is declared more than once"),
-            ));
+    for (i, inp) in inputs.iter().enumerate() {
+        let idx = ModIdx(i as u32);
+        items.modules.push(ModuleScope {
+            path: inp.path.clone(),
+            names: HashMap::new(),
+            publics: HashSet::new(),
+            imports: HashMap::new(),
+        });
+        if !inp.path.is_empty() {
+            items.mod_by_path.insert(inp.path.clone(), idx);
         }
     }
-    // Pass 2: declarations. ADT ids and kinds are fixed in pass 1 so that
-    // fields and signatures may refer to any declaration, including bare
-    // resource names resolving to Desc<R>.
-    for item in adt_asts {
-        let decl = collect_adt(item, &items.names, &items.adt_kinds, types, diags);
+
+    // Pass 1: top-level names, ADT kinds and module imports.
+    let mut adt_asts: Vec<(ModIdx, AdtAst<'a>)> = Vec::new();
+    let mut fn_asts: Vec<(ModIdx, &'a ast::Function)> = Vec::new();
+    let mut foreign_asts: Vec<(ModIdx, &str, &'a ast::Function, Span)> = Vec::new();
+    let mut impl_asts: Vec<(ModIdx, &'a ast::ImplBlock, Span)> = Vec::new();
+
+    for (m_i, inp) in inputs.iter().enumerate() {
+        let mid = ModIdx(m_i as u32);
+        for item in &inp.ast.items {
+            let (name, r) = match &item.kind {
+                ast::ItemKind::Import(imp) => {
+                    if imp.syntax {
+                        diags.push(diag::unsupported("syntax imports", item.span));
+                        continue;
+                    }
+                    let target_path = imp.path.join(".");
+                    let Some(&target_mod) = items.mod_by_path.get(&target_path) else {
+                        diags.push(diag::error(
+                            diag::NAME_UNRESOLVED,
+                            item.span,
+                            format!("unknown module `{target_path}`"),
+                        ));
+                        continue;
+                    };
+                    let alias = imp
+                        .alias
+                        .clone()
+                        .or_else(|| imp.path.last().cloned())
+                        .unwrap_or_default();
+                    items.modules[m_i].imports.insert(alias, target_mod);
+                    continue;
+                }
+                ast::ItemKind::Function(f) => {
+                    fn_asts.push((mid, f));
+                    (&f.name, ItemRef::Fn(FnRef(fn_asts.len() as u32 - 1)))
+                }
+                ast::ItemKind::Aggregate(a) => {
+                    let kind = match a.kind {
+                        ast::AggregateKind::Struct => AdtKind::Record,
+                        ast::AggregateKind::Package => AdtKind::Package,
+                        ast::AggregateKind::Resource => AdtKind::Resource,
+                    };
+                    items.adt_kinds.push(kind);
+                    adt_asts.push((mid, AdtAst::Aggregate(a, item.span)));
+                    (&a.name, ItemRef::Adt(AdtRef(adt_asts.len() as u32 - 1)))
+                }
+                ast::ItemKind::Enum(e) => {
+                    items.adt_kinds.push(AdtKind::Enum);
+                    adt_asts.push((mid, AdtAst::Enum(e, item.span)));
+                    (&e.name, ItemRef::Adt(AdtRef(adt_asts.len() as u32 - 1)))
+                }
+                ast::ItemKind::Extern { abi, function } => {
+                    foreign_asts.push((mid, abi.as_str(), function, item.span));
+                    (
+                        &function.name,
+                        ItemRef::Foreign(ForeignRef(foreign_asts.len() as u32 - 1)),
+                    )
+                }
+                ast::ItemKind::Impl(imp) => {
+                    impl_asts.push((mid, imp, item.span));
+                    continue;
+                }
+                ast::ItemKind::Trait(_) => {
+                    diags.push(diag::unsupported("trait declarations", item.span));
+                    continue;
+                }
+                ast::ItemKind::TypeAlias(_) => {
+                    diags.push(diag::unsupported("type aliases", item.span));
+                    continue;
+                }
+                ast::ItemKind::Const(_) => {
+                    diags.push(diag::unsupported("constant items", item.span));
+                    continue;
+                }
+                ast::ItemKind::Meta(_) => {
+                    diags.push(diag::unsupported("meta items", item.span));
+                    continue;
+                }
+            };
+            if items.modules[m_i].names.insert(name.clone(), r).is_some() {
+                diags.push(diag::error(
+                    diag::NAME_DUPLICATE,
+                    item.span,
+                    format!("`{name}` is declared more than once"),
+                ));
+            }
+            if item.public {
+                items.modules[m_i].publics.insert(name.clone());
+            }
+        }
+    }
+
+    // Pass 2: declarations.
+    for (mid, item) in adt_asts {
+        let decl = collect_adt(
+            mid,
+            item,
+            &items.modules,
+            &items.mod_by_path,
+            &items.adt_kinds,
+            types,
+            diags,
+        );
         items.adts.push(decl);
     }
-    for f in fn_asts {
-        let decl = collect_fn(f, &items.names, &items.adt_kinds, types, diags);
+    for (mid, f) in fn_asts {
+        let decl = collect_fn(
+            mid,
+            f,
+            &items.modules,
+            &items.mod_by_path,
+            &items.adt_kinds,
+            types,
+            diags,
+        );
         items.fns.push(decl);
     }
-    for (abi, f, span) in foreign_asts {
-        let decl = collect_foreign(abi, f, span, &items.names, &items.adt_kinds, types, diags);
+    for (mid, abi, f, span) in foreign_asts {
+        let decl = collect_foreign(
+            mid,
+            abi,
+            f,
+            span,
+            &items.modules,
+            &items.mod_by_path,
+            &items.adt_kinds,
+            types,
+            diags,
+        );
         items.foreigns.push(decl);
     }
-    for (imp, span) in impl_asts {
-        collect_impl(imp, span, &mut items, types, diags);
+    for (mid, imp, span) in impl_asts {
+        collect_impl(mid, imp, span, &mut items, types, diags);
     }
     items
 }
@@ -283,7 +410,6 @@ enum AdtAst<'a> {
     Enum(&'a ast::EnumDecl, Span),
 }
 
-/// Promotes `Desc(inner)` or `Managed(inner)` to `Managed(inner)`.
 fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
     match types.data(ty).clone() {
         TyData::Desc(inner) | TyData::Managed(inner) => Some(types.intern(TyData::Managed(inner))),
@@ -299,13 +425,12 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::Ref { .. }
         | TyData::Opaque(_)
         | TyData::ErrorUnion { .. }
+        | TyData::FnPtr { .. }
         | TyData::Param(_)
         | TyData::Var(_) => None,
     }
 }
 
-/// Promotes a bare resource / `Store<T>` / `ByteBuffer` (or `E!R`) into its
-/// owning `Managed` carrier for `give` parameters and `result(create|give)`.
 fn promote_carrier_or_error_ok(ty: Ty, types: &mut Types) -> Option<Ty> {
     if let Some(m) = promote_to_managed(ty, types) {
         return Some(m);
@@ -319,8 +444,10 @@ fn promote_carrier_or_error_ok(ty: Ty, types: &mut Types) -> Option<Ty> {
 }
 
 fn collect_adt(
+    mid: ModIdx,
     item: AdtAst<'_>,
-    names: &HashMap<String, ItemRef>,
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
@@ -342,10 +469,11 @@ fn collect_adt(
     let generic_info = type_generics(generics, diags);
     let scope: Vec<String> = generic_info.iter().map(|g| g.name.clone()).collect();
     let mut resolve = |t: &ast::TypeRef, diags: &mut Vec<Diagnostic>, types: &mut Types| {
-        resolve_type(t, &scope, names, adt_kinds, None, types).unwrap_or_else(|d| {
-            diags.push(d);
-            types.error()
-        })
+        resolve_type_in(t, mid, &scope, modules, mod_by_path, adt_kinds, None, types)
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            })
     };
     let fields_of =
         |fields: &[ast::Field],
@@ -386,7 +514,6 @@ fn collect_adt(
                         types.error()
                     }
                 } else {
-                    // Non-managed fields cannot hold bare ByteBuffer or Store descriptors.
                     if let TyData::Desc(inner) = types.data(raw_ty)
                         && matches!(
                             types.data(*inner),
@@ -455,7 +582,7 @@ fn collect_adt(
     };
     let _ = span;
     AdtDecl {
-        name: name.clone(),
+        name: qualify(&modules[mid.0 as usize].path, name),
         kind,
         generics: scope,
         variants,
@@ -491,8 +618,10 @@ fn parse_result_mode(clauses: &[ast::ContractClause], diags: &mut Vec<Diagnostic
 }
 
 fn collect_fn<'a>(
+    mid: ModIdx,
     f: &'a ast::Function,
-    names: &HashMap<String, ItemRef>,
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
@@ -505,11 +634,20 @@ fn collect_fn<'a>(
     let result_mode = parse_result_mode(&f.contract, diags);
     let mut params = Vec::new();
     for p in &f.params {
-        let raw_ty =
-            resolve_type(&p.ty, &scope, names, adt_kinds, None, types).unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            });
+        let raw_ty = resolve_type_in(
+            &p.ty,
+            mid,
+            &scope,
+            modules,
+            mod_by_path,
+            adt_kinds,
+            None,
+            types,
+        )
+        .unwrap_or_else(|d| {
+            diags.push(d);
+            types.error()
+        });
         let ty = if p.give {
             if let Some(m) = promote_carrier_or_error_ok(raw_ty, types) {
                 m
@@ -531,10 +669,11 @@ fn collect_fn<'a>(
         });
     }
     let raw_result = match &f.return_type {
-        Some(t) => resolve_type(t, &scope, names, adt_kinds, None, types).unwrap_or_else(|d| {
-            diags.push(d);
-            types.error()
-        }),
+        Some(t) => resolve_type_in(t, mid, &scope, modules, mod_by_path, adt_kinds, None, types)
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            }),
         None => types.unit(),
     };
     let result = match result_mode {
@@ -553,7 +692,8 @@ fn collect_fn<'a>(
         }
     };
     FnDecl {
-        name: f.name.clone(),
+        module: mid,
+        name: qualify(&modules[mid.0 as usize].path, &f.name),
         generics,
         params,
         result,
@@ -572,11 +712,14 @@ fn is_c_abi_param(ty: Ty, types: &Types) -> bool {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_foreign(
+    mid: ModIdx,
     abi: &str,
     f: &ast::Function,
     span: Span,
-    names: &HashMap<String, ItemRef>,
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
@@ -604,7 +747,17 @@ fn collect_foreign(
     }
     let mut params = Vec::new();
     for p in &f.params {
-        let ty = resolve_type(&p.ty, &[], names, adt_kinds, None, types).unwrap_or_else(|d| {
+        let ty = resolve_type_in(
+            &p.ty,
+            mid,
+            &[],
+            modules,
+            mod_by_path,
+            adt_kinds,
+            None,
+            types,
+        )
+        .unwrap_or_else(|d| {
             diags.push(d);
             types.error()
         });
@@ -618,10 +771,11 @@ fn collect_foreign(
         params.push(ty);
     }
     let result = match &f.return_type {
-        Some(t) => resolve_type(t, &[], names, adt_kinds, None, types).unwrap_or_else(|d| {
-            diags.push(d);
-            types.error()
-        }),
+        Some(t) => resolve_type_in(t, mid, &[], modules, mod_by_path, adt_kinds, None, types)
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            }),
         None => types.unit(),
     };
     if !matches!(types.data(result), TyData::Unit) && !is_c_abi_param(result, types) {
@@ -641,6 +795,7 @@ fn collect_foreign(
 }
 
 fn collect_impl<'a>(
+    mid: ModIdx,
     imp: &'a ast::ImplBlock,
     span: Span,
     items: &mut Items<'a>,
@@ -679,7 +834,7 @@ fn collect_impl<'a>(
         ));
         return;
     }
-    let target_adt = match items.names.get(&path[0]) {
+    let target_adt = match items.modules[mid.0 as usize].names.get(&path[0]) {
         Some(ItemRef::Adt(adt)) if items.adts[adt.0 as usize].kind == AdtKind::Resource => {
             if !items.adts[adt.0 as usize].generics.is_empty() {
                 diags.push(diag::error(
@@ -746,10 +901,12 @@ fn collect_impl<'a>(
     });
     let self_desc = types.intern(TyData::Desc(payload_ty));
     let p = &f.params[0];
-    let p_ty = resolve_type(
+    let p_ty = resolve_type_in(
         &p.ty,
+        mid,
         &[],
-        &items.names,
+        &items.modules,
+        &items.mod_by_path,
         &items.adt_kinds,
         Some(self_desc),
         types,
@@ -759,10 +916,12 @@ fn collect_impl<'a>(
         types.error()
     });
     let ret_ty = match &f.return_type {
-        Some(t) => resolve_type(
+        Some(t) => resolve_type_in(
             t,
+            mid,
             &[],
-            &items.names,
+            &items.modules,
+            &items.mod_by_path,
             &items.adt_kinds,
             Some(self_desc),
             types,
@@ -788,6 +947,7 @@ fn collect_impl<'a>(
     items.adts[target_adt.0 as usize].user_drop = true;
     let drop_name = format!("{}.$drop", items.adts[target_adt.0 as usize].name);
     items.fns.push(FnDecl {
+        module: mid,
         name: drop_name,
         generics: Vec::new(),
         params: vec![ParamInfo {
@@ -801,102 +961,149 @@ fn collect_impl<'a>(
     });
 }
 
-/// Resolves a written type in the scope of `generics`.
+/// Resolves a written type in the scope of module `from` and `generics`.
 #[allow(clippy::result_large_err)] // `Diagnostic` is the workspace-wide error type.
 pub fn resolve_type(
     t: &ast::TypeRef,
+    from: ModIdx,
     generics: &[String],
-    names: &HashMap<String, ItemRef>,
+    items: &Items<'_>,
+    types: &mut Types,
+) -> Result<Ty, Diagnostic> {
+    resolve_type_in(
+        t,
+        from,
+        generics,
+        &items.modules,
+        &items.mod_by_path,
+        &items.adt_kinds,
+        None,
+        types,
+    )
+}
+
+#[allow(clippy::result_large_err, clippy::too_many_arguments)]
+fn resolve_type_in(
+    t: &ast::TypeRef,
+    from: ModIdx,
+    generics: &[String],
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
     self_ty: Option<Ty>,
     types: &mut Types,
 ) -> Result<Ty, Diagnostic> {
     match &t.kind {
         ast::TypeKind::Named { path, args } => {
-            let [name] = path.as_slice() else {
-                return Err(diag::unsupported("qualified type paths", t.span));
-            };
-            if name == "Self"
-                && let Some(st) = self_ty
-            {
-                if !args.is_empty() {
-                    return Err(diag::error(
-                        diag::TYPE_ARGUMENT,
-                        t.span,
-                        "`Self` takes no type arguments",
-                    ));
+            if let [name] = path.as_slice() {
+                if name == "Self"
+                    && let Some(st) = self_ty
+                {
+                    if !args.is_empty() {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "`Self` takes no type arguments",
+                        ));
+                    }
+                    return Ok(st);
                 }
-                return Ok(st);
-            }
-            if let Some(i) = generics.iter().position(|g| g == name) {
-                if !args.is_empty() {
-                    return Err(diag::error(
-                        diag::TYPE_ARGUMENT,
-                        t.span,
-                        "a type parameter takes no arguments",
-                    ));
+                if let Some(i) = generics.iter().position(|g| g == name) {
+                    if !args.is_empty() {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "a type parameter takes no arguments",
+                        ));
+                    }
+                    return Ok(types.intern(TyData::Param(i as u32)));
                 }
-                return Ok(types.intern(TyData::Param(i as u32)));
-            }
-            if let Some(s) = scalar_type(name) {
-                if !args.is_empty() {
-                    return Err(diag::error(
-                        diag::TYPE_ARGUMENT,
-                        t.span,
-                        "a scalar type takes no arguments",
-                    ));
+                if let Some(s) = scalar_type(name) {
+                    if !args.is_empty() {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "a scalar type takes no arguments",
+                        ));
+                    }
+                    return Ok(types.intern(s));
                 }
-                return Ok(types.intern(s));
-            }
-            if name == "ByteBuffer" {
-                if !args.is_empty() {
-                    return Err(diag::error(
-                        diag::TYPE_ARGUMENT,
-                        t.span,
-                        "`ByteBuffer` takes no type arguments",
-                    ));
+                if name == "ByteBuffer" {
+                    if !args.is_empty() {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "`ByteBuffer` takes no type arguments",
+                        ));
+                    }
+                    let inner = types.intern(TyData::Opaque(OpaqueKind::ByteBuffer));
+                    return Ok(types.intern(TyData::Desc(inner)));
                 }
-                let inner = types.intern(TyData::Opaque(OpaqueKind::ByteBuffer));
-                return Ok(types.intern(TyData::Desc(inner)));
+                if name == "Store" {
+                    let [ast::GenericArg::Type(elem)] = args.as_slice() else {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "`Store<T>` takes one type argument",
+                        ));
+                    };
+                    let elem = resolve_type_in(
+                        elem,
+                        from,
+                        generics,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        self_ty,
+                        types,
+                    )?;
+                    let inner = types.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
+                    return Ok(types.intern(TyData::Desc(inner)));
+                }
+                if name == "Managed" {
+                    let [ast::GenericArg::Type(inner_ast)] = args.as_slice() else {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "`Managed<R>` takes one type argument",
+                        ));
+                    };
+                    let resolved = resolve_type_in(
+                        inner_ast,
+                        from,
+                        generics,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        self_ty,
+                        types,
+                    )?;
+                    return if let TyData::Desc(inner) = types.data(resolved).clone() {
+                        Ok(types.intern(TyData::Managed(inner)))
+                    } else {
+                        Err(diag::error(
+                            diag::RESOURCE_TYPE,
+                            t.span,
+                            "`Managed<R>` requires a resource, `Store<T>` or `ByteBuffer` type",
+                        ))
+                    };
+                }
             }
-            if name == "Store" {
-                let [ast::GenericArg::Type(elem)] = args.as_slice() else {
-                    return Err(diag::error(
-                        diag::TYPE_ARGUMENT,
-                        t.span,
-                        "`Store<T>` takes one type argument",
-                    ));
-                };
-                let elem = resolve_type(elem, generics, names, adt_kinds, self_ty, types)?;
-                let inner = types.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
-                return Ok(types.intern(TyData::Desc(inner)));
-            }
-            if name == "Managed" {
-                let [ast::GenericArg::Type(inner_ast)] = args.as_slice() else {
-                    return Err(diag::error(
-                        diag::TYPE_ARGUMENT,
-                        t.span,
-                        "`Managed<R>` takes one type argument",
-                    ));
-                };
-                let resolved = resolve_type(inner_ast, generics, names, adt_kinds, self_ty, types)?;
-                return if let TyData::Desc(inner) = types.data(resolved).clone() {
-                    Ok(types.intern(TyData::Managed(inner)))
-                } else {
-                    Err(diag::error(
-                        diag::RESOURCE_TYPE,
-                        t.span,
-                        "`Managed<R>` requires a resource, `Store<T>` or `ByteBuffer` type",
-                    ))
-                };
-            }
-            match names.get(name) {
+            match lookup_item_in(modules, mod_by_path, from, path) {
                 Some(ItemRef::Adt(adt)) => {
                     let mut tys = Vec::new();
                     for a in args {
                         match a {
-                            ast::GenericArg::Type(t) => tys
-                                .push(resolve_type(t, generics, names, adt_kinds, self_ty, types)?),
+                            ast::GenericArg::Type(t) => tys.push(resolve_type_in(
+                                t,
+                                from,
+                                generics,
+                                modules,
+                                mod_by_path,
+                                adt_kinds,
+                                self_ty,
+                                types,
+                            )?),
                             ast::GenericArg::Lifetime(_)
                             | ast::GenericArg::Const(_)
                             | ast::GenericArg::AssociatedBinding(_) => {
@@ -907,11 +1114,7 @@ pub fn resolve_type(
                             }
                         }
                     }
-                    let adt_ty = types.intern(TyData::Adt {
-                        adt: *adt,
-                        args: tys,
-                    });
-                    // Bare resource names denote their descriptor `Desc<R>`.
+                    let adt_ty = types.intern(TyData::Adt { adt, args: tys });
                     if adt_kinds[adt.0 as usize] == AdtKind::Resource {
                         Ok(types.intern(TyData::Desc(adt_ty)))
                     } else {
@@ -921,7 +1124,7 @@ pub fn resolve_type(
                 Some(ItemRef::Fn(_) | ItemRef::Foreign(_)) | None => Err(diag::error(
                     diag::NAME_UNRESOLVED,
                     t.span,
-                    format!("unknown type `{name}`"),
+                    format!("unknown type `{}`", path.join(".")),
                 )),
             }
         }
@@ -931,15 +1134,40 @@ pub fn resolve_type(
             }
             let mut tys = Vec::new();
             for i in items {
-                tys.push(resolve_type(i, generics, names, adt_kinds, self_ty, types)?);
+                tys.push(resolve_type_in(
+                    i,
+                    from,
+                    generics,
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    self_ty,
+                    types,
+                )?);
             }
             Ok(types.intern(TyData::Tuple(tys)))
         }
-        ast::TypeKind::Group(inner) => {
-            resolve_type(inner, generics, names, adt_kinds, self_ty, types)
-        }
+        ast::TypeKind::Group(inner) => resolve_type_in(
+            inner,
+            from,
+            generics,
+            modules,
+            mod_by_path,
+            adt_kinds,
+            self_ty,
+            types,
+        ),
         ast::TypeKind::Array { element, length } => {
-            let element = resolve_type(element, generics, names, adt_kinds, self_ty, types)?;
+            let element = resolve_type_in(
+                element,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                self_ty,
+                types,
+            )?;
             let Some(length) = length else {
                 return Err(diag::unsupported("slices", t.span));
             };
@@ -969,18 +1197,73 @@ pub fn resolve_type(
                 // Written regions arrive with region contracts (P4).
                 return Err(diag::unsupported("explicit lifetimes", t.span));
             }
-            let pointee = resolve_type(inner, generics, names, adt_kinds, self_ty, types)?;
+            let pointee = resolve_type_in(
+                inner,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                self_ty,
+                types,
+            )?;
             Ok(types.intern(TyData::Ref {
                 mutable: *mutable,
                 pointee,
             }))
         }
+        ast::TypeKind::Function { params, result } => {
+            let mut ps = Vec::with_capacity(params.len());
+            for p in params {
+                ps.push(resolve_type_in(
+                    p,
+                    from,
+                    generics,
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    self_ty,
+                    types,
+                )?);
+            }
+            let r = resolve_type_in(
+                result,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                self_ty,
+                types,
+            )?;
+            Ok(types.intern(TyData::FnPtr {
+                params: ps,
+                result: r,
+            }))
+        }
         ast::TypeKind::Error { error, result } => {
-            let err = resolve_type(error, generics, names, adt_kinds, self_ty, types)?;
-            let ok = resolve_type(result, generics, names, adt_kinds, self_ty, types)?;
+            let err = resolve_type_in(
+                error,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                self_ty,
+                types,
+            )?;
+            let ok = resolve_type_in(
+                result,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                self_ty,
+                types,
+            )?;
             Ok(types.intern(TyData::ErrorUnion { ok, err }))
         }
-        ast::TypeKind::Function { .. } => Err(diag::unsupported("function types", t.span)),
         ast::TypeKind::ForeignFunction { .. } => {
             Err(diag::unsupported("foreign function types", t.span))
         }

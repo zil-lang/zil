@@ -66,6 +66,14 @@ pub struct Lowered {
     pub roots: Vec<(String, FnId)>,
 }
 
+/// One parsed source module in a multi-module program.
+pub struct ModuleInput<'a> {
+    /// Canonical dot-separated module path (e.g. `"main"`, `"io"`, `"std.store"`).
+    /// Empty string for a standalone single-file module.
+    pub path: String,
+    pub ast: &'a ast::Module,
+}
+
 /// Lowers one parsed module without a compile-time evaluator.
 pub fn lower_module(module: &ast::Module, limits: Limits) -> Result<Lowered, Vec<Diagnostic>> {
     lower_module_with_ct(module, limits, None)
@@ -77,9 +85,25 @@ pub fn lower_module_with_ct(
     limits: Limits,
     ct: Option<&mut dyn ConstEvaluator>,
 ) -> Result<Lowered, Vec<Diagnostic>> {
+    lower_program(
+        &[ModuleInput {
+            path: String::new(),
+            ast: module,
+        }],
+        limits,
+        ct,
+    )
+}
+
+/// Lowers a multi-module program into a single monomorphic body IR module.
+pub fn lower_program(
+    modules: &[ModuleInput<'_>],
+    limits: Limits,
+    ct: Option<&mut dyn ConstEvaluator>,
+) -> Result<Lowered, Vec<Diagnostic>> {
     let mut types = ty::Types::default();
     let mut diags = Vec::new();
-    let items = items::collect(module, &mut types, &mut diags);
+    let items = items::collect_program(modules, &mut types, &mut diags);
     if !diags.is_empty() {
         return Err(diags);
     }
@@ -138,4 +162,29 @@ pub fn lower_source_with_ct(
     };
     let parsed = zil_syntax::parse(&unit).into_result()?;
     lower_module_with_ct(&parsed, Limits::default(), ct)
+}
+
+/// Parses and lowers multiple named modules `(module_path, source_text)`.
+pub fn lower_sources(
+    sources: &[(&str, &str)],
+    ct: Option<&mut dyn ConstEvaluator>,
+) -> Result<Lowered, Vec<Diagnostic>> {
+    let mut parsed = Vec::with_capacity(sources.len());
+    for (i, (path, text)) in sources.iter().enumerate() {
+        let unit = SourceUnit {
+            file_id: FileId(i as u32),
+            module_id: ModuleId(i as u32),
+            path: format!("{path}.zil"),
+            text: (*text).to_string(),
+        };
+        parsed.push((*path, zil_syntax::parse(&unit).into_result()?));
+    }
+    let inputs: Vec<ModuleInput<'_>> = parsed
+        .iter()
+        .map(|(path, ast)| ModuleInput {
+            path: (*path).to_string(),
+            ast,
+        })
+        .collect();
+    lower_program(&inputs, Limits::default(), ct)
 }

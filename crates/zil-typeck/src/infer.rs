@@ -325,10 +325,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
     fn resolve_written(&mut self, t: &ast::TypeRef) -> Ty {
         match resolve_type(
             t,
+            self.decl.module,
             &self.generic_names,
-            &self.items.names,
-            &self.items.adt_kinds,
-            None,
+            self.items,
             self.types,
         ) {
             Ok(ty) => ty,
@@ -356,53 +355,54 @@ impl<'c, 'a> FnCx<'c, 'a> {
         self.types.subst(declared, args)
     }
 
-    /// `Enum.Variant` or `Record` written as a path.
+    /// `Enum.Variant`, `Record`, `mod.Record`, or `mod.Enum.Variant`.
     fn resolve_variant_path(&mut self, path: &[String], span: Span) -> Option<(AdtRef, u32)> {
-        match path {
-            [name] => match self.items.names.get(name) {
-                Some(ItemRef::Adt(adt)) if self.items.adt(*adt).kind != AdtKind::Enum => {
-                    Some((*adt, 0))
-                }
-                Some(ItemRef::Adt(_)) => {
-                    self.error(diag::ENUM_VARIANT, span, "an enum needs a variant name");
-                    None
-                }
-                Some(ItemRef::Fn(_) | ItemRef::Foreign(_)) | None => {
-                    self.error(
-                        diag::NAME_UNRESOLVED,
-                        span,
-                        format!("unknown type `{name}`"),
-                    );
-                    None
-                }
-            },
-            [enum_name, variant] => match self.items.names.get(enum_name) {
-                Some(ItemRef::Adt(adt)) if self.items.adt(*adt).kind == AdtKind::Enum => {
-                    match self.items.adt(*adt).variant_named(variant) {
-                        Some(v) => Some((*adt, v)),
-                        None => {
-                            self.error(
-                                diag::ENUM_VARIANT,
-                                span,
-                                format!("`{enum_name}` has no variant `{variant}`"),
-                            );
-                            None
-                        }
-                    }
-                }
-                Some(ItemRef::Adt(_) | ItemRef::Fn(_) | ItemRef::Foreign(_)) | None => {
-                    self.error(
-                        diag::NAME_UNRESOLVED,
-                        span,
-                        format!("unknown enum `{enum_name}`"),
-                    );
-                    None
-                }
-            },
-            _ => {
-                self.unsupported("qualified paths", span);
-                None
+        if let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, path) {
+            if self.items.adt(adt).kind != AdtKind::Enum {
+                return Some((adt, 0));
             }
+            self.error(diag::ENUM_VARIANT, span, "an enum needs a variant name");
+            return None;
+        }
+        if path.len() >= 2 {
+            let (enum_path, variant) = (&path[..path.len() - 1], &path[path.len() - 1]);
+            if let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, enum_path)
+                && self.items.adt(adt).kind == AdtKind::Enum
+            {
+                return match self.items.adt(adt).variant_named(variant) {
+                    Some(v) => Some((adt, v)),
+                    None => {
+                        self.error(
+                            diag::ENUM_VARIANT,
+                            span,
+                            format!("`{}` has no variant `{variant}`", enum_path.join(".")),
+                        );
+                        None
+                    }
+                };
+            }
+        }
+        self.error(
+            diag::NAME_UNRESOLVED,
+            span,
+            format!("unknown type or variant `{}`", path.join(".")),
+        );
+        None
+    }
+
+    fn fn_value(&mut self, f: FnRef, span: Span) -> Expr {
+        let decl = self.items.func(f);
+        if !decl.generics.is_empty() {
+            self.unsupported("generic function values", span);
+            return self.err_expr(span);
+        }
+        let params: Vec<Ty> = decl.params.iter().map(|p| p.ty).collect();
+        let result = decl.result;
+        let ty = self.types.intern(TyData::FnPtr { params, result });
+        Expr {
+            kind: ExprKind::FnRef(f),
+            ty,
+            span,
         }
     }
 
@@ -548,15 +548,23 @@ impl<'c, 'a> FnCx<'c, 'a> {
             ))),
             ast::StmtKind::While { condition, body } => {
                 self.loop_depth += 1;
-                let out = match condition {
+                let (out, ty) = match condition {
                     ast::Condition::Expression(c) => {
                         let cond = self.infer(c);
                         let b = self.types.bool();
                         self.coerce(&cond, b, c.span);
                         let body = self.block(body);
-                        ExprKind::While {
-                            cond: Box::new(cond),
-                            body: Box::new(body),
+                        if matches!(cond.kind, ExprKind::Lit(Lit::Bool(true))) {
+                            let ty = if contains_break(&body) { unit } else { never };
+                            (ExprKind::Loop(Box::new(body)), ty)
+                        } else {
+                            (
+                                ExprKind::While {
+                                    cond: Box::new(cond),
+                                    body: Box::new(body),
+                                },
+                                unit,
+                            )
                         }
                     }
                     ast::Condition::Let { pattern, value } => {
@@ -595,11 +603,11 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             ty: unit,
                             span,
                         };
-                        ExprKind::Loop(Box::new(m))
+                        (ExprKind::Loop(Box::new(m)), unit)
                     }
                 };
                 self.loop_depth -= 1;
-                e(out, unit)
+                e(out, ty)
             }
             ast::StmtKind::Loop(body) => {
                 self.loop_depth += 1;
@@ -827,7 +835,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Binary { .. }
                 | ExprKind::Logical { .. }
                 | ExprKind::Convert { .. }
+                | ExprKind::FnRef(_)
                 | ExprKind::Call { .. }
+                | ExprKind::IndirectCall { .. }
                 | ExprKind::Adt { .. }
                 | ExprKind::Tuple(_)
                 | ExprKind::Array(_)
@@ -1078,9 +1088,13 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     let ty = self.locals[l.0 as usize].ty;
                     return mk(ExprKind::Local(l), ty);
                 }
-                match self.items.names.get(n) {
-                    Some(ItemRef::Fn(_) | ItemRef::Foreign(_)) => {
-                        self.unsupported("function values", span);
+                match self
+                    .items
+                    .lookup_item(self.decl.module, std::slice::from_ref(n))
+                {
+                    Some(ItemRef::Fn(f)) => self.fn_value(f, span),
+                    Some(ItemRef::Foreign(_)) => {
+                        self.unsupported("foreign function values", span);
                         self.err_expr(span)
                     }
                     Some(ItemRef::Adt(_)) => {
@@ -1151,6 +1165,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Desc(_)
                     | TyData::Opaque(_)
                     | TyData::ErrorUnion { .. }
+                    | TyData::FnPtr { .. }
                     | TyData::Param(_)
                     | TyData::Var(_) => {
                         self.error(diag::OPERATOR_TYPE, span, "only arrays can be indexed");
@@ -1371,6 +1386,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Desc(_)
                     | TyData::Opaque(_)
                     | TyData::ErrorUnion { .. }
+                    | TyData::FnPtr { .. }
                     | TyData::Param(_) => {
                         self.error(
                             diag::OPERATOR_TYPE,
@@ -1506,34 +1522,38 @@ impl<'c, 'a> FnCx<'c, 'a> {
         member: &ast::MemberName,
         span: Span,
     ) -> Expr {
-        // `Enum.Variant` as a value: a unit variant.
+        // Module-qualified function value (`transform.double`) or unit variant
+        // (`Enum.Variant` / `model.Enum.Variant`).
         if let Some(path) = Self::expr_path(whole)
             && !self.path_is_value(&path)
-            && path.len() == 2
+            && path.len() >= 2
         {
-            let Some((adt, variant)) = self.resolve_variant_path(&path, span) else {
-                return self.err_expr(span);
-            };
-            if self.items.adt(adt).variants[variant as usize].shape != VariantShape::Unit {
-                self.error(
-                    diag::ENUM_ARITY,
-                    span,
-                    "this variant has fields and must be constructed with them",
-                );
-                return self.err_expr(span);
+            if let Some(ItemRef::Fn(f)) = self.items.lookup_item(self.decl.module, &path) {
+                return self.fn_value(f, span);
             }
-            let args = self.fresh_args(adt);
-            let ty = self.adt_ty(adt, &args);
-            return Expr {
-                kind: ExprKind::Adt {
-                    adt,
-                    variant,
-                    args,
-                    fields: Vec::new(),
-                },
-                ty,
-                span,
-            };
+            if let Some((adt, variant)) = self.resolve_variant_path(&path, span) {
+                if self.items.adt(adt).variants[variant as usize].shape != VariantShape::Unit {
+                    self.error(
+                        diag::ENUM_ARITY,
+                        span,
+                        "this variant has fields and must be constructed with them",
+                    );
+                    return self.err_expr(span);
+                }
+                let args = self.fresh_args(adt);
+                let ty = self.adt_ty(adt, &args);
+                return Expr {
+                    kind: ExprKind::Adt {
+                        adt,
+                        variant,
+                        args,
+                        fields: Vec::new(),
+                    },
+                    ty,
+                    span,
+                };
+            }
+            return self.err_expr(span);
         }
         let base = self.infer(object);
         self.member_on_kind(base, member, span)
@@ -1707,9 +1727,11 @@ impl<'c, 'a> FnCx<'c, 'a> {
             } else {
                 (callee, None)
             };
-        let path = Self::expr_path(callee).filter(|p| !self.path_is_value(p));
-        match path.as_deref() {
-            Some([name]) if scalar_type(name).is_some() && explicit.is_none() => {
+        if let Some(path) = Self::expr_path(callee).filter(|p| !self.path_is_value(p)) {
+            if let [name] = path.as_slice()
+                && scalar_type(name).is_some()
+                && explicit.is_none()
+            {
                 let target = self
                     .types
                     .intern(scalar_type(name).unwrap_or(TyData::Error));
@@ -1718,84 +1740,133 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     return self.err_expr(span);
                 };
                 let operand = self.infer(&arg.value);
-                Expr {
+                return Expr {
                     kind: ExprKind::Convert {
                         operand: Box::new(operand),
                     },
                     ty: target,
                     span,
-                }
-            }
-            Some([name]) if matches!(self.items.names.get(name), Some(ItemRef::Fn(_))) => {
-                let Some(ItemRef::Fn(f)) = self.items.names.get(name).copied() else {
-                    return self.err_expr(span);
                 };
-                self.direct_call(f, explicit.map(Vec::as_slice), arguments, span)
             }
-            Some([name]) if matches!(self.items.names.get(name), Some(ItemRef::Foreign(_))) => {
-                let Some(ItemRef::Foreign(f)) = self.items.names.get(name).copied() else {
-                    return self.err_expr(span);
-                };
-                if explicit.is_some() {
-                    self.error(
-                        diag::TYPE_ARGUMENT,
-                        span,
-                        "extern \"C\" functions take no type arguments",
-                    );
-                }
-                self.foreign_call(f, arguments, span)
-            }
-            Some(path @ [_, _]) if explicit.is_none() => {
-                let Some((adt, variant)) = self.resolve_variant_path(path, span) else {
-                    return self.err_expr(span);
-                };
-                let v = &self.items.adt(adt).variants[variant as usize];
-                if v.shape != VariantShape::Tuple || v.fields.len() != arguments.len() {
-                    self.error(
-                        diag::ENUM_ARITY,
-                        span,
-                        "the arguments do not match the variant's fields",
-                    );
-                    return self.err_expr(span);
-                }
-                let args = self.fresh_args(adt);
-                let mut fields = Vec::new();
-                for (i, a) in arguments.iter().enumerate() {
-                    let value = self.infer(&a.value);
-                    let ft = self.field_ty(adt, variant, i as u32, &args);
-                    let value = self.coerce_value(value, ft, a.span);
-                    fields.push(value);
-                }
-                let ty = self.adt_ty(adt, &args);
-                Expr {
-                    kind: ExprKind::Adt {
-                        adt,
-                        variant,
-                        args,
-                        fields,
-                    },
-                    ty,
-                    span,
+            if let Some(item) = self.items.lookup_item(self.decl.module, &path) {
+                match item {
+                    ItemRef::Fn(f) => {
+                        return self.direct_call(f, explicit.map(Vec::as_slice), arguments, span);
+                    }
+                    ItemRef::Foreign(f) => {
+                        if explicit.is_some() {
+                            self.error(
+                                diag::TYPE_ARGUMENT,
+                                span,
+                                "extern \"C\" functions take no type arguments",
+                            );
+                        }
+                        return self.foreign_call(f, arguments, span);
+                    }
+                    ItemRef::Adt(_) => {
+                        self.error(diag::ENUM_VARIANT, span, "a type cannot be called directly");
+                        return self.err_expr(span);
+                    }
                 }
             }
-            Some([name]) if !self.items.names.contains_key(name) => {
-                if let Some(expr) =
-                    self.builtin_call(name, explicit.map(Vec::as_slice), arguments, span)
+            if path.len() >= 2 && explicit.is_none() {
+                let (enum_path, variant) = (&path[..path.len() - 1], &path[path.len() - 1]);
+                if let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, enum_path)
+                    && self.items.adt(adt).kind == AdtKind::Enum
                 {
-                    expr
-                } else {
-                    self.error(
-                        diag::NAME_UNRESOLVED,
+                    let Some(v_idx) = self.items.adt(adt).variant_named(variant) else {
+                        self.error(
+                            diag::ENUM_VARIANT,
+                            span,
+                            format!("`{}` has no variant `{variant}`", enum_path.join(".")),
+                        );
+                        return self.err_expr(span);
+                    };
+                    let v = &self.items.adt(adt).variants[v_idx as usize];
+                    if v.shape != VariantShape::Tuple || v.fields.len() != arguments.len() {
+                        self.error(
+                            diag::ENUM_ARITY,
+                            span,
+                            "the arguments do not match the variant's fields",
+                        );
+                        return self.err_expr(span);
+                    }
+                    let args = self.fresh_args(adt);
+                    let mut fields = Vec::new();
+                    for (i, a) in arguments.iter().enumerate() {
+                        let value = self.infer(&a.value);
+                        let ft = self.field_ty(adt, v_idx, i as u32, &args);
+                        let value = self.coerce_value(value, ft, a.span);
+                        fields.push(value);
+                    }
+                    let ty = self.adt_ty(adt, &args);
+                    return Expr {
+                        kind: ExprKind::Adt {
+                            adt,
+                            variant: v_idx,
+                            args,
+                            fields,
+                        },
+                        ty,
                         span,
-                        format!("unknown function `{name}`"),
-                    );
-                    self.err_expr(span)
+                    };
                 }
             }
-            Some(_) | None => {
-                self.unsupported("calls of values and methods", span);
-                self.err_expr(span)
+            if let [name] = path.as_slice()
+                && let Some(expr) =
+                    self.builtin_call(name, explicit.map(Vec::as_slice), arguments, span)
+            {
+                return expr;
             }
+            self.error(
+                diag::NAME_UNRESOLVED,
+                span,
+                format!("unknown function `{}`", path.join(".")),
+            );
+            return self.err_expr(span);
+        }
+
+        // Value call: function pointer (closures arrive next).
+        if explicit.is_some() {
+            self.error(
+                diag::TYPE_ARGUMENT,
+                span,
+                "indirect calls take no explicit type arguments",
+            );
+        }
+        let callee_expr = self.infer(callee);
+        let ct = self.types.shallow(callee_expr.ty);
+        if let TyData::FnPtr { params, result } = self.types.data(ct).clone() {
+            if arguments.len() != params.len() {
+                self.error(
+                    diag::CALL_ARITY,
+                    span,
+                    format!(
+                        "function expects {} argument(s), found {}",
+                        params.len(),
+                        arguments.len()
+                    ),
+                );
+                return self.err_expr(span);
+            }
+            let mut args = Vec::new();
+            for (a, p) in arguments.iter().zip(&params) {
+                let v = self.infer(&a.value);
+                args.push(self.coerce_arg(v, *p, a.span));
+            }
+            Expr {
+                kind: ExprKind::IndirectCall {
+                    callee: Box::new(callee_expr),
+                    args,
+                },
+                ty: result,
+                span,
+            }
+        } else if matches!(self.types.data(ct), TyData::Error) {
+            self.err_expr(span)
+        } else {
+            self.unsupported("calls of values and methods", span);
+            self.err_expr(span)
         }
     }
 
@@ -2080,7 +2151,9 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Binary { .. }
             | ExprKind::Logical { .. }
             | ExprKind::Convert { .. }
+            | ExprKind::FnRef(_)
             | ExprKind::Call { .. }
+            | ExprKind::IndirectCall { .. }
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::ManagedCreate { .. }
@@ -2159,7 +2232,7 @@ impl Finalizer<'_, '_> {
             TyData::Tuple(items) => items.iter().all(|t| self.is_copy_depth(*t, depth + 1)),
             TyData::Array { element, .. } => self.is_copy_depth(element, depth + 1),
             TyData::Ref { mutable, .. } => !mutable,
-            TyData::Desc(_) => true,
+            TyData::Desc(_) | TyData::FnPtr { .. } => true,
             TyData::Managed(_) => false,
             TyData::Opaque(OpaqueKind::ForeignHandle) => true,
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::OwnedStore(_)) => false,
@@ -2284,7 +2357,7 @@ impl Finalizer<'_, '_> {
                 let l = *l;
                 self.literal(l, ty, span);
             }
-            ExprKind::Local(_) | ExprKind::Break | ExprKind::Continue => {}
+            ExprKind::Local(_) | ExprKind::FnRef(_) | ExprKind::Break | ExprKind::Continue => {}
             ExprKind::Field { base, args, .. } => {
                 self.expr(base);
                 for a in args.iter_mut() {
@@ -2302,26 +2375,9 @@ impl Finalizer<'_, '_> {
             ExprKind::Index { base, index } => {
                 self.expr(base);
                 self.expr(index);
-                let unsigned = match self.data(index.ty) {
-                    TyData::Int(t) => !t.signed(),
-                    TyData::Error => true,
-                    TyData::Unit
-                    | TyData::Bool
-                    | TyData::Never
-                    | TyData::Float(_)
-                    | TyData::Adt { .. }
-                    | TyData::Tuple(_)
-                    | TyData::Array { .. }
-                    | TyData::Ref { .. }
-                    | TyData::Managed(_)
-                    | TyData::Desc(_)
-                    | TyData::Opaque(_)
-                    | TyData::ErrorUnion { .. }
-                    | TyData::Param(_)
-                    | TyData::Var(_) => false,
-                };
-                if !unsigned {
-                    self.operator_error(index.span, "an index must be an unsigned integer");
+                let is_int = matches!(self.data(index.ty), TyData::Int(_) | TyData::Error);
+                if !is_int {
+                    self.operator_error(index.span, "an index must be an integer");
                 }
             }
             ExprKind::Unary { op, operand } => {
@@ -2377,6 +2433,10 @@ impl Finalizer<'_, '_> {
                         ));
                     }
                 }
+                args.iter_mut().for_each(|a| self.expr(a));
+            }
+            ExprKind::IndirectCall { callee, args } => {
+                self.expr(callee);
                 args.iter_mut().for_each(|a| self.expr(a));
             }
             ExprKind::ForeignCall { args, .. } | ExprKind::Intrinsic { args, .. } => {
