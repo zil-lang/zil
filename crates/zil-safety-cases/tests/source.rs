@@ -25,6 +25,26 @@ fn admit(src: &str) {
     }
 }
 
+/// Typeck admits the program; the kernel must refuse it for `reason`.
+fn unsafe_program(src: &str, reason: &str) {
+    let lowered = match zil_typeck::lower_source("case.zil", src) {
+        Ok(l) => l,
+        Err(diags) => panic!(
+            "typeck rejected a program meant for the kernel: {:?}",
+            diags
+                .iter()
+                .map(|d| (&d.code, &d.message))
+                .collect::<Vec<_>>()
+        ),
+    };
+    let verdict = verdict(lowered.module);
+    let text = format!("{verdict:?}");
+    assert!(
+        !matches!(verdict, Verdict::Accepted) && text.contains(reason),
+        "expected a {reason} rejection, got {text}"
+    );
+}
+
 fn reject(src: &str, code: &str) {
     match zil_typeck::lower_source("case.zil", src) {
         Ok(_) => panic!("typeck admitted an invalid program (expected {code})"),
@@ -222,4 +242,91 @@ fn complete_domains_without_ct() {
         .map(|line| format!("{line}\n"))
         .collect();
     admit(&filtered);
+}
+
+// ---- addresses -----------------------------------------------------------
+
+const POINT: &str = "struct P { x:i32; y:i32 }\n\
+    fn bump(p:&mut P) {p.x += 1}\n\
+    fn read(p:&P)->i32 {return p.x}\n";
+
+#[test]
+fn exclusive_address_parameters_write_through() {
+    admit(&format!(
+        "{POINT}fn f()->i32 {{\n var p = P{{x:1, y:2}}\n bump(&mut p)\n bump(&mut p)\n return p.x\n }}"
+    ));
+}
+
+#[test]
+fn an_exclusive_address_is_reborrowed_at_each_call() {
+    admit(&format!(
+        "{POINT}fn g(r:&mut P)->i32 {{\n bump(r)\n bump(r)\n return r.x\n }}"
+    ));
+}
+
+#[test]
+fn an_exclusive_address_coerces_to_a_shared_one() {
+    admit(&format!(
+        "{POINT}fn h(r:&mut P)->i32 {{\n return read(r)\n }}"
+    ));
+}
+
+#[test]
+fn shared_addresses_index_arrays() {
+    admit(
+        "fn sum(a:&[i32;3])->i32 {return a[0] + a[1] + a[2]}\n\
+         fn f()->i32 {\n let v = [1, 2, 3]\n return sum(&v) + sum(&v)\n }",
+    );
+}
+
+#[test]
+fn explicit_dereference_reads_and_writes() {
+    admit("fn f()->i32 {\n var x = 1\n let r = &mut x\n *r = *r + 1\n return x\n }");
+}
+
+#[test]
+fn borrowing_a_value_materialises_a_temporary() {
+    admit("fn f()->i32 {\n let r = &(1 + 2)\n return *r\n }");
+}
+
+#[test]
+fn returning_the_address_of_a_local_is_unsafe() {
+    unsafe_program(
+        "fn bad()->&i32 {\n let x = 1\n return &x\n }",
+        // The scope exit ends `x`'s storage while the returned loan is
+        // still live; that conflict comes before the return itself.
+        "LoanConflict",
+    );
+}
+
+#[test]
+fn reading_while_an_exclusive_address_is_live_is_unsafe() {
+    unsafe_program(
+        "fn f()->i32 {\n var x = 1\n let a = &mut x\n let b = &x\n *a = 2\n return *b\n }",
+        "LoanConflict",
+    );
+}
+
+#[test]
+fn a_moved_exclusive_address_cannot_be_used() {
+    unsafe_program(
+        "fn f()->i32 {\n var x = 1\n let a = &mut x\n let b = a\n *a = 2\n return *b\n }",
+        "Uninit",
+    );
+}
+
+#[test]
+fn exclusive_borrow_of_a_let_binding_is_rejected() {
+    reject(
+        "fn f()->i32 {\n let x = 1\n let r = &mut x\n return *r\n }",
+        "E-ASSIGN-IMMUTABLE",
+    );
+}
+
+#[test]
+fn writing_through_a_shared_address_is_rejected() {
+    reject(
+        &format!("{POINT}fn w(p:&P) {{p.x = 3}}"),
+        "E-ASSIGN-IMMUTABLE",
+    );
 }

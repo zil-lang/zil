@@ -479,7 +479,21 @@ pub fn resolve_type(
             };
             Ok(types.intern(TyData::Array { element, length }))
         }
-        ast::TypeKind::Reference { .. } => Err(diag::unsupported("reference types", t.span)),
+        ast::TypeKind::Reference {
+            lifetime,
+            mutable,
+            inner,
+        } => {
+            if lifetime.is_some() {
+                // Written regions arrive with region contracts (P4).
+                return Err(diag::unsupported("explicit lifetimes", t.span));
+            }
+            let pointee = resolve_type(inner, generics, names, types)?;
+            Ok(types.intern(TyData::Ref {
+                mutable: *mutable,
+                pointee,
+            }))
+        }
         ast::TypeKind::Function { .. } => Err(diag::unsupported("function types", t.span)),
         ast::TypeKind::ForeignFunction { .. } => {
             Err(diag::unsupported("foreign function types", t.span))

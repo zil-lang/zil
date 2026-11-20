@@ -43,6 +43,12 @@ pub enum TyData {
         element: Ty,
         length: u32,
     },
+    /// An address window. Regions are not part of typeck types yet: the
+    /// kernel's loan model carries safety until region contracts (P4).
+    Ref {
+        mutable: bool,
+        pointee: Ty,
+    },
     /// The n-th type parameter of the enclosing generic declaration.
     Param(u32),
     Var(VarId),
@@ -116,6 +122,7 @@ impl Types {
             TyData::Adt { args, .. } => args.iter().any(|t| self.occurs(v, *t)),
             TyData::Tuple(items) => items.iter().any(|t| self.occurs(v, *t)),
             TyData::Array { element, .. } => self.occurs(v, *element),
+            TyData::Ref { pointee, .. } => self.occurs(v, *pointee),
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -179,6 +186,16 @@ impl Types {
                     length: m,
                 },
             ) if n == m => self.unify(x, y),
+            (
+                TyData::Ref {
+                    mutable: m1,
+                    pointee: x,
+                },
+                TyData::Ref {
+                    mutable: m2,
+                    pointee: y,
+                },
+            ) if m1 == m2 => self.unify(x, y),
             _ => Err(Mismatch),
         }
     }
@@ -239,6 +256,10 @@ impl Types {
                 let element = self.zonk(element)?;
                 self.intern(TyData::Array { element, length })
             }
+            TyData::Ref { mutable, pointee } => {
+                let pointee = self.zonk(pointee)?;
+                self.intern(TyData::Ref { mutable, pointee })
+            }
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -265,6 +286,10 @@ impl Types {
             TyData::Array { element, length } => {
                 let element = self.subst(element, args);
                 self.intern(TyData::Array { element, length })
+            }
+            TyData::Ref { mutable, pointee } => {
+                let pointee = self.subst(pointee, args);
+                self.intern(TyData::Ref { mutable, pointee })
             }
             TyData::Unit
             | TyData::Bool

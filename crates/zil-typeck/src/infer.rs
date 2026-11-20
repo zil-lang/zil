@@ -144,6 +144,66 @@ impl<'c, 'a> FnCx<'c, 'a> {
         }
     }
 
+    /// Dereferences an address-typed base of a member or index access.
+    fn auto_deref(&mut self, mut base: Expr) -> Expr {
+        loop {
+            let bt = self.types.shallow(base.ty);
+            let TyData::Ref { pointee, .. } = *self.types.data(bt) else {
+                return base;
+            };
+            let span = base.span;
+            base = Expr {
+                kind: ExprKind::Deref(Box::new(base)),
+                ty: pointee,
+                span,
+            };
+        }
+    }
+
+    /// Coerces an argument at a call site. An exclusive address held in a
+    /// place is reborrowed (`&mut *p`) instead of moved, and an exclusive
+    /// address converts to a shared one (`&*p`); both are new loans the
+    /// kernel checks like any other.
+    fn coerce_arg(&mut self, value: Expr, expected: Ty, span: Span) -> Expr {
+        let et = self.types.shallow(expected);
+        let vt = self.types.shallow(value.ty);
+        let (
+            TyData::Ref { mutable: want, .. },
+            TyData::Ref {
+                mutable: true,
+                pointee,
+            },
+        ) = (self.types.data(et).clone(), self.types.data(vt).clone())
+        else {
+            self.coerce(&value, expected, span);
+            return value;
+        };
+        if want && !is_place(&value.kind) {
+            self.coerce(&value, expected, span);
+            return value;
+        }
+        let vspan = value.span;
+        let target = Expr {
+            kind: ExprKind::Deref(Box::new(value)),
+            ty: pointee,
+            span: vspan,
+        };
+        let ty = self.types.intern(TyData::Ref {
+            mutable: want,
+            pointee,
+        });
+        let out = Expr {
+            kind: ExprKind::Borrow {
+                mutable: want,
+                place: Box::new(target),
+            },
+            ty,
+            span: vspan,
+        };
+        self.coerce(&out, expected, span);
+        out
+    }
+
     fn unify(&mut self, a: Ty, b: Ty, span: Span) {
         if self.types.unify(a, b).is_err() {
             self.error(diag::TYPE_MISMATCH, span, "mismatched types");
@@ -599,6 +659,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
     }
 
     fn check_assignable(&mut self, place: &Expr) {
+        self.check_mutable_place(place, "assigned");
+    }
+
+    /// A place written or borrowed exclusively must be reached through a
+    /// `var` binding or through an exclusive address. Binding mutability is
+    /// a name fact the IR does not carry, so typeck owns this rule; the
+    /// address case repeats the type rule for a source-level diagnostic.
+    fn check_mutable_place(&mut self, place: &Expr, what: &str) {
         let mut cur = place;
         loop {
             match &cur.kind {
@@ -608,7 +676,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         self.error(
                             diag::ASSIGN_IMMUTABLE,
                             place.span,
-                            format!("`{name}` is not declared with `var`"),
+                            format!("`{name}` is not declared with `var` and cannot be {what}"),
                         );
                     }
                     return;
@@ -616,7 +684,19 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 ExprKind::Field { base, .. }
                 | ExprKind::TupleField { base, .. }
                 | ExprKind::Index { base, .. } => cur = base,
-                ExprKind::Lit(_)
+                ExprKind::Deref(base) => {
+                    let bt = self.types.shallow(base.ty);
+                    if let TyData::Ref { mutable: false, .. } = self.types.data(bt) {
+                        self.error(
+                            diag::ASSIGN_IMMUTABLE,
+                            place.span,
+                            format!("a place behind a shared address cannot be {what}"),
+                        );
+                    }
+                    return;
+                }
+                ExprKind::Borrow { .. }
+                | ExprKind::Lit(_)
                 | ExprKind::Unary { .. }
                 | ExprKind::Binary { .. }
                 | ExprKind::Logical { .. }
@@ -906,6 +986,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             ast::ExprKind::Call { callee, arguments } => self.call(callee, arguments, span),
             ast::ExprKind::Index { object, index } => {
                 let base = self.infer(object);
+                let base = self.auto_deref(base);
                 let idx = self.infer(index);
                 // An unconstrained literal index is a usize.
                 if let TyData::Var(_) = self.types.data(self.types.shallow(idx.ty)) {
@@ -923,6 +1004,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Float(_)
                     | TyData::Adt { .. }
                     | TyData::Tuple(_)
+                    | TyData::Ref { .. }
                     | TyData::Param(_)
                     | TyData::Var(_) => {
                         self.error(diag::OPERATOR_TYPE, span, "only arrays can be indexed");
@@ -1067,11 +1149,58 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     ty,
                 )
             }
-            ast::UnaryOp::Dereference
-            | ast::UnaryOp::Borrow
-            | ast::UnaryOp::BorrowMut
-            | ast::UnaryOp::Give => {
-                self.unsupported("address and give operators", span);
+            ast::UnaryOp::Dereference => {
+                let x = self.infer(operand);
+                let xt = self.types.shallow(x.ty);
+                match self.types.data(xt).clone() {
+                    TyData::Ref { pointee, .. } => mk(ExprKind::Deref(Box::new(x)), pointee),
+                    TyData::Error => self.err_expr(span),
+                    TyData::Var(_) => {
+                        self.error(
+                            diag::TYPE_INFERENCE,
+                            span,
+                            "the type must be known before dereferencing",
+                        );
+                        self.err_expr(span)
+                    }
+                    TyData::Unit
+                    | TyData::Bool
+                    | TyData::Never
+                    | TyData::Int(_)
+                    | TyData::Float(_)
+                    | TyData::Adt { .. }
+                    | TyData::Tuple(_)
+                    | TyData::Array { .. }
+                    | TyData::Param(_) => {
+                        self.error(
+                            diag::OPERATOR_TYPE,
+                            span,
+                            "only an address can be dereferenced",
+                        );
+                        self.err_expr(span)
+                    }
+                }
+            }
+            ast::UnaryOp::Borrow | ast::UnaryOp::BorrowMut => {
+                let mutable = op == ast::UnaryOp::BorrowMut;
+                let x = self.infer(operand);
+                if mutable && is_place(&x.kind) {
+                    self.check_mutable_place(&x, "borrowed exclusively");
+                }
+                let ty = self.types.intern(TyData::Ref {
+                    mutable,
+                    pointee: x.ty,
+                });
+                mk(
+                    ExprKind::Borrow {
+                        mutable,
+                        place: Box::new(x),
+                    },
+                    ty,
+                )
+            }
+            ast::UnaryOp::Give => {
+                self.unsupported("`give`", span);
                 self.err_expr(span)
             }
         }
@@ -1179,6 +1308,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             };
         }
         let base = self.infer(object);
+        let base = self.auto_deref(base);
         let bt = self.types.shallow(base.ty);
         match (member, self.types.data(bt).clone()) {
             (ast::MemberName::TupleIndex(i), TyData::Tuple(items)) => {
@@ -1455,7 +1585,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         for (p, a) in param_tys.iter().zip(arguments) {
             let value = self.infer(&a.value);
             let expected = self.types.subst(*p, &type_args);
-            self.coerce(&value, expected, a.span);
+            let value = self.coerce_arg(value, expected, a.span);
             args.push(value);
         }
         let ty = self.types.subst(result, &type_args);
@@ -1489,6 +1619,7 @@ fn contains_break(e: &Expr) -> bool {
             ExprKind::Match { scrutinee, arms } => {
                 walk(scrutinee) || arms.iter().any(|a| walk(&a.body))
             }
+            ExprKind::Deref(inner) | ExprKind::Borrow { place: inner, .. } => walk(inner),
             ExprKind::Lit(_)
             | ExprKind::Local(_)
             | ExprKind::Continue
@@ -1574,6 +1705,7 @@ impl Finalizer<'_, '_> {
             | TyData::Error => true,
             TyData::Tuple(items) => items.iter().all(|t| self.is_copy_depth(*t, depth + 1)),
             TyData::Array { element, .. } => self.is_copy_depth(element, depth + 1),
+            TyData::Ref { mutable, .. } => !mutable,
             TyData::Param(i) => self.generics.get(i as usize).is_some_and(|g| g.copy),
             TyData::Adt { adt, args } => {
                 let decl = self.items.adt(adt);
@@ -1699,6 +1831,7 @@ impl Finalizer<'_, '_> {
                 }
             }
             ExprKind::TupleField { base, .. } => self.expr(base),
+            ExprKind::Deref(inner) | ExprKind::Borrow { place: inner, .. } => self.expr(inner),
             ExprKind::Index { base, index } => {
                 self.expr(base);
                 self.expr(index);
@@ -1712,6 +1845,7 @@ impl Finalizer<'_, '_> {
                     | TyData::Adt { .. }
                     | TyData::Tuple(_)
                     | TyData::Array { .. }
+                    | TyData::Ref { .. }
                     | TyData::Param(_)
                     | TyData::Var(_) => false,
                 };

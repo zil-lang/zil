@@ -20,8 +20,8 @@ use zil_base::{Diagnostic, Span};
 use zil_ir::body::{
     AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ConstValue,
     FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnSig, Function, GenericArgs, Instruction,
-    InstructionKind, IntTy, Local, LocalDecl, Module, Operand, ParamEnv, Place, Projection, Rvalue,
-    Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
+    InstructionKind, IntTy, Local, LocalDecl, Module, Mutability, Operand, ParamEnv, Place,
+    Projection, Region, Rvalue, Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
 };
 
 /// Work limits of one lowering request.
@@ -212,6 +212,17 @@ impl<'c, 'a> Mono<'c, 'a> {
                 let args = self.args_id(&args, span)?;
                 TyKind::Adt { adt, args }
             }
+            // Regions are erased to `Static` until region contracts (P4);
+            // the kernel's loan model, not the region, decides safety.
+            TyData::Ref { mutable, pointee } => TyKind::Ref {
+                region: Region::Static,
+                mutability: if mutable {
+                    Mutability::Exclusive
+                } else {
+                    Mutability::Shared
+                },
+                pointee: self.lower_ty(pointee, span)?,
+            },
             TyData::Var(_) | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
@@ -570,7 +581,11 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                 p.projections.push(Projection::Index(i));
                 p
             }
-            ExprKind::Lit(_)
+            // The address itself is read in place; going through it is a
+            // projection, not a use of the address value.
+            ExprKind::Deref(base) => self.place(base).deref(),
+            ExprKind::Borrow { .. }
+            | ExprKind::Lit(_)
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Logical { .. }
@@ -693,11 +708,24 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                     operands: items.iter().map(|i| self.operand(i)).collect(),
                 }
             }
+            ExprKind::Borrow { mutable, place } => {
+                let place = self.place(place);
+                Rvalue::Ref {
+                    region: Region::Static,
+                    mutability: if *mutable {
+                        Mutability::Exclusive
+                    } else {
+                        Mutability::Shared
+                    },
+                    place,
+                }
+            }
             ExprKind::Lit(_)
             | ExprKind::Local(_)
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
             | ExprKind::Index { .. }
+            | ExprKind::Deref(_)
             | ExprKind::Logical { .. }
             | ExprKind::Call { .. }
             | ExprKind::If { .. }
@@ -799,6 +827,8 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
             | ExprKind::Index { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Borrow { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Convert { .. }
@@ -967,6 +997,8 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
             | ExprKind::Index { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Borrow { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Convert { .. }

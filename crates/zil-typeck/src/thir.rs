@@ -2,8 +2,9 @@
 //!
 //! Every expression carries its (inference) type; after
 //! [`crate::infer`] finishes, every type is zonked to a closed form that
-//! may still mention the declaration's own `Param`s. Place expressions and
-//! value expressions are distinguished by [`ExprKind::is_place`].
+//! may still mention the declaration's own `Param`s. Place expressions are
+//! `Local`, `Field`, `TupleField`, `Index` and `Deref`; every other kind is
+//! a value expression.
 
 use crate::ty::{AdtRef, Ty};
 use zil_base::Span;
@@ -66,6 +67,15 @@ pub enum ExprKind {
         base: Box<Expr>,
         index: Box<Expr>,
     },
+    /// `*base`: the target of an address. Automatic dereference of a member
+    /// or index base produces the same node.
+    Deref(Box<Expr>),
+    /// `&place` / `&mut place`. A value operand is materialised in a
+    /// temporary first.
+    Borrow {
+        mutable: bool,
+        place: Box<Expr>,
+    },
     Unary {
         op: UnOp,
         operand: Box<Expr>,
@@ -123,6 +133,36 @@ pub enum ExprKind {
         op: Option<BinOp>,
         value: Box<Expr>,
     },
+}
+
+/// Whether an expression denotes a place (storage) rather than a value.
+pub fn is_place(kind: &ExprKind) -> bool {
+    match kind {
+        ExprKind::Local(_)
+        | ExprKind::Field { .. }
+        | ExprKind::TupleField { .. }
+        | ExprKind::Index { .. }
+        | ExprKind::Deref(_) => true,
+        ExprKind::Lit(_)
+        | ExprKind::Borrow { .. }
+        | ExprKind::Unary { .. }
+        | ExprKind::Binary { .. }
+        | ExprKind::Logical { .. }
+        | ExprKind::Convert { .. }
+        | ExprKind::Call { .. }
+        | ExprKind::Adt { .. }
+        | ExprKind::Tuple(_)
+        | ExprKind::Array(_)
+        | ExprKind::If { .. }
+        | ExprKind::Match { .. }
+        | ExprKind::Block(_)
+        | ExprKind::Loop(_)
+        | ExprKind::While { .. }
+        | ExprKind::Break
+        | ExprKind::Continue
+        | ExprKind::Return(_)
+        | ExprKind::Assign { .. } => false,
+    }
 }
 
 #[derive(Clone, Debug)]
