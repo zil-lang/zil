@@ -89,7 +89,6 @@ pub struct FnDecl<'a> {
     /// Canonical qualified name (or bare name for an unnamed root module).
     pub name: String,
     pub generics: Vec<GenericInfo>,
-    #[allow(dead_code)]
     pub region_params: Vec<String>,
     pub params: Vec<ParamInfo>,
     pub result: Ty,
@@ -239,9 +238,17 @@ impl<'a> Items<'a> {
                 let element = self.normalize_ty_depth(element, types, depth + 1);
                 types.intern(TyData::Slice(element))
             }
-            TyData::Ref { mutable, pointee } => {
+            TyData::Ref {
+                region,
+                mutable,
+                pointee,
+            } => {
                 let pointee = self.normalize_ty_depth(pointee, types, depth + 1);
-                types.intern(TyData::Ref { mutable, pointee })
+                types.intern(TyData::Ref {
+                    region,
+                    mutable,
+                    pointee,
+                })
             }
             TyData::Managed(inner) => {
                 let inner = self.normalize_ty_depth(inner, types, depth + 1);
@@ -376,10 +383,12 @@ fn match_template(template: Ty, concrete: Ty, types: &Types, bindings: &mut [Opt
             TyData::Ref {
                 mutable: m1,
                 pointee: p1,
+                ..
             },
             TyData::Ref {
                 mutable: m2,
                 pointee: p2,
+                ..
             },
         ) => m1 == m2 && match_template(*p1, *p2, types, bindings),
         (TyData::Tuple(xs), TyData::Tuple(ys)) => {
@@ -1357,10 +1366,11 @@ fn collect_fn<'a>(
     let result_mode = parse_result_mode(&f.contract, diags);
     let mut params = Vec::new();
     for p in &f.params {
-        let raw_ty = resolve_type_in(
+        let raw_ty = resolve_type_with_lifetimes(
             &p.ty,
             mid,
             &scope,
+            &region_params,
             modules,
             mod_by_path,
             adt_kinds,
@@ -1393,10 +1403,11 @@ fn collect_fn<'a>(
         });
     }
     let raw_result = match &f.return_type {
-        Some(t) => resolve_type_in(
+        Some(t) => resolve_type_with_lifetimes(
             t,
             mid,
             &scope,
+            &region_params,
             modules,
             mod_by_path,
             adt_kinds,
@@ -1980,6 +1991,33 @@ fn resolve_type_in(
     owner_fn: Option<FnRef>,
     types: &mut Types,
 ) -> Result<Ty, Diagnostic> {
+    resolve_type_with_lifetimes(
+        t,
+        from,
+        generics,
+        &[],
+        modules,
+        mod_by_path,
+        adt_kinds,
+        self_ty,
+        owner_fn,
+        types,
+    )
+}
+
+#[allow(clippy::result_large_err, clippy::too_many_arguments)]
+fn resolve_type_with_lifetimes(
+    t: &ast::TypeRef,
+    from: ModIdx,
+    generics: &[String],
+    lifetimes: &[String],
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    self_ty: Option<Ty>,
+    owner_fn: Option<FnRef>,
+    types: &mut Types,
+) -> Result<Ty, Diagnostic> {
     match &t.kind {
         ast::TypeKind::Named { path, args } => {
             if let [base, assoc] = path.as_slice()
@@ -2053,10 +2091,11 @@ fn resolve_type_in(
                             "`Store<T>` takes one type argument",
                         ));
                     };
-                    let elem = resolve_type_in(
+                    let elem = resolve_type_with_lifetimes(
                         elem,
                         from,
                         generics,
+                        lifetimes,
                         modules,
                         mod_by_path,
                         adt_kinds,
@@ -2075,10 +2114,11 @@ fn resolve_type_in(
                             "`OwnedDyn<dyn Trait>` takes one type argument",
                         ));
                     };
-                    let inner = resolve_type_in(
+                    let inner = resolve_type_with_lifetimes(
                         inner_ast,
                         from,
                         generics,
+                        lifetimes,
                         modules,
                         mod_by_path,
                         adt_kinds,
@@ -2106,10 +2146,11 @@ fn resolve_type_in(
                             format!("`{name}<T>` takes one type argument"),
                         ));
                     };
-                    let elem = resolve_type_in(
+                    let elem = resolve_type_with_lifetimes(
                         elem,
                         from,
                         generics,
+                        lifetimes,
                         modules,
                         mod_by_path,
                         adt_kinds,
@@ -2144,10 +2185,11 @@ fn resolve_type_in(
                             "`Managed<R>` takes one type argument",
                         ));
                     };
-                    let resolved = resolve_type_in(
+                    let resolved = resolve_type_with_lifetimes(
                         inner_ast,
                         from,
                         generics,
+                        lifetimes,
                         modules,
                         mod_by_path,
                         adt_kinds,
@@ -2171,10 +2213,11 @@ fn resolve_type_in(
                     let mut tys = Vec::new();
                     for a in args {
                         match a {
-                            ast::GenericArg::Type(t) => tys.push(resolve_type_in(
+                            ast::GenericArg::Type(t) => tys.push(resolve_type_with_lifetimes(
                                 t,
                                 from,
                                 generics,
+                                lifetimes,
                                 modules,
                                 mod_by_path,
                                 adt_kinds,
@@ -2214,10 +2257,11 @@ fn resolve_type_in(
             }
             let mut tys = Vec::new();
             for i in items {
-                tys.push(resolve_type_in(
+                tys.push(resolve_type_with_lifetimes(
                     i,
                     from,
                     generics,
+                    lifetimes,
                     modules,
                     mod_by_path,
                     adt_kinds,
@@ -2228,10 +2272,11 @@ fn resolve_type_in(
             }
             Ok(types.intern(TyData::Tuple(tys)))
         }
-        ast::TypeKind::Group(inner) => resolve_type_in(
+        ast::TypeKind::Group(inner) => resolve_type_with_lifetimes(
             inner,
             from,
             generics,
+            lifetimes,
             modules,
             mod_by_path,
             adt_kinds,
@@ -2240,10 +2285,11 @@ fn resolve_type_in(
             types,
         ),
         ast::TypeKind::Array { element, length } => {
-            let element = resolve_type_in(
+            let element = resolve_type_with_lifetimes(
                 element,
                 from,
                 generics,
+                lifetimes,
                 modules,
                 mod_by_path,
                 adt_kinds,
@@ -2272,14 +2318,15 @@ fn resolve_type_in(
             Ok(types.intern(TyData::Array { element, length }))
         }
         ast::TypeKind::Reference {
-            lifetime: _,
+            lifetime,
             mutable,
             inner,
         } => {
-            let mut pointee = resolve_type_in(
+            let mut pointee = resolve_type_with_lifetimes(
                 inner,
                 from,
                 generics,
+                lifetimes,
                 modules,
                 mod_by_path,
                 adt_kinds,
@@ -2296,7 +2343,12 @@ fn resolve_type_in(
             {
                 pointee = types.intern(TyData::Managed(inner_ty));
             }
+            let region = lifetime.as_deref().and_then(|lt| {
+                let name = lt.strip_prefix('\'').unwrap_or(lt);
+                lifetimes.iter().position(|r| r == name).map(|i| i as u32)
+            });
             Ok(types.intern(TyData::Ref {
+                region,
                 mutable: *mutable,
                 pointee,
             }))
@@ -2304,10 +2356,11 @@ fn resolve_type_in(
         ast::TypeKind::Function { params, result } => {
             let mut ps = Vec::with_capacity(params.len());
             for p in params {
-                ps.push(resolve_type_in(
+                ps.push(resolve_type_with_lifetimes(
                     p,
                     from,
                     generics,
+                    lifetimes,
                     modules,
                     mod_by_path,
                     adt_kinds,
@@ -2316,10 +2369,11 @@ fn resolve_type_in(
                     types,
                 )?);
             }
-            let r = resolve_type_in(
+            let r = resolve_type_with_lifetimes(
                 result,
                 from,
                 generics,
+                lifetimes,
                 modules,
                 mod_by_path,
                 adt_kinds,
@@ -2333,10 +2387,11 @@ fn resolve_type_in(
             }))
         }
         ast::TypeKind::Error { error, result } => {
-            let err = resolve_type_in(
+            let err = resolve_type_with_lifetimes(
                 error,
                 from,
                 generics,
+                lifetimes,
                 modules,
                 mod_by_path,
                 adt_kinds,
@@ -2344,10 +2399,11 @@ fn resolve_type_in(
                 None,
                 types,
             )?;
-            let ok = resolve_type_in(
+            let ok = resolve_type_with_lifetimes(
                 result,
                 from,
                 generics,
+                lifetimes,
                 modules,
                 mod_by_path,
                 adt_kinds,
@@ -2371,10 +2427,11 @@ fn resolve_type_in(
             }
             let mut ps = Vec::with_capacity(params.len());
             for p in params {
-                ps.push(resolve_type_in(
+                ps.push(resolve_type_with_lifetimes(
                     p,
                     from,
                     generics,
+                    lifetimes,
                     modules,
                     mod_by_path,
                     adt_kinds,
@@ -2383,10 +2440,11 @@ fn resolve_type_in(
                     types,
                 )?);
             }
-            let r = resolve_type_in(
+            let r = resolve_type_with_lifetimes(
                 result,
                 from,
                 generics,
+                lifetimes,
                 modules,
                 mod_by_path,
                 adt_kinds,
@@ -2400,10 +2458,11 @@ fn resolve_type_in(
             })))
         }
         ast::TypeKind::Optional(inner) => {
-            let elem = resolve_type_in(
+            let elem = resolve_type_with_lifetimes(
                 inner,
                 from,
                 generics,
+                lifetimes,
                 modules,
                 mod_by_path,
                 adt_kinds,

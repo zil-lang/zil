@@ -497,11 +497,11 @@ impl ConstraintCx<'_> {
     fn lookup(&self, kind: TyKind) -> Result<TyId, ConstraintError> {
         self.body
             .tys
-            .lookup(&kind)
+            .lookup_erased(&kind)
             .ok_or(ConstraintError::MissingType)
     }
     fn expect(&self, expected: TyId, found: TyId) -> Result<(), ConstraintError> {
-        if expected == found {
+        if expected == found || self.body.tys.same_erased_region(expected, found) {
             Ok(())
         } else {
             Err(ConstraintError::TypeMismatch { expected, found })
@@ -1072,7 +1072,7 @@ fn callee_sig(
     match callee {
         Callee::Direct(f) => {
             let sig = callable(cx, f.0)?;
-            if sig.type_params != 0 || sig.region_params != 0 {
+            if sig.type_params != 0 {
                 return Err(ConstraintError::Unspecified("generic call instantiation"));
             }
             Ok((sig.params.clone(), sig.result))

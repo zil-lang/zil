@@ -32,6 +32,9 @@ pub(crate) enum Flow {
 /// Loans carried by the operands of a terminator.
 pub(crate) struct TermFlows {
     loans: BitSet,
+    /// Loans that flow into the destination of a `Call` according to its region
+    /// contract (equals `loans` when the callee has no region parameters).
+    ret_loans: BitSet,
     /// Some operand grants a callee write access to external storage that
     /// can hold addresses.
     external_store: bool,
@@ -433,10 +436,53 @@ impl Kernel<'_> {
                 .iter()
                 .map(|a| (a.role, a.access, a.place.as_ref())),
         );
+        let ret_loans = match term {
+            Terminator::Call {
+                callee: zil_ir::body::Callee::Direct(f),
+                ..
+            } => {
+                if let Some(sig) = self.sigs.functions.get(f.index())
+                    && sig.region_params > 0
+                {
+                    let ret_regions = self.tys.regions_in(sig.result);
+                    if ret_regions.is_empty() {
+                        self.empty_loans()
+                    } else {
+                        let matching = accesses.iter().filter(|a| {
+                            let OperandRole::Arg(idx) = a.role else {
+                                return false;
+                            };
+                            sig.params.get(idx as usize).is_some_and(|pt| {
+                                self.tys
+                                    .regions_in(*pt)
+                                    .iter()
+                                    .any(|r| ret_regions.contains(r))
+                            })
+                        });
+                        self.operand_loans(
+                            state,
+                            matching.map(|a| (a.role, a.access, a.place.as_ref())),
+                        )
+                    }
+                } else {
+                    loans.clone()
+                }
+            }
+            Terminator::Call { .. }
+            | Terminator::Goto { .. }
+            | Terminator::Switch { .. }
+            | Terminator::Return { .. }
+            | Terminator::Assert { .. }
+            | Terminator::Unreachable
+            | Terminator::Trap(_) => loans.clone(),
+        };
         let external_store = match term {
             Terminator::Call { .. } => accesses.iter().any(|a| {
                 flows_value(a.role, a.access)
-                    && self.reach(state, a.place.root).contains(EXTERNAL)
+                    && self
+                        .reach(state, a.place.root)
+                        .iter()
+                        .any(|id| id == EXTERNAL || self.loans.loan_region(id).is_some())
                     && self.place_may_store_address(&a.place)
             }),
             Terminator::Goto { .. }
@@ -448,6 +494,7 @@ impl Kernel<'_> {
         };
         TermFlows {
             loans,
+            ret_loans,
             external_store,
         }
     }
@@ -459,10 +506,20 @@ impl Kernel<'_> {
         flows: &TermFlows,
     ) -> Result<(), ViolationKind> {
         match term {
-            Terminator::Return { .. } => match self.anchored(&flows.loans) {
-                Some(loan) => Err(ViolationKind::ReturnsLocalBorrow { loan }),
-                None => Ok(()),
-            },
+            Terminator::Return { .. } => {
+                if let Some(loan) = self.anchored(&flows.loans) {
+                    return Err(ViolationKind::ReturnsLocalBorrow { loan });
+                }
+                let allowed = self.tys.regions_in(self.body.result);
+                for id in self.close(state, &flows.loans).iter() {
+                    if let Some(region) = self.loans.loan_region(id)
+                        && !allowed.contains(&region)
+                    {
+                        return Err(ViolationKind::RegionEscape { region });
+                    }
+                }
+                Ok(())
+            }
             Terminator::Call { .. } => {
                 // The callee may store any argument loan into any writable,
                 // address-holding storage it receives.
@@ -504,7 +561,7 @@ impl Kernel<'_> {
         match (term, kind) {
             (Terminator::Call { dest, .. }, EdgeKind::CallReturn) => {
                 let loans = if self.place_holds_address(dest) {
-                    flows.loans.clone()
+                    flows.ret_loans.clone()
                 } else {
                     self.empty_loans()
                 };

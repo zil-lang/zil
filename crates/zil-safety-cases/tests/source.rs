@@ -1148,3 +1148,109 @@ fn foreign_thread_registration_unused_install_missing_sync_drop_is_rejected() {
         "expected E-GENERIC-ARGUMENT, got {err:?}"
     );
 }
+
+// ---- P4: region contracts and recursive SCCs ------------------------------
+
+#[test]
+fn region_contract_returning_wrong_region_is_rejected() {
+    let src = r#"
+fn bad<life a, life b>(x: &'a i32, _y: &'b i32) -> &'b i32 {
+    return &*x
+}
+fn main() -> i32 {
+    let a: i32 = 1
+    let b: i32 = 2
+    return *bad(&a, &b)
+}
+"#;
+    let lowered = zil_typeck::lower_source("region_bad.zil", src).expect("lowers");
+    let v = format!("{:?}", verdict(lowered.module));
+    assert!(
+        v.contains("RegionEscape"),
+        "expected RegionEscape violation, got {v}"
+    );
+}
+
+#[test]
+fn region_contract_call_site_propagates_input_regions_and_rejects_mismatch() {
+    let src = r#"
+fn choose<life a>(cond: bool, x: &'a i32, y: &'a i32) -> &'a i32 {
+    if cond {
+        return &*x
+    }
+    return &*y
+}
+fn bad<life a, life b>(cond: bool, x: &'a i32, y: &'b i32) -> &'a i32 {
+    return choose(cond, x, y)
+}
+fn main() -> i32 {
+    let a: i32 = 1
+    let b: i32 = 2
+    return *bad(true, &a, &b)
+}
+"#;
+    let lowered = zil_typeck::lower_source("region_choose_bad.zil", src).expect("lowers");
+    let v = format!("{:?}", verdict(lowered.module));
+    assert!(
+        v.contains("RegionEscape"),
+        "expected RegionEscape violation, got {v}"
+    );
+}
+
+#[test]
+fn region_contract_returning_matching_region_is_accepted() {
+    let src = r#"
+fn good<life a, life b>(x: &'a i32, _y: &'b i32) -> &'a i32 {
+    return &*x
+}
+fn main() -> i32 {
+    let a: i32 = 42
+    let b: i32 = 7
+    return *good(&a, &b)
+}
+"#;
+    let lowered = zil_typeck::lower_source("region_good.zil", src).expect("lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn region_contract_recursive_scc_matching_region_is_accepted() {
+    let src = r#"
+fn rec<life a, life b>(n: i32, x: &'a i32, y: &'b i32) -> &'a i32 {
+    if n <= 0 {
+        return &*x
+    }
+    return rec(n - 1, x, y)
+}
+fn main() -> i32 {
+    let a: i32 = 9
+    let b: i32 = 3
+    return *rec(2, &a, &b)
+}
+"#;
+    let lowered = zil_typeck::lower_source("region_rec_good.zil", src).expect("lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn region_contract_recursive_scc_wrong_region_is_rejected() {
+    let src = r#"
+fn rec_bad<life a, life b>(n: i32, x: &'a i32, y: &'b i32) -> &'a i32 {
+    if n <= 0 {
+        return &*y
+    }
+    return rec_bad(n - 1, x, y)
+}
+fn main() -> i32 {
+    let a: i32 = 9
+    let b: i32 = 3
+    return *rec_bad(2, &a, &b)
+}
+"#;
+    let lowered = zil_typeck::lower_source("region_rec_bad.zil", src).expect("lowers");
+    let v = format!("{:?}", verdict(lowered.module));
+    assert!(
+        v.contains("RegionEscape"),
+        "expected RegionEscape violation, got {v}"
+    );
+}

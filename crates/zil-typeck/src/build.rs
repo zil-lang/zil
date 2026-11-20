@@ -138,7 +138,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 params,
                 result,
                 type_params: 0,
-                region_params: 0,
+                region_params: decl.region_params.len() as u32,
                 role,
             },
             body: Body {
@@ -370,10 +370,12 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 let args = self.args_id(&args, span)?;
                 TyKind::Adt { adt, args }
             }
-            // Regions are erased to `Static` until region contracts (P4);
-            // the kernel's loan model, not the region, decides safety.
-            TyData::Ref { mutable, pointee } => TyKind::Ref {
-                region: Region::Static,
+            TyData::Ref {
+                region,
+                mutable,
+                pointee,
+            } => TyKind::Ref {
+                region: region.map(Region::Param).unwrap_or(Region::Static),
                 mutability: if mutable {
                     Mutability::Exclusive
                 } else {
@@ -1036,13 +1038,22 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             }
             ExprKind::Borrow { mutable, place } => {
                 let place = self.place(place);
+                let mutability = if *mutable {
+                    Mutability::Exclusive
+                } else {
+                    Mutability::Shared
+                };
+                let ref_ty = self.ty(e.ty, e.span);
+                if let Some(&TyKind::Ref { pointee, .. }) = self.mono.module.tys.get(ref_ty) {
+                    self.mono.module.tys.intern(TyKind::Ref {
+                        region: Region::Static,
+                        mutability,
+                        pointee,
+                    });
+                }
                 Rvalue::Ref {
                     region: Region::Static,
-                    mutability: if *mutable {
-                        Mutability::Exclusive
-                    } else {
-                        Mutability::Shared
-                    },
+                    mutability,
                     place,
                 }
             }

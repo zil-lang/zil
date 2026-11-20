@@ -30,6 +30,8 @@ pub struct PlaceInit {
 pub enum LoanOrigin {
     /// Storage outside this body (parameters, captures, their pointees).
     External,
+    /// External storage parameterized by the n-th region parameter of this body.
+    Region(u32),
     /// The `Ref`/`Describe` assignment at this location.
     At(OpLocation),
 }

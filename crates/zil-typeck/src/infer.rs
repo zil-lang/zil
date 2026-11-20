@@ -265,6 +265,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             TyData::Ref {
                 mutable: true,
                 pointee,
+                ..
             },
         ) = (&ed, &vd)
             && (!want || is_place(&value.kind))
@@ -276,6 +277,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 span: vspan,
             };
             let ty = self.types.intern(TyData::Ref {
+                region: None,
                 mutable: *want,
                 pointee: *pointee,
             });
@@ -323,6 +325,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             TyData::Ref {
                 mutable: false,
                 pointee: want_pt,
+                ..
             },
             TyData::Ref {
                 pointee: got_pt, ..
@@ -1261,6 +1264,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let u8_ty = self.types.intern(TyData::Int(IntTy::U8));
                 let slice_ty = self.types.intern(TyData::Slice(u8_ty));
                 let ref_ty = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: false,
                     pointee: slice_ty,
                 });
@@ -1535,6 +1539,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 orig_ty
             } else {
                 self.types.intern(TyData::Ref {
+                    region: None,
                     mutable,
                     pointee: orig_ty,
                 })
@@ -1832,6 +1837,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     };
                     let slice_ty = self.types.intern(TyData::Slice(elem));
                     let ty = self.types.intern(TyData::Ref {
+                        region: None,
                         mutable,
                         pointee: slice_ty,
                     });
@@ -1850,6 +1856,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     self.check_mutable_place(&x, "borrowed exclusively");
                 }
                 let ty = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable,
                     pointee: x.ty,
                 });
@@ -2473,12 +2480,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     {
                         if let TyData::Ref { .. } = *self.types.data(rec_ty) {
                             let want_ref = self.types.intern(TyData::Ref {
+                                region: None,
                                 mutable,
                                 pointee: self_ty,
                             });
                             self.coerce_arg(receiver, want_ref, object.span)
                         } else {
                             let borrow_ty = self.types.intern(TyData::Ref {
+                                region: None,
                                 mutable,
                                 pointee: rec_ty,
                             });
@@ -2565,6 +2574,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     && !matches!(self.types.data(rec_ty), TyData::Ref { .. })
                 {
                     let borrow_ty = self.types.intern(TyData::Ref {
+                        region: None,
                         mutable,
                         pointee: rec_ty,
                     });
@@ -2950,6 +2960,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     .intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
                 let desc = self.types.intern(TyData::Desc(inner));
                 let res = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: mutability == Mutability::Exclusive,
                     pointee: elem,
                 });
@@ -2958,6 +2969,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             IntrinsicOp::ByteBufferBorrow => {
                 let slice_u8 = self.types.intern(TyData::Slice(u8_ty));
                 let res = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: false,
                     pointee: slice_u8,
                 });
@@ -2991,10 +3003,12 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     .types
                     .intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)));
                 let guard_ref = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: true,
                     pointee: guard,
                 });
                 let val_ref = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: true,
                     pointee: elem,
                 });
@@ -3023,6 +3037,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let task_ref = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: true,
                     pointee: managed,
                 });
@@ -3044,6 +3059,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let task_ref = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: true,
                     pointee: managed,
                 });
@@ -3054,6 +3070,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let task_ref = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: true,
                     pointee: managed,
                 });
@@ -3095,6 +3112,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     .intern(TyData::Opaque(OpaqueKind::AsyncRegistration(env)));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let reg_ref = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: true,
                     pointee: managed,
                 });
@@ -3107,6 +3125,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     .intern(TyData::Opaque(OpaqueKind::AsyncRegistration(env)));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let reg_ref = self.types.intern(TyData::Ref {
+                    region: None,
                     mutable: true,
                     pointee: managed,
                 });

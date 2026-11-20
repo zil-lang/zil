@@ -801,6 +801,277 @@ impl TyTable {
         visiting.pop();
         result
     }
+
+    /// Every distinct `Region::Param(r)` occurring in `ty`.
+    pub fn regions_in(&self, ty: TyId) -> Vec<u32> {
+        let mut out = Vec::new();
+        let mut visiting = Vec::new();
+        self.collect_regions_in(ty, &mut out, &mut visiting);
+        out
+    }
+
+    fn collect_regions_in(&self, ty: TyId, out: &mut Vec<u32>, visiting: &mut Vec<TyId>) {
+        if visiting.contains(&ty) {
+            return;
+        }
+        let Some(kind) = self.get(ty) else {
+            return;
+        };
+        visiting.push(ty);
+        match kind {
+            TyKind::Ref {
+                region: Region::Param(r),
+                pointee,
+                ..
+            } => {
+                if !out.contains(r) {
+                    out.push(*r);
+                }
+                self.collect_regions_in(*pointee, out, visiting);
+            }
+            TyKind::Ref { pointee, .. }
+            | TyKind::Array {
+                element: pointee, ..
+            }
+            | TyKind::Slice(pointee)
+            | TyKind::Managed(pointee)
+            | TyKind::Desc(pointee) => self.collect_regions_in(*pointee, out, visiting),
+            TyKind::Tuple(items) => {
+                for t in items {
+                    self.collect_regions_in(*t, out, visiting);
+                }
+            }
+            TyKind::ErrorUnion { ok, err } => {
+                self.collect_regions_in(*ok, out, visiting);
+                self.collect_regions_in(*err, out, visiting);
+            }
+            TyKind::Adt { args, .. } => {
+                if let Some(a) = self.get_args(*args) {
+                    for r in &a.regions {
+                        if let Region::Param(idx) = r
+                            && !out.contains(idx)
+                        {
+                            out.push(*idx);
+                        }
+                    }
+                    for t in &a.tys {
+                        self.collect_regions_in(*t, out, visiting);
+                    }
+                }
+            }
+            TyKind::FnPtr { params, result } => {
+                for p in params {
+                    self.collect_regions_in(*p, out, visiting);
+                }
+                self.collect_regions_in(*result, out, visiting);
+            }
+            TyKind::Closure { def, args } => {
+                if let Some(c) = self.closure(*def) {
+                    for cap in &c.captures {
+                        if let Some(t) = self.subst_lookup(*cap, *args) {
+                            self.collect_regions_in(t, out, visiting);
+                        }
+                    }
+                }
+            }
+            TyKind::Opaque(o) => {
+                if let OpaqueTy::MutexGuard {
+                    region: Region::Param(r),
+                    ..
+                } = o
+                    && !out.contains(r)
+                {
+                    out.push(*r);
+                }
+                if let Some(parts) = opaque_contents(o) {
+                    for p in parts {
+                        self.collect_regions_in(p, out, visiting);
+                    }
+                }
+            }
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn(_)
+            | TyKind::Param(_) => {}
+        }
+        visiting.pop();
+    }
+
+    /// Structural type equality modulo `Region` annotations on references and guards.
+    pub fn same_erased_region(&self, a: TyId, b: TyId) -> bool {
+        if a == b {
+            return true;
+        }
+        let (Some(ka), Some(kb)) = (self.get(a), self.get(b)) else {
+            return false;
+        };
+        match (ka, kb) {
+            (
+                TyKind::Ref {
+                    mutability: ma,
+                    pointee: pa,
+                    ..
+                },
+                TyKind::Ref {
+                    mutability: mb,
+                    pointee: pb,
+                    ..
+                },
+            ) => ma == mb && self.same_erased_region(*pa, *pb),
+            (
+                TyKind::Adt {
+                    adt: aa,
+                    args: args_a,
+                },
+                TyKind::Adt {
+                    adt: ab,
+                    args: args_b,
+                },
+            ) => {
+                if aa != ab {
+                    return false;
+                }
+                let (Some(ga), Some(gb)) = (self.get_args(*args_a), self.get_args(*args_b)) else {
+                    return false;
+                };
+                ga.tys.len() == gb.tys.len()
+                    && ga
+                        .tys
+                        .iter()
+                        .zip(&gb.tys)
+                        .all(|(x, y)| self.same_erased_region(*x, *y))
+            }
+            (TyKind::Tuple(xs), TyKind::Tuple(ys)) => {
+                xs.len() == ys.len()
+                    && xs
+                        .iter()
+                        .zip(ys)
+                        .all(|(x, y)| self.same_erased_region(*x, *y))
+            }
+            (
+                TyKind::Array {
+                    element: ea,
+                    length: la,
+                },
+                TyKind::Array {
+                    element: eb,
+                    length: lb,
+                },
+            ) => la == lb && self.same_erased_region(*ea, *eb),
+            (TyKind::Slice(ea), TyKind::Slice(eb))
+            | (TyKind::Managed(ea), TyKind::Managed(eb))
+            | (TyKind::Desc(ea), TyKind::Desc(eb)) => self.same_erased_region(*ea, *eb),
+            (TyKind::ErrorUnion { ok: oa, err: ea }, TyKind::ErrorUnion { ok: ob, err: eb }) => {
+                self.same_erased_region(*oa, *ob) && self.same_erased_region(*ea, *eb)
+            }
+            (
+                TyKind::FnPtr {
+                    params: pa,
+                    result: ra,
+                },
+                TyKind::FnPtr {
+                    params: pb,
+                    result: rb,
+                },
+            ) => {
+                pa.len() == pb.len()
+                    && pa
+                        .iter()
+                        .zip(pb)
+                        .all(|(x, y)| self.same_erased_region(*x, *y))
+                    && self.same_erased_region(*ra, *rb)
+            }
+            (
+                TyKind::Opaque(OpaqueTy::MutexGuard { payload: pa, .. }),
+                TyKind::Opaque(OpaqueTy::MutexGuard { payload: pb, .. }),
+            ) => self.same_erased_region(*pa, *pb),
+            _ => false,
+        }
+    }
+
+    /// Looks up `kind`, falling back to any already-interned type that differs
+    /// only in region annotations.
+    pub fn lookup_erased(&self, kind: &TyKind) -> Option<TyId> {
+        if let Some(id) = self.lookup(kind) {
+            return Some(id);
+        }
+        match kind {
+            TyKind::Ref {
+                mutability,
+                pointee,
+                ..
+            } => {
+                for (i, k) in self.kinds.iter().enumerate() {
+                    if let TyKind::Ref {
+                        mutability: m,
+                        pointee: p,
+                        ..
+                    } = k
+                        && *m == *mutability
+                        && self.same_erased_region(*p, *pointee)
+                    {
+                        return Some(TyId::from_index(i));
+                    }
+                }
+                None
+            }
+            TyKind::Tuple(items) => {
+                for (i, k) in self.kinds.iter().enumerate() {
+                    if let TyKind::Tuple(other) = k
+                        && other.len() == items.len()
+                        && other
+                            .iter()
+                            .zip(items)
+                            .all(|(a, b)| self.same_erased_region(*a, *b))
+                    {
+                        return Some(TyId::from_index(i));
+                    }
+                }
+                None
+            }
+            TyKind::Adt { adt, args } => {
+                let want = self.get_args(*args)?;
+                for (i, k) in self.kinds.iter().enumerate() {
+                    if let TyKind::Adt {
+                        adt: a,
+                        args: other_args,
+                    } = k
+                        && *a == *adt
+                        && let Some(got) = self.get_args(*other_args)
+                        && got.tys.len() == want.tys.len()
+                        && got
+                            .tys
+                            .iter()
+                            .zip(&want.tys)
+                            .all(|(x, y)| self.same_erased_region(*x, *y))
+                    {
+                        return Some(TyId::from_index(i));
+                    }
+                }
+                None
+            }
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::Array { .. }
+            | TyKind::Slice(_)
+            | TyKind::Managed(_)
+            | TyKind::Desc(_)
+            | TyKind::ErrorUnion { .. }
+            | TyKind::FnPtr { .. }
+            | TyKind::Closure { .. }
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn(_)
+            | TyKind::Param(_)
+            | TyKind::Opaque(_) => None,
+        }
+    }
 }
 
 fn subst_region(region: Region, args: &GenericArgs) -> Region {

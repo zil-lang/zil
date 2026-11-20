@@ -64,9 +64,11 @@ pub enum TyData {
         length: u32,
     },
     Slice(Ty),
-    /// An address window. Regions are not part of typeck types yet: the
-    /// kernel's loan model carries safety until region contracts (P4).
+    /// An address window. `region` carries a declared function region parameter
+    /// index (`life a` -> `Some(0)`) for region-contract checking; unannotated
+    /// references have `region: None` (erased to `Region::Static` in body IR).
     Ref {
+        region: Option<u32>,
         mutable: bool,
         pointee: Ty,
     },
@@ -282,10 +284,12 @@ impl Types {
                 TyData::Ref {
                     mutable: m1,
                     pointee: x,
+                    ..
                 },
                 TyData::Ref {
                     mutable: m2,
                     pointee: y,
+                    ..
                 },
             ) if m1 == m2 => self.unify(x, y),
             (TyData::Managed(x), TyData::Managed(y))
@@ -404,9 +408,17 @@ impl Types {
                 let element = self.zonk(element)?;
                 self.intern(TyData::Slice(element))
             }
-            TyData::Ref { mutable, pointee } => {
+            TyData::Ref {
+                region,
+                mutable,
+                pointee,
+            } => {
                 let pointee = self.zonk(pointee)?;
-                self.intern(TyData::Ref { mutable, pointee })
+                self.intern(TyData::Ref {
+                    region,
+                    mutable,
+                    pointee,
+                })
             }
             TyData::Managed(inner) => {
                 let inner = self.zonk(inner)?;
@@ -544,9 +556,17 @@ impl Types {
                 let element = self.subst_with_self(element, args, self_ty);
                 self.intern(TyData::Slice(element))
             }
-            TyData::Ref { mutable, pointee } => {
+            TyData::Ref {
+                region,
+                mutable,
+                pointee,
+            } => {
                 let pointee = self.subst_with_self(pointee, args, self_ty);
-                self.intern(TyData::Ref { mutable, pointee })
+                self.intern(TyData::Ref {
+                    region,
+                    mutable,
+                    pointee,
+                })
             }
             TyData::Managed(inner) => {
                 let inner = self.subst_with_self(inner, args, self_ty);
@@ -676,9 +696,17 @@ impl Types {
                 let element = self.subst(element, args);
                 self.intern(TyData::Slice(element))
             }
-            TyData::Ref { mutable, pointee } => {
+            TyData::Ref {
+                region,
+                mutable,
+                pointee,
+            } => {
                 let pointee = self.subst(pointee, args);
-                self.intern(TyData::Ref { mutable, pointee })
+                self.intern(TyData::Ref {
+                    region,
+                    mutable,
+                    pointee,
+                })
             }
             TyData::Managed(inner) => {
                 let inner = self.subst(inner, args);

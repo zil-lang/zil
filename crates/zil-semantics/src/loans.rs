@@ -50,13 +50,25 @@ pub struct Loan {
 
 #[derive(Clone, Debug)]
 pub struct LoanTable {
-    /// Index 0 is unused (`EXTERNAL`).
+    /// Index 0 is `EXTERNAL`; indices `1..=region_count` are `Region(0..region_count)`.
+    region_count: u32,
     loans: Vec<Option<Loan>>,
 }
 
 impl LoanTable {
     pub fn build(body: &Body, tys: &TyTable) -> Self {
-        let mut loans = vec![None];
+        let mut region_count = 0u32;
+        for p in body.params() {
+            if let Some(d) = body.locals.get(p.index()) {
+                for r in tys.regions_in(d.ty) {
+                    region_count = region_count.max(r + 1);
+                }
+            }
+        }
+        for r in tys.regions_in(body.result) {
+            region_count = region_count.max(r + 1);
+        }
+        let mut loans = vec![None; 1 + region_count as usize];
         let cx = body.cx(tys);
         for (b, block) in body.blocks.iter().enumerate() {
             for (i, inst) in block.instructions.iter().enumerate() {
@@ -112,15 +124,28 @@ impl LoanTable {
                 }));
             }
         }
-        LoanTable { loans }
+        LoanTable {
+            region_count,
+            loans,
+        }
     }
 
-    /// Number of loan ids including `EXTERNAL`.
+    /// Number of loan ids including `EXTERNAL` and region parameter pseudo-loans.
     pub fn len(&self) -> usize {
         self.loans.len()
     }
     pub fn is_empty(&self) -> bool {
-        self.loans.len() <= 1
+        self.loans.len() <= 1 + self.region_count as usize
+    }
+    pub fn region_loan(&self, region: u32) -> Option<usize> {
+        (region < self.region_count).then_some(1 + region as usize)
+    }
+    pub fn loan_region(&self, id: usize) -> Option<u32> {
+        if id >= 1 && id <= self.region_count as usize {
+            Some((id - 1) as u32)
+        } else {
+            None
+        }
     }
     pub fn get(&self, id: usize) -> Option<&Loan> {
         self.loans.get(id).and_then(Option::as_ref)
@@ -128,6 +153,7 @@ impl LoanTable {
     pub fn resolve(&self, origin: LoanOrigin) -> Option<usize> {
         match origin {
             LoanOrigin::External => Some(EXTERNAL),
+            LoanOrigin::Region(r) => self.region_loan(r),
             LoanOrigin::At(at) => self
                 .loans
                 .iter()
@@ -135,6 +161,9 @@ impl LoanTable {
         }
     }
     pub fn origin(&self, id: usize) -> LoanOrigin {
+        if let Some(r) = self.loan_region(id) {
+            return LoanOrigin::Region(r);
+        }
         match self.get(id) {
             Some(l) => LoanOrigin::At(l.origin),
             None => LoanOrigin::External,

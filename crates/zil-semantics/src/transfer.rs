@@ -59,6 +59,11 @@ pub enum ViolationKind {
     EscapingLocalBorrow {
         loan: OpLocation,
     },
+    /// A borrow from region parameter `region` flows into a return type that
+    /// does not permit it.
+    RegionEscape {
+        region: u32,
+    },
     /// The operation has no transition rule yet; rejected explicitly.
     Unspecified(&'static str),
     /// A malformed drop-flag declaration.
@@ -234,7 +239,23 @@ impl<'a> Kernel<'a> {
         let mut carries = Carries::empty(self.body.locals.len(), self.loans.len());
         for p in self.body.params() {
             if self.local_holds_address(p) {
-                carries.set(p, self.external());
+                let regions = self
+                    .body
+                    .locals
+                    .get(p.index())
+                    .map(|d| self.tys.regions_in(d.ty))
+                    .unwrap_or_default();
+                if regions.is_empty() {
+                    carries.set(p, self.external());
+                } else {
+                    let mut set = crate::state::BitSet::new(self.loans.len());
+                    for r in regions {
+                        if let Some(id) = self.loans.region_loan(r) {
+                            set.insert(id);
+                        }
+                    }
+                    carries.set(p, set);
+                }
             }
         }
         let mut state = State {
