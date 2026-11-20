@@ -813,37 +813,38 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::StorePop
         | I::StoreLen
         | I::StoreCapacity
+        | I::StoreBorrow { .. }
         | I::ByteBufferNew
         | I::ByteBufferReserve
         | I::ByteBufferPush
         | I::ByteBufferTruncate
         | I::ByteBufferLen
         | I::ByteBufferCapacity
-        | I::StoreBorrow { .. }
-        | I::ByteBufferBorrow => Ok(()),
-        I::MutexCreate
+        | I::ByteBufferBorrow
+        | I::MutexCreate
         | I::MutexLock
         | I::MutexValue
-        | I::MutexUnlock
+        | I::ThreadScope
+        | I::TaskCreate
+        | I::TaskYield
+        | I::TaskPoll
+        | I::TaskRequestCancel
+        | I::TaskPollClose
+        | I::TaskFinishDestroy
+        | I::AsyncRegistrationStart
+        | I::AsyncRegistrationValid
+        | I::AsyncRegistrationRequestClose
+        | I::AsyncRegistrationPollClose
+        | I::AsyncRegistrationFinishDestroy => Ok(()),
+        I::MutexUnlock
         | I::SyncLoad
         | I::SyncStore
         | I::SyncFetchAdd
         | I::SyncCompareExchange
         | I::TaskStart
-        | I::TaskCreate
-        | I::TaskYield
         | I::TaskValid
-        | I::TaskPoll
-        | I::TaskRequestCancel
-        | I::TaskPollClose
-        | I::TaskFinishDestroy
         | I::RegistrationStart
         | I::RegistrationValid
-        | I::RegistrationClose
-        | I::AsyncRegistrationStart
-        | I::AsyncRegistrationValid
-        | I::AsyncRegistrationRequestClose
-        | I::AsyncRegistrationPollClose
-        | I::AsyncRegistrationFinishDestroy => Err(zil_ir::body::intrinsic_name(op)),
+        | I::RegistrationClose => Err(zil_ir::body::intrinsic_name(op)),
     }
 }

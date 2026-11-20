@@ -24,6 +24,7 @@ struct CaptureEntry {
     orig_ty: Ty,
     by_value: bool,
     mutable: bool,
+    consumed: bool,
     field_ty: Ty,
 }
 
@@ -971,6 +972,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Logical { .. }
                 | ExprKind::Convert { .. }
                 | ExprKind::FnRef(_)
+                | ExprKind::ForeignRef(_)
                 | ExprKind::Call { .. }
                 | ExprKind::IndirectCall { .. }
                 | ExprKind::Closure { .. }
@@ -1281,9 +1283,15 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     .lookup_item(self.decl.module, std::slice::from_ref(n))
                 {
                     Some(ItemRef::Fn(f)) => self.fn_value(f, span),
-                    Some(ItemRef::Foreign(_)) => {
-                        self.unsupported("foreign function values", span);
-                        self.err_expr(span)
+                    Some(ItemRef::Foreign(f)) => {
+                        let decl = self.items.foreign(f);
+                        let ty = self
+                            .types
+                            .intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                                params: decl.params.clone(),
+                                result: decl.result,
+                            }));
+                        mk(ExprKind::ForeignRef(f), ty)
                     }
                     Some(ItemRef::Adt(_) | ItemRef::Trait(_)) => {
                         self.error(diag::NAME_UNRESOLVED, span, format!("`{n}` is a type"));
@@ -1536,6 +1544,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 orig_ty,
                 by_value,
                 mutable,
+                consumed: false,
                 field_ty,
             });
             env.captures.len() - 1
@@ -1645,7 +1654,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
         self.in_unsafe = saved_unsafe;
         let env = self.capture_env.take().expect("capture_env set above");
 
-        let kind = if env.captures.iter().any(|c| c.mutable) {
+        let kind = if env.captures.iter().any(|c| c.consumed) {
+            ClosureKind::FnOnce
+        } else if env.captures.iter().any(|c| c.mutable) {
             ClosureKind::FnMut
         } else {
             ClosureKind::Fn
@@ -1862,6 +1873,12 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
                 let xt = self.types.shallow(x.ty);
                 if matches!(self.types.data(xt), TyData::Managed(_)) {
+                    if let ExprKind::Capture(idx) = x.kind
+                        && let Some(env) = &mut self.capture_env
+                        && let Some(entry) = env.captures.get_mut(idx as usize)
+                    {
+                        entry.consumed = true;
+                    }
                     let ty = x.ty;
                     mk(ExprKind::Give(Box::new(x)), ty)
                 } else if matches!(self.types.data(xt), TyData::Desc(_)) {
@@ -2795,6 +2812,23 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 mutability: Mutability::Exclusive,
             },
             "bytes_view" => IntrinsicOp::ByteBufferBorrow,
+            "mutex_create" => IntrinsicOp::MutexCreate,
+            "mutex_lock" => IntrinsicOp::MutexLock,
+            "mutex_value" => IntrinsicOp::MutexValue,
+            "thread_scope" => IntrinsicOp::ThreadScope,
+            "task_create" => IntrinsicOp::TaskCreate,
+            "task_yield" => IntrinsicOp::TaskYield,
+            "task_poll" => IntrinsicOp::TaskPoll,
+            "task_request_cancel" => IntrinsicOp::TaskRequestCancel,
+            "task_poll_close" => IntrinsicOp::TaskPollClose,
+            "task_finish_destroy" => IntrinsicOp::TaskFinishDestroy,
+            "c_register_async" => IntrinsicOp::AsyncRegistrationStart,
+            "async_registration_valid" => IntrinsicOp::AsyncRegistrationValid,
+            "async_registration_request_close" => IntrinsicOp::AsyncRegistrationRequestClose,
+            "async_registration_poll_close" => IntrinsicOp::AsyncRegistrationPollClose,
+            "async_registration_finish_destroy" | "async_registration_finish_destroy_checked" => {
+                IntrinsicOp::AsyncRegistrationFinishDestroy
+            }
             _ => return None,
         };
         if explicit.is_some() {
@@ -2811,6 +2845,46 @@ impl<'c, 'a> FnCx<'c, 'a> {
         let bytes_inner = self.types.intern(TyData::Opaque(OpaqueKind::ByteBuffer));
         let bytes_desc = self.types.intern(TyData::Desc(bytes_inner));
         let bytes_managed = self.types.intern(TyData::Managed(bytes_inner));
+
+        if op == IntrinsicOp::ThreadScope {
+            let [w_arg, c_arg, p_arg] = arguments else {
+                self.error(diag::CALL_ARITY, span, "`thread_scope` expects 3 arguments");
+                return Some(self.err_expr(span));
+            };
+            let w = self.infer(&w_arg.value);
+            let c = self.infer(&c_arg.value);
+            let p = self.infer(&p_arg.value);
+            let cell_ty = self.types.fresh(VarKind::General);
+            let r1 = self.types.fresh(VarKind::General);
+            let w_expected = self.types.intern(TyData::FnPtr {
+                params: vec![cell_ty],
+                result: r1,
+            });
+            let w = self.coerce_arg(w, w_expected, w_arg.span);
+            let c = self.coerce_arg(c, cell_ty, c_arg.span);
+            let r2 = if let TyData::Closure { params, result, .. } =
+                self.types.data(self.types.shallow(p.ty)).clone()
+                && params.is_empty()
+            {
+                result
+            } else {
+                self.error(
+                    diag::TYPE_MISMATCH,
+                    p_arg.span,
+                    "`thread_scope` third argument must be a 0-argument closure",
+                );
+                self.types.error()
+            };
+            let ret_ty = self.types.intern(TyData::Tuple(vec![bool_ty, r1, r2]));
+            return Some(Expr {
+                kind: ExprKind::Intrinsic {
+                    op,
+                    args: vec![w, c, p],
+                },
+                ty: ret_ty,
+                span,
+            });
+        }
 
         let (param_tys, ret_ty): (Vec<Ty>, Ty) = match op {
             IntrinsicOp::ByteBufferNew => (Vec::new(), bytes_managed),
@@ -2889,32 +2963,180 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 });
                 (vec![bytes_desc], res)
             }
-            IntrinsicOp::MutexCreate
-            | IntrinsicOp::MutexLock
-            | IntrinsicOp::MutexValue
-            | IntrinsicOp::MutexUnlock
+            IntrinsicOp::MutexCreate => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Mutex(elem)));
+                let ok = self.types.intern(TyData::Managed(inner));
+                let err = self.types.intern(TyData::Adt {
+                    adt: AdtRef(5),
+                    args: Vec::new(),
+                });
+                (
+                    vec![elem],
+                    self.types.intern(TyData::ErrorUnion { ok, err }),
+                )
+            }
+            IntrinsicOp::MutexLock => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Mutex(elem)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                let guard = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)));
+                (vec![desc], guard)
+            }
+            IntrinsicOp::MutexValue => {
+                let elem = self.types.fresh(VarKind::General);
+                let guard = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)));
+                let guard_ref = self.types.intern(TyData::Ref {
+                    mutable: true,
+                    pointee: guard,
+                });
+                let val_ref = self.types.intern(TyData::Ref {
+                    mutable: true,
+                    pointee: elem,
+                });
+                (vec![guard_ref], val_ref)
+            }
+            IntrinsicOp::TaskCreate => {
+                let res = self.types.fresh(VarKind::General);
+                let worker = self.types.intern(TyData::FnPtr {
+                    params: Vec::new(),
+                    result: res,
+                });
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let ok = self.types.intern(TyData::Managed(inner));
+                let err = self.types.intern(TyData::Adt {
+                    adt: AdtRef(3),
+                    args: Vec::new(),
+                });
+                (
+                    vec![worker],
+                    self.types.intern(TyData::ErrorUnion { ok, err }),
+                )
+            }
+            IntrinsicOp::TaskYield => (Vec::new(), unit_ty),
+            IntrinsicOp::TaskPoll => {
+                let res = self.types.fresh(VarKind::General);
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                let task_ref = self.types.intern(TyData::Ref {
+                    mutable: true,
+                    pointee: managed,
+                });
+                let ok = self.types.intern(TyData::Adt {
+                    adt: AdtRef(2),
+                    args: vec![res],
+                });
+                let err = self.types.intern(TyData::Adt {
+                    adt: AdtRef(4),
+                    args: Vec::new(),
+                });
+                (
+                    vec![task_ref],
+                    self.types.intern(TyData::ErrorUnion { ok, err }),
+                )
+            }
+            IntrinsicOp::TaskRequestCancel => {
+                let res = self.types.fresh(VarKind::General);
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                let task_ref = self.types.intern(TyData::Ref {
+                    mutable: true,
+                    pointee: managed,
+                });
+                (vec![task_ref], unit_ty)
+            }
+            IntrinsicOp::TaskPollClose => {
+                let res = self.types.fresh(VarKind::General);
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                let task_ref = self.types.intern(TyData::Ref {
+                    mutable: true,
+                    pointee: managed,
+                });
+                let poll_unit = self.types.intern(TyData::Adt {
+                    adt: AdtRef(2),
+                    args: vec![unit_ty],
+                });
+                (vec![task_ref], poll_unit)
+            }
+            IntrinsicOp::TaskFinishDestroy => {
+                let res = self.types.fresh(VarKind::General);
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                (vec![managed], unit_ty)
+            }
+            IntrinsicOp::AsyncRegistrationStart => {
+                let env = self.types.fresh(VarKind::General);
+                let reg = self.types.fresh(VarKind::General);
+                let req = self.types.fresh(VarKind::General);
+                let drain = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::AsyncRegistration(env)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                (vec![reg, req, drain, env], managed)
+            }
+            IntrinsicOp::AsyncRegistrationValid => {
+                let env = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::AsyncRegistration(env)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                (vec![desc], bool_ty)
+            }
+            IntrinsicOp::AsyncRegistrationRequestClose => {
+                let env = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::AsyncRegistration(env)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                let reg_ref = self.types.intern(TyData::Ref {
+                    mutable: true,
+                    pointee: managed,
+                });
+                (vec![reg_ref], unit_ty)
+            }
+            IntrinsicOp::AsyncRegistrationPollClose => {
+                let env = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::AsyncRegistration(env)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                let reg_ref = self.types.intern(TyData::Ref {
+                    mutable: true,
+                    pointee: managed,
+                });
+                let poll_unit = self.types.intern(TyData::Adt {
+                    adt: AdtRef(2),
+                    args: vec![unit_ty],
+                });
+                (vec![reg_ref], poll_unit)
+            }
+            IntrinsicOp::AsyncRegistrationFinishDestroy => {
+                let env = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::AsyncRegistration(env)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                (vec![managed], unit_ty)
+            }
+            IntrinsicOp::MutexUnlock
             | IntrinsicOp::SyncLoad
             | IntrinsicOp::SyncStore
             | IntrinsicOp::SyncFetchAdd
             | IntrinsicOp::SyncCompareExchange
             | IntrinsicOp::TaskStart
-            | IntrinsicOp::TaskCreate
-            | IntrinsicOp::TaskYield
             | IntrinsicOp::TaskValid
-            | IntrinsicOp::TaskPoll
-            | IntrinsicOp::TaskRequestCancel
-            | IntrinsicOp::TaskPollClose
-            | IntrinsicOp::TaskFinishDestroy
             | IntrinsicOp::RegistrationStart
             | IntrinsicOp::RegistrationValid
             | IntrinsicOp::RegistrationClose
-            | IntrinsicOp::AsyncRegistrationStart
-            | IntrinsicOp::AsyncRegistrationValid
-            | IntrinsicOp::AsyncRegistrationRequestClose
-            | IntrinsicOp::AsyncRegistrationPollClose
-            | IntrinsicOp::AsyncRegistrationFinishDestroy
             | IntrinsicOp::ManagedCreate
-            | IntrinsicOp::OwnedDynCreate => return None,
+            | IntrinsicOp::OwnedDynCreate
+            | IntrinsicOp::ThreadScope => return None,
         };
         if arguments.len() != param_tys.len() {
             self.error(
@@ -3052,6 +3274,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Logical { .. }
             | ExprKind::Convert { .. }
             | ExprKind::FnRef(_)
+            | ExprKind::ForeignRef(_)
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
@@ -3158,8 +3381,15 @@ impl Finalizer<'_, '_> {
             | TyData::Dyn(_)
             | TyData::OwnedDyn(_) => false,
             TyData::Managed(_) => false,
-            TyData::Opaque(OpaqueKind::ForeignHandle) => true,
-            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::OwnedStore(_)) => false,
+            TyData::Opaque(OpaqueKind::ForeignHandle | OpaqueKind::ForeignCallback { .. }) => true,
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer
+                | OpaqueKind::OwnedStore(_)
+                | OpaqueKind::Mutex(_)
+                | OpaqueKind::MutexGuard(_)
+                | OpaqueKind::Task(_)
+                | OpaqueKind::AsyncRegistration(_),
+            ) => false,
             TyData::ErrorUnion { ok, err } => {
                 self.is_copy_depth(ok, depth + 1) && self.is_copy_depth(err, depth + 1)
             }
@@ -3285,6 +3515,7 @@ impl Finalizer<'_, '_> {
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::FnRef(_)
+            | ExprKind::ForeignRef(_)
             | ExprKind::Break
             | ExprKind::Continue => {}
             ExprKind::Field { base, args, .. } => {
@@ -3452,8 +3683,27 @@ impl Finalizer<'_, '_> {
                 self.expr(object);
                 args.iter_mut().for_each(|a| self.expr(a));
             }
-            ExprKind::ForeignCall { args, .. } | ExprKind::Intrinsic { args, .. } => {
+            ExprKind::ForeignCall { args, .. } => {
                 args.iter_mut().for_each(|a| self.expr(a));
+            }
+            ExprKind::Intrinsic { op, args } => {
+                args.iter_mut().for_each(|a| self.expr(a));
+                if *op == IntrinsicOp::AsyncRegistrationStart
+                    && let Some(env_arg) = args.get(3)
+                    && let TyData::Param(i) = self.data(env_arg.ty)
+                    && let Some(g) = self.generics.get(i as usize)
+                    && !g.copy
+                    && !g.sync_drop
+                {
+                    self.diags.push(diag::error(
+                        diag::GENERIC_BOUND,
+                        span,
+                        format!(
+                            "`c_register_async` requires `SyncDrop` on generic callback type `{}`",
+                            g.name
+                        ),
+                    ));
+                }
             }
             ExprKind::ManagedCreate { args, fields, .. } | ExprKind::Adt { args, fields, .. } => {
                 for a in args.iter_mut() {

@@ -255,6 +255,33 @@ impl<'a> Items<'a> {
                 let elem = self.normalize_ty_depth(elem, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
             }
+            TyData::Opaque(OpaqueKind::Mutex(elem)) => {
+                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                types.intern(TyData::Opaque(OpaqueKind::Mutex(elem)))
+            }
+            TyData::Opaque(OpaqueKind::MutexGuard(elem)) => {
+                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                types.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)))
+            }
+            TyData::Opaque(OpaqueKind::Task(elem)) => {
+                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                types.intern(TyData::Opaque(OpaqueKind::Task(elem)))
+            }
+            TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
+                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                types.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
+                let params = params
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
+                let result = self.normalize_ty_depth(result, types, depth + 1);
+                types.intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                    params,
+                    result,
+                }))
+            }
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
             TyData::ErrorUnion { ok, err } => {
                 let ok = self.normalize_ty_depth(ok, types, depth + 1);
@@ -400,6 +427,9 @@ fn lookup_item_in(
             scope.names.get(name).copied()
         }
         parts if parts.len() >= 3 => {
+            if parts == ["std", "task", "Poll"] {
+                return Some(ItemRef::Adt(AdtRef(2)));
+            }
             let mod_path = parts[..parts.len() - 1].join(".");
             let name = parts.last()?;
             let target = *mod_by_path.get(&mod_path)?;
@@ -503,6 +533,75 @@ pub fn collect_program<'a>(
     items.adt_kinds.push(AdtKind::Enum);
     items.adts.push(AdtDecl {
         name: "DynCreateError".to_string(),
+        kind: AdtKind::Enum,
+        generics: Vec::new(),
+        variants: vec![VariantDecl {
+            name: "Allocation".to_string(),
+            shape: VariantShape::Unit,
+            fields: Vec::new(),
+        }],
+        user_drop: false,
+    });
+    let poll_adt = AdtRef(2);
+    items.adt_kinds.push(AdtKind::Enum);
+    items.adts.push(AdtDecl {
+        name: "Poll".to_string(),
+        kind: AdtKind::Enum,
+        generics: vec!["T".to_string()],
+        variants: vec![
+            VariantDecl {
+                name: "Pending".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "Ready".to_string(),
+                shape: VariantShape::Tuple,
+                fields: vec![FieldDecl {
+                    name: "0".to_string(),
+                    ty: option_t,
+                }],
+            },
+        ],
+        user_drop: false,
+    });
+    let task_create_error_adt = AdtRef(3);
+    items.adt_kinds.push(AdtKind::Enum);
+    items.adts.push(AdtDecl {
+        name: "TaskCreateError".to_string(),
+        kind: AdtKind::Enum,
+        generics: Vec::new(),
+        variants: vec![VariantDecl {
+            name: "Allocation".to_string(),
+            shape: VariantShape::Unit,
+            fields: Vec::new(),
+        }],
+        user_drop: false,
+    });
+    let task_poll_error_adt = AdtRef(4);
+    items.adt_kinds.push(AdtKind::Enum);
+    items.adts.push(AdtDecl {
+        name: "TaskPollError".to_string(),
+        kind: AdtKind::Enum,
+        generics: Vec::new(),
+        variants: vec![
+            VariantDecl {
+                name: "Invalid".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "Closed".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+        ],
+        user_drop: false,
+    });
+    let mutex_create_error_adt = AdtRef(5);
+    items.adt_kinds.push(AdtKind::Enum);
+    items.adts.push(AdtDecl {
+        name: "MutexCreateError".to_string(),
         kind: AdtKind::Enum,
         generics: Vec::new(),
         variants: vec![VariantDecl {
@@ -621,6 +720,22 @@ pub fn collect_program<'a>(
             .names
             .entry("DynCreateError".to_string())
             .or_insert(ItemRef::Adt(dyn_create_error_adt));
+        items.modules[m_i]
+            .names
+            .entry("Poll".to_string())
+            .or_insert(ItemRef::Adt(poll_adt));
+        items.modules[m_i]
+            .names
+            .entry("TaskCreateError".to_string())
+            .or_insert(ItemRef::Adt(task_create_error_adt));
+        items.modules[m_i]
+            .names
+            .entry("TaskPollError".to_string())
+            .or_insert(ItemRef::Adt(task_poll_error_adt));
+        items.modules[m_i]
+            .names
+            .entry("MutexCreateError".to_string())
+            .or_insert(ItemRef::Adt(mutex_create_error_adt));
     }
 
     // Pass 2: declarations. Collect traits first so function/ADT generic bounds can reference them.
@@ -826,8 +941,15 @@ fn type_generics(
                             store_element = true;
                         } else if args.is_empty() && path == &["SyncDrop"] {
                             sync_drop = true;
-                        } else if args.is_empty() && path == &["Value"] {
-                            // `Value` is the default value-type bound.
+                        } else if args.is_empty()
+                            && matches!(
+                                path.as_slice(),
+                                [s] if matches!(
+                                    s.as_str(),
+                                    "Value" | "ClosedEnvironment" | "Transfer" | "ThreadCallable"
+                                )
+                            )
+                        {
                             continue;
                         } else if let Some(ItemRef::Trait(tr)) =
                             lookup_item_in(modules, mod_by_path, mid, path)
@@ -1201,6 +1323,9 @@ fn parse_result_mode(clauses: &[ast::ContractClause], diags: &mut Vec<Diagnostic
                     None => diags.push(diag::unsupported("function contracts", term.span)),
                 }
             }
+        } else if c.name == "requires" || c.name == "provides" {
+            // Protocol state pre/postconditions (checked by protocol rules).
+            continue;
         } else {
             diags.push(diag::unsupported("function contracts", c.span));
         }
@@ -1317,7 +1442,7 @@ fn is_c_abi_param(ty: Ty, types: &Types) -> bool {
         types.data(ty),
         TyData::Int(_)
             | TyData::Float(_)
-            | TyData::Opaque(OpaqueKind::ForeignHandle)
+            | TyData::Opaque(OpaqueKind::ForeignHandle | OpaqueKind::ForeignCallback { .. })
             | TyData::Error
     )
 }
@@ -1385,6 +1510,17 @@ fn collect_foreign(
                             "noescape must name a parameter of this extern function",
                         ));
                     }
+                } else if matches!(
+                    term.path.as_slice(),
+                    [s] if matches!(
+                        s.as_str(),
+                        "static_callbacks"
+                            | "thread_async_callback_register"
+                            | "thread_async_callback_request_close"
+                            | "thread_async_callback_poll_drain"
+                    )
+                ) {
+                    continue;
                 } else {
                     diags.push(diag::unsupported("extern contract clause", term.span));
                 }
@@ -1959,6 +2095,47 @@ fn resolve_type_in(
                     };
                     return Ok(types.intern(TyData::OwnedDyn(tr)));
                 }
+                if matches!(
+                    name.as_str(),
+                    "Task" | "Mutex" | "MutexGuard" | "AsyncRegistration"
+                ) {
+                    let [ast::GenericArg::Type(elem)] = args.as_slice() else {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            format!("`{name}<T>` takes one type argument"),
+                        ));
+                    };
+                    let elem = resolve_type_in(
+                        elem,
+                        from,
+                        generics,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        self_ty,
+                        None,
+                        types,
+                    )?;
+                    return match name.as_str() {
+                        "Task" => {
+                            let inner = types.intern(TyData::Opaque(OpaqueKind::Task(elem)));
+                            Ok(types.intern(TyData::Desc(inner)))
+                        }
+                        "Mutex" => {
+                            let inner = types.intern(TyData::Opaque(OpaqueKind::Mutex(elem)));
+                            Ok(types.intern(TyData::Desc(inner)))
+                        }
+                        "MutexGuard" => {
+                            Ok(types.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem))))
+                        }
+                        _ => {
+                            let inner =
+                                types.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)));
+                            Ok(types.intern(TyData::Desc(inner)))
+                        }
+                    };
+                }
                 if name == "Managed" {
                     let [ast::GenericArg::Type(inner_ast)] = args.as_slice() else {
                         return Err(diag::error(
@@ -2099,7 +2276,7 @@ fn resolve_type_in(
             mutable,
             inner,
         } => {
-            let pointee = resolve_type_in(
+            let mut pointee = resolve_type_in(
                 inner,
                 from,
                 generics,
@@ -2110,6 +2287,15 @@ fn resolve_type_in(
                 None,
                 types,
             )?;
+            if *mutable
+                && let TyData::Desc(inner_ty) = *types.data(pointee)
+                && matches!(
+                    types.data(inner_ty),
+                    TyData::Opaque(OpaqueKind::Task(_) | OpaqueKind::AsyncRegistration(_))
+                )
+            {
+                pointee = types.intern(TyData::Managed(inner_ty));
+            }
             Ok(types.intern(TyData::Ref {
                 mutable: *mutable,
                 pointee,
@@ -2171,8 +2357,47 @@ fn resolve_type_in(
             )?;
             Ok(types.intern(TyData::ErrorUnion { ok, err }))
         }
-        ast::TypeKind::ForeignFunction { .. } => {
-            Err(diag::unsupported("foreign function types", t.span))
+        ast::TypeKind::ForeignFunction {
+            abi,
+            params,
+            result,
+        } => {
+            if abi.trim_matches('"') != "C" {
+                return Err(diag::error(
+                    diag::FFI_DECLARATION,
+                    t.span,
+                    format!("unsupported extern ABI `{abi}`; only \"C\" is supported"),
+                ));
+            }
+            let mut ps = Vec::with_capacity(params.len());
+            for p in params {
+                ps.push(resolve_type_in(
+                    p,
+                    from,
+                    generics,
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    self_ty,
+                    None,
+                    types,
+                )?);
+            }
+            let r = resolve_type_in(
+                result,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                self_ty,
+                None,
+                types,
+            )?;
+            Ok(types.intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                params: ps,
+                result: r,
+            })))
         }
         ast::TypeKind::Optional(inner) => {
             let elem = resolve_type_in(

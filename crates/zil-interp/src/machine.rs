@@ -251,6 +251,7 @@ fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::AsyncRegistrationFinishDestroy => "intrinsic AsyncRegistrationFinishDestroy",
         IntrinsicOp::ManagedCreate => "intrinsic ManagedCreate",
         IntrinsicOp::OwnedDynCreate => "intrinsic OwnedDynCreate",
+        IntrinsicOp::ThreadScope => "intrinsic ThreadScope",
     }
 }
 

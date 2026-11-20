@@ -39,7 +39,12 @@ pub enum VarKind {
 pub enum OpaqueKind {
     ByteBuffer,
     OwnedStore(Ty),
+    Mutex(Ty),
+    MutexGuard(Ty),
+    Task(Ty),
+    AsyncRegistration(Ty),
     ForeignHandle,
+    ForeignCallback { params: Vec<Ty>, result: Ty },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -189,7 +194,16 @@ impl Types {
             TyData::Array { element, .. } | TyData::Slice(element) => self.occurs(v, *element),
             TyData::Ref { pointee, .. } => self.occurs(v, *pointee),
             TyData::Managed(inner) | TyData::Desc(inner) => self.occurs(v, *inner),
-            TyData::Opaque(OpaqueKind::OwnedStore(elem)) => self.occurs(v, *elem),
+            TyData::Opaque(
+                OpaqueKind::OwnedStore(elem)
+                | OpaqueKind::Mutex(elem)
+                | OpaqueKind::MutexGuard(elem)
+                | OpaqueKind::Task(elem)
+                | OpaqueKind::AsyncRegistration(elem),
+            ) => self.occurs(v, *elem),
+            TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
+                params.iter().any(|t| self.occurs(v, *t)) || self.occurs(v, *result)
+            }
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => false,
             TyData::ErrorUnion { ok, err } => self.occurs(v, *ok) || self.occurs(v, *err),
             TyData::FnPtr { params, result }
@@ -280,7 +294,43 @@ impl Types {
             (
                 TyData::Opaque(OpaqueKind::OwnedStore(x)),
                 TyData::Opaque(OpaqueKind::OwnedStore(y)),
+            )
+            | (TyData::Opaque(OpaqueKind::Mutex(x)), TyData::Opaque(OpaqueKind::Mutex(y)))
+            | (
+                TyData::Opaque(OpaqueKind::MutexGuard(x)),
+                TyData::Opaque(OpaqueKind::MutexGuard(y)),
+            )
+            | (TyData::Opaque(OpaqueKind::Task(x)), TyData::Opaque(OpaqueKind::Task(y)))
+            | (
+                TyData::Opaque(OpaqueKind::AsyncRegistration(x)),
+                TyData::Opaque(OpaqueKind::AsyncRegistration(y)),
             ) => self.unify(x, y),
+            (
+                TyData::Opaque(OpaqueKind::ForeignCallback {
+                    params: p1,
+                    result: r1,
+                }),
+                TyData::Opaque(OpaqueKind::ForeignCallback {
+                    params: p2,
+                    result: r2,
+                }),
+            ) => {
+                self.unify_all(&p1, &p2)?;
+                self.unify(r1, r2)
+            }
+            (
+                TyData::FnPtr {
+                    params: p1,
+                    result: r1,
+                },
+                TyData::FnPtr {
+                    params: p2,
+                    result: r2,
+                },
+            ) => {
+                self.unify_all(&p1, &p2)?;
+                self.unify(r1, r2)
+            }
             (TyData::ErrorUnion { ok: o1, err: e1 }, TyData::ErrorUnion { ok: o2, err: e2 }) => {
                 self.unify(o1, o2)?;
                 self.unify(e1, e2)
@@ -369,6 +419,33 @@ impl Types {
             TyData::Opaque(OpaqueKind::OwnedStore(elem)) => {
                 let elem = self.zonk(elem)?;
                 self.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
+            }
+            TyData::Opaque(OpaqueKind::Mutex(elem)) => {
+                let elem = self.zonk(elem)?;
+                self.intern(TyData::Opaque(OpaqueKind::Mutex(elem)))
+            }
+            TyData::Opaque(OpaqueKind::MutexGuard(elem)) => {
+                let elem = self.zonk(elem)?;
+                self.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)))
+            }
+            TyData::Opaque(OpaqueKind::Task(elem)) => {
+                let elem = self.zonk(elem)?;
+                self.intern(TyData::Opaque(OpaqueKind::Task(elem)))
+            }
+            TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
+                let elem = self.zonk(elem)?;
+                self.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
+                let params = params
+                    .iter()
+                    .map(|t| self.zonk(*t))
+                    .collect::<Option<Vec<_>>>()?;
+                let result = self.zonk(result)?;
+                self.intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                    params,
+                    result,
+                }))
             }
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
             TyData::ErrorUnion { ok, err } => {
@@ -483,6 +560,33 @@ impl Types {
                 let elem = self.subst_with_self(elem, args, self_ty);
                 self.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
             }
+            TyData::Opaque(OpaqueKind::Mutex(elem)) => {
+                let elem = self.subst_with_self(elem, args, self_ty);
+                self.intern(TyData::Opaque(OpaqueKind::Mutex(elem)))
+            }
+            TyData::Opaque(OpaqueKind::MutexGuard(elem)) => {
+                let elem = self.subst_with_self(elem, args, self_ty);
+                self.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)))
+            }
+            TyData::Opaque(OpaqueKind::Task(elem)) => {
+                let elem = self.subst_with_self(elem, args, self_ty);
+                self.intern(TyData::Opaque(OpaqueKind::Task(elem)))
+            }
+            TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
+                let elem = self.subst_with_self(elem, args, self_ty);
+                self.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
+                let params = params
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
+                let result = self.subst_with_self(result, args, self_ty);
+                self.intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                    params,
+                    result,
+                }))
+            }
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
             TyData::ErrorUnion { ok, err } => {
                 let ok = self.subst_with_self(ok, args, self_ty);
@@ -587,6 +691,30 @@ impl Types {
             TyData::Opaque(OpaqueKind::OwnedStore(elem)) => {
                 let elem = self.subst(elem, args);
                 self.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
+            }
+            TyData::Opaque(OpaqueKind::Mutex(elem)) => {
+                let elem = self.subst(elem, args);
+                self.intern(TyData::Opaque(OpaqueKind::Mutex(elem)))
+            }
+            TyData::Opaque(OpaqueKind::MutexGuard(elem)) => {
+                let elem = self.subst(elem, args);
+                self.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)))
+            }
+            TyData::Opaque(OpaqueKind::Task(elem)) => {
+                let elem = self.subst(elem, args);
+                self.intern(TyData::Opaque(OpaqueKind::Task(elem)))
+            }
+            TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
+                let elem = self.subst(elem, args);
+                self.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
+                let params = params.iter().map(|t| self.subst(*t, args)).collect();
+                let result = self.subst(result, args);
+                self.intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                    params,
+                    result,
+                }))
             }
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
             TyData::ErrorUnion { ok, err } => {

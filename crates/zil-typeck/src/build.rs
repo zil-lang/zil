@@ -388,6 +388,33 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             TyData::Opaque(OpaqueKind::OwnedStore(elem)) => TyKind::Opaque(OpaqueTy::OwnedStore {
                 element: self.lower_ty(elem, span)?,
             }),
+            TyData::Opaque(OpaqueKind::Mutex(payload)) => TyKind::Opaque(OpaqueTy::Mutex {
+                payload: self.lower_ty(payload, span)?,
+            }),
+            TyData::Opaque(OpaqueKind::MutexGuard(payload)) => {
+                TyKind::Opaque(OpaqueTy::MutexGuard {
+                    payload: self.lower_ty(payload, span)?,
+                    region: Region::Static,
+                })
+            }
+            TyData::Opaque(OpaqueKind::Task(result)) => TyKind::Opaque(OpaqueTy::Task {
+                result: self.lower_ty(result, span)?,
+            }),
+            TyData::Opaque(OpaqueKind::AsyncRegistration(environment)) => {
+                TyKind::Opaque(OpaqueTy::AsyncRegistration {
+                    environment: self.lower_ty(environment, span)?,
+                })
+            }
+            TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
+                let mut ps = Vec::with_capacity(params.len());
+                for p in params {
+                    ps.push(self.lower_ty(p, span)?);
+                }
+                TyKind::Opaque(OpaqueTy::ForeignCallback {
+                    params: ps,
+                    result: self.lower_ty(result, span)?,
+                })
+            }
             TyData::ErrorUnion { ok, err } => TyKind::ErrorUnion {
                 ok: self.lower_ty(ok, span)?,
                 err: self.lower_ty(err, span)?,
@@ -880,6 +907,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Logical { .. }
             | ExprKind::Convert { .. }
             | ExprKind::FnRef(_)
+            | ExprKind::ForeignRef(_)
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
@@ -1067,6 +1095,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     Rvalue::Use(Operand::Const(ConstValue::Unit))
                 }
             },
+            ExprKind::ForeignRef(f) => Rvalue::ForeignFnRef(ForeignId(f.0)),
             ExprKind::ErrorInject { ok, value } => {
                 let ty = self.ty(e.ty, e.span);
                 Rvalue::ErrorUnion {
@@ -1448,6 +1477,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::SliceBorrow { .. }
             | ExprKind::Give(_)
             | ExprKind::FnRef(_)
+            | ExprKind::ForeignRef(_)
             | ExprKind::Closure { .. }
             | ExprKind::Describe(_)
             | ExprKind::ErrorInject { .. }
@@ -1849,6 +1879,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::TraitCall { .. }
             | ExprKind::DynCall { .. }
             | ExprKind::FnRef(_)
+            | ExprKind::ForeignRef(_)
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::ManagedCreate { .. }

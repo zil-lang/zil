@@ -275,6 +275,8 @@ pub enum IntrinsicOp {
     ManagedCreate,
     /// Allocate an `OwnedDyn<dyn Trait>` from a concrete value (`owned_dyn`).
     OwnedDynCreate,
+    /// Run a scoped child thread alongside a parent callback (`thread_scope`).
+    ThreadScope,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

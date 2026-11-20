@@ -135,6 +135,7 @@ pub enum ExprKind {
         operand: Box<Expr>,
     },
     FnRef(FnRef),
+    ForeignRef(ForeignRef),
     Call {
         callee: FnRef,
         type_args: Vec<Ty>,
@@ -241,6 +242,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Logical { .. }
         | ExprKind::Convert { .. }
         | ExprKind::FnRef(_)
+        | ExprKind::ForeignRef(_)
         | ExprKind::Call { .. }
         | ExprKind::IndirectCall { .. }
         | ExprKind::Closure { .. }

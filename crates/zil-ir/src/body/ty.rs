@@ -892,15 +892,16 @@ pub fn map_kind(
 /// predicate reads as "may hold an address".
 fn opaque_contents(o: &OpaqueTy) -> Option<Vec<TyId>> {
     match o {
-        OpaqueTy::ByteBuffer | OpaqueTy::ForeignHandle => Some(Vec::new()),
-        OpaqueTy::OwnedStore { element } => Some(vec![*element]),
-        OpaqueTy::Mutex { .. }
-        | OpaqueTy::MutexGuard { .. }
-        | OpaqueTy::Registration { .. }
-        | OpaqueTy::AsyncRegistration { .. }
-        | OpaqueTy::Task { .. }
-        | OpaqueTy::CWideString
+        OpaqueTy::ByteBuffer
+        | OpaqueTy::ForeignHandle
         | OpaqueTy::ForeignCallback { .. }
-        | OpaqueTy::SyncCell(_) => None,
+        | OpaqueTy::SyncCell(_) => Some(Vec::new()),
+        OpaqueTy::OwnedStore { element } => Some(vec![*element]),
+        OpaqueTy::Mutex { payload } | OpaqueTy::MutexGuard { payload, .. } => Some(vec![*payload]),
+        OpaqueTy::Registration { environment } | OpaqueTy::AsyncRegistration { environment } => {
+            Some(vec![*environment])
+        }
+        OpaqueTy::Task { result } => Some(vec![*result]),
+        OpaqueTy::CWideString => None,
     }
 }

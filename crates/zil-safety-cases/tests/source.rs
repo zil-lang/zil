@@ -1092,3 +1092,59 @@ fn dyn_owned_user_drop_store_is_admitted_end_to_end() {
         .expect("dyn-owned-user-drop-store lowers");
     assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
 }
+
+// ---- P3 concurrency & async protocols (Task, Mutex, AsyncRegistration) -----
+
+#[test]
+fn task_owner_transport_closed_task_fnonce_is_admitted_end_to_end() {
+    let src = include_str!(
+        "../../../tests/language-readiness/task-owner-transport/closed-task-fnonce.zil"
+    );
+    let lowered =
+        zil_typeck::lower_source("closed-task-fnonce.zil", src).expect("closed-task-fnonce lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn threading_mutex_worker_helpers_is_admitted_end_to_end() {
+    let src = include_str!("../../../tests/fixtures/threading/mutex-worker-helpers.zil");
+    let lowered = zil_typeck::lower_source("mutex-worker-helpers.zil", src)
+        .expect("mutex-worker-helpers lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn foreign_thread_registration_threaded_generic_sync_drop_is_admitted_end_to_end() {
+    let src = include_str!(
+        "../../../tests/language-readiness/foreign-thread-registration/threaded-generic-sync-drop.zil"
+    );
+    let lowered = zil_typeck::lower_source("threaded-generic-sync-drop.zil", src)
+        .expect("threaded-generic-sync-drop lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn foreign_thread_registration_threaded_generic_missing_sync_drop_is_rejected() {
+    let src = include_str!(
+        "../../../tests/language-readiness/foreign-thread-registration/threaded-generic.zil"
+    );
+    let err = zil_typeck::lower_source("threaded-generic.zil", src)
+        .expect_err("missing SyncDrop on c_register_async must be rejected");
+    assert!(
+        err.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"),
+        "expected E-GENERIC-ARGUMENT, got {err:?}"
+    );
+}
+
+#[test]
+fn foreign_thread_registration_unused_install_missing_sync_drop_is_rejected() {
+    let src = include_str!(
+        "../../../tests/language-readiness/foreign-thread-registration/unused-install-missing-sync-drop.zil"
+    );
+    let err = zil_typeck::lower_source("unused-install-missing-sync-drop.zil", src)
+        .expect_err("missing SyncDrop on unused install must be rejected");
+    assert!(
+        err.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"),
+        "expected E-GENERIC-ARGUMENT, got {err:?}"
+    );
+}

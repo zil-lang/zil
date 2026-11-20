@@ -718,7 +718,19 @@ pub fn rvalue_ty(rvalue: &Rvalue, cx: &ConstraintCx<'_>) -> Result<TyId, Constra
                 result: sig.result,
             })
         }
-        Rvalue::ForeignFnRef(_) => Err(ConstraintError::Unspecified("foreign function values")),
+        Rvalue::ForeignFnRef(id) => {
+            let decl = cx
+                .sigs
+                .foreigns
+                .get(id.index())
+                .ok_or(ConstraintError::Operator {
+                    reason: "unknown foreign function",
+                })?;
+            cx.lookup(TyKind::Opaque(super::ty::OpaqueTy::ForeignCallback {
+                params: decl.params.clone(),
+                result: decl.result,
+            }))
+        }
         Rvalue::StaticUtf(id) => {
             if id.index() >= cx.sigs.static_count {
                 return Err(ConstraintError::Operator {
@@ -1033,7 +1045,10 @@ fn callable<'a>(cx: &ConstraintCx<'a>, f: u32) -> Result<&'a FnSig, ConstraintEr
 fn c_abi_value(tys: &super::ty::TyTable, ty: TyId) -> bool {
     match tys.get(ty) {
         Some(TyKind::Int(_) | TyKind::Float(_)) => true,
-        Some(TyKind::Opaque(o)) => matches!(o, super::ty::OpaqueTy::ForeignHandle),
+        Some(TyKind::Opaque(o)) => matches!(
+            o,
+            super::ty::OpaqueTy::ForeignHandle | super::ty::OpaqueTy::ForeignCallback { .. }
+        ),
         Some(_) | None => false,
     }
 }
@@ -1370,32 +1385,327 @@ fn intrinsic_sig(
                 })?,
             ))
         }
-        IntrinsicOp::MutexCreate
-        | IntrinsicOp::MutexLock
-        | IntrinsicOp::MutexValue
-        | IntrinsicOp::MutexUnlock
+        IntrinsicOp::MutexCreate => {
+            let [init_ty] = found else {
+                return Err(bad("mutex.create takes one initial value"));
+            };
+            if tys.holds_address(*init_ty) || tys.may_store_address(*init_ty) {
+                return Err(bad("mutex.create payload cannot hold addresses"));
+            }
+            let Some(TyKind::ErrorUnion { ok, err }) = tys.get(dest_ty) else {
+                return Err(bad("mutex.create requires an error union destination"));
+            };
+            let ok_matches = matches!(
+                tys.get(*ok),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Mutex { payload })) if *payload == *init_ty)
+            );
+            let err_is_enum = matches!(
+                tys.get(*err),
+                Some(TyKind::Adt { adt, .. })
+                    if tys.get_adt(*adt).is_some_and(|d| d.kind == AdtKind::Enum)
+            );
+            if !ok_matches || !err_is_enum {
+                return Err(bad(
+                    "mutex.create destination must be Error!Managed<Mutex<T>>",
+                ));
+            }
+            Ok((vec![*init_ty], dest_ty))
+        }
+        IntrinsicOp::MutexLock => {
+            let (d, OpaqueTy::Mutex { payload }) = desc_arg()? else {
+                return Err(bad("mutex.lock requires a Mutex descriptor"));
+            };
+            let Some(TyKind::Opaque(OpaqueTy::MutexGuard { payload: gp, .. })) = tys.get(dest_ty)
+            else {
+                return Err(bad("mutex.lock destination must be MutexGuard<T>"));
+            };
+            if *gp != payload {
+                return Err(bad("mutex.lock guard payload mismatch"));
+            }
+            Ok((vec![d], dest_ty))
+        }
+        IntrinsicOp::MutexValue => {
+            let [guard_ref] = found else {
+                return Err(bad("mutex.value takes &mut MutexGuard<T>"));
+            };
+            let Some(TyKind::Ref {
+                mutability: Mutability::Exclusive,
+                pointee,
+                ..
+            }) = tys.get(*guard_ref)
+            else {
+                return Err(bad("mutex.value requires &mut MutexGuard<T>"));
+            };
+            let Some(TyKind::Opaque(OpaqueTy::MutexGuard { payload, .. })) = tys.get(*pointee)
+            else {
+                return Err(bad("mutex.value requires &mut MutexGuard<T>"));
+            };
+            let out_ty = cx.lookup(TyKind::Ref {
+                region: super::ty::Region::Static,
+                mutability: Mutability::Exclusive,
+                pointee: *payload,
+            })?;
+            Ok((vec![*guard_ref], out_ty))
+        }
+        IntrinsicOp::ThreadScope => {
+            let [worker_ty, cell_ty, parent_ty] = found else {
+                return Err(bad("thread.scope takes (worker, cell, parent_callback)"));
+            };
+            let Some(TyKind::FnPtr {
+                params: wparams,
+                result: r1,
+            }) = tys.get(*worker_ty)
+            else {
+                return Err(bad("thread.scope worker must be a function pointer"));
+            };
+            if wparams.as_slice() != [*cell_ty] {
+                return Err(bad("thread.scope worker parameter must match cell"));
+            }
+            let Some(TyKind::Closure { def, args }) = tys.get(*parent_ty) else {
+                return Err(bad("thread.scope parent must be a closure"));
+            };
+            let cdef = tys.closure(*def).ok_or(ConstraintError::MissingType)?;
+            if !cdef.params.is_empty() {
+                return Err(bad("thread.scope parent closure takes no parameters"));
+            }
+            let r2 = tys
+                .subst_lookup(cdef.result, *args)
+                .ok_or(ConstraintError::MissingType)?;
+            let out_ty = cx.lookup(TyKind::Tuple(vec![bool_ty()?, *r1, r2]))?;
+            Ok((vec![*worker_ty, *cell_ty, *parent_ty], out_ty))
+        }
+        IntrinsicOp::TaskCreate => {
+            let [worker_ty] = found else {
+                return Err(bad("task.create takes one worker function"));
+            };
+            let Some(TyKind::FnPtr { params, result }) = tys.get(*worker_ty) else {
+                return Err(bad("task.create worker must be fn() -> T"));
+            };
+            if !params.is_empty() {
+                return Err(bad("task.create worker takes no parameters"));
+            }
+            let Some(TyKind::ErrorUnion { ok, err }) = tys.get(dest_ty) else {
+                return Err(bad("task.create requires an error union destination"));
+            };
+            let ok_matches = matches!(
+                tys.get(*ok),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { result: tr })) if *tr == *result)
+            );
+            let err_is_enum = matches!(
+                tys.get(*err),
+                Some(TyKind::Adt { adt, .. })
+                    if tys.get_adt(*adt).is_some_and(|d| d.kind == AdtKind::Enum)
+            );
+            if !ok_matches || !err_is_enum {
+                return Err(bad(
+                    "task.create destination must be Error!Managed<Task<T>>",
+                ));
+            }
+            Ok((vec![*worker_ty], dest_ty))
+        }
+        IntrinsicOp::TaskYield => Ok((Vec::new(), cx.lookup(TyKind::Unit)?)),
+        IntrinsicOp::TaskPoll => {
+            let [task_ref] = found else {
+                return Err(bad("task.poll takes &mut Managed<Task<T>>"));
+            };
+            let ok_ref = matches!(
+                tys.get(*task_ref),
+                Some(TyKind::Ref { mutability: Mutability::Exclusive, pointee, .. })
+                    if matches!(
+                        tys.get(*pointee),
+                        Some(TyKind::Managed(inner))
+                            if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { .. })))
+                    )
+            );
+            if !ok_ref {
+                return Err(bad("task.poll requires &mut Managed<Task<T>>"));
+            }
+            if !matches!(tys.get(dest_ty), Some(TyKind::ErrorUnion { .. })) {
+                return Err(bad("task.poll destination must be an error union"));
+            }
+            Ok((vec![*task_ref], dest_ty))
+        }
+        IntrinsicOp::TaskRequestCancel => {
+            let [task_ref] = found else {
+                return Err(bad("task.request_cancel takes &mut Managed<Task<T>>"));
+            };
+            let ok_ref = matches!(
+                tys.get(*task_ref),
+                Some(TyKind::Ref { mutability: Mutability::Exclusive, pointee, .. })
+                    if matches!(
+                        tys.get(*pointee),
+                        Some(TyKind::Managed(inner))
+                            if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { .. })))
+                    )
+            );
+            if !ok_ref {
+                return Err(bad("task.request_cancel requires &mut Managed<Task<T>>"));
+            }
+            Ok((vec![*task_ref], cx.lookup(TyKind::Unit)?))
+        }
+        IntrinsicOp::TaskPollClose => {
+            let [task_ref] = found else {
+                return Err(bad("task.poll_close takes &mut Managed<Task<T>>"));
+            };
+            let ok_ref = matches!(
+                tys.get(*task_ref),
+                Some(TyKind::Ref { mutability: Mutability::Exclusive, pointee, .. })
+                    if matches!(
+                        tys.get(*pointee),
+                        Some(TyKind::Managed(inner))
+                            if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { .. })))
+                    )
+            );
+            if !ok_ref {
+                return Err(bad("task.poll_close requires &mut Managed<Task<T>>"));
+            }
+            let dest_is_enum = matches!(
+                tys.get(dest_ty),
+                Some(TyKind::Adt { adt, .. })
+                    if tys.get_adt(*adt).is_some_and(|d| d.kind == AdtKind::Enum)
+            );
+            if !dest_is_enum {
+                return Err(bad("task.poll_close destination must be Poll<()>"));
+            }
+            Ok((vec![*task_ref], dest_ty))
+        }
+        IntrinsicOp::TaskFinishDestroy => {
+            let [task_ty] = found else {
+                return Err(bad("task.finish_destroy takes Managed<Task<T>>"));
+            };
+            let ok = matches!(
+                tys.get(*task_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { .. })))
+            );
+            if !ok {
+                return Err(bad("task.finish_destroy requires Managed<Task<T>>"));
+            }
+            Ok((vec![*task_ty], cx.lookup(TyKind::Unit)?))
+        }
+        IntrinsicOp::AsyncRegistrationStart => {
+            let [reg, req, drain, env] = found else {
+                return Err(bad("async_registration.start takes 4 arguments"));
+            };
+            for cb in [*reg, *req, *drain] {
+                if !matches!(
+                    tys.get(cb),
+                    Some(TyKind::Opaque(OpaqueTy::ForeignCallback { .. }))
+                ) {
+                    return Err(bad(
+                        "async_registration.start requires extern \"C\" callbacks",
+                    ));
+                }
+            }
+            if tys.holds_address(*env) || tys.may_store_address(*env) {
+                return Err(bad(
+                    "async_registration.start environment cannot hold addresses",
+                ));
+            }
+            let ok_dest = matches!(
+                tys.get(dest_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::AsyncRegistration { environment })) if *environment == *env)
+            );
+            if !ok_dest {
+                return Err(bad(
+                    "async_registration.start destination must be Managed<AsyncRegistration<F>>",
+                ));
+            }
+            Ok((vec![*reg, *req, *drain, *env], dest_ty))
+        }
+        IntrinsicOp::AsyncRegistrationValid => {
+            let (d, OpaqueTy::AsyncRegistration { .. }) = desc_arg()? else {
+                return Err(bad(
+                    "async_registration.valid requires AsyncRegistration descriptor",
+                ));
+            };
+            Ok((vec![d], bool_ty()?))
+        }
+        IntrinsicOp::AsyncRegistrationRequestClose => {
+            let [reg_ref] = found else {
+                return Err(bad(
+                    "async_registration.request_close takes &mut Managed<AsyncRegistration<F>>",
+                ));
+            };
+            let ok_ref = matches!(
+                tys.get(*reg_ref),
+                Some(TyKind::Ref { mutability: Mutability::Exclusive, pointee, .. })
+                    if matches!(
+                        tys.get(*pointee),
+                        Some(TyKind::Managed(inner))
+                            if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::AsyncRegistration { .. })))
+                    )
+            );
+            if !ok_ref {
+                return Err(bad(
+                    "async_registration.request_close requires &mut Managed<AsyncRegistration<F>>",
+                ));
+            }
+            Ok((vec![*reg_ref], cx.lookup(TyKind::Unit)?))
+        }
+        IntrinsicOp::AsyncRegistrationPollClose => {
+            let [reg_ref] = found else {
+                return Err(bad(
+                    "async_registration.poll_close takes &mut Managed<AsyncRegistration<F>>",
+                ));
+            };
+            let ok_ref = matches!(
+                tys.get(*reg_ref),
+                Some(TyKind::Ref { mutability: Mutability::Exclusive, pointee, .. })
+                    if matches!(
+                        tys.get(*pointee),
+                        Some(TyKind::Managed(inner))
+                            if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::AsyncRegistration { .. })))
+                    )
+            );
+            if !ok_ref {
+                return Err(bad(
+                    "async_registration.poll_close requires &mut Managed<AsyncRegistration<F>>",
+                ));
+            }
+            let dest_is_enum = matches!(
+                tys.get(dest_ty),
+                Some(TyKind::Adt { adt, .. })
+                    if tys.get_adt(*adt).is_some_and(|d| d.kind == AdtKind::Enum)
+            );
+            if !dest_is_enum {
+                return Err(bad(
+                    "async_registration.poll_close destination must be Poll<()>",
+                ));
+            }
+            Ok((vec![*reg_ref], dest_ty))
+        }
+        IntrinsicOp::AsyncRegistrationFinishDestroy => {
+            let [reg_ty] = found else {
+                return Err(bad(
+                    "async_registration.finish_destroy takes Managed<AsyncRegistration<F>>",
+                ));
+            };
+            let ok = matches!(
+                tys.get(*reg_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::AsyncRegistration { .. })))
+            );
+            if !ok {
+                return Err(bad(
+                    "async_registration.finish_destroy requires Managed<AsyncRegistration<F>>",
+                ));
+            }
+            Ok((vec![*reg_ty], cx.lookup(TyKind::Unit)?))
+        }
+        IntrinsicOp::MutexUnlock
         | IntrinsicOp::SyncLoad
         | IntrinsicOp::SyncStore
         | IntrinsicOp::SyncFetchAdd
         | IntrinsicOp::SyncCompareExchange
         | IntrinsicOp::TaskStart
-        | IntrinsicOp::TaskCreate
-        | IntrinsicOp::TaskYield
         | IntrinsicOp::TaskValid
-        | IntrinsicOp::TaskPoll
-        | IntrinsicOp::TaskRequestCancel
-        | IntrinsicOp::TaskPollClose
-        | IntrinsicOp::TaskFinishDestroy
         | IntrinsicOp::RegistrationStart
         | IntrinsicOp::RegistrationValid
-        | IntrinsicOp::RegistrationClose
-        | IntrinsicOp::AsyncRegistrationStart
-        | IntrinsicOp::AsyncRegistrationValid
-        | IntrinsicOp::AsyncRegistrationRequestClose
-        | IntrinsicOp::AsyncRegistrationPollClose
-        | IntrinsicOp::AsyncRegistrationFinishDestroy => {
-            Err(ConstraintError::Unspecified(intrinsic_name(op)))
-        }
+        | IntrinsicOp::RegistrationClose => Err(ConstraintError::Unspecified(intrinsic_name(op))),
     }
 }
 
@@ -1447,5 +1757,6 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::AsyncRegistrationFinishDestroy => "async_registration.finish_destroy",
         IntrinsicOp::ManagedCreate => "managed.create",
         IntrinsicOp::OwnedDynCreate => "owned_dyn.create",
+        IntrinsicOp::ThreadScope => "thread.scope",
     }
 }
