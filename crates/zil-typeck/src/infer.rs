@@ -640,8 +640,38 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let result = self.ret_ty;
                 let value = match value {
                     Some(v) => {
-                        let v = self.infer(v);
-                        let v = self.coerce_value(v, result, span);
+                        let inferred = if let ast::ExprKind::Closure {
+                            move_capture,
+                            params,
+                            return_type,
+                            body,
+                            ..
+                        } = &v.kind
+                        {
+                            let exp = match self.types.data(result).clone() {
+                                TyData::ImplCallable {
+                                    params: ep,
+                                    result: er,
+                                    ..
+                                }
+                                | TyData::FnPtr {
+                                    params: ep,
+                                    result: er,
+                                } if ep.len() == params.len() => Some((ep, er)),
+                                _ => None,
+                            };
+                            self.infer_closure(
+                                *move_capture,
+                                params,
+                                return_type.as_ref(),
+                                body,
+                                v.span,
+                                exp.as_ref().map(|(p, r)| (p.as_slice(), *r)),
+                            )
+                        } else {
+                            self.infer(v)
+                        };
+                        let v = self.coerce_value(inferred, result, span);
                         Some(Box::new(v))
                     }
                     None => {
@@ -1552,7 +1582,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 return_type,
                 body,
                 ..
-            } => self.infer_closure(*move_capture, params, return_type.as_ref(), body, span),
+            } => self.infer_closure(
+                *move_capture,
+                params,
+                return_type.as_ref(),
+                body,
+                span,
+                None,
+            ),
             ast::ExprKind::MetaEval(inner) => {
                 // Compile-time expressions cannot observe enclosing runtime locals.
                 let saved_scopes = std::mem::take(&mut self.scopes);
@@ -1624,6 +1661,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         return_type: Option<&ast::TypeRef>,
         body: &ast::ArrowBody,
         span: Span,
+        expected: Option<(&[Ty], Ty)>,
     ) -> Expr {
         if self.capture_env.is_some() {
             self.unsupported("nested closures", span);
@@ -1654,17 +1692,21 @@ impl<'c, 'a> FnCx<'c, 'a> {
 
         let mut param_ids = Vec::with_capacity(params.len());
         let mut param_tys = Vec::with_capacity(params.len());
-        for p in params {
+        for (idx, p) in params.iter().enumerate() {
             let ty = match &p.ty {
                 Some(t) => self.resolve_written(t),
-                None => self.types.fresh(VarKind::General),
+                None => expected
+                    .and_then(|(ep, _)| ep.get(idx).copied())
+                    .unwrap_or_else(|| self.types.fresh(VarKind::General)),
             };
             param_tys.push(ty);
             param_ids.push(self.declare(&p.name, ty, false, p.span));
         }
         let result_ty = match return_type {
             Some(t) => self.resolve_written(t),
-            None => self.types.fresh(VarKind::General),
+            None => expected
+                .map(|(_, er)| er)
+                .unwrap_or_else(|| self.types.fresh(VarKind::General)),
         };
         self.ret_ty = result_ty;
 
