@@ -1110,7 +1110,70 @@ fn callee_sig(
                 .ok_or(ConstraintError::MissingType)?;
             Ok((params, result))
         }
-        Callee::DynSlot { .. } => Err(ConstraintError::Unspecified("dynamic interface slots")),
+        Callee::DynSlot { object, slot } => {
+            let obj_ty = operand_ty(object, cx)?;
+            let (dyn_id, obj_mut) = match tys.get(obj_ty).ok_or(ConstraintError::MissingType)? {
+                TyKind::Ref {
+                    mutability,
+                    pointee,
+                    ..
+                } => {
+                    if let TyKind::Dyn(d) | TyKind::OwnedDyn(d) =
+                        *tys.get(*pointee).ok_or(ConstraintError::MissingType)?
+                    {
+                        (d, Some(*mutability))
+                    } else {
+                        return Err(ConstraintError::Operator {
+                            reason: "dynamic slot receiver must be a dyn or OwnedDyn reference",
+                        });
+                    }
+                }
+                TyKind::OwnedDyn(d) => (*d, None),
+                TyKind::Unit
+                | TyKind::Bool
+                | TyKind::Never
+                | TyKind::Int(_)
+                | TyKind::Float(_)
+                | TyKind::Adt { .. }
+                | TyKind::Tuple(_)
+                | TyKind::Array { .. }
+                | TyKind::Slice(_)
+                | TyKind::Managed(_)
+                | TyKind::Desc(_)
+                | TyKind::ErrorUnion { .. }
+                | TyKind::FnPtr { .. }
+                | TyKind::Closure { .. }
+                | TyKind::Dyn(_)
+                | TyKind::Param(_)
+                | TyKind::Opaque(_) => {
+                    return Err(ConstraintError::Operator {
+                        reason: "dynamic slot receiver must be a dyn or OwnedDyn value",
+                    });
+                }
+            };
+            let def = tys.get_dyn(dyn_id).ok_or(ConstraintError::MissingType)?;
+            let sig = def
+                .slots
+                .get(*slot as usize)
+                .ok_or(ConstraintError::Operator {
+                    reason: "dynamic interface slot out of range",
+                })?;
+            let mut_ok = matches!(
+                (sig.receiver, obj_mut),
+                (Some(Mutability::Exclusive), Some(Mutability::Exclusive))
+                    | (
+                        Some(Mutability::Shared),
+                        Some(Mutability::Shared | Mutability::Exclusive)
+                    )
+                    | (None, None)
+            );
+            if !mut_ok {
+                return Err(ConstraintError::Operator {
+                    reason: "dynamic slot receiver mutability mismatch",
+                });
+            }
+            Ok((sig.params.clone(), sig.result))
+        }
         Callee::Foreign(id) => {
             let decl = cx
                 .sigs
@@ -1205,6 +1268,31 @@ fn intrinsic_sig(
                 params.push(ty);
             }
             Ok((params, dest_ty))
+        }
+        IntrinsicOp::OwnedDynCreate => {
+            let [val_ty] = found else {
+                return Err(bad("owned_dyn.create takes one argument"));
+            };
+            if tys.holds_address(*val_ty) || tys.may_store_address(*val_ty) {
+                return Err(bad(
+                    "owned_dyn.create cannot erase an address-holding value",
+                ));
+            }
+            let Some(TyKind::ErrorUnion { ok, err }) = tys.get(dest_ty) else {
+                return Err(bad("owned_dyn.create requires an error union destination"));
+            };
+            if !matches!(tys.get(*ok), Some(TyKind::OwnedDyn(_))) {
+                return Err(bad("owned_dyn.create ok arm must be OwnedDyn"));
+            }
+            let err_is_enum = matches!(
+                tys.get(*err),
+                Some(TyKind::Adt { adt, .. })
+                    if tys.get_adt(*adt).is_some_and(|d| d.kind == AdtKind::Enum)
+            );
+            if !err_is_enum {
+                return Err(bad("owned_dyn.create error arm must be an enum"));
+            }
+            Ok((vec![*val_ty], dest_ty))
         }
         IntrinsicOp::StoreNew => match managed_dest() {
             Some((_, TyKind::Opaque(OpaqueTy::OwnedStore { element })))
@@ -1358,5 +1446,6 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::AsyncRegistrationPollClose => "async_registration.poll_close",
         IntrinsicOp::AsyncRegistrationFinishDestroy => "async_registration.finish_destroy",
         IntrinsicOp::ManagedCreate => "managed.create",
+        IntrinsicOp::OwnedDynCreate => "owned_dyn.create",
     }
 }

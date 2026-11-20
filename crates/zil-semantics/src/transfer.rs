@@ -376,12 +376,6 @@ impl<'a> Kernel<'a> {
                 callee: zil_ir::body::Callee::Intrinsic(op),
                 ..
             } => intrinsic_rule(*op).map_err(|what| fail(ViolationKind::Unspecified(what)))?,
-            Terminator::Call {
-                callee: zil_ir::body::Callee::DynSlot { .. },
-                ..
-            } => {
-                return Err(fail(ViolationKind::Unspecified("dynamic interface calls")));
-            }
             Terminator::Goto { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
@@ -812,6 +806,7 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
     use zil_ir::body::IntrinsicOp as I;
     match op {
         I::ManagedCreate
+        | I::OwnedDynCreate
         | I::StoreNew
         | I::StoreReserve
         | I::StorePush

@@ -203,6 +203,20 @@ pub struct ClosureDef {
     pub result: TyId,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynSlotSig {
+    pub name: String,
+    pub receiver: Option<Mutability>,
+    pub params: Vec<TyId>,
+    pub result: TyId,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynDef {
+    pub name: String,
+    pub slots: Vec<DynSlotSig>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GenericArgs {
     pub tys: Vec<TyId>,
@@ -235,6 +249,7 @@ pub struct TyTable {
     by_args: HashMap<GenericArgs, ArgsId>,
     adts: Vec<AdtDef>,
     closures: Vec<ClosureDef>,
+    dyns: Vec<DynDef>,
 }
 
 impl TyTable {
@@ -275,6 +290,17 @@ impl TyTable {
         let id = ClosureId::from_index(self.closures.len());
         self.closures.push(def);
         id
+    }
+    pub fn add_dyn(&mut self, def: DynDef) -> DynId {
+        let id = DynId::from_index(self.dyns.len());
+        self.dyns.push(def);
+        id
+    }
+    pub fn dyn_def(&self, id: DynId) -> &DynDef {
+        &self.dyns[id.index()]
+    }
+    pub fn get_dyn(&self, id: DynId) -> Option<&DynDef> {
+        self.dyns.get(id.index())
     }
     /// Interns `ty` with `args` substituted for declaration parameters.
     pub fn subst(&mut self, ty: TyId, args: ArgsId) -> TyId {
@@ -647,7 +673,8 @@ impl TyTable {
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::FnPtr { .. } => false,
+            | TyKind::FnPtr { .. }
+            | TyKind::OwnedDyn(_) => false,
             TyKind::Ref { .. } | TyKind::Desc(_) => true,
             TyKind::Opaque(o) => match opaque_contents(o) {
                 Some(parts) => parts.iter().any(|t| self.holds_address_in(*t, visiting)),
@@ -663,7 +690,7 @@ impl TyTable {
                         None => true,
                     }),
             },
-            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) => true,
+            TyKind::Dyn(_) | TyKind::Param(_) => true,
             TyKind::Tuple(items) => items.iter().any(|t| self.holds_address_in(*t, visiting)),
             TyKind::Array { element, .. } | TyKind::Slice(element) | TyKind::Managed(element) => {
                 self.holds_address_in(*element, visiting)
@@ -714,7 +741,8 @@ impl TyTable {
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::FnPtr { .. } => false,
+            | TyKind::FnPtr { .. }
+            | TyKind::OwnedDyn(_) => false,
             TyKind::Opaque(o) => match opaque_contents(o) {
                 Some(parts) => parts
                     .iter()
@@ -731,7 +759,7 @@ impl TyTable {
                         None => true,
                     }),
             },
-            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) => true,
+            TyKind::Dyn(_) | TyKind::Param(_) => true,
             TyKind::Ref {
                 mutability: Mutability::Exclusive,
                 pointee,

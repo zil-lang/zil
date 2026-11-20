@@ -160,6 +160,11 @@ pub enum ExprKind {
         method: String,
         args: Vec<Expr>,
     },
+    DynCall {
+        object: Box<Expr>,
+        slot: u32,
+        args: Vec<Expr>,
+    },
     ForeignCall {
         callee: ForeignRef,
         args: Vec<Expr>,
@@ -241,6 +246,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Closure { .. }
         | ExprKind::ClosureCall { .. }
         | ExprKind::TraitCall { .. }
+        | ExprKind::DynCall { .. }
         | ExprKind::ForeignCall { .. }
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }

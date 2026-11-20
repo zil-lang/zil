@@ -95,6 +95,10 @@ pub enum TyData {
         params: Vec<Ty>,
         result: Ty,
     },
+    /// `dyn Trait` unsized pointee.
+    Dyn(TraitRef),
+    /// `OwnedDyn<dyn Trait>` affine owner.
+    OwnedDyn(TraitRef),
     /// The n-th type parameter of the enclosing generic declaration.
     Param(u32),
     /// `Self` inside a trait method signature.
@@ -199,6 +203,8 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_)
             | TyData::Param(_)
             | TyData::SelfParam
             | TyData::Error => false,
@@ -425,6 +431,8 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_)
             | TyData::Param(_)
             | TyData::SelfParam
             | TyData::Error => ty,
@@ -536,6 +544,8 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_)
             | TyData::Var(_)
             | TyData::Error => ty,
         }
@@ -630,6 +640,8 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_)
             | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,

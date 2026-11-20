@@ -976,6 +976,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Closure { .. }
                 | ExprKind::ClosureCall { .. }
                 | ExprKind::TraitCall { .. }
+                | ExprKind::DynCall { .. }
                 | ExprKind::Adt { .. }
                 | ExprKind::Tuple(_)
                 | ExprKind::Array(_)
@@ -1355,6 +1356,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
+                    | TyData::Dyn(_)
+                    | TyData::OwnedDyn(_)
                     | TyData::Param(_)
                     | TyData::SelfParam
                     | TyData::Assoc { .. }
@@ -1777,6 +1780,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
+                    | TyData::Dyn(_)
+                    | TyData::OwnedDyn(_)
                     | TyData::Param(_)
                     | TyData::SelfParam
                     | TyData::Assoc { .. } => {
@@ -2424,6 +2429,74 @@ impl<'c, 'a> FnCx<'c, 'a> {
             } else {
                 rec_ty
             };
+            if let TyData::Dyn(tr) | TyData::OwnedDyn(tr) = *self.types.data(self_ty) {
+                let tr_decl = self.items.trait_decl(tr);
+                if let Some((slot, m)) = tr_decl
+                    .methods
+                    .iter()
+                    .enumerate()
+                    .find(|(_, m)| m.name == *mname && !m.params.is_empty())
+                {
+                    let m_params = m.params.clone();
+                    let m_result = m.result;
+                    if arguments.len() + 1 != m_params.len() {
+                        self.error(
+                            diag::CALL_ARITY,
+                            span,
+                            format!(
+                                "method `{mname}` expects {} argument(s), found {}",
+                                m_params.len().saturating_sub(1),
+                                arguments.len()
+                            ),
+                        );
+                        return self.err_expr(span);
+                    }
+                    let rec_expr = if let TyData::Ref { mutable, .. } =
+                        *self.types.data(self.types.shallow(m_params[0]))
+                    {
+                        if let TyData::Ref { .. } = *self.types.data(rec_ty) {
+                            let want_ref = self.types.intern(TyData::Ref {
+                                mutable,
+                                pointee: self_ty,
+                            });
+                            self.coerce_arg(receiver, want_ref, object.span)
+                        } else {
+                            let borrow_ty = self.types.intern(TyData::Ref {
+                                mutable,
+                                pointee: rec_ty,
+                            });
+                            Expr {
+                                kind: ExprKind::Borrow {
+                                    mutable,
+                                    place: Box::new(receiver),
+                                },
+                                ty: borrow_ty,
+                                span: object.span,
+                            }
+                        }
+                    } else {
+                        receiver
+                    };
+                    let mut args = Vec::with_capacity(arguments.len());
+                    for (a, pt) in arguments.iter().zip(&m_params[1..]) {
+                        let expected = self.types.subst_with_self(*pt, &[], self_ty);
+                        let expected = self.items.normalize_ty(expected, self.types);
+                        let v = self.infer(&a.value);
+                        args.push(self.coerce_arg(v, expected, a.span));
+                    }
+                    let ret = self.types.subst_with_self(m_result, &[], self_ty);
+                    let ret = self.items.normalize_ty(ret, self.types);
+                    return Expr {
+                        kind: ExprKind::DynCall {
+                            object: Box::new(rec_expr),
+                            slot: slot as u32,
+                            args,
+                        },
+                        ty: ret,
+                        span,
+                    };
+                }
+            }
             let found_trait = if let TyData::Param(param_idx) = *self.types.data(self_ty) {
                 self.decl
                     .generics
@@ -2664,6 +2737,44 @@ impl<'c, 'a> FnCx<'c, 'a> {
         arguments: &[ast::Argument],
         span: Span,
     ) -> Option<Expr> {
+        if name == "owned_dyn" {
+            let Some([ast::GenericArg::Type(t)]) = explicit else {
+                self.error(
+                    diag::TYPE_ARGUMENT,
+                    span,
+                    "`owned_dyn` requires one `dyn Trait` type argument",
+                );
+                return Some(self.err_expr(span));
+            };
+            let target = self.resolve_written(t);
+            let TyData::Dyn(tr) = *self.types.data(target) else {
+                self.error(
+                    diag::TYPE_ARGUMENT,
+                    span,
+                    "`owned_dyn` type argument must be `dyn Trait`",
+                );
+                return Some(self.err_expr(span));
+            };
+            let [arg] = arguments else {
+                self.error(diag::CALL_ARITY, span, "`owned_dyn` takes one argument");
+                return Some(self.err_expr(span));
+            };
+            let val = self.infer(&arg.value);
+            let ok = self.types.intern(TyData::OwnedDyn(tr));
+            let err = self.types.intern(TyData::Adt {
+                adt: AdtRef(1),
+                args: Vec::new(),
+            });
+            let ret = self.types.intern(TyData::ErrorUnion { ok, err });
+            return Some(Expr {
+                kind: ExprKind::Intrinsic {
+                    op: IntrinsicOp::OwnedDynCreate,
+                    args: vec![val],
+                },
+                ty: ret,
+                span,
+            });
+        }
         let op = match name {
             "bytes_new" => IntrinsicOp::ByteBufferNew,
             "bytes_reserve" => IntrinsicOp::ByteBufferReserve,
@@ -2802,7 +2913,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
             | IntrinsicOp::AsyncRegistrationRequestClose
             | IntrinsicOp::AsyncRegistrationPollClose
             | IntrinsicOp::AsyncRegistrationFinishDestroy
-            | IntrinsicOp::ManagedCreate => return None,
+            | IntrinsicOp::ManagedCreate
+            | IntrinsicOp::OwnedDynCreate => return None,
         };
         if arguments.len() != param_tys.len() {
             self.error(
@@ -2945,6 +3057,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Closure { .. }
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::ManagedCreate { .. }
@@ -3040,7 +3153,10 @@ impl Finalizer<'_, '_> {
             TyData::Slice(_) | TyData::SelfParam => false,
             TyData::Ref { mutable, .. } => !mutable,
             TyData::Desc(_) | TyData::FnPtr { .. } => true,
-            TyData::Closure { .. } | TyData::ImplCallable { .. } => false,
+            TyData::Closure { .. }
+            | TyData::ImplCallable { .. }
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_) => false,
             TyData::Managed(_) => false,
             TyData::Opaque(OpaqueKind::ForeignHandle) => true,
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::OwnedStore(_)) => false,
@@ -3330,6 +3446,10 @@ impl Finalizer<'_, '_> {
                     *a = self.zonk(*a, span);
                 }
                 *self_ty = self.zonk(*self_ty, span);
+                args.iter_mut().for_each(|a| self.expr(a));
+            }
+            ExprKind::DynCall { object, args, .. } => {
+                self.expr(object);
                 args.iter_mut().for_each(|a| self.expr(a));
             }
             ExprKind::ForeignCall { args, .. } | ExprKind::Intrinsic { args, .. } => {

@@ -273,6 +273,8 @@ pub enum IntrinsicOp {
     AsyncRegistrationFinishDestroy,
     /// Allocate a resource head from a payload value (`create`).
     ManagedCreate,
+    /// Allocate an `OwnedDyn<dyn Trait>` from a concrete value (`owned_dyn`).
+    OwnedDynCreate,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

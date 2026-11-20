@@ -1080,3 +1080,15 @@ fn iterator_adapters_owning_pipeline_is_admitted_end_to_end() {
     .expect("iterator-adapters owning-pipeline lowers");
     assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
 }
+
+// ---- dynamic-dispatch (dyn Trait, OwnedDyn<dyn Trait>, Callee::DynSlot) ----
+
+#[test]
+fn dyn_owned_user_drop_store_is_admitted_end_to_end() {
+    let src = include_str!(
+        "../../../tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil"
+    );
+    let lowered = zil_typeck::lower_source("dyn-owned-user-drop-store.zil", src)
+        .expect("dyn-owned-user-drop-store lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}

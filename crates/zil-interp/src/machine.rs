@@ -250,6 +250,7 @@ fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::AsyncRegistrationPollClose => "intrinsic AsyncRegistrationPollClose",
         IntrinsicOp::AsyncRegistrationFinishDestroy => "intrinsic AsyncRegistrationFinishDestroy",
         IntrinsicOp::ManagedCreate => "intrinsic ManagedCreate",
+        IntrinsicOp::OwnedDynCreate => "intrinsic OwnedDynCreate",
     }
 }
 

@@ -312,6 +312,8 @@ impl<'a> Items<'a> {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_)
             | TyData::Param(_)
             | TyData::SelfParam
             | TyData::Var(_)
@@ -470,7 +472,9 @@ pub fn collect_program<'a>(
         }
     }
 
-    // Built-in prelude ADT: `enum Option<T> { None, Some(T) }` at AdtRef(0).
+    // Built-in prelude ADTs:
+    //   AdtRef(0): `enum Option<T> { None, Some(T) }`
+    //   AdtRef(1): `enum DynCreateError { Allocation }`
     let option_adt = AdtRef(0);
     items.adt_kinds.push(AdtKind::Enum);
     let option_t = types.intern(TyData::Param(0));
@@ -493,6 +497,19 @@ pub fn collect_program<'a>(
                 }],
             },
         ],
+        user_drop: false,
+    });
+    let dyn_create_error_adt = AdtRef(1);
+    items.adt_kinds.push(AdtKind::Enum);
+    items.adts.push(AdtDecl {
+        name: "DynCreateError".to_string(),
+        kind: AdtKind::Enum,
+        generics: Vec::new(),
+        variants: vec![VariantDecl {
+            name: "Allocation".to_string(),
+            shape: VariantShape::Unit,
+            fields: Vec::new(),
+        }],
         user_drop: false,
     });
 
@@ -600,6 +617,10 @@ pub fn collect_program<'a>(
             .names
             .entry("Option".to_string())
             .or_insert(ItemRef::Adt(option_adt));
+        items.modules[m_i]
+            .names
+            .entry("DynCreateError".to_string())
+            .or_insert(ItemRef::Adt(dyn_create_error_adt));
     }
 
     // Pass 2: declarations. Collect traits first so function/ADT generic bounds can reference them.
@@ -981,6 +1002,8 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
+        | TyData::Dyn(_)
+        | TyData::OwnedDyn(_)
         | TyData::Param(_)
         | TyData::SelfParam
         | TyData::Assoc { .. }
@@ -1908,6 +1931,34 @@ fn resolve_type_in(
                     let inner = types.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
                     return Ok(types.intern(TyData::Desc(inner)));
                 }
+                if name == "OwnedDyn" {
+                    let [ast::GenericArg::Type(inner_ast)] = args.as_slice() else {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "`OwnedDyn<dyn Trait>` takes one type argument",
+                        ));
+                    };
+                    let inner = resolve_type_in(
+                        inner_ast,
+                        from,
+                        generics,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        self_ty,
+                        None,
+                        types,
+                    )?;
+                    let TyData::Dyn(tr) = *types.data(inner) else {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            "`OwnedDyn` argument must be a `dyn Trait` type",
+                        ));
+                    };
+                    return Ok(types.intern(TyData::OwnedDyn(tr)));
+                }
                 if name == "Managed" {
                     let [ast::GenericArg::Type(inner_ast)] = args.as_slice() else {
                         return Err(diag::error(
@@ -2141,7 +2192,17 @@ fn resolve_type_in(
             }))
         }
         ast::TypeKind::Union(_) => Err(diag::unsupported("anonymous sum types", t.span)),
-        ast::TypeKind::Dyn { .. } => Err(diag::unsupported("dyn types", t.span)),
+        ast::TypeKind::Dyn { path, .. } => {
+            if let Some(ItemRef::Trait(tr)) = lookup_item_in(modules, mod_by_path, from, path) {
+                Ok(types.intern(TyData::Dyn(tr)))
+            } else {
+                Err(diag::error(
+                    diag::NAME_UNRESOLVED,
+                    t.span,
+                    format!("unknown trait `{}` in `dyn` type", path.join(".")),
+                ))
+            }
+        }
         ast::TypeKind::ForLifetime { .. } => {
             Err(diag::unsupported("higher-ranked lifetimes", t.span))
         }

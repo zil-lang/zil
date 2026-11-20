@@ -13,17 +13,17 @@ use crate::infer::POINTER_BITS;
 use crate::items::{FnRoleSpec, Items};
 use crate::literal;
 use crate::thir::*;
-use crate::ty::{AdtRef, ClosureRef, OpaqueKind, Ty, TyData, Types};
+use crate::ty::{AdtRef, ClosureRef, OpaqueKind, TraitRef, Ty, TyData, Types};
 use crate::{ConstEvaluator, CtValue, diag};
 use std::collections::{HashMap, HashSet, VecDeque};
 use zil_base::{Diagnostic, Span};
 use zil_ir::body::{
     AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ClosureDef,
-    ClosureId, ConstValue, FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnRole, FnSig, ForeignAbi,
-    ForeignDecl, ForeignId, Function, GenericArgs, Instruction, InstructionKind, IntTy,
-    IntrinsicOp, Local, LocalDecl, Module, Mutability, OpaqueTy, Operand, ParamEnv, Place,
-    Projection, Region, Rvalue, StaticId, Terminator, TyId, TyKind, ValueClass, VariantDef,
-    VariantIdx,
+    ClosureId, ConstValue, DynDef, DynId, DynSlotSig, FieldDef, FieldIdx, FieldRef, FloatTy, FnId,
+    FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId, Function, GenericArgs, Instruction,
+    InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module, Mutability, OpaqueTy, Operand,
+    ParamEnv, Place, Projection, Region, Rvalue, StaticId, Terminator, TyId, TyKind, ValueClass,
+    VariantDef, VariantIdx,
 };
 
 /// Work limits of one lowering request.
@@ -49,6 +49,7 @@ pub struct Mono<'c, 'a, 'e> {
     instances: HashMap<(FnRef, Vec<Ty>), FnId>,
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
     adts: HashMap<AdtRef, AdtId>,
+    dyns: HashMap<TraitRef, DynId>,
     closures: HashMap<(FnRef, Vec<Ty>, ClosureRef), ClosureId>,
     closure_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, ClosureId)>,
     ensured: HashSet<TyId>,
@@ -74,6 +75,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             instances: HashMap::new(),
             queue: VecDeque::new(),
             adts: HashMap::new(),
+            dyns: HashMap::new(),
             closures: HashMap::new(),
             closure_queue: VecDeque::new(),
             ensured: HashSet::new(),
@@ -303,6 +305,43 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         }))
     }
 
+    fn dyn_id(&mut self, tr: TraitRef, span: Span) -> Option<DynId> {
+        if let Some(&id) = self.dyns.get(&tr) {
+            return Some(id);
+        }
+        let decl = self.items.trait_decl(tr);
+        let name = decl.name.clone();
+        let methods = decl.methods.clone();
+        let mut slots = Vec::with_capacity(methods.len());
+        for m in methods {
+            let receiver = m.params.first().and_then(|p| {
+                if let TyData::Ref { mutable, .. } = *self.types.data(*p) {
+                    Some(if mutable {
+                        Mutability::Exclusive
+                    } else {
+                        Mutability::Shared
+                    })
+                } else {
+                    None
+                }
+            });
+            let mut params = Vec::new();
+            for p in m.params.iter().skip(1) {
+                params.push(self.lower_ty(*p, span)?);
+            }
+            let result = self.lower_ty(m.result, span)?;
+            slots.push(DynSlotSig {
+                name: m.name,
+                receiver,
+                params,
+                result,
+            });
+        }
+        let id = self.module.tys.add_dyn(DynDef { name, slots });
+        self.dyns.insert(tr, id);
+        Some(id)
+    }
+
     /// Interns a typeck type. Declaration parameters map to `TyKind::Param`;
     /// instance bodies only ever pass closed types.
     pub fn lower_ty(&mut self, ty: Ty, span: Span) -> Option<TyId> {
@@ -378,6 +417,8 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 let args = self.args_id(&[], span)?;
                 TyKind::Closure { def, args }
             }
+            TyData::Dyn(tr) => TyKind::Dyn(self.dyn_id(tr, span)?),
+            TyData::OwnedDyn(tr) => TyKind::OwnedDyn(self.dyn_id(tr, span)?),
             TyData::SelfParam | TyData::Assoc { .. } | TyData::Var(_) | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
@@ -844,6 +885,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Closure { .. }
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
             | ExprKind::Adt { .. }
             | ExprKind::Tuple(_)
             | ExprKind::Array(_)
@@ -1057,6 +1099,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::IndirectCall { .. }
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
             | ExprKind::If { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
@@ -1211,6 +1254,25 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 self.terminate(
                     Terminator::Call {
                         callee: Callee::Direct(f),
+                        args: operands,
+                        dest,
+                        target,
+                        cancel: None,
+                    },
+                    span,
+                );
+                self.cur = target;
+            }
+            ExprKind::DynCall { object, slot, args } => {
+                let obj = self.operand(object);
+                let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
+                let target = self.new_block(span);
+                self.terminate(
+                    Terminator::Call {
+                        callee: Callee::DynSlot {
+                            object: obj,
+                            slot: *slot,
+                        },
                         args: operands,
                         dest,
                         target,
@@ -1785,6 +1847,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Closure { .. }
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
             | ExprKind::FnRef(_)
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
