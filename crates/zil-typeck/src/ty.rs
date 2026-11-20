@@ -27,6 +27,14 @@ pub enum VarKind {
     Float,
 }
 
+/// Built-in opaque runtime objects known to typeck.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum OpaqueKind {
+    ByteBuffer,
+    OwnedStore(Ty),
+    ForeignHandle,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TyData {
     Unit,
@@ -48,6 +56,16 @@ pub enum TyData {
     Ref {
         mutable: bool,
         pointee: Ty,
+    },
+    /// Owning responsibility carrier of a resource or built-in opaque object.
+    Managed(Ty),
+    /// Non-owning descriptor of a resource or built-in opaque object.
+    Desc(Ty),
+    Opaque(OpaqueKind),
+    /// `E!T`: `ok` is the success arm `T`, `err` is the error arm `E`.
+    ErrorUnion {
+        ok: Ty,
+        err: Ty,
     },
     /// The n-th type parameter of the enclosing generic declaration.
     Param(u32),
@@ -115,6 +133,14 @@ impl Types {
         matches!(self.data(self.shallow(ty)), TyData::Never)
     }
 
+    /// Probes whether `a` and `b` can unify without mutating inference state.
+    pub fn can_unify(&mut self, a: Ty, b: Ty) -> bool {
+        let saved = self.vars.clone();
+        let ok = self.unify(a, b).is_ok();
+        self.vars = saved;
+        ok
+    }
+
     fn occurs(&self, v: VarId, ty: Ty) -> bool {
         let ty = self.shallow(ty);
         match self.data(ty) {
@@ -123,6 +149,10 @@ impl Types {
             TyData::Tuple(items) => items.iter().any(|t| self.occurs(v, *t)),
             TyData::Array { element, .. } => self.occurs(v, *element),
             TyData::Ref { pointee, .. } => self.occurs(v, *pointee),
+            TyData::Managed(inner) | TyData::Desc(inner) => self.occurs(v, *inner),
+            TyData::Opaque(OpaqueKind::OwnedStore(elem)) => self.occurs(v, *elem),
+            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => false,
+            TyData::ErrorUnion { ok, err } => self.occurs(v, *ok) || self.occurs(v, *err),
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -196,6 +226,17 @@ impl Types {
                     pointee: y,
                 },
             ) if m1 == m2 => self.unify(x, y),
+            (TyData::Managed(x), TyData::Managed(y)) | (TyData::Desc(x), TyData::Desc(y)) => {
+                self.unify(x, y)
+            }
+            (
+                TyData::Opaque(OpaqueKind::OwnedStore(x)),
+                TyData::Opaque(OpaqueKind::OwnedStore(y)),
+            ) => self.unify(x, y),
+            (TyData::ErrorUnion { ok: o1, err: e1 }, TyData::ErrorUnion { ok: o2, err: e2 }) => {
+                self.unify(o1, o2)?;
+                self.unify(e1, e2)
+            }
             _ => Err(Mismatch),
         }
     }
@@ -260,6 +301,24 @@ impl Types {
                 let pointee = self.zonk(pointee)?;
                 self.intern(TyData::Ref { mutable, pointee })
             }
+            TyData::Managed(inner) => {
+                let inner = self.zonk(inner)?;
+                self.intern(TyData::Managed(inner))
+            }
+            TyData::Desc(inner) => {
+                let inner = self.zonk(inner)?;
+                self.intern(TyData::Desc(inner))
+            }
+            TyData::Opaque(OpaqueKind::OwnedStore(elem)) => {
+                let elem = self.zonk(elem)?;
+                self.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::ErrorUnion { ok, err } => {
+                let ok = self.zonk(ok)?;
+                let err = self.zonk(err)?;
+                self.intern(TyData::ErrorUnion { ok, err })
+            }
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -290,6 +349,24 @@ impl Types {
             TyData::Ref { mutable, pointee } => {
                 let pointee = self.subst(pointee, args);
                 self.intern(TyData::Ref { mutable, pointee })
+            }
+            TyData::Managed(inner) => {
+                let inner = self.subst(inner, args);
+                self.intern(TyData::Managed(inner))
+            }
+            TyData::Desc(inner) => {
+                let inner = self.subst(inner, args);
+                self.intern(TyData::Desc(inner))
+            }
+            TyData::Opaque(OpaqueKind::OwnedStore(elem)) => {
+                let elem = self.subst(elem, args);
+                self.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::ErrorUnion { ok, err } => {
+                let ok = self.subst(ok, args);
+                let err = self.subst(err, args);
+                self.intern(TyData::ErrorUnion { ok, err })
             }
             TyData::Unit
             | TyData::Bool

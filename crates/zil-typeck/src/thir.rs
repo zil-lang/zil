@@ -8,13 +8,16 @@
 
 use crate::ty::{AdtRef, Ty};
 use zil_base::Span;
-use zil_ir::body::{BinOp, UnOp};
+use zil_ir::body::{BinOp, IntrinsicOp, UnOp};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalId(pub u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FnRef(pub u32);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ForeignRef(pub u32);
 
 #[derive(Clone, Debug)]
 pub struct LocalInfo {
@@ -67,14 +70,23 @@ pub enum ExprKind {
         base: Box<Expr>,
         index: Box<Expr>,
     },
-    /// `*base`: the target of an address. Automatic dereference of a member
-    /// or index base produces the same node.
+    /// `*base`: the target of an address, `Managed` carrier or `Desc`.
+    /// Automatic dereference of a member or index base produces the same node.
     Deref(Box<Expr>),
     /// `&place` / `&mut place`. A value operand is materialised in a
     /// temporary first.
     Borrow {
         mutable: bool,
         place: Box<Expr>,
+    },
+    /// `give place`: explicit responsibility transfer out of a `Managed` place.
+    Give(Box<Expr>),
+    /// Produce a `Desc<R>` of a `Managed<R>` or `Desc<R>` place.
+    Describe(Box<Expr>),
+    /// Allocate a `Managed<R>` resource from its Copy payload fields.
+    ManagedCreate {
+        args: Vec<Ty>,
+        fields: Vec<Expr>,
     },
     Unary {
         op: UnOp,
@@ -99,6 +111,14 @@ pub enum ExprKind {
         type_args: Vec<Ty>,
         args: Vec<Expr>,
     },
+    ForeignCall {
+        callee: ForeignRef,
+        args: Vec<Expr>,
+    },
+    Intrinsic {
+        op: IntrinsicOp,
+        args: Vec<Expr>,
+    },
     /// A Record/Package value or an Enum variant; fields in declaration order.
     Adt {
         adt: AdtRef,
@@ -106,6 +126,14 @@ pub enum ExprKind {
         args: Vec<Ty>,
         fields: Vec<Expr>,
     },
+    /// Inject a value into the success (`ok = true`) or error (`ok = false`)
+    /// arm of an error union.
+    ErrorInject {
+        ok: bool,
+        value: Box<Expr>,
+    },
+    /// `expr?`: unwrap success or return error early.
+    Try(Box<Expr>),
     Tuple(Vec<Expr>),
     Array(Vec<Expr>),
     If {
@@ -145,12 +173,19 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Deref(_) => true,
         ExprKind::Lit(_)
         | ExprKind::Borrow { .. }
+        | ExprKind::Give(_)
+        | ExprKind::Describe(_)
+        | ExprKind::ManagedCreate { .. }
         | ExprKind::Unary { .. }
         | ExprKind::Binary { .. }
         | ExprKind::Logical { .. }
         | ExprKind::Convert { .. }
         | ExprKind::Call { .. }
+        | ExprKind::ForeignCall { .. }
+        | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }
+        | ExprKind::ErrorInject { .. }
+        | ExprKind::Try(_)
         | ExprKind::Tuple(_)
         | ExprKind::Array(_)
         | ExprKind::If { .. }
@@ -202,5 +237,10 @@ pub enum PatKind {
         variant: u32,
         args: Vec<Ty>,
         fields: Vec<Pat>,
+    },
+    /// `.ok(inner)` (`ok = true`) or `.err(inner)` (`ok = false`).
+    ErrorArm {
+        ok: bool,
+        inner: Box<Pat>,
     },
 }

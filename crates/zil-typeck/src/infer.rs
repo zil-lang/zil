@@ -7,12 +7,14 @@
 //! need closed types (operator domains, literal ranges, bounds).
 
 use crate::diag;
-use crate::items::{FnDecl, ItemRef, Items, VariantShape, resolve_type, scalar_type};
+use crate::items::{
+    FnDecl, ForeignDeclInfo, ItemRef, Items, VariantShape, resolve_type, scalar_type,
+};
 use crate::literal;
 use crate::thir::*;
-use crate::ty::{AdtRef, Ty, TyData, Types, VarKind};
+use crate::ty::{AdtRef, OpaqueKind, Ty, TyData, Types, VarKind};
 use zil_base::{Diagnostic, Span};
-use zil_ir::body::{AdtKind, BinOp, IntTy, UnOp};
+use zil_ir::body::{AdtKind, BinOp, IntTy, IntrinsicOp, UnOp};
 use zil_syntax::ast;
 
 pub struct FnCx<'c, 'a> {
@@ -24,6 +26,7 @@ pub struct FnCx<'c, 'a> {
     locals: Vec<LocalInfo>,
     scopes: Vec<Vec<(String, LocalId)>>,
     loop_depth: u32,
+    in_unsafe: u32,
 }
 
 /// Infers one function body against its declared signature.
@@ -44,6 +47,7 @@ pub fn infer_fn<'a>(
         locals: Vec::new(),
         scopes: vec![Vec::new()],
         loop_depth: 0,
+        in_unsafe: 0,
     };
     let mut params = Vec::new();
     for p in &decl.params {
@@ -53,7 +57,7 @@ pub fn infer_fn<'a>(
         ast::FunctionBody::Block(b) => cx.block(b),
         ast::FunctionBody::Expression(e) => {
             let value = cx.infer(e);
-            cx.coerce(&value, decl.result, e.span);
+            let value = cx.coerce_value(value, decl.result, e.span);
             let span = e.span;
             let ty = cx.types.never();
             Expr {
@@ -144,17 +148,22 @@ impl<'c, 'a> FnCx<'c, 'a> {
         }
     }
 
-    /// Dereferences an address-typed base of a member or index access.
+    /// Dereferences an address, `Managed` carrier or `Desc` base of a member
+    /// or index access.
     fn auto_deref(&mut self, mut base: Expr) -> Expr {
         loop {
             let bt = self.types.shallow(base.ty);
-            let TyData::Ref { pointee, .. } = *self.types.data(bt) else {
+            let inner = if let TyData::Ref { pointee, .. } = *self.types.data(bt) {
+                pointee
+            } else if let TyData::Managed(inner) | TyData::Desc(inner) = *self.types.data(bt) {
+                inner
+            } else {
                 return base;
             };
             let span = base.span;
             base = Expr {
                 kind: ExprKind::Deref(Box::new(base)),
-                ty: pointee,
+                ty: inner,
                 span,
             };
         }
@@ -165,43 +174,134 @@ impl<'c, 'a> FnCx<'c, 'a> {
     /// address converts to a shared one (`&*p`); both are new loans the
     /// kernel checks like any other.
     fn coerce_arg(&mut self, value: Expr, expected: Ty, span: Span) -> Expr {
+        self.coerce_value(value, expected, span)
+    }
+
+    /// Unified coercion site: handles reborrow (`&mut -> &mut/&`), auto-describe
+    /// (`Managed<R>` or `&Managed<R>` -> `Desc<R>`), and implicit error-union
+    /// injection (`T` or `E` -> `E!T`).
+    fn coerce_value(&mut self, value: Expr, expected: Ty, span: Span) -> Expr {
+        if self.types.is_never(value.ty) {
+            return value;
+        }
         let et = self.types.shallow(expected);
         let vt = self.types.shallow(value.ty);
-        let (
+        let ed = self.types.data(et).clone();
+        let vd = self.types.data(vt).clone();
+
+        // 1. Reborrow `&mut T` -> `&mut T` / `&T`.
+        if let (
             TyData::Ref { mutable: want, .. },
             TyData::Ref {
                 mutable: true,
                 pointee,
             },
-        ) = (self.types.data(et).clone(), self.types.data(vt).clone())
-        else {
-            self.coerce(&value, expected, span);
-            return value;
-        };
-        if want && !is_place(&value.kind) {
-            self.coerce(&value, expected, span);
-            return value;
+        ) = (&ed, &vd)
+            && (!want || is_place(&value.kind))
+        {
+            let vspan = value.span;
+            let target = Expr {
+                kind: ExprKind::Deref(Box::new(value)),
+                ty: *pointee,
+                span: vspan,
+            };
+            let ty = self.types.intern(TyData::Ref {
+                mutable: *want,
+                pointee: *pointee,
+            });
+            let out = Expr {
+                kind: ExprKind::Borrow {
+                    mutable: *want,
+                    place: Box::new(target),
+                },
+                ty,
+                span: vspan,
+            };
+            self.coerce(&out, expected, span);
+            return out;
         }
-        let vspan = value.span;
-        let target = Expr {
-            kind: ExprKind::Deref(Box::new(value)),
-            ty: pointee,
-            span: vspan,
-        };
-        let ty = self.types.intern(TyData::Ref {
-            mutable: want,
-            pointee,
-        });
-        let out = Expr {
-            kind: ExprKind::Borrow {
-                mutable: want,
-                place: Box::new(target),
-            },
-            ty,
-            span: vspan,
-        };
-        self.coerce(&out, expected, span);
-        out
+
+        // 2. Auto-describe: `Managed<R>` or `&Managed<R>` -> `Desc<R>`.
+        if let TyData::Desc(want_inner) = ed {
+            if let TyData::Managed(got_inner) = vd {
+                self.unify(got_inner, want_inner, span);
+                let vspan = value.span;
+                return Expr {
+                    kind: ExprKind::Describe(Box::new(value)),
+                    ty: expected,
+                    span: vspan,
+                };
+            } else if let TyData::Ref { pointee, .. } = vd {
+                let pt = self.types.shallow(pointee);
+                if let TyData::Managed(got_inner) = *self.types.data(pt) {
+                    self.unify(got_inner, want_inner, span);
+                    let vspan = value.span;
+                    let deref = Expr {
+                        kind: ExprKind::Deref(Box::new(value)),
+                        ty: pt,
+                        span: vspan,
+                    };
+                    return Expr {
+                        kind: ExprKind::Describe(Box::new(deref)),
+                        ty: expected,
+                        span: vspan,
+                    };
+                }
+            }
+        }
+
+        // 3. Implicit error-union injection: `E!T`.
+        if let TyData::ErrorUnion { ok, err } = ed
+            && !matches!(vd, TyData::ErrorUnion { .. } | TyData::Error)
+        {
+            let ok_match = self.types.can_unify(value.ty, ok);
+            let err_match = self.types.can_unify(value.ty, err);
+            match (ok_match, err_match) {
+                (true, false) => {
+                    let _ = self.types.unify(value.ty, ok);
+                    let vspan = value.span;
+                    return Expr {
+                        kind: ExprKind::ErrorInject {
+                            ok: true,
+                            value: Box::new(value),
+                        },
+                        ty: expected,
+                        span: vspan,
+                    };
+                }
+                (false, true) => {
+                    let _ = self.types.unify(value.ty, err);
+                    let vspan = value.span;
+                    return Expr {
+                        kind: ExprKind::ErrorInject {
+                            ok: false,
+                            value: Box::new(value),
+                        },
+                        ty: expected,
+                        span: vspan,
+                    };
+                }
+                (true, true) => {
+                    self.error(
+                        diag::ERROR_INJECTION_AMBIGUOUS,
+                        span,
+                        "value matches both arms of the error union",
+                    );
+                    return self.err_expr(span);
+                }
+                (false, false) => {
+                    self.error(
+                        diag::ERROR_INJECTION,
+                        span,
+                        "value matches neither arm of the error union",
+                    );
+                    return self.err_expr(span);
+                }
+            }
+        }
+
+        self.coerce(&value, expected, span);
+        value
     }
 
     fn unify(&mut self, a: Ty, b: Ty, span: Span) {
@@ -223,7 +323,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
     }
 
     fn resolve_written(&mut self, t: &ast::TypeRef) -> Ty {
-        match resolve_type(t, &self.generic_names, &self.items.names, self.types) {
+        match resolve_type(
+            t,
+            &self.generic_names,
+            &self.items.names,
+            &self.items.adt_kinds,
+            None,
+            self.types,
+        ) {
             Ok(ty) => ty,
             Err(d) => {
                 self.diags.push(d);
@@ -260,7 +367,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     self.error(diag::ENUM_VARIANT, span, "an enum needs a variant name");
                     None
                 }
-                Some(ItemRef::Fn(_)) | None => {
+                Some(ItemRef::Fn(_) | ItemRef::Foreign(_)) | None => {
                     self.error(
                         diag::NAME_UNRESOLVED,
                         span,
@@ -283,7 +390,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         }
                     }
                 }
-                Some(ItemRef::Adt(_) | ItemRef::Fn(_)) | None => {
+                Some(ItemRef::Adt(_) | ItemRef::Fn(_) | ItemRef::Foreign(_)) | None => {
                     self.error(
                         diag::NAME_UNRESOLVED,
                         span,
@@ -369,12 +476,21 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 ty,
                 value,
             } => {
-                let init = self.infer(value);
+                let mut init = self.infer(value);
                 let declared = match ty {
                     Some(t) => {
                         let t = self.resolve_written(t);
-                        self.coerce(&init, t, value.span);
-                        t
+                        let tt = self.types.shallow(t);
+                        let it = self.types.shallow(init.ty);
+                        if let (TyData::Desc(want), TyData::Managed(got)) =
+                            (self.types.data(tt).clone(), self.types.data(it).clone())
+                        {
+                            self.unify(got, want, value.span);
+                            init.ty
+                        } else {
+                            init = self.coerce_value(init, t, value.span);
+                            t
+                        }
                     }
                     None => init.ty,
                 };
@@ -393,7 +509,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let value = match value {
                     Some(v) => {
                         let v = self.infer(v);
-                        self.coerce(&v, result, span);
+                        let v = self.coerce_value(v, result, span);
                         Some(Box::new(v))
                     }
                     None => {
@@ -563,9 +679,11 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("with statements", span);
                 None
             }
-            ast::StmtKind::Unsafe(_) => {
-                self.unsupported("unsafe blocks", span);
-                None
+            ast::StmtKind::Unsafe(b) => {
+                self.in_unsafe += 1;
+                let expr = self.block(b);
+                self.in_unsafe -= 1;
+                Some(Stmt::Expr(expr))
             }
             ast::StmtKind::Meta(_) => {
                 self.unsupported("meta statements", span);
@@ -696,6 +814,13 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     return;
                 }
                 ExprKind::Borrow { .. }
+                | ExprKind::Give(_)
+                | ExprKind::Describe(_)
+                | ExprKind::ManagedCreate { .. }
+                | ExprKind::ForeignCall { .. }
+                | ExprKind::Intrinsic { .. }
+                | ExprKind::ErrorInject { .. }
+                | ExprKind::Try(_)
                 | ExprKind::Lit(_)
                 | ExprKind::Unary { .. }
                 | ExprKind::Binary { .. }
@@ -846,9 +971,25 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("reference patterns", span);
                 PatKind::Wild
             }
-            ast::PatternKind::ErrorArm { .. } => {
-                self.unsupported("error arm patterns", span);
-                PatKind::Wild
+            ast::PatternKind::ErrorArm { is_error, pattern } => {
+                let et = self.types.shallow(expected);
+                if let TyData::ErrorUnion { ok, err } = self.types.data(et).clone() {
+                    let arm_ty = if *is_error { err } else { ok };
+                    let inner = self.pattern(pattern, arm_ty, mutable);
+                    PatKind::ErrorArm {
+                        ok: !*is_error,
+                        inner: Box::new(inner),
+                    }
+                } else if matches!(self.types.data(et), TyData::Error) {
+                    PatKind::Wild
+                } else {
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        span,
+                        "`.ok`/`.err` pattern requires an error union type",
+                    );
+                    PatKind::Wild
+                }
             }
         };
         Pat {
@@ -869,7 +1010,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
     fn irrefutable(&self, p: &Pat) -> bool {
         match &p.kind {
             PatKind::Wild | PatKind::Binding(_) => true,
-            PatKind::Lit(_) => false,
+            PatKind::Lit(_) | PatKind::ErrorArm { .. } => false,
             PatKind::Tuple(items) => items.iter().all(|i| self.irrefutable(i)),
             PatKind::Adt { adt, fields, .. } => {
                 self.items.adt(*adt).variants.len() == 1
@@ -937,7 +1078,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     return mk(ExprKind::Local(l), ty);
                 }
                 match self.items.names.get(n) {
-                    Some(ItemRef::Fn(_)) => {
+                    Some(ItemRef::Fn(_) | ItemRef::Foreign(_)) => {
                         self.unsupported("function values", span);
                         self.err_expr(span)
                     }
@@ -1005,6 +1146,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Adt { .. }
                     | TyData::Tuple(_)
                     | TyData::Ref { .. }
+                    | TyData::Managed(_)
+                    | TyData::Desc(_)
+                    | TyData::Opaque(_)
+                    | TyData::ErrorUnion { .. }
                     | TyData::Param(_)
                     | TyData::Var(_) => {
                         self.error(diag::OPERATOR_TYPE, span, "only arrays can be indexed");
@@ -1061,9 +1206,21 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     ty,
                 )
             }
-            ast::ExprKind::ReceiverMember(_) => {
-                self.unsupported("receiver members", span);
-                self.err_expr(span)
+            ast::ExprKind::ReceiverMember(name) => {
+                let Some(local) = self.lookup_local("self") else {
+                    self.error(
+                        diag::NAME_UNRESOLVED,
+                        span,
+                        format!("receiver member `.{name}` requires `self` in scope"),
+                    );
+                    return self.err_expr(span);
+                };
+                let self_expr = Expr {
+                    kind: ExprKind::Local(local),
+                    ty: self.locals[local.0 as usize].ty,
+                    span,
+                };
+                self.member_on(self_expr, name, span)
             }
             ast::ExprKind::Ascribed { .. } => {
                 self.unsupported("generated type ascriptions", span);
@@ -1081,9 +1238,39 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("slices", span);
                 self.err_expr(span)
             }
-            ast::ExprKind::Try(_) => {
-                self.unsupported("`?`", span);
-                self.err_expr(span)
+            ast::ExprKind::Try(inner) => {
+                let x = self.infer(inner);
+                let xt = self.types.shallow(x.ty);
+                let (ok_ty, err_ty) =
+                    if let TyData::ErrorUnion { ok, err } = self.types.data(xt).clone() {
+                        (ok, err)
+                    } else if matches!(self.types.data(xt), TyData::Error) {
+                        return self.err_expr(span);
+                    } else {
+                        self.error(
+                            diag::TRY_NOT_ERROR,
+                            span,
+                            "`?` requires an error union operand",
+                        );
+                        return self.err_expr(span);
+                    };
+                let ret_t = self.types.shallow(self.decl.result);
+                if let TyData::ErrorUnion { err: ret_err, .. } = self.types.data(ret_t).clone() {
+                    if self.types.unify(err_ty, ret_err).is_err() {
+                        self.error(
+                            diag::TRY_ERROR_TYPE,
+                            span,
+                            "`?` error type does not match the enclosing function's error type",
+                        );
+                    }
+                } else if !matches!(self.types.data(ret_t), TyData::Error) {
+                    self.error(
+                        diag::TRY_RETURN_TYPE,
+                        span,
+                        "`?` requires the enclosing function to return an error union",
+                    );
+                }
+                mk(ExprKind::Try(Box::new(x)), ok_ty)
             }
             ast::ExprKind::Closure { .. } => {
                 self.unsupported("closures", span);
@@ -1171,6 +1358,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Adt { .. }
                     | TyData::Tuple(_)
                     | TyData::Array { .. }
+                    | TyData::Managed(_)
+                    | TyData::Desc(_)
+                    | TyData::Opaque(_)
+                    | TyData::ErrorUnion { .. }
                     | TyData::Param(_) => {
                         self.error(
                             diag::OPERATOR_TYPE,
@@ -1200,8 +1391,36 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 )
             }
             ast::UnaryOp::Give => {
-                self.unsupported("`give`", span);
-                self.err_expr(span)
+                let x = self.infer(operand);
+                if !is_place(&x.kind) {
+                    self.error(
+                        diag::GIVE_TYPE,
+                        span,
+                        "`give` requires a place holding a managed resource",
+                    );
+                    return self.err_expr(span);
+                }
+                let xt = self.types.shallow(x.ty);
+                if matches!(self.types.data(xt), TyData::Managed(_)) {
+                    let ty = x.ty;
+                    mk(ExprKind::Give(Box::new(x)), ty)
+                } else if matches!(self.types.data(xt), TyData::Desc(_)) {
+                    self.error(
+                        diag::GIVE_DESCRIPTOR,
+                        span,
+                        "cannot `give` a resource descriptor",
+                    );
+                    self.err_expr(span)
+                } else if matches!(self.types.data(xt), TyData::Error) {
+                    self.err_expr(span)
+                } else {
+                    self.error(
+                        diag::GIVE_TYPE,
+                        span,
+                        "`give` requires a `Managed` resource place",
+                    );
+                    self.err_expr(span)
+                }
             }
         }
     }
@@ -1308,6 +1527,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
             };
         }
         let base = self.infer(object);
+        self.member_on_kind(base, member, span)
+    }
+
+    fn member_on(&mut self, base: Expr, name: &str, span: Span) -> Expr {
+        self.member_on_kind(base, &ast::MemberName::Name(name.to_string()), span)
+    }
+
+    fn member_on_kind(&mut self, base: Expr, member: &ast::MemberName, span: Span) -> Expr {
         let base = self.auto_deref(base);
         let bt = self.types.shallow(base.ty);
         match (member, self.types.data(bt).clone()) {
@@ -1421,7 +1648,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }),
             };
             let ft = self.field_ty(adt, variant, i as u32, &args);
-            self.coerce(&value, ft, f.span);
+            let value = self.coerce_value(value, ft, f.span);
             slots[i] = Some(value);
         }
         let mut out = Vec::new();
@@ -1438,16 +1665,25 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
             }
         }
-        let ty = self.adt_ty(adt, &args);
-        Expr {
-            kind: ExprKind::Adt {
-                adt,
-                variant,
-                args,
-                fields: out,
-            },
-            ty,
-            span,
+        let adt_ty = self.adt_ty(adt, &args);
+        if self.items.adt(adt).kind == AdtKind::Resource {
+            let ty = self.types.intern(TyData::Managed(adt_ty));
+            Expr {
+                kind: ExprKind::ManagedCreate { args, fields: out },
+                ty,
+                span,
+            }
+        } else {
+            Expr {
+                kind: ExprKind::Adt {
+                    adt,
+                    variant,
+                    args,
+                    fields: out,
+                },
+                ty: adt_ty,
+                span,
+            }
         }
     }
 
@@ -1487,6 +1723,19 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 };
                 self.direct_call(f, explicit.map(Vec::as_slice), arguments, span)
             }
+            Some([name]) if matches!(self.items.names.get(name), Some(ItemRef::Foreign(_))) => {
+                let Some(ItemRef::Foreign(f)) = self.items.names.get(name).copied() else {
+                    return self.err_expr(span);
+                };
+                if explicit.is_some() {
+                    self.error(
+                        diag::TYPE_ARGUMENT,
+                        span,
+                        "extern \"C\" functions take no type arguments",
+                    );
+                }
+                self.foreign_call(f, arguments, span)
+            }
             Some(path @ [_, _]) if explicit.is_none() => {
                 let Some((adt, variant)) = self.resolve_variant_path(path, span) else {
                     return self.err_expr(span);
@@ -1505,7 +1754,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 for (i, a) in arguments.iter().enumerate() {
                     let value = self.infer(&a.value);
                     let ft = self.field_ty(adt, variant, i as u32, &args);
-                    self.coerce(&value, ft, a.span);
+                    let value = self.coerce_value(value, ft, a.span);
                     fields.push(value);
                 }
                 let ty = self.adt_ty(adt, &args);
@@ -1521,18 +1770,204 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
             }
             Some([name]) if !self.items.names.contains_key(name) => {
-                self.error(
-                    diag::NAME_UNRESOLVED,
-                    span,
-                    format!("unknown function `{name}`"),
-                );
-                self.err_expr(span)
+                if let Some(expr) =
+                    self.builtin_call(name, explicit.map(Vec::as_slice), arguments, span)
+                {
+                    expr
+                } else {
+                    self.error(
+                        diag::NAME_UNRESOLVED,
+                        span,
+                        format!("unknown function `{name}`"),
+                    );
+                    self.err_expr(span)
+                }
             }
             Some(_) | None => {
                 self.unsupported("calls of values and methods", span);
                 self.err_expr(span)
             }
         }
+    }
+
+    fn foreign_call(&mut self, f: ForeignRef, arguments: &[ast::Argument], span: Span) -> Expr {
+        if self.in_unsafe == 0 {
+            self.error(
+                diag::FFI_UNSAFE,
+                span,
+                "calling an `extern \"C\"` function requires an `unsafe` block",
+            );
+        }
+        let decl: ForeignDeclInfo = self.items.foreign(f).clone();
+        if arguments.len() != decl.params.len() {
+            self.error(
+                diag::CALL_ARITY,
+                span,
+                format!(
+                    "`{}` expects {} argument(s), found {}",
+                    decl.name,
+                    decl.params.len(),
+                    arguments.len()
+                ),
+            );
+            return self.err_expr(span);
+        }
+        let mut args = Vec::new();
+        for (a, p) in arguments.iter().zip(&decl.params) {
+            let v = self.infer(&a.value);
+            args.push(self.coerce_value(v, *p, a.span));
+        }
+        Expr {
+            kind: ExprKind::ForeignCall { callee: f, args },
+            ty: decl.result,
+            span,
+        }
+    }
+
+    fn builtin_call(
+        &mut self,
+        name: &str,
+        explicit: Option<&[ast::GenericArg]>,
+        arguments: &[ast::Argument],
+        span: Span,
+    ) -> Option<Expr> {
+        let op = match name {
+            "bytes_new" => IntrinsicOp::ByteBufferNew,
+            "bytes_reserve" => IntrinsicOp::ByteBufferReserve,
+            "bytes_push" => IntrinsicOp::ByteBufferPush,
+            "bytes_truncate" => IntrinsicOp::ByteBufferTruncate,
+            "bytes_len" => IntrinsicOp::ByteBufferLen,
+            "bytes_capacity" => IntrinsicOp::ByteBufferCapacity,
+            "store_new" => IntrinsicOp::StoreNew,
+            "store_reserve" => IntrinsicOp::StoreReserve,
+            "store_push" => IntrinsicOp::StorePush,
+            "store_pop" => IntrinsicOp::StorePop,
+            "store_len" => IntrinsicOp::StoreLen,
+            "store_capacity" => IntrinsicOp::StoreCapacity,
+            _ => return None,
+        };
+        if explicit.is_some() {
+            self.error(
+                diag::TYPE_ARGUMENT,
+                span,
+                format!("`{name}` takes no explicit type arguments"),
+            );
+        }
+        let i64_ty = self.types.int(IntTy::I64);
+        let u8_ty = self.types.int(IntTy::U8);
+        let bool_ty = self.types.bool();
+        let unit_ty = self.types.unit();
+        let bytes_inner = self.types.intern(TyData::Opaque(OpaqueKind::ByteBuffer));
+        let bytes_desc = self.types.intern(TyData::Desc(bytes_inner));
+        let bytes_managed = self.types.intern(TyData::Managed(bytes_inner));
+
+        let (param_tys, ret_ty): (Vec<Ty>, Ty) = match op {
+            IntrinsicOp::ByteBufferNew => (Vec::new(), bytes_managed),
+            IntrinsicOp::ByteBufferReserve | IntrinsicOp::ByteBufferTruncate => {
+                (vec![bytes_desc, i64_ty], bool_ty)
+            }
+            IntrinsicOp::ByteBufferPush => (vec![bytes_desc, u8_ty], bool_ty),
+            IntrinsicOp::ByteBufferLen | IntrinsicOp::ByteBufferCapacity => {
+                (vec![bytes_desc], i64_ty)
+            }
+            IntrinsicOp::StoreNew => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                (Vec::new(), managed)
+            }
+            IntrinsicOp::StoreReserve => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                (vec![desc, i64_ty], bool_ty)
+            }
+            IntrinsicOp::StorePush => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                let res = self.types.intern(TyData::ErrorUnion {
+                    ok: unit_ty,
+                    err: elem,
+                });
+                (vec![desc, elem], res)
+            }
+            IntrinsicOp::StorePop => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                let res = self.types.intern(TyData::ErrorUnion {
+                    ok: elem,
+                    err: unit_ty,
+                });
+                (vec![desc], res)
+            }
+            IntrinsicOp::StoreLen | IntrinsicOp::StoreCapacity => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                (vec![desc], i64_ty)
+            }
+            IntrinsicOp::StoreBorrow { .. }
+            | IntrinsicOp::ByteBufferBorrow
+            | IntrinsicOp::MutexCreate
+            | IntrinsicOp::MutexLock
+            | IntrinsicOp::MutexValue
+            | IntrinsicOp::MutexUnlock
+            | IntrinsicOp::SyncLoad
+            | IntrinsicOp::SyncStore
+            | IntrinsicOp::SyncFetchAdd
+            | IntrinsicOp::SyncCompareExchange
+            | IntrinsicOp::TaskStart
+            | IntrinsicOp::TaskCreate
+            | IntrinsicOp::TaskYield
+            | IntrinsicOp::TaskValid
+            | IntrinsicOp::TaskPoll
+            | IntrinsicOp::TaskRequestCancel
+            | IntrinsicOp::TaskPollClose
+            | IntrinsicOp::TaskFinishDestroy
+            | IntrinsicOp::RegistrationStart
+            | IntrinsicOp::RegistrationValid
+            | IntrinsicOp::RegistrationClose
+            | IntrinsicOp::AsyncRegistrationStart
+            | IntrinsicOp::AsyncRegistrationValid
+            | IntrinsicOp::AsyncRegistrationRequestClose
+            | IntrinsicOp::AsyncRegistrationPollClose
+            | IntrinsicOp::AsyncRegistrationFinishDestroy
+            | IntrinsicOp::ManagedCreate => return None,
+        };
+        if arguments.len() != param_tys.len() {
+            self.error(
+                diag::CALL_ARITY,
+                span,
+                format!(
+                    "`{name}` expects {} argument(s), found {}",
+                    param_tys.len(),
+                    arguments.len()
+                ),
+            );
+            return Some(self.err_expr(span));
+        }
+        let mut args = Vec::new();
+        for (a, p) in arguments.iter().zip(&param_tys) {
+            let v = self.infer(&a.value);
+            args.push(self.coerce_value(v, *p, a.span));
+        }
+        Some(Expr {
+            kind: ExprKind::Intrinsic { op, args },
+            ty: ret_ty,
+            span,
+        })
     }
 
     fn direct_call(
@@ -1619,7 +2054,12 @@ fn contains_break(e: &Expr) -> bool {
             ExprKind::Match { scrutinee, arms } => {
                 walk(scrutinee) || arms.iter().any(|a| walk(&a.body))
             }
-            ExprKind::Deref(inner) | ExprKind::Borrow { place: inner, .. } => walk(inner),
+            ExprKind::Deref(inner)
+            | ExprKind::Borrow { place: inner, .. }
+            | ExprKind::Give(inner)
+            | ExprKind::Describe(inner)
+            | ExprKind::ErrorInject { value: inner, .. }
+            | ExprKind::Try(inner) => walk(inner),
             ExprKind::Lit(_)
             | ExprKind::Local(_)
             | ExprKind::Continue
@@ -1631,6 +2071,9 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Logical { .. }
             | ExprKind::Convert { .. }
             | ExprKind::Call { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::ManagedCreate { .. }
             | ExprKind::Adt { .. }
             | ExprKind::Tuple(_)
             | ExprKind::Array(_)
@@ -1706,6 +2149,13 @@ impl Finalizer<'_, '_> {
             TyData::Tuple(items) => items.iter().all(|t| self.is_copy_depth(*t, depth + 1)),
             TyData::Array { element, .. } => self.is_copy_depth(element, depth + 1),
             TyData::Ref { mutable, .. } => !mutable,
+            TyData::Desc(_) => true,
+            TyData::Managed(_) => false,
+            TyData::Opaque(OpaqueKind::ForeignHandle) => true,
+            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::OwnedStore(_)) => false,
+            TyData::ErrorUnion { ok, err } => {
+                self.is_copy_depth(ok, depth + 1) && self.is_copy_depth(err, depth + 1)
+            }
             TyData::Param(i) => self.generics.get(i as usize).is_some_and(|g| g.copy),
             TyData::Adt { adt, args } => {
                 let decl = self.items.adt(adt);
@@ -1743,6 +2193,7 @@ impl Finalizer<'_, '_> {
                 }
                 fields.iter_mut().for_each(|f| self.pat(f));
             }
+            PatKind::ErrorArm { inner, .. } => self.pat(inner),
         }
     }
 
@@ -1831,7 +2282,12 @@ impl Finalizer<'_, '_> {
                 }
             }
             ExprKind::TupleField { base, .. } => self.expr(base),
-            ExprKind::Deref(inner) | ExprKind::Borrow { place: inner, .. } => self.expr(inner),
+            ExprKind::Deref(inner)
+            | ExprKind::Borrow { place: inner, .. }
+            | ExprKind::Give(inner)
+            | ExprKind::Describe(inner)
+            | ExprKind::ErrorInject { value: inner, .. }
+            | ExprKind::Try(inner) => self.expr(inner),
             ExprKind::Index { base, index } => {
                 self.expr(base);
                 self.expr(index);
@@ -1846,6 +2302,10 @@ impl Finalizer<'_, '_> {
                     | TyData::Tuple(_)
                     | TyData::Array { .. }
                     | TyData::Ref { .. }
+                    | TyData::Managed(_)
+                    | TyData::Desc(_)
+                    | TyData::Opaque(_)
+                    | TyData::ErrorUnion { .. }
                     | TyData::Param(_)
                     | TyData::Var(_) => false,
                 };
@@ -1908,7 +2368,10 @@ impl Finalizer<'_, '_> {
                 }
                 args.iter_mut().for_each(|a| self.expr(a));
             }
-            ExprKind::Adt { args, fields, .. } => {
+            ExprKind::ForeignCall { args, .. } | ExprKind::Intrinsic { args, .. } => {
+                args.iter_mut().for_each(|a| self.expr(a));
+            }
+            ExprKind::ManagedCreate { args, fields, .. } | ExprKind::Adt { args, fields, .. } => {
                 for a in args.iter_mut() {
                     *a = self.zonk(*a, span);
                 }

@@ -330,3 +330,115 @@ fn writing_through_a_shared_address_is_rejected() {
         "E-ASSIGN-IMMUTABLE",
     );
 }
+
+// ---- resources, packages, give, Drop, extern C, error unions --------------
+
+#[test]
+fn owned_option_session_fixture_is_admitted_end_to_end() {
+    let text = include_str!("../../../tests/fixtures/ownership/owned-option-session.zil");
+    admit(text);
+}
+
+#[test]
+fn conditional_give_uses_drop_flag_and_is_admitted() {
+    admit(
+        "resource Mark { code: i32 }\n\
+         impl Drop for Mark { fn drop(self: Self) {} }\n\
+         fn consume(give m: Mark) {}\n\
+         fn f(c: bool) {\n\
+             let m = Mark { code: 1 }\n\
+             if c { consume(give m) }\n\
+         }",
+    );
+}
+
+#[test]
+fn conditional_give_of_parameter_is_admitted() {
+    admit(
+        "resource Mark { code: i32 }\n\
+         fn consume(give m: Mark) {}\n\
+         fn f(give m: Mark, c: bool) {\n\
+             if c { consume(give m) }\n\
+         }",
+    );
+}
+
+#[test]
+fn using_a_resource_after_give_is_unsafe() {
+    unsafe_program(
+        "resource Mark { code: i32 }\n\
+         fn consume(give m: Mark) {}\n\
+         fn f() {\n\
+             let m = Mark { code: 1 }\n\
+             consume(give m)\n\
+             consume(give m)\n\
+         }",
+        "UseOfUninit",
+    );
+}
+
+#[test]
+fn giving_a_descriptor_is_rejected() {
+    reject(
+        "resource Mark { code: i32 }\n\
+         fn consume(give m: Mark) {}\n\
+         fn f(m: Mark) { consume(give m) }",
+        "E-GIVE-DESCRIPTOR",
+    );
+}
+
+#[test]
+fn extern_c_without_unsafe_is_rejected() {
+    reject(
+        "extern \"C\" fn putchar(code: i32) -> i32;\n\
+         fn f() { putchar(65) }",
+        "E-FFI-UNSAFE",
+    );
+}
+
+#[test]
+fn duplicate_impl_drop_is_rejected() {
+    reject(
+        "resource Mark { code: i32 }\n\
+         impl Drop for Mark { fn drop(self: Self) {} }\n\
+         impl Drop for Mark { fn drop(self: Self) {} }",
+        "E-DROP-DUPLICATE",
+    );
+}
+
+#[test]
+fn error_union_try_propagates_and_matches_arms() {
+    admit(
+        "fn fail_or(ok: bool) -> void!i32 {\n\
+             if ok { return 42 }\n\
+             return ()\n\
+         }\n\
+         fn caller(ok: bool) -> void!i32 {\n\
+             let v = fail_or(ok)?\n\
+             return v + 1\n\
+         }\n\
+         fn inspect(ok: bool) -> i32 {\n\
+             match caller(ok) {\n\
+                 .ok(x) => { return x }\n\
+                 .err(_) => { return -1 }\n\
+             }\n\
+         }",
+    );
+}
+
+#[test]
+fn ambiguous_error_union_injection_is_rejected() {
+    reject(
+        "fn bad() -> i32!i32 { return 7 }",
+        "E-ERROR-INJECTION-AMBIGUOUS",
+    );
+}
+
+#[test]
+fn try_outside_error_union_return_is_rejected() {
+    reject(
+        "fn fail_or() -> void!i32 { return () }\n\
+         fn bad() -> i32 { return fail_or()? }",
+        "E-TRY-RETURN-TYPE",
+    );
+}

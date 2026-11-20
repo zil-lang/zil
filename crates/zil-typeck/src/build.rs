@@ -11,17 +11,18 @@
 
 use crate::diag;
 use crate::infer::POINTER_BITS;
-use crate::items::Items;
+use crate::items::{FnRoleSpec, Items};
 use crate::literal;
 use crate::thir::*;
-use crate::ty::{AdtRef, Ty, TyData, Types};
+use crate::ty::{AdtRef, OpaqueKind, Ty, TyData, Types};
 use std::collections::{HashMap, HashSet, VecDeque};
 use zil_base::{Diagnostic, Span};
 use zil_ir::body::{
     AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ConstValue,
-    FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnRole, FnSig, Function, GenericArgs, Instruction,
-    InstructionKind, IntTy, Local, LocalDecl, Module, Mutability, Operand, ParamEnv, Place,
-    Projection, Region, Rvalue, Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
+    FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId,
+    Function, GenericArgs, Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl,
+    Module, Mutability, OpaqueTy, Operand, ParamEnv, Place, Projection, Region, Rvalue, Terminator,
+    TyId, TyKind, ValueClass, VariantDef, VariantIdx,
 };
 
 /// Work limits of one lowering request.
@@ -71,6 +72,28 @@ impl<'c, 'a> Mono<'c, 'a> {
         }
     }
 
+    /// Lowers all `extern "C"` declarations into `module.foreigns`.
+    pub fn lower_foreigns(&mut self) {
+        let foreigns = self.items.foreigns.clone();
+        for f in foreigns {
+            let mut params = Vec::new();
+            for p in f.params {
+                if let Some(t) = self.lower_ty(p, f.span) {
+                    params.push(t);
+                }
+            }
+            let result = self
+                .lower_ty(f.result, f.span)
+                .unwrap_or_else(|| self.module.tys.intern(TyKind::Unit));
+            self.module.foreigns.push(ForeignDecl {
+                symbol: f.symbol,
+                abi: ForeignAbi::C,
+                params,
+                result,
+            });
+        }
+    }
+
     /// Requests the instance of `f` at closed `args`.
     pub fn instance(&mut self, f: FnRef, args: Vec<Ty>, span: Span) -> Option<FnId> {
         if let Some(id) = self.instances.get(&(f, args.clone())) {
@@ -89,6 +112,10 @@ impl<'c, 'a> Mono<'c, 'a> {
         }
         let r = self.types.subst(decl.result, &args);
         let result = self.lower_ty(r, span)?;
+        let role = match decl.role {
+            FnRoleSpec::Normal => FnRole::Normal,
+            FnRoleSpec::Drop(adt) => FnRole::Drop(self.adt_id(adt, span)?),
+        };
         let id = FnId::from_index(self.module.functions.len());
         let mut name = decl.name.clone();
         if !args.is_empty() {
@@ -101,7 +128,7 @@ impl<'c, 'a> Mono<'c, 'a> {
                 result,
                 type_params: 0,
                 region_params: 0,
-                role: FnRole::Normal,
+                role,
             },
             body: Body {
                 param_count: 0,
@@ -146,7 +173,7 @@ impl<'c, 'a> Mono<'c, 'a> {
             type_params: decl.generics.len() as u32,
             region_params: 0,
             variants: Vec::new(),
-            user_drop: false,
+            user_drop: decl.user_drop,
         });
         self.adts.insert(adt, id);
         let mut variants = Vec::new();
@@ -171,7 +198,7 @@ impl<'c, 'a> Mono<'c, 'a> {
                 type_params: decl.generics.len() as u32,
                 region_params: 0,
                 variants,
-                user_drop: false,
+                user_drop: decl.user_drop,
             },
         );
         Some(id)
@@ -225,6 +252,17 @@ impl<'c, 'a> Mono<'c, 'a> {
                 },
                 pointee: self.lower_ty(pointee, span)?,
             },
+            TyData::Managed(inner) => TyKind::Managed(self.lower_ty(inner, span)?),
+            TyData::Desc(inner) => TyKind::Desc(self.lower_ty(inner, span)?),
+            TyData::Opaque(OpaqueKind::ByteBuffer) => TyKind::Opaque(OpaqueTy::ByteBuffer),
+            TyData::Opaque(OpaqueKind::ForeignHandle) => TyKind::Opaque(OpaqueTy::ForeignHandle),
+            TyData::Opaque(OpaqueKind::OwnedStore(elem)) => TyKind::Opaque(OpaqueTy::OwnedStore {
+                element: self.lower_ty(elem, span)?,
+            }),
+            TyData::ErrorUnion { ok, err } => TyKind::ErrorUnion {
+                ok: self.lower_ty(ok, span)?,
+                err: self.lower_ty(err, span)?,
+            },
             TyData::Var(_) | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
@@ -261,17 +299,23 @@ impl<'c, 'a> Mono<'c, 'a> {
                 }
             }
             TyKind::Tuple(items) => items.into_iter().for_each(|t| self.ensure_instance(t)),
-            TyKind::Array { element, .. } => self.ensure_instance(element),
+            TyKind::Array { element, .. }
+            | TyKind::Slice(element)
+            | TyKind::Ref {
+                pointee: element, ..
+            }
+            | TyKind::Managed(element)
+            | TyKind::Desc(element) => self.ensure_instance(element),
+            TyKind::ErrorUnion { ok, err } => {
+                self.ensure_instance(ok);
+                self.ensure_instance(err);
+            }
+            TyKind::Opaque(OpaqueTy::OwnedStore { element }) => self.ensure_instance(element),
             TyKind::Unit
             | TyKind::Bool
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::Slice(_)
-            | TyKind::Ref { .. }
-            | TyKind::Managed(_)
-            | TyKind::Desc(_)
-            | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
             | TyKind::Dyn(_)
@@ -315,6 +359,8 @@ struct Builder<'m, 'c, 'a> {
     ret: Option<Local>,
     sig: FnSig,
     locals_info: Vec<LocalInfo>,
+    param_locals: Vec<Local>,
+    auto_drops: HashSet<(BlockId, usize)>,
     failed: bool,
     reported_exhaustive: bool,
 }
@@ -333,6 +379,8 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             ret: None,
             sig,
             locals_info: Vec::new(),
+            param_locals: Vec::new(),
+            auto_drops: HashSet::new(),
             failed: false,
             reported_exhaustive: false,
         };
@@ -426,16 +474,36 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
         self.frames.push(Frame { locals: Vec::new() });
     }
 
+    fn needs_cleanup(&self, ty: TyId) -> bool {
+        self.tys().needs_cleanup(ty, &ParamEnv::default())
+    }
+
+    fn push_auto_drop(&mut self, local: Local, span: Span) {
+        let ty = self.locals[local.index()].ty;
+        if self.needs_cleanup(ty) {
+            let idx = self.blocks[self.cur.index()].instructions.len();
+            self.push(
+                InstructionKind::Drop {
+                    place: Place::local(local),
+                },
+                span,
+            );
+            self.auto_drops.insert((self.cur, idx));
+        }
+    }
+
     fn exit_frame(&mut self, span: Span) {
         if let Some(frame) = self.frames.pop() {
             for l in frame.locals.into_iter().rev() {
+                self.push_auto_drop(l, span);
                 self.push(InstructionKind::StorageDead(l), span);
             }
         }
     }
 
     /// Storage ends for every frame deeper than `depth`, without popping
-    /// them (a jump out of nested scopes).
+    /// them (a jump out of nested scopes). When unwinding to depth 0 (function
+    /// exit), owning parameters are also dropped in reverse order.
     fn unwind_to(&mut self, depth: usize, span: Span) {
         let dead: Vec<Local> = self.frames[depth..]
             .iter()
@@ -443,7 +511,14 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             .flat_map(|f| f.locals.iter().rev().copied())
             .collect();
         for l in dead {
+            self.push_auto_drop(l, span);
             self.push(InstructionKind::StorageDead(l), span);
+        }
+        if depth == 0 {
+            let params: Vec<Local> = self.param_locals.iter().rev().copied().collect();
+            for p in params {
+                self.push_auto_drop(p, span);
+            }
         }
     }
 
@@ -465,6 +540,7 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                 name: Some(info.name.clone()),
             });
             self.map[p.0 as usize] = Some(local);
+            self.param_locals.push(local);
         }
         let unit = self.tys().lookup(&TyKind::Unit);
         if Some(self.sig.result) != unit {
@@ -491,8 +567,7 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
         if self.failed {
             self.blocks.clear();
         }
-        let blocks = prune(std::mem::take(&mut self.blocks));
-        Body {
+        let mut body = Body {
             param_count: self.sig.params.len() as u32,
             locals: std::mem::take(&mut self.locals),
             captures: Vec::new(),
@@ -500,8 +575,13 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             result: self.sig.result,
             param_env: ParamEnv::default(),
             drop_flags: Vec::new(),
-            blocks,
+            blocks: std::mem::take(&mut self.blocks),
+        };
+        if !self.failed {
+            crate::drop_elab::elaborate(&mut body, &mut self.mono.module.tys, &self.auto_drops);
+            body.blocks = prune(body.blocks);
         }
+        body
     }
 
     // ---- constants ---------------------------------------------------------
@@ -588,6 +668,13 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             // projection, not a use of the address value.
             ExprKind::Deref(base) => self.place(base).deref(),
             ExprKind::Borrow { .. }
+            | ExprKind::Give(_)
+            | ExprKind::Describe(_)
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::Try(_)
             | ExprKind::Lit(_)
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
@@ -648,6 +735,9 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
         if let ExprKind::Lit(l) = &e.kind {
             let ty = self.ty(e.ty, e.span);
             return self.constant(*l, ty, e.span);
+        }
+        if let ExprKind::Give(inner) = &e.kind {
+            return Operand::Move(self.place(inner));
         }
         let ty = self.ty(e.ty, e.span);
         let p = self.place(e);
@@ -723,7 +813,23 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                     place,
                 }
             }
+            ExprKind::Describe(inner) => Rvalue::Describe {
+                place: self.place(inner),
+            },
+            ExprKind::ErrorInject { ok, value } => {
+                let ty = self.ty(e.ty, e.span);
+                Rvalue::ErrorUnion {
+                    ok: *ok,
+                    value: self.operand(value),
+                    ty,
+                }
+            }
             ExprKind::Lit(_)
+            | ExprKind::Give(_)
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Try(_)
             | ExprKind::Local(_)
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
@@ -811,6 +917,102 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                 );
                 self.cur = target;
             }
+            ExprKind::ForeignCall { callee, args } => {
+                let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
+                let target = self.new_block(span);
+                self.terminate(
+                    Terminator::Call {
+                        callee: Callee::Foreign(ForeignId(callee.0)),
+                        args: operands,
+                        dest,
+                        target,
+                        cancel: None,
+                    },
+                    span,
+                );
+                self.cur = target;
+            }
+            ExprKind::Intrinsic { op, args } => {
+                let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
+                let target = self.new_block(span);
+                self.terminate(
+                    Terminator::Call {
+                        callee: Callee::Intrinsic(*op),
+                        args: operands,
+                        dest,
+                        target,
+                        cancel: None,
+                    },
+                    span,
+                );
+                self.cur = target;
+            }
+            ExprKind::ManagedCreate { fields, .. } => {
+                let operands: Vec<Operand> = fields.iter().map(|f| self.operand(f)).collect();
+                let target = self.new_block(span);
+                self.terminate(
+                    Terminator::Call {
+                        callee: Callee::Intrinsic(IntrinsicOp::ManagedCreate),
+                        args: operands,
+                        dest,
+                        target,
+                        cancel: None,
+                    },
+                    span,
+                );
+                self.cur = target;
+            }
+            ExprKind::Try(inner) => {
+                let src = self.place(inner);
+                let inner_ty = self.ty(inner.ty, inner.span);
+                let TyKind::ErrorUnion {
+                    ok: ok_ty,
+                    err: err_ty,
+                } = self.tys().kind(inner_ty).clone()
+                else {
+                    self.failed = true;
+                    return;
+                };
+                let bool_ty = self.mono.module.tys.intern(TyKind::Bool);
+                let tag = self.temp(bool_ty);
+                self.assign(Place::local(tag), Rvalue::ErrorArm(src.clone()), span);
+                let ok_bb = self.new_block(span);
+                let err_bb = self.new_block(span);
+                self.terminate(
+                    Terminator::Switch {
+                        discr: Operand::Copy(Place::local(tag)),
+                        arms: vec![(1, ok_bb)],
+                        otherwise: err_bb,
+                    },
+                    span,
+                );
+                // Error arm: extract error payload, wrap into enclosing error union, unwind and return.
+                self.cur = err_bb;
+                let err_place = src.clone().project(Projection::ErrorArm(false));
+                let err_val = self.use_place(err_place, err_ty);
+                if let Some(r) = self.ret {
+                    self.assign(
+                        Place::local(r),
+                        Rvalue::ErrorUnion {
+                            ok: false,
+                            value: err_val,
+                            ty: self.sig.result,
+                        },
+                        span,
+                    );
+                }
+                self.unwind_to(0, span);
+                let ret_op = match self.ret {
+                    Some(r) => self.use_place(Place::local(r), self.sig.result),
+                    None => Operand::Const(ConstValue::Unit),
+                };
+                self.terminate(Terminator::Return { value: ret_op }, span);
+                // Success arm: extract ok payload into `dest`.
+                self.cur = ok_bb;
+                let ok_place = src.project(Projection::ErrorArm(true));
+                let ok_val = self.use_place(ok_place, ok_ty);
+                self.assign(dest, Rvalue::Use(ok_val), span);
+            }
             ExprKind::Match { .. }
             | ExprKind::Block(_)
             | ExprKind::Loop(_)
@@ -832,6 +1034,9 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             | ExprKind::Index { .. }
             | ExprKind::Deref(_)
             | ExprKind::Borrow { .. }
+            | ExprKind::Give(_)
+            | ExprKind::Describe(_)
+            | ExprKind::ErrorInject { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Convert { .. }
@@ -968,51 +1173,54 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                     }
                     None => self.rvalue(value),
                 };
-                match self.class(ty) {
-                    ValueClass::Copy => self.assign(p, rv, span),
-                    ValueClass::Affine | ValueClass::NotValue => {
-                        let v = self.temp(ty);
-                        self.assign(Place::local(v), rv, span);
-                        let old = self.temp(ty);
-                        self.push(
-                            InstructionKind::Replace {
-                                place: p,
-                                value: Operand::Move(Place::local(v)),
-                                old,
-                            },
-                            span,
-                        );
-                        self.push(
-                            InstructionKind::Drop {
-                                place: Place::local(old),
-                            },
-                            span,
-                        );
-                    }
+                if !self.needs_cleanup(ty) {
+                    self.assign(p, rv, span);
+                } else {
+                    let v = self.temp(ty);
+                    self.assign(Place::local(v), rv, span);
+                    let old = self.temp(ty);
+                    self.push(
+                        InstructionKind::Replace {
+                            place: p,
+                            value: Operand::Move(Place::local(v)),
+                            old,
+                        },
+                        span,
+                    );
+                    self.push(
+                        InstructionKind::Drop {
+                            place: Place::local(old),
+                        },
+                        span,
+                    );
                 }
             }
-            ExprKind::Call { .. } | ExprKind::Logical { .. } => {
-                let ty = self.ty(e.ty, span);
-                let t = self.temp(ty);
-                self.into(Place::local(t), e);
-            }
             ExprKind::Lit(_) | ExprKind::Local(_) => {}
-            ExprKind::Field { .. }
+            ExprKind::Call { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Try(_)
+            | ExprKind::Logical { .. }
+            | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
             | ExprKind::Index { .. }
             | ExprKind::Deref(_)
             | ExprKind::Borrow { .. }
+            | ExprKind::Give(_)
+            | ExprKind::Describe(_)
+            | ExprKind::ErrorInject { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Convert { .. }
             | ExprKind::Adt { .. }
             | ExprKind::Tuple(_)
             | ExprKind::Array(_) => {
-                // Evaluated for its checks; the value is discarded.
+                // Evaluated for its side effects/checks; the value is discarded.
                 let ty = self.ty(e.ty, span);
                 let t = self.temp(ty);
                 self.into(Place::local(t), e);
-                if self.class(ty) != ValueClass::Copy {
+                if self.needs_cleanup(ty) {
                     self.push(
                         InstructionKind::Drop {
                             place: Place::local(t),
@@ -1130,7 +1338,9 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                             work.push_back((sub, p));
                         }
                     }
-                    PatKind::Lit(_) | PatKind::Adt { .. } => out.push((place, pat)),
+                    PatKind::Lit(_) | PatKind::Adt { .. } | PatKind::ErrorArm { .. } => {
+                        out.push((place, pat))
+                    }
                 }
             }
             row.cols = out;
@@ -1297,6 +1507,53 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                     span,
                 );
                 for (bb, sub_rows) in pending {
+                    self.cur = bb;
+                    self.decide(sub_rows, arm_blocks, arm_bindings, span);
+                }
+            }
+            PatKind::ErrorArm { .. } => {
+                let bool_ty = self.mono.module.tys.intern(TyKind::Bool);
+                let tag = self.temp(bool_ty);
+                self.assign(
+                    Place::local(tag),
+                    Rvalue::ErrorArm(test_place.clone()),
+                    span,
+                );
+                let mut targets = Vec::new();
+                let mut specialized = Vec::new();
+                for arm_ok in [false, true] {
+                    let mut sub_rows = Vec::new();
+                    for row in &rows {
+                        let mut row = row.clone();
+                        match row.cols.iter().position(|(p, _)| *p == test_place) {
+                            None => sub_rows.push(row),
+                            Some(k) => {
+                                let (_, pat) = row.cols.remove(k);
+                                if let PatKind::ErrorArm { ok, inner } = &pat.kind
+                                    && *ok == arm_ok
+                                {
+                                    let sub =
+                                        test_place.clone().project(Projection::ErrorArm(arm_ok));
+                                    row.cols.insert(k, (sub, inner.as_ref()));
+                                    sub_rows.push(row);
+                                }
+                            }
+                        }
+                    }
+                    let bb = self.new_block(span);
+                    targets.push((u128::from(arm_ok), bb));
+                    specialized.push((bb, sub_rows));
+                }
+                let unreachable = self.new_block(span);
+                self.terminate(
+                    Terminator::Switch {
+                        discr: Operand::Copy(Place::local(tag)),
+                        arms: targets,
+                        otherwise: unreachable,
+                    },
+                    span,
+                );
+                for (bb, sub_rows) in specialized {
                     self.cur = bb;
                     self.decide(sub_rows, arm_blocks, arm_bindings, span);
                 }

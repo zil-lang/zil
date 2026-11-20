@@ -28,6 +28,20 @@ pub const ASSIGN_TARGET: &str = "E-ASSIGN-TARGET";
 pub const MISSING_RETURN: &str = "E-MISSING-RETURN";
 pub const LOOP_CONTROL: &str = "E-LOOP-CONTROL";
 pub const ARRAY_LENGTH: &str = "E-ARRAY-LENGTH";
+pub const FFI_DECLARATION: &str = "E-FFI-DECLARATION";
+pub const FFI_UNSAFE: &str = "E-FFI-UNSAFE";
+pub const DROP_BINDING: &str = "E-DROP-BINDING";
+pub const DROP_DUPLICATE: &str = "E-DROP-DUPLICATE";
+pub const DROP_SIGNATURE: &str = "E-DROP-SIGNATURE";
+pub const RESOURCE_TYPE: &str = "E-RESOURCE-TYPE";
+pub const RESOURCE_RESULT_MODE: &str = "E-RESOURCE-RESULT-MODE";
+pub const GIVE_DESCRIPTOR: &str = "E-GIVE-DESCRIPTOR";
+pub const GIVE_TYPE: &str = "E-GIVE-TYPE";
+pub const ERROR_INJECTION: &str = "E-ERROR-INJECTION";
+pub const ERROR_INJECTION_AMBIGUOUS: &str = "E-ERROR-INJECTION-AMBIGUOUS";
+pub const TRY_NOT_ERROR: &str = "E-TRY-NOT-ERROR";
+pub const TRY_RETURN_TYPE: &str = "E-TRY-RETURN-TYPE";
+pub const TRY_ERROR_TYPE: &str = "E-TRY-ERROR-TYPE";
 
 pub fn error(code: &str, span: Span, message: impl Into<String>) -> Diagnostic {
     Diagnostic::error(Phase::Types, code, Some(span), message)

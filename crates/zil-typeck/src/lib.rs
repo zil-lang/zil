@@ -10,6 +10,7 @@
 
 mod build;
 mod diag;
+mod drop_elab;
 mod infer;
 mod items;
 mod literal;
@@ -27,7 +28,7 @@ use zil_syntax::ast;
 pub struct Lowered {
     pub module: Module,
     pub source_map: SourceMap,
-    /// Entry roots (every non-generic function) by source name.
+    /// Entry roots (every non-generic normal function) by source name.
     pub roots: Vec<(String, FnId)>,
 }
 
@@ -52,10 +53,12 @@ pub fn lower_module(module: &ast::Module, limits: Limits) -> Result<Lowered, Vec
         return Err(diags);
     }
     let mut mono = build::Mono::new(&items, &mut types, &thir, &mut diags, limits);
+    mono.lower_foreigns();
     let mut roots = Vec::new();
     for (i, f) in items.fns.iter().enumerate() {
         if f.generics.is_empty()
             && let Some(id) = mono.instance(thir::FnRef(i as u32), Vec::new(), f.ast.span)
+            && f.role == items::FnRoleSpec::Normal
         {
             roots.push((f.name.clone(), id));
         }
