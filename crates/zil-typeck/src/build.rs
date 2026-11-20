@@ -22,7 +22,8 @@ use zil_ir::body::{
     ClosureId, ConstValue, FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnRole, FnSig, ForeignAbi,
     ForeignDecl, ForeignId, Function, GenericArgs, Instruction, InstructionKind, IntTy,
     IntrinsicOp, Local, LocalDecl, Module, Mutability, OpaqueTy, Operand, ParamEnv, Place,
-    Projection, Region, Rvalue, Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
+    Projection, Region, Rvalue, StaticId, Terminator, TyId, TyKind, ValueClass, VariantDef,
+    VariantIdx,
 };
 
 /// Work limits of one lowering request.
@@ -96,6 +97,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 symbol: f.symbol,
                 abi: ForeignAbi::C,
                 params,
+                noescape_params: f.noescape_params,
                 result,
             });
         }
@@ -829,6 +831,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Try(_)
             | ExprKind::CtEval(_)
             | ExprKind::Lit(_)
+            | ExprKind::StaticUtf(_)
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Logical { .. }
@@ -1027,6 +1030,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     value: self.operand(value),
                     ty,
                 }
+            }
+            ExprKind::StaticUtf(bytes) => {
+                let id = StaticId(self.mono.module.statics.len() as u32);
+                self.mono.module.statics.push(bytes.clone());
+                Rvalue::StaticUtf(id)
             }
             ExprKind::Lit(_)
             | ExprKind::Len(_)
@@ -1352,6 +1360,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 }
             }
             ExprKind::Lit(_)
+            | ExprKind::StaticUtf(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::Field { .. }
@@ -1752,7 +1761,10 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     );
                 }
             }
-            ExprKind::Lit(_) | ExprKind::Local(_) | ExprKind::Capture(_) => {}
+            ExprKind::Lit(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::Capture(_) => {}
             ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
@@ -1832,7 +1844,13 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     // ---- match -------------------------------------------------------------
 
     fn lower_match(&mut self, scrutinee: &Expr, arms: &[Arm], dest: Option<Place>, span: Span) {
+        self.enter_frame();
         let source = self.place(scrutinee);
+        let match_temps = self
+            .frames
+            .last()
+            .map(|f| f.temps.clone())
+            .unwrap_or_default();
         let arm_blocks: Vec<BlockId> = arms.iter().map(|a| self.new_block(a.span)).collect();
         let join = self.new_block(span);
         let rows: Vec<Row<'_>> = arms
@@ -1857,8 +1875,13 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 None => self.effect(&arm.body),
             }
             self.exit_frame(arm.span);
+            for t in match_temps.iter().rev().copied() {
+                self.push_auto_drop(t, arm.span);
+                self.push(InstructionKind::StorageDead(t), arm.span);
+            }
             self.goto(join, arm.span);
         }
+        self.frames.pop();
         self.cur = join;
     }
 

@@ -240,6 +240,7 @@ fn a_foreign_call_with_c_scalars_is_accepted() {
         abi: ForeignAbi::C,
         params: vec![i32],
         result: i32,
+        noescape_params: Vec::new(),
     });
     let mut f = FnBuilder::new("f", &[], i32);
     let (b0, b1) = (f.block(), f.block());
@@ -268,6 +269,7 @@ fn a_foreign_signature_with_an_address_is_rejected() {
         abi: ForeignAbi::C,
         params: vec![r_ty],
         result: unit,
+        noescape_params: Vec::new(),
     });
     let mut f = FnBuilder::new("f", &[], unit);
     let (b0, b1) = (f.block(), f.block());

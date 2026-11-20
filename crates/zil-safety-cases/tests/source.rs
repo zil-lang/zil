@@ -923,3 +923,103 @@ fn full_mainline_state_replacement_example_is_admitted_end_to_end() {
     .expect("state-replacement lowers");
     assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
 }
+
+// ---- buffered-io (extern noescape, StaticUtf, Option<T>, partial move drop) -
+
+#[test]
+fn buffered_io_short_io_fixture_is_admitted_end_to_end() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            ("std.io", include_str!("../../../lib/std/io.zil")),
+            (
+                "std.buffered_io",
+                include_str!("../../../lib/std/buffered_io.zil"),
+            ),
+            (
+                "main",
+                include_str!("../../../tests/fixtures/buffered-io/short_io.zil"),
+            ),
+        ],
+        None,
+    )
+    .expect("buffered-io short_io lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+// ---- original-obligations: missing SyncDrop negative tests -----------------
+
+#[test]
+fn state_replacement_missing_sync_drop_main_is_rejected() {
+    let err = zil_typeck::lower_sources(
+        &[
+            (
+                "portable",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/portable.zil"
+                ),
+            ),
+            (
+                "store_helpers",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/store_helpers.zil"
+                ),
+            ),
+            (
+                "factory",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/factory.zil"
+                ),
+            ),
+            (
+                "state",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/state.zil"
+                ),
+            ),
+            (
+                "main",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/main.zil"
+                ),
+            ),
+        ],
+        None,
+    )
+    .expect_err("missing SyncDrop on generic overwrite must be rejected");
+    assert!(
+        err.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"),
+        "expected E-GENERIC-ARGUMENT, got {err:?}"
+    );
+}
+
+#[test]
+fn state_replacement_missing_sync_drop_unused_is_rejected() {
+    let err = zil_typeck::lower_sources(
+        &[
+            (
+                "portable",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/portable.zil"
+                ),
+            ),
+            (
+                "state",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/state.zil"
+                ),
+            ),
+            (
+                "main",
+                include_str!(
+                    "../../../tests/language-readiness/original-obligations/state-replacement-missing-sync-drop/unused.zil"
+                ),
+            ),
+        ],
+        None,
+    )
+    .expect_err("missing SyncDrop must be rejected even when unused");
+    assert!(
+        err.iter().any(|d| d.code == "E-GENERIC-ARGUMENT"),
+        "expected E-GENERIC-ARGUMENT, got {err:?}"
+    );
+}

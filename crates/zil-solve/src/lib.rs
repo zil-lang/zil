@@ -34,6 +34,7 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
     let sigs = Sigs {
         functions: &fn_sigs,
         foreigns: &module.foreigns,
+        static_count: module.statics.len(),
     };
     let mut remaining = budget.steps;
     let mut certificate = Certificate::default();

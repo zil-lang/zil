@@ -69,6 +69,8 @@ pub struct Expr {
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     Lit(Lit),
+    /// Static UTF-8 byte slice literal (`&[u8]`).
+    StaticUtf(Vec<u8>),
     Local(LocalId),
     /// The n-th captured environment field inside a closure body.
     Capture(u32),
@@ -222,6 +224,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Index { .. }
         | ExprKind::Deref(_) => true,
         ExprKind::Lit(_)
+        | ExprKind::StaticUtf(_)
         | ExprKind::Borrow { .. }
         | ExprKind::SliceBorrow { .. }
         | ExprKind::Len(_)

@@ -505,6 +505,8 @@ pub struct ForeignDecl {
     pub abi: ForeignAbi,
     pub params: Vec<TyId>,
     pub result: TyId,
+    /// Parameter indices declared `noescape` (may accept C-ABI addresses).
+    pub noescape_params: Vec<u32>,
 }
 
 /// The signatures a body may refer to.
@@ -512,6 +514,7 @@ pub struct ForeignDecl {
 pub struct Sigs<'a> {
     pub functions: &'a [FnSig],
     pub foreigns: &'a [ForeignDecl],
+    pub static_count: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -528,6 +531,8 @@ pub struct Module {
     pub functions: Vec<Function>,
     /// Indexed by [`ForeignId`].
     pub foreigns: Vec<ForeignDecl>,
+    /// Static UTF-8 byte literals, indexed by [`StaticId`].
+    pub statics: Vec<Vec<u8>>,
 }
 
 impl Module {

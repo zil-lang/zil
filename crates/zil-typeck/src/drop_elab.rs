@@ -137,6 +137,46 @@ fn bool_assign(flag: Local, value: bool, span: Span) -> Instruction {
     }
 }
 
+fn all_cleanup_fields_uninit(
+    l: Local,
+    ty: zil_ir::body::TyId,
+    tys: &TyTable,
+    ufields: &HashSet<Place>,
+) -> bool {
+    let TyKind::Adt { adt, args } = *tys.kind(ty) else {
+        return false;
+    };
+    let def = tys.adt(adt);
+    if def.user_drop || def.variants.len() != 1 {
+        return false;
+    }
+    let arg_tys = tys.args(args);
+    let mut saw_cleanup = false;
+    for (fi, f) in def.variants[0].fields.iter().enumerate() {
+        let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
+            arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
+        } else {
+            f.ty
+        };
+        if tys.needs_cleanup(fty, &zil_ir::body::ParamEnv::default()) {
+            saw_cleanup = true;
+            let fp = Place {
+                root: zil_ir::body::PlaceRoot::Local(l),
+                projections: vec![zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
+                    adt,
+                    variant: zil_ir::body::VariantIdx(0),
+                    field: zil_ir::body::FieldIdx(fi as u32),
+                    args,
+                })],
+            };
+            if !ufields.contains(&fp) {
+                return false;
+            }
+        }
+    }
+    saw_cleanup
+}
+
 /// Rewrites every `(block, inst_idx)` auto-drop marker in `body`.
 pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(BlockId, usize)>) {
     if auto_drops.is_empty() || body.blocks.is_empty() {
@@ -224,7 +264,12 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                 && let InstructionKind::Drop { place } = &inst.kind
                 && let Some(l) = place.as_local()
             {
-                let st = state[l.index()];
+                let mut st = state[l.index()];
+                if !st.is_definitely_uninit()
+                    && all_cleanup_fields_uninit(l, body.locals[l.index()].ty, tys, &ufields)
+                {
+                    st = Init::UNINIT;
+                }
                 per_point.insert((bid, i), st);
                 if st.is_maybe() && !flagged.contains_key(&l) {
                     let bool_ty = tys.intern(TyKind::Bool);
@@ -271,13 +316,12 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
         let mut cur_id = bid;
         let mut cur_insts: Vec<Instruction> = Vec::new();
 
-        // Initialize flags for flagged parameters at entry.
+        // Initialize flags at entry: parameters start initialized (`true`),
+        // other flagged locals (including compiler temporaries) start `false`.
         if b_idx == 0 {
-            for p in 0..body.param_count {
-                let l = Local(p);
-                if let Some(&flag) = flagged.get(&l) {
-                    cur_insts.push(bool_assign(flag, true, orig.terminator_span));
-                }
+            for (&l, &flag) in &flagged {
+                let is_param = (l.0 as usize) < (body.param_count as usize);
+                cur_insts.push(bool_assign(flag, is_param, orig.terminator_span));
             }
         }
 
@@ -399,22 +443,31 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                 | InstructionKind::Replace { .. }
                 | InstructionKind::RegisterDefer { .. } => {
                     for a in inst.kind.accesses() {
-                        let Some(l) = a.place.as_local() else {
-                            continue;
-                        };
-                        let Some(&flag) = flagged.get(&l) else {
-                            continue;
-                        };
-                        match a.access {
-                            PlaceAccess::Move | PlaceAccess::Drop => updates.push((flag, false)),
-                            PlaceAccess::Init => updates.push((flag, true)),
-                            PlaceAccess::Copy
-                            | PlaceAccess::Borrow(_)
-                            | PlaceAccess::Describe
-                            | PlaceAccess::ReplaceInstance
-                            | PlaceAccess::InspectTag
-                            | PlaceAccess::InspectLen
-                            | PlaceAccess::CallClosure(_) => {}
+                        if let Some(l) = a.place.as_local() {
+                            let Some(&flag) = flagged.get(&l) else {
+                                continue;
+                            };
+                            match a.access {
+                                PlaceAccess::Move | PlaceAccess::Drop => {
+                                    updates.push((flag, false))
+                                }
+                                PlaceAccess::Init => updates.push((flag, true)),
+                                PlaceAccess::Copy
+                                | PlaceAccess::Borrow(_)
+                                | PlaceAccess::Describe
+                                | PlaceAccess::ReplaceInstance
+                                | PlaceAccess::InspectTag
+                                | PlaceAccess::InspectLen
+                                | PlaceAccess::CallClosure(_) => {}
+                            }
+                        } else if matches!(a.access, PlaceAccess::Move | PlaceAccess::Drop)
+                            && let (
+                                zil_ir::body::PlaceRoot::Local(l),
+                                [zil_ir::body::Projection::ErrorArm(_)],
+                            ) = (a.place.root, a.place.projections.as_slice())
+                            && let Some(&flag) = flagged.get(&l)
+                        {
+                            updates.push((flag, false));
                         }
                     }
                 }

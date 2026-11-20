@@ -45,6 +45,8 @@ pub struct GenericInfo {
     pub copy: bool,
     /// Declared `StoreElement` bound.
     pub store_element: bool,
+    /// Declared `SyncDrop` bound.
+    pub sync_drop: bool,
     /// Declared user trait bounds: `(trait_ref, trait_args)`.
     pub traits: Vec<(TraitRef, Vec<Ty>)>,
     /// Declared `Fn`/`FnMut`/`FnOnce` bound: `(kind, params, result)`.
@@ -96,6 +98,7 @@ pub struct ForeignDeclInfo {
     pub name: String,
     pub symbol: String,
     pub params: Vec<Ty>,
+    pub noescape_params: Vec<u32>,
     pub result: Ty,
     pub span: Span,
 }
@@ -270,6 +273,32 @@ pub fn collect_program<'a>(
         }
     }
 
+    // Built-in prelude ADT: `enum Option<T> { None, Some(T) }` at AdtRef(0).
+    let option_adt = AdtRef(0);
+    items.adt_kinds.push(AdtKind::Enum);
+    let option_t = types.intern(TyData::Param(0));
+    items.adts.push(AdtDecl {
+        name: "Option".to_string(),
+        kind: AdtKind::Enum,
+        generics: vec!["T".to_string()],
+        variants: vec![
+            VariantDecl {
+                name: "None".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "Some".to_string(),
+                shape: VariantShape::Tuple,
+                fields: vec![FieldDecl {
+                    name: "0".to_string(),
+                    ty: option_t,
+                }],
+            },
+        ],
+        user_drop: false,
+    });
+
     // Pass 1: top-level names, ADT kinds and module imports.
     let mut adt_asts: Vec<(ModIdx, AdtAst<'a>)> = Vec::new();
     let mut fn_asts: Vec<(ModIdx, &'a ast::Function)> = Vec::new();
@@ -315,12 +344,18 @@ pub fn collect_program<'a>(
                     };
                     items.adt_kinds.push(kind);
                     adt_asts.push((mid, AdtAst::Aggregate(a, item.span)));
-                    (&a.name, ItemRef::Adt(AdtRef(adt_asts.len() as u32 - 1)))
+                    (
+                        &a.name,
+                        ItemRef::Adt(AdtRef(items.adt_kinds.len() as u32 - 1)),
+                    )
                 }
                 ast::ItemKind::Enum(e) => {
                     items.adt_kinds.push(AdtKind::Enum);
                     adt_asts.push((mid, AdtAst::Enum(e, item.span)));
-                    (&e.name, ItemRef::Adt(AdtRef(adt_asts.len() as u32 - 1)))
+                    (
+                        &e.name,
+                        ItemRef::Adt(AdtRef(items.adt_kinds.len() as u32 - 1)),
+                    )
                 }
                 ast::ItemKind::Extern { abi, function } => {
                     foreign_asts.push((mid, abi.as_str(), function, item.span));
@@ -364,6 +399,10 @@ pub fn collect_program<'a>(
                 items.modules[m_i].publics.insert(name.clone());
             }
         }
+        items.modules[m_i]
+            .names
+            .entry("Option".to_string())
+            .or_insert(ItemRef::Adt(option_adt));
     }
 
     // Pass 2: declarations. Collect traits first so function/ADT generic bounds can reference them.
@@ -535,6 +574,7 @@ fn type_generics(
             ast::GenericParamKind::Type(bounds) => {
                 let mut copy = false;
                 let mut store_element = false;
+                let mut sync_drop = false;
                 let mut traits = Vec::new();
                 let mut callable = None;
                 for b in bounds {
@@ -557,8 +597,7 @@ fn type_generics(
                         } else if args.is_empty() && path == &["StoreElement"] {
                             store_element = true;
                         } else if args.is_empty() && path == &["SyncDrop"] {
-                            // SyncDrop bound accepted; checked against async/non-sync types when those arrive.
-                            continue;
+                            sync_drop = true;
                         } else if let Some(ItemRef::Trait(tr)) =
                             lookup_item_in(modules, mod_by_path, mid, path)
                         {
@@ -603,6 +642,7 @@ fn type_generics(
                     name: g.name.clone(),
                     copy,
                     store_element,
+                    sync_drop,
                     traits,
                     callable,
                 });
@@ -1038,6 +1078,17 @@ fn is_c_abi_param(ty: Ty, types: &Types) -> bool {
     )
 }
 
+fn is_c_abi_noescape_param(ty: Ty, types: &Types) -> bool {
+    let TyData::Ref { pointee, .. } = *types.data(ty) else {
+        return false;
+    };
+    if let TyData::Array { element, .. } = *types.data(pointee) {
+        is_c_abi_param(element, types)
+    } else {
+        is_c_abi_param(pointee, types)
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn collect_foreign(
     mid: ModIdx,
@@ -1071,8 +1122,41 @@ fn collect_foreign(
             "extern \"C\" functions cannot have a body",
         ));
     }
+    let mut noescape_params: Vec<u32> = Vec::new();
+    for c in &f.contract {
+        if c.name == "provides" {
+            for term in &c.terms {
+                if term.path == ["noescape"] && term.arguments.len() == 1 {
+                    if let [pname] = term.arguments[0].path.as_slice()
+                        && let Some(idx) = f.params.iter().position(|p| p.name == *pname)
+                    {
+                        let idx = idx as u32;
+                        if !noescape_params.contains(&idx) {
+                            noescape_params.push(idx);
+                        }
+                    } else {
+                        diags.push(diag::error(
+                            diag::FFI_DECLARATION,
+                            term.span,
+                            "noescape must name a parameter of this extern function",
+                        ));
+                    }
+                } else {
+                    diags.push(diag::unsupported("extern contract clause", term.span));
+                }
+            }
+        } else if c.name == "effects" {
+            for term in &c.terms {
+                if term.path != ["ffi"] || !term.arguments.is_empty() {
+                    diags.push(diag::unsupported("extern effect clause", term.span));
+                }
+            }
+        } else {
+            diags.push(diag::unsupported("extern contract clause", c.span));
+        }
+    }
     let mut params = Vec::new();
-    for p in &f.params {
+    for (idx, p) in f.params.iter().enumerate() {
         let ty = resolve_type_in(
             &p.ty,
             mid,
@@ -1088,7 +1172,10 @@ fn collect_foreign(
             diags.push(d);
             types.error()
         });
-        if p.give || !is_c_abi_param(ty, types) {
+        let noescape = noescape_params.contains(&(idx as u32));
+        let ok = !p.give
+            && (is_c_abi_param(ty, types) || (noescape && is_c_abi_noescape_param(ty, types)));
+        if !ok {
             diags.push(diag::error(
                 diag::FFI_DECLARATION,
                 p.span,
@@ -1126,6 +1213,7 @@ fn collect_foreign(
         name: f.name.clone(),
         symbol: f.name.clone(),
         params,
+        noescape_params,
         result,
         span,
     }

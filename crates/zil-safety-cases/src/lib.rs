@@ -121,6 +121,7 @@ impl ModuleBuilder {
             tys: self.tys,
             functions: self.functions,
             foreigns: self.foreigns,
+            statics: Vec::new(),
         }
     }
 }

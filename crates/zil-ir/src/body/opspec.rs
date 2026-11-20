@@ -719,7 +719,20 @@ pub fn rvalue_ty(rvalue: &Rvalue, cx: &ConstraintCx<'_>) -> Result<TyId, Constra
             })
         }
         Rvalue::ForeignFnRef(_) => Err(ConstraintError::Unspecified("foreign function values")),
-        Rvalue::StaticUtf(_) => Err(ConstraintError::Unspecified("static UTF-8 values")),
+        Rvalue::StaticUtf(id) => {
+            if id.index() >= cx.sigs.static_count {
+                return Err(ConstraintError::Operator {
+                    reason: "unknown static byte literal",
+                });
+            }
+            let u8_ty = cx.lookup(TyKind::Int(IntTy::U8))?;
+            let slice_u8 = cx.lookup(TyKind::Slice(u8_ty))?;
+            cx.lookup(TyKind::Ref {
+                region: super::ty::Region::Static,
+                mutability: Mutability::Shared,
+                pointee: slice_u8,
+            })
+        }
     }
 }
 
@@ -1025,6 +1038,15 @@ fn c_abi_value(tys: &super::ty::TyTable, ty: TyId) -> bool {
     }
 }
 
+/// Pointee types allowed behind a `noescape` C pointer parameter.
+fn c_abi_pointee(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    match tys.get(ty) {
+        Some(TyKind::Int(_) | TyKind::Float(_)) => true,
+        Some(TyKind::Array { element, .. }) => c_abi_value(tys, *element),
+        Some(_) | None => false,
+    }
+}
+
 fn callee_sig(
     callee: &Callee,
     found: &[TyId],
@@ -1099,7 +1121,16 @@ fn callee_sig(
                 })?;
             let result_ok =
                 matches!(tys.get(decl.result), Some(TyKind::Unit)) || c_abi_value(tys, decl.result);
-            if !result_ok || !decl.params.iter().all(|p| c_abi_value(tys, *p)) {
+            let params_ok = decl.params.iter().enumerate().all(|(i, p)| {
+                if c_abi_value(tys, *p) {
+                    true
+                } else if decl.noescape_params.contains(&(i as u32)) {
+                    matches!(tys.get(*p), Some(TyKind::Ref { pointee, .. }) if c_abi_pointee(tys, *pointee))
+                } else {
+                    false
+                }
+            });
+            if !result_ok || !params_ok {
                 return Err(ConstraintError::Operator {
                     reason: "foreign signature outside the C value ABI",
                 });

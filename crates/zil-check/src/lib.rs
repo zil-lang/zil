@@ -36,6 +36,7 @@ pub fn check_module(
     let sigs = Sigs {
         functions: &fn_sigs,
         foreigns: &module.foreigns,
+        static_count: module.statics.len(),
     };
     let mut remaining = budget;
     if certificate.functions.len() != module.functions.len() {

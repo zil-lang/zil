@@ -290,7 +290,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             return out;
         }
 
-        // 2. Auto-describe: `Managed<R>` or `&Managed<R>` -> `Desc<R>`.
+        // 2. Auto-describe: `Managed<R>` or `&Managed<R>` -> `Desc<R>`, and `&Managed<R>` -> `&Desc<R>`.
         if let TyData::Desc(want_inner) = ed {
             if let TyData::Managed(got_inner) = vd {
                 self.unify(got_inner, want_inner, span);
@@ -316,6 +316,48 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         span: vspan,
                     };
                 }
+            }
+        }
+        if let (
+            TyData::Ref {
+                mutable: false,
+                pointee: want_pt,
+            },
+            TyData::Ref {
+                pointee: got_pt, ..
+            },
+        ) = (&ed, &vd)
+        {
+            let want_pt = self.types.shallow(*want_pt);
+            let got_pt = self.types.shallow(*got_pt);
+            if let (TyData::Desc(want_inner), TyData::Managed(got_inner)) = (
+                self.types.data(want_pt).clone(),
+                self.types.data(got_pt).clone(),
+            ) {
+                self.unify(got_inner, want_inner, span);
+                let vspan = value.span;
+                let managed_place = if let ExprKind::Borrow { place, .. } = value.kind {
+                    *place
+                } else {
+                    Expr {
+                        kind: ExprKind::Deref(Box::new(value)),
+                        ty: got_pt,
+                        span: vspan,
+                    }
+                };
+                let desc = Expr {
+                    kind: ExprKind::Describe(Box::new(managed_place)),
+                    ty: want_pt,
+                    span: vspan,
+                };
+                return Expr {
+                    kind: ExprKind::Borrow {
+                        mutable: false,
+                        place: Box::new(desc),
+                    },
+                    ty: expected,
+                    span: vspan,
+                };
             }
         }
 
@@ -921,6 +963,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Try(_)
                 | ExprKind::CtEval(_)
                 | ExprKind::Lit(_)
+                | ExprKind::StaticUtf(_)
                 | ExprKind::Unary { .. }
                 | ExprKind::Binary { .. }
                 | ExprKind::Logical { .. }
@@ -1174,10 +1217,50 @@ impl<'c, 'a> FnCx<'c, 'a> {
         }
     }
 
+    fn parse_string_bytes(raw: &str) -> Vec<u8> {
+        let inner = raw
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .unwrap_or(raw);
+        let mut out = Vec::with_capacity(inner.len());
+        let mut chars = inner.chars();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.next() {
+                    Some('n') => out.push(b'\n'),
+                    Some('r') => out.push(b'\r'),
+                    Some('t') => out.push(b'\t'),
+                    Some('\\') => out.push(b'\\'),
+                    Some('"') => out.push(b'"'),
+                    Some('0') => out.push(0),
+                    Some(other) => {
+                        let mut buf = [0u8; 4];
+                        out.extend_from_slice(other.encode_utf8(&mut buf).as_bytes());
+                    }
+                    None => out.push(b'\\'),
+                }
+            } else {
+                let mut buf = [0u8; 4];
+                out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+            }
+        }
+        out
+    }
+
     pub fn infer(&mut self, e: &ast::Expr) -> Expr {
         let span = e.span;
         let mk = |kind, ty| Expr { kind, ty, span };
         match &e.kind {
+            ast::ExprKind::Literal(ast::Literal::String(raw)) => {
+                let bytes = Self::parse_string_bytes(raw);
+                let u8_ty = self.types.intern(TyData::Int(IntTy::U8));
+                let slice_ty = self.types.intern(TyData::Slice(u8_ty));
+                let ref_ty = self.types.intern(TyData::Ref {
+                    mutable: false,
+                    pointee: slice_ty,
+                });
+                mk(ExprKind::StaticUtf(bytes), ref_ty)
+            }
             ast::ExprKind::Literal(l) => match self.literal(l, span) {
                 Some((lit, ty)) => mk(ExprKind::Lit(lit), ty),
                 None => self.err_expr(span),
@@ -2094,6 +2177,77 @@ impl<'c, 'a> FnCx<'c, 'a> {
             } else {
                 (callee, None)
             };
+        // Explicit generic enum variant call: `Option::<u8>.None()`, `Option::<u8>.Some(x)`.
+        if explicit.is_none()
+            && let ast::ExprKind::Member {
+                object,
+                member: ast::MemberName::Name(variant),
+            } = &callee.kind
+            && let ast::ExprKind::TypeApply {
+                callee: enum_callee,
+                arguments: enum_type_args,
+            } = &object.kind
+            && let Some(enum_path) = Self::expr_path(enum_callee).filter(|p| !self.path_is_value(p))
+            && let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, &enum_path)
+            && self.items.adt(adt).kind == AdtKind::Enum
+        {
+            let Some(v_idx) = self.items.adt(adt).variant_named(variant) else {
+                self.error(
+                    diag::ENUM_VARIANT,
+                    span,
+                    format!("`{}` has no variant `{variant}`", enum_path.join(".")),
+                );
+                return self.err_expr(span);
+            };
+            let v = &self.items.adt(adt).variants[v_idx as usize];
+            let shape_ok = v.shape == VariantShape::Tuple
+                || (v.shape == VariantShape::Unit && arguments.is_empty());
+            if !shape_ok || v.fields.len() != arguments.len() {
+                self.error(
+                    diag::ENUM_ARITY,
+                    span,
+                    "the arguments do not match the variant's fields",
+                );
+                return self.err_expr(span);
+            }
+            let expected_n = self.items.adt(adt).generics.len();
+            let args = if enum_type_args.len() != expected_n {
+                self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
+                self.fresh_args(adt)
+            } else {
+                let mut out = Vec::with_capacity(enum_type_args.len());
+                for g in enum_type_args {
+                    match g {
+                        ast::GenericArg::Type(t) => out.push(self.resolve_written(t)),
+                        ast::GenericArg::Lifetime(_)
+                        | ast::GenericArg::Const(_)
+                        | ast::GenericArg::AssociatedBinding(_) => {
+                            self.unsupported("non-type generic arguments", span);
+                            out.push(self.types.error());
+                        }
+                    }
+                }
+                out
+            };
+            let mut fields = Vec::new();
+            for (i, a) in arguments.iter().enumerate() {
+                let value = self.infer(&a.value);
+                let ft = self.field_ty(adt, v_idx, i as u32, &args);
+                let value = self.coerce_value(value, ft, a.span);
+                fields.push(value);
+            }
+            let ty = self.adt_ty(adt, &args);
+            return Expr {
+                kind: ExprKind::Adt {
+                    adt,
+                    variant: v_idx,
+                    args,
+                    fields,
+                },
+                ty,
+                span,
+            };
+        }
         if let Some(path) = Self::expr_path(callee).filter(|p| !self.path_is_value(p)) {
             if let [name] = path.as_slice()
                 && scalar_type(name).is_some()
@@ -2150,7 +2304,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         return self.err_expr(span);
                     };
                     let v = &self.items.adt(adt).variants[v_idx as usize];
-                    if v.shape != VariantShape::Tuple || v.fields.len() != arguments.len() {
+                    let shape_ok = v.shape == VariantShape::Tuple
+                        || (v.shape == VariantShape::Unit && arguments.is_empty());
+                    if !shape_ok || v.fields.len() != arguments.len() {
                         self.error(
                             diag::ENUM_ARITY,
                             span,
@@ -2669,6 +2825,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Try(inner)
             | ExprKind::CtEval(inner) => walk(inner),
             ExprKind::Lit(_)
+            | ExprKind::StaticUtf(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::Continue
@@ -2905,7 +3062,8 @@ impl Finalizer<'_, '_> {
                 let l = *l;
                 self.literal(l, ty, span);
             }
-            ExprKind::Local(_)
+            ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::FnRef(_)
             | ExprKind::Break
@@ -3112,6 +3270,20 @@ impl Finalizer<'_, '_> {
                 if let Some(op) = *op {
                     let ty = place.ty;
                     self.binary_domain(op, ty, span);
+                } else if let TyData::Param(i) = self.data(place.ty)
+                    && let Some(g) = self.generics.get(i as usize)
+                    && !g.copy
+                    && !g.sync_drop
+                    && !matches!(g.callable, Some((ClosureKind::FnOnce, _, _)))
+                {
+                    self.diags.push(diag::error(
+                        diag::GENERIC_BOUND,
+                        span,
+                        format!(
+                            "overwriting a value of generic type `{}` requires `Copy` or `SyncDrop`",
+                            g.name
+                        ),
+                    ));
                 }
             }
         }
