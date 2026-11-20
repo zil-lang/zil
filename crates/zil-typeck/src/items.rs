@@ -1912,6 +1912,20 @@ fn collect_trait_impl<'a>(
             }
             ast::ItemKind::Function(f) => {
                 let mut params = Vec::new();
+                if f.params.first().map(|p| p.name.as_str()) != Some("self")
+                    && let Some(tm) = items
+                        .traits
+                        .get(trait_ref.0 as usize)
+                        .and_then(|tr| tr.methods.iter().find(|m| m.name == f.name))
+                    && tm.params.len() == f.params.len() + 1
+                {
+                    let self_param_ty = types.subst_with_self(tm.params[0], &trait_args, target);
+                    params.push(ParamInfo {
+                        name: "self".into(),
+                        ty: self_param_ty,
+                        span: f.span,
+                    });
+                }
                 for p in &f.params {
                     let ty = resolve_type_in(
                         &p.ty,

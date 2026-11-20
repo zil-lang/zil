@@ -42,8 +42,8 @@ pub fn emit_verified_body(
     out.push_str("; ZIL Verified Body IR -> LLVM 23 IR\n");
     out.push_str("target triple = \"x86_64-unknown-linux-gnu\"\n\n");
     out.push_str("declare ptr @calloc(i64, i64)\n");
-    out.push_str("declare ptr @realloc(ptr, i64)\n");
-    out.push_str("declare void @free(ptr)\n");
+    out.push_str("declare ptr @realloc(ptr, i64) nobuiltin\n");
+    out.push_str("declare void @free(ptr) nobuiltin\n");
     out.push_str("declare void @abort() noreturn\n\n");
 
     // Emit static UTF-8 byte globals.
@@ -153,6 +153,15 @@ fn llvm_int_ty(i: IntTy) -> &'static str {
     }
 }
 
+fn is_inline_managed(tys: &TyTable, inner: TyId) -> bool {
+    matches!(
+        tys.get(inner),
+        Some(
+            TyKind::Adt { .. } | TyKind::Opaque(OpaqueTy::ByteBuffer | OpaqueTy::OwnedStore { .. })
+        )
+    )
+}
+
 fn llvm_ty(tys: &TyTable, id: TyId) -> Result<String, BodyEmitError> {
     let kind = tys
         .get(id)
@@ -170,8 +179,14 @@ fn llvm_ty(tys: &TyTable, id: TyId) -> Result<String, BodyEmitError> {
                 "ptr".into()
             }
         }
-        TyKind::Managed(_)
-        | TyKind::Desc(_)
+        TyKind::Managed(inner) => match tys.get(*inner) {
+            Some(TyKind::Adt { .. }) => llvm_storage_ty(tys, *inner)?,
+            Some(TyKind::Opaque(OpaqueTy::ByteBuffer | OpaqueTy::OwnedStore { .. })) => {
+                "{ ptr, i64, i64 }".into()
+            }
+            _ => "ptr".into(),
+        },
+        TyKind::Desc(_)
         | TyKind::FnPtr { .. }
         | TyKind::Dyn(_)
         | TyKind::OwnedDyn(_)
@@ -370,12 +385,15 @@ impl<'a> FnEmitter<'a> {
             let base_llvm = llvm_storage_ty(self.tys(), ty)?;
             match *step {
                 Projection::Deref => {
-                    let is_slice_ref = matches!(
-                        self.tys().get(ty),
-                        Some(TyKind::Ref { pointee, .. }) if matches!(self.tys().get(*pointee), Some(TyKind::Slice(_)))
-                    );
-                    if is_slice_ref {
-                        // A slice ref is `{ ptr, i64 }` stored at `ptr`; deref stays at the fat ptr slot.
+                    let is_transparent = match self.tys().get(ty) {
+                        Some(TyKind::Ref { pointee, .. }) => {
+                            matches!(self.tys().get(*pointee), Some(TyKind::Slice(_)))
+                        }
+                        Some(TyKind::Managed(pointee)) => is_inline_managed(self.tys(), *pointee),
+                        _ => false,
+                    };
+                    if is_transparent {
+                        // Inline Managed or slice ref already resides at `ptr`.
                         ty = self.step_ty(ty, *step)?;
                     } else {
                         let loaded = self.fresh();
@@ -584,8 +602,14 @@ impl<'a> FnEmitter<'a> {
         };
         match kind {
             TyKind::Managed(inner) => {
-                let handle = self.fresh();
-                let _ = writeln!(self.out, "  {handle} = load ptr, ptr {ptr}");
+                let inline = is_inline_managed(self.tys(), inner);
+                let handle = if inline {
+                    ptr.to_string()
+                } else {
+                    let h = self.fresh();
+                    let _ = writeln!(self.out, "  {h} = load ptr, ptr {ptr}");
+                    h
+                };
                 match self.tys().get(inner).cloned() {
                     Some(TyKind::Adt { adt, .. }) => {
                         if let Some(drop_fn_id) = self.module.drop_fn(adt) {
@@ -622,7 +646,7 @@ impl<'a> FnEmitter<'a> {
                         let elem_llvm = llvm_storage_ty(self.tys(), elem)?;
                         let idx_slot = self.fresh();
                         let _ = writeln!(self.out, "  {idx_slot} = alloca i64");
-                        let _ = writeln!(self.out, "  store i64 {len}, ptr {idx_slot}");
+                        let _ = writeln!(self.out, "  store i64 0, ptr {idx_slot}");
                         let head = self.fresh();
                         let body_bb = self.fresh();
                         let done = self.fresh();
@@ -632,18 +656,18 @@ impl<'a> FnEmitter<'a> {
                         let cur = self.fresh();
                         let _ = writeln!(self.out, "  {cur} = load i64, ptr {idx_slot}");
                         let cond = self.fresh();
-                        let _ = writeln!(self.out, "  {cond} = icmp sgt i64 {cur}, 0");
+                        let _ = writeln!(self.out, "  {cond} = icmp slt i64 {cur}, {len}");
                         let _ = writeln!(self.out, "  br i1 {cond}, label %{bl}, label %{dl}");
                         let _ = writeln!(self.out, "{bl}:");
-                        let next = self.fresh();
-                        let _ = writeln!(self.out, "  {next} = sub i64 {cur}, 1");
-                        let _ = writeln!(self.out, "  store i64 {next}, ptr {idx_slot}");
                         let elem_ptr = self.fresh();
                         let _ = writeln!(
                             self.out,
-                            "  {elem_ptr} = getelementptr inbounds {elem_llvm}, ptr {data}, i64 {next}"
+                            "  {elem_ptr} = getelementptr inbounds {elem_llvm}, ptr {data}, i64 {cur}"
                         );
                         self.emit_drop_ptr(&elem_ptr, elem)?;
+                        let next = self.fresh();
+                        let _ = writeln!(self.out, "  {next} = add i64 {cur}, 1");
+                        let _ = writeln!(self.out, "  store i64 {next}, ptr {idx_slot}");
                         let _ = writeln!(self.out, "  br label %{hl}");
                         let _ = writeln!(self.out, "{dl}:");
                         let _ = writeln!(self.out, "  call void @free(ptr {data})");
@@ -682,7 +706,9 @@ impl<'a> FnEmitter<'a> {
                     )
                     | None => {}
                 }
-                let _ = writeln!(self.out, "  call void @free(ptr {handle})");
+                if !inline {
+                    let _ = writeln!(self.out, "  call void @free(ptr {handle})");
+                }
                 Ok(())
             }
             TyKind::Adt { adt, args } => {
@@ -693,7 +719,7 @@ impl<'a> FnEmitter<'a> {
                     AdtKind::Package => {
                         let base_llvm = llvm_storage_ty(self.tys(), ty)?;
                         if let Some(v) = def.variants.first() {
-                            for (fi, f) in v.fields.iter().enumerate().rev() {
+                            for (fi, f) in v.fields.iter().enumerate() {
                                 let fty = self.tys().subst_lookup(f.ty, args).unwrap_or(f.ty);
                                 let gep = self.fresh();
                                 let _ = writeln!(
@@ -865,10 +891,18 @@ impl<'a> FnEmitter<'a> {
                 Ok(())
             }
             Rvalue::Describe { place } => {
-                let (p_ptr, _) = self.emit_place_ptr(place)?;
-                let handle = self.fresh();
-                let _ = writeln!(self.out, "  {handle} = load ptr, ptr {p_ptr}");
-                let _ = writeln!(self.out, "  store ptr {handle}, ptr {d_ptr}");
+                let (p_ptr, p_ty) = self.emit_place_ptr(place)?;
+                let inline = matches!(
+                    self.tys().get(p_ty),
+                    Some(TyKind::Managed(inner)) if is_inline_managed(self.tys(), *inner)
+                );
+                if inline {
+                    let _ = writeln!(self.out, "  store ptr {p_ptr}, ptr {d_ptr}");
+                } else {
+                    let handle = self.fresh();
+                    let _ = writeln!(self.out, "  {handle} = load ptr, ptr {p_ptr}");
+                    let _ = writeln!(self.out, "  store ptr {handle}, ptr {d_ptr}");
+                }
                 Ok(())
             }
             Rvalue::Aggregate { kind, operands } => {
@@ -1454,41 +1488,39 @@ impl<'a> FnEmitter<'a> {
     ) -> Result<(), BodyEmitError> {
         match op {
             IntrinsicOp::ManagedCreate => {
-                // Allocate resource payload on heap via calloc(1, sizeof(payload)).
+                // Initialize inline resource payload directly in `d_ptr` with zero heap allocation.
                 let Some(TyKind::Managed(inner)) = self.tys().get(d_ty) else {
                     return Err(BodyEmitError::new("ManagedCreate dest is not Managed"));
                 };
                 let inner_llvm = llvm_storage_ty(self.tys(), *inner)?;
-                let sz_ptr = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {sz_ptr} = getelementptr {inner_llvm}, ptr null, i32 1"
-                );
-                let sz = self.fresh();
-                let _ = writeln!(self.out, "  {sz} = ptrtoint ptr {sz_ptr} to i64");
-                let raw = self.fresh();
-                let _ = writeln!(self.out, "  {raw} = call ptr @calloc(i64 1, i64 {sz})");
-                for (i, a) in args.iter().enumerate() {
-                    let (v, lt, _) = self.emit_operand(a)?;
-                    let gep = self.fresh();
+                if args.is_empty() {
                     let _ = writeln!(
                         self.out,
-                        "  {gep} = getelementptr inbounds {inner_llvm}, ptr {raw}, i32 0, i32 {i}"
+                        "  store {inner_llvm} zeroinitializer, ptr {d_ptr}"
                     );
-                    if lt == "void" {
-                        let _ = writeln!(self.out, "  store i8 0, ptr {gep}");
-                    } else {
-                        let _ = writeln!(self.out, "  store {lt} {v}, ptr {gep}");
+                } else {
+                    for (i, a) in args.iter().enumerate() {
+                        let (v, lt, _) = self.emit_operand(a)?;
+                        let gep = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {gep} = getelementptr inbounds {inner_llvm}, ptr {d_ptr}, i32 0, i32 {i}"
+                        );
+                        if lt == "void" {
+                            let _ = writeln!(self.out, "  store i8 0, ptr {gep}");
+                        } else {
+                            let _ = writeln!(self.out, "  store {lt} {v}, ptr {gep}");
+                        }
                     }
                 }
-                let _ = writeln!(self.out, "  store ptr {raw}, ptr {d_ptr}");
                 Ok(())
             }
             IntrinsicOp::ByteBufferNew | IntrinsicOp::StoreNew => {
-                // Header layout: { ptr data, i64 len, i64 cap } = 24 bytes, zeroed.
-                let raw = self.fresh();
-                let _ = writeln!(self.out, "  {raw} = call ptr @calloc(i64 1, i64 24)");
-                let _ = writeln!(self.out, "  store ptr {raw}, ptr {d_ptr}");
+                // Inline header `{ ptr data, i64 len, i64 cap }`, zero-initialized without heap allocation.
+                let _ = writeln!(
+                    self.out,
+                    "  store {{ ptr, i64, i64 }} zeroinitializer, ptr {d_ptr}"
+                );
                 Ok(())
             }
             IntrinsicOp::ByteBufferLen | IntrinsicOp::StoreLen => {

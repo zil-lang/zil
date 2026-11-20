@@ -8,7 +8,9 @@
 mod body_build;
 mod body_emit;
 
-pub use body_build::{BodyBuildError, BodyBuildOptions, build_verified_body, default_clang_path};
+pub use body_build::{
+    BodyBuildError, BodyBuildOptions, BodyBuildOutput, build_verified_body, default_clang_path,
+};
 pub use body_emit::{BodyEmitError, emit_verified_body};
 pub use zil_llvm_api::FunctionMerging;
 

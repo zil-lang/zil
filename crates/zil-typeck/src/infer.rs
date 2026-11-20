@@ -2569,6 +2569,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     };
                 }
             }
+            let mut resolved_self_ty = self_ty;
+            let mut receiver = receiver;
             let found_trait = if let TyData::Param(param_idx) = *self.types.data(self_ty) {
                 self.decl
                     .generics
@@ -2583,22 +2585,43 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             .map(|m| (*tr_ref, tr_args.clone(), m.params.clone(), m.result))
                     })
             } else {
-                self.items.trait_impls.iter().find_map(|imp| {
-                    let impl_args = self.items.match_impl(imp, self_ty, self.types)?;
-                    let tr = self.items.trait_decl(imp.trait_ref);
-                    tr.methods
-                        .iter()
-                        .find(|m| m.name == *mname && !m.params.is_empty())
-                        .map(|m| {
-                            let resolved_targs: Vec<Ty> = imp
-                                .trait_args
-                                .iter()
-                                .map(|t| self.types.subst(*t, &impl_args))
-                                .collect();
-                            (imp.trait_ref, resolved_targs, m.params.clone(), m.result)
-                        })
-                })
+                let try_lookup = |target_ty: Ty, types: &mut Types| {
+                    self.items.trait_impls.iter().find_map(|imp| {
+                        let impl_args = self.items.match_impl(imp, target_ty, types)?;
+                        let tr = self.items.trait_decl(imp.trait_ref);
+                        tr.methods
+                            .iter()
+                            .find(|m| m.name == *mname && !m.params.is_empty())
+                            .map(|m| {
+                                let resolved_targs: Vec<Ty> = imp
+                                    .trait_args
+                                    .iter()
+                                    .map(|t| types.subst(*t, &impl_args))
+                                    .collect();
+                                (imp.trait_ref, resolved_targs, m.params.clone(), m.result)
+                            })
+                    })
+                };
+                if let Some(found) = try_lookup(self_ty, self.types) {
+                    Some(found)
+                } else if let TyData::Managed(inner) = *self.types.data(self_ty) {
+                    let desc_ty = self.types.intern(TyData::Desc(inner));
+                    if let Some(found) = try_lookup(desc_ty, self.types) {
+                        resolved_self_ty = desc_ty;
+                        receiver = Expr {
+                            kind: ExprKind::Describe(Box::new(receiver)),
+                            ty: desc_ty,
+                            span: object.span,
+                        };
+                        Some(found)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             };
+            let self_ty = resolved_self_ty;
             if let Some((tr_ref, tr_args, m_params, m_result)) = found_trait {
                 if arguments.len() + 1 != m_params.len() {
                     self.error(
@@ -3546,14 +3569,38 @@ impl Finalizer<'_, '_> {
                     && !g.sync_drop
                     && !local_is_consumed(&f.body, p)
                 {
-                    self.diags.push(diag::error(
+                    let mut d = diag::error(
                         diag::GENERIC_BOUND,
                         l.span,
                         format!(
                             "dropping unconsumed parameter of generic type `{}` requires `Copy` or `SyncDrop`",
                             g.name
                         ),
-                    ));
+                    );
+                    d.notes
+                        .push(format!("original scope cleanup binding \"{}\"", l.name));
+                    self.diags.push(d);
+                }
+            }
+            for (li, l) in f.locals.iter().enumerate() {
+                let lid = LocalId(li as u32);
+                if f.params.contains(&lid) {
+                    continue;
+                }
+                if let TyData::Param(i) = self.data(l.ty)
+                    && let Some(g) = self.generics.get(i as usize)
+                    && !g.copy
+                    && !g.sync_drop
+                    && !local_is_consumed(&f.body, lid)
+                {
+                    let mut d = diag::error(
+                        "E-ORIGINAL-CLEANUP",
+                        l.span,
+                        "live original value has no independent SyncDrop proof",
+                    );
+                    d.notes
+                        .push(format!("original scope cleanup binding \"{}\"", l.name));
+                    self.diags.push(d);
                 }
             }
         }

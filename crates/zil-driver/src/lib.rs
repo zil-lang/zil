@@ -389,10 +389,10 @@ impl CompilationSession {
     }
 
     pub fn compile_path(&mut self, path: &Path, options: &CompileOptions) -> CompileReport {
-        match read_source_unit(path, FileId(0), ModuleId(0), &options.limits) {
-            Ok(source) => self.compile_source_with_observer(&source, options, &mut |_| {}),
+        let entry = match read_source_unit(path, FileId(0), ModuleId(0), &options.limits) {
+            Ok(source) => source,
             Err(diag) => {
-                let mut report = CompileReport {
+                return CompileReport {
                     status: diag.category,
                     phase: diag.phase,
                     diagnostics: vec![diag],
@@ -410,15 +410,61 @@ impl CompilationSession {
                         path.to_string_lossy().into_owned(),
                     )]),
                 };
-                report.seconds = 0.0;
-                report
             }
-        }
+        };
+        let entry_dir = path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
+        self.compile_units_with_observer(&entry, Some(&entry_dir), options, &mut |_| {})
     }
 
     pub fn compile_source_with_observer(
         &mut self,
         source: &SourceUnit,
+        options: &CompileOptions,
+        observer: &mut dyn FnMut(&QueryEvent),
+    ) -> CompileReport {
+        self.compile_units_with_observer(source, None, options, observer)
+    }
+
+    fn parse_cached(
+        &mut self,
+        source: &SourceUnit,
+        options: &CompileOptions,
+        report: &mut CompileReport,
+        observer: &mut dyn FnMut(&QueryEvent),
+    ) -> Result<zil_syntax::ast::Module, Vec<Diagnostic>> {
+        let cache_key = (source.fingerprint(), options.limits.max_tokens);
+        if let Some(cached) = self.parse_cache.get(&cache_key) {
+            let ev = QueryEvent {
+                phase: Phase::Parse,
+                disposition: QueryDisposition::Reused,
+            };
+            observer(&ev);
+            report.query_events.push(ev);
+            report.cache_hit = true;
+            cached.clone()
+        } else {
+            let parsed = parse_with_limits(source, &options.limits).into_result();
+            let ev = QueryEvent {
+                phase: Phase::Parse,
+                disposition: QueryDisposition::Executed,
+            };
+            observer(&ev);
+            report.query_events.push(ev);
+            if self.parse_cache.len() >= self.capacity {
+                self.parse_cache.clear();
+            }
+            self.parse_cache.insert(cache_key, parsed.clone());
+            parsed
+        }
+    }
+
+    fn compile_units_with_observer(
+        &mut self,
+        source: &SourceUnit,
+        search_root: Option<&Path>,
         options: &CompileOptions,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> CompileReport {
@@ -463,32 +509,7 @@ impl CompilationSession {
             return report;
         }
 
-        let cache_key = (source.fingerprint(), options.limits.max_tokens);
-        let parsed = if let Some(cached) = self.parse_cache.get(&cache_key) {
-            let ev = QueryEvent {
-                phase: Phase::Parse,
-                disposition: QueryDisposition::Reused,
-            };
-            observer(&ev);
-            report.query_events.push(ev);
-            report.cache_hit = true;
-            cached.clone()
-        } else {
-            let parsed = parse_with_limits(source, &options.limits).into_result();
-            let ev = QueryEvent {
-                phase: Phase::Parse,
-                disposition: QueryDisposition::Executed,
-            };
-            observer(&ev);
-            report.query_events.push(ev);
-            if self.parse_cache.len() >= self.capacity {
-                self.parse_cache.clear();
-            }
-            self.parse_cache.insert(cache_key, parsed.clone());
-            parsed
-        };
-
-        let ast = match parsed {
+        let entry_ast = match self.parse_cached(source, options, &mut report, observer) {
             Ok(ast) => ast,
             Err(diags) => {
                 report.phase = Phase::Parse;
@@ -512,10 +533,140 @@ impl CompilationSession {
             return report;
         }
 
-        let ct_mods = [zil_check::ct_original::CtOriginalModule {
-            syntax: &ast,
-            imports: &[],
+        // Recursively discover imported modules when compiling from a filesystem path.
+        struct LoadedMod {
+            logical_path: String,
+            ast: zil_syntax::ast::Module,
+            imports: Vec<(String, zil_check::ct_original::CtOriginalImportTarget)>,
+        }
+        let mut loaded: Vec<LoadedMod> = vec![LoadedMod {
+            logical_path: String::new(),
+            ast: entry_ast,
+            imports: Vec::new(),
         }];
+        let mut by_logical: HashMap<String, ModuleId> = HashMap::new();
+        by_logical.insert(String::new(), ModuleId(0));
+
+        if let Some(root_dir) = search_root {
+            let std_dir = find_std_dir(root_dir);
+            let mut idx = 0;
+            while idx < loaded.len() {
+                let raw_imports: Vec<(Vec<String>, String, Span)> = loaded[idx]
+                    .ast
+                    .items
+                    .iter()
+                    .filter_map(|item| {
+                        if let zil_syntax::ast::ItemKind::Import(imp) = &item.kind {
+                            let alias = imp
+                                .alias
+                                .clone()
+                                .or_else(|| imp.path.last().cloned())
+                                .unwrap_or_default();
+                            Some((imp.path.clone(), alias, item.span))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let mut edges = Vec::with_capacity(raw_imports.len());
+                for (imp_path, alias, imp_span) in raw_imports {
+                    if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "meta" {
+                        edges.push((alias, zil_check::ct_original::CtOriginalImportTarget::Meta));
+                        continue;
+                    }
+                    if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "syntax" {
+                        edges.push((
+                            alias,
+                            zil_check::ct_original::CtOriginalImportTarget::Syntax,
+                        ));
+                        continue;
+                    }
+                    let logical = imp_path.join(".");
+                    if let Some(&mid) = by_logical.get(&logical) {
+                        edges.push((
+                            alias,
+                            zil_check::ct_original::CtOriginalImportTarget::Module(mid),
+                        ));
+                        continue;
+                    }
+                    let resolved = if imp_path.first().map(String::as_str) == Some("std") {
+                        std_dir.as_deref().and_then(|sd| {
+                            project::resolve_file_module(sd, &imp_path[1..], imp_span).ok()
+                        })
+                    } else {
+                        project::resolve_file_module(root_dir, &imp_path, imp_span).ok()
+                    };
+                    let Some(mod_file) = resolved else {
+                        // Leave unresolved for typeck to report a clean E-NAME-UNRESOLVED.
+                        continue;
+                    };
+                    let next_id = loaded.len() as u32;
+                    let mod_unit = match read_source_unit(
+                        &mod_file,
+                        FileId(next_id),
+                        ModuleId(next_id),
+                        &options.limits,
+                    ) {
+                        Ok(u) => u,
+                        Err(diag) => {
+                            report.phase = diag.phase;
+                            report.status = diag.category;
+                            report.diagnostics = vec![diag];
+                            report.seconds = start.elapsed().as_secs_f64();
+                            return report;
+                        }
+                    };
+                    report
+                        .source_files
+                        .insert(mod_unit.file_id, mod_unit.path.clone());
+                    let mod_ast = match self.parse_cached(&mod_unit, options, &mut report, observer)
+                    {
+                        Ok(ast) => ast,
+                        Err(diags) => {
+                            report.phase = Phase::Parse;
+                            report.status = highest_category(&diags);
+                            report.diagnostics = diags;
+                            report.seconds = start.elapsed().as_secs_f64();
+                            return report;
+                        }
+                    };
+                    let mid = ModuleId(next_id);
+                    by_logical.insert(logical.clone(), mid);
+                    loaded.push(LoadedMod {
+                        logical_path: logical,
+                        ast: mod_ast,
+                        imports: Vec::new(),
+                    });
+                    edges.push((
+                        alias,
+                        zil_check::ct_original::CtOriginalImportTarget::Module(mid),
+                    ));
+                }
+                loaded[idx].imports = edges;
+                idx += 1;
+            }
+        }
+
+        let ct_import_vecs: Vec<Vec<zil_check::ct_original::CtOriginalImport<'_>>> = loaded
+            .iter()
+            .map(|m| {
+                m.imports
+                    .iter()
+                    .map(|(alias, target)| zil_check::ct_original::CtOriginalImport {
+                        alias: alias.as_str(),
+                        target: *target,
+                    })
+                    .collect()
+            })
+            .collect();
+        let ct_mods: Vec<zil_check::ct_original::CtOriginalModule<'_>> = loaded
+            .iter()
+            .zip(ct_import_vecs.iter())
+            .map(|(m, imps)| zil_check::ct_original::CtOriginalModule {
+                syntax: &m.ast,
+                imports: imps.as_slice(),
+            })
+            .collect();
         let mut ct_meter = zil_check::ct_original::CtVerificationMeter::new(1_000_000);
         if let Err(ct_diags) = zil_check::ct_original::verify_ct_original_definitions(
             &ct_mods,
@@ -532,10 +683,13 @@ impl CompilationSession {
         }
 
         let mut ct = body_pipeline::InterpCtEvaluator;
-        let mod_inputs = [ModuleInput {
-            path: source.path.clone(),
-            ast: &ast,
-        }];
+        let mod_inputs: Vec<ModuleInput<'_>> = loaded
+            .iter()
+            .map(|m| ModuleInput {
+                path: m.logical_path.clone(),
+                ast: &m.ast,
+            })
+            .collect();
         let lowered = match lower_program(&mod_inputs, TypeckLimits::default(), Some(&mut ct)) {
             Ok(l) => l,
             Err(diags) => {
@@ -553,7 +707,8 @@ impl CompilationSession {
             return report;
         }
 
-        if let Err(e) = check_fidelity(&lowered.module, &lowered.source_map, &[&ast]) {
+        let ast_refs: Vec<&zil_syntax::ast::Module> = loaded.iter().map(|m| &m.ast).collect();
+        if let Err(e) = check_fidelity(&lowered.module, &lowered.source_map, &ast_refs) {
             report.phase = Phase::Verify;
             report.status = ResultCategory::SafeReject;
             report.diagnostics.push(Diagnostic::error(
@@ -639,19 +794,21 @@ impl CompilationSession {
             &BodyBuildOptions {
                 output: out_path.clone(),
                 optimization: options.optimization,
+                backend: options.backend,
                 clang: options.clang.clone(),
                 extra_c_sources: Vec::new(),
                 emit_c_main: true,
             },
         ) {
-            Ok(_) => {
+            Ok(built) => {
                 report.phase = Phase::Codegen;
+                report.commands = built.commands;
                 report.artifacts.insert("executable".into(), out_path);
                 report.native_codegen = Some(CodegenSummary {
                     backend: options.backend,
-                    object_reports: Vec::new(),
+                    object_reports: built.object_reports,
                     requested_units: options.codegen.units,
-                    actual_units: 1,
+                    actual_units: built.actual_units,
                     jobs: options.codegen.jobs,
                     fallback: None,
                 });
@@ -669,6 +826,23 @@ impl CompilationSession {
         }
         report.seconds = start.elapsed().as_secs_f64();
         report
+    }
+}
+
+fn find_std_dir(start: &Path) -> Option<PathBuf> {
+    let mut cur = start.canonicalize().ok()?;
+    loop {
+        let lib_std = cur.join("lib").join("std");
+        if lib_std.is_dir() {
+            return Some(lib_std);
+        }
+        let candidate = cur.join("std");
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+        if !cur.pop() {
+            return None;
+        }
     }
 }
 
@@ -802,14 +976,24 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                     &BodyBuildOptions {
                         output: out_path.clone(),
                         optimization: options.optimization,
+                        backend: options.backend,
                         clang: options.clang.clone(),
                         extra_c_sources: Vec::new(),
                         emit_c_main: true,
                     },
                 ) {
-                    Ok(_) => {
+                    Ok(built) => {
                         report.phase = Phase::Codegen;
+                        report.commands = built.commands;
                         report.artifacts.insert("executable".into(), out_path);
+                        report.native_codegen = Some(CodegenSummary {
+                            backend: options.backend,
+                            object_reports: built.object_reports,
+                            requested_units: options.codegen.units,
+                            actual_units: built.actual_units,
+                            jobs: options.codegen.jobs,
+                            fallback: None,
+                        });
                     }
                     Err(e) => {
                         report.phase = Phase::Codegen;

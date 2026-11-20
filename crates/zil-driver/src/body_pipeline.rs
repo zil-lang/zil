@@ -196,11 +196,13 @@ pub fn build_body_source_native(
         &BodyBuildOptions {
             output,
             optimization,
+            backend: zil_backend_llvm::NativeBackend::Clang,
             clang: None,
             extra_c_sources,
             emit_c_main: true,
         },
     )
+    .map(|o| o.ir)
     .map_err(|e| BodyCompileError {
         phase: Phase::Codegen,
         message: e.message,
@@ -398,8 +400,8 @@ fn main() -> i32 {
             msum = 0;
         }
     }
-    // n=3, seq=321 (Item 3 popped & dropped first, then Store LIFO drops 2 then 1),
-    // bsum=30 (10+20), msum=12 (10+2). Return (seq - 300) + bsum + msum + n = 21 + 30 + 12 + 3 = 66.
+    // n=3, seq=312 (Item 3 popped & dropped first, then Store drops remaining 1 then 2 in index order),
+    // bsum=30 (10+20), msum=12 (10+2). Return (seq - 300) + bsum + msum + n = 12 + 30 + 12 + 3 = 57.
     return (seq - 300) + bsum + msum + n;
 }
 "#;
@@ -420,8 +422,8 @@ fn main() -> i32 {
                 .unwrap_or_else(|e| panic!("failed to run {label} executable: {e}"));
             assert_eq!(
                 status.code(),
-                Some(66),
-                "expected exit code 66 (LIFO seq=321, bsum=30, msum=12, n=3) at {label}"
+                Some(57),
+                "expected exit code 57 (seq=312, bsum=30, msum=12, n=3) at {label}"
             );
         }
         let _ = std::fs::remove_dir_all(&dir);

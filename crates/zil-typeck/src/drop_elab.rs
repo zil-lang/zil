@@ -66,14 +66,13 @@ fn step_instruction(
                     state[l.index()] = Init::UNINIT;
                     uninit_fields.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
                 }
-                PlaceAccess::Init => {
+                PlaceAccess::Init | PlaceAccess::ReplaceInstance => {
                     state[l.index()] = Init::INIT;
                     uninit_fields.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
                 }
                 PlaceAccess::Copy
                 | PlaceAccess::Borrow(_)
                 | PlaceAccess::Describe
-                | PlaceAccess::ReplaceInstance
                 | PlaceAccess::InspectTag
                 | PlaceAccess::InspectLen
                 | PlaceAccess::CallClosure(_) => {}
@@ -219,6 +218,86 @@ fn all_cleanup_fields_uninit(
     place_cleanup_uninit(&Place::local(l), ty, tys, ufields)
 }
 
+/// When a composite local has some (but not all) fields moved out, expands a
+/// whole-local drop into per-field drops for the surviving cleanup fields in
+/// reverse declaration order.
+fn collect_live_cleanup_places(
+    place: &Place,
+    ty: zil_ir::body::TyId,
+    tys: &TyTable,
+    ufields: &HashSet<Place>,
+    out: &mut Vec<Place>,
+) {
+    if !tys.needs_cleanup(ty, &zil_ir::body::ParamEnv::default()) || ufields.contains(place) {
+        return;
+    }
+    let has_moved_descendant = ufields.iter().any(|u| {
+        u.root == place.root
+            && u.projections.len() > place.projections.len()
+            && u.projections.starts_with(&place.projections)
+    });
+    if !has_moved_descendant {
+        out.push(place.clone());
+        return;
+    }
+    match tys.kind(ty) {
+        TyKind::Tuple(elems) => {
+            let elems = elems.clone();
+            for (i, &ety) in elems.iter().enumerate() {
+                let mut sub = place.clone();
+                sub.projections
+                    .push(zil_ir::body::Projection::TupleField(i as u32));
+                collect_live_cleanup_places(&sub, ety, tys, ufields, out);
+            }
+        }
+        TyKind::Adt { adt, args } => {
+            let adt = *adt;
+            let args = *args;
+            let def = tys.adt(adt);
+            if def.user_drop || def.variants.len() != 1 {
+                out.push(place.clone());
+                return;
+            }
+            let arg_tys = tys.args(args);
+            for (fi, f) in def.variants[0].fields.iter().enumerate() {
+                let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
+                    arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
+                } else {
+                    f.ty
+                };
+                let mut sub = place.clone();
+                sub.projections
+                    .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
+                        adt,
+                        variant: zil_ir::body::VariantIdx(0),
+                        field: zil_ir::body::FieldIdx(fi as u32),
+                        args,
+                    }));
+                collect_live_cleanup_places(&sub, fty, tys, ufields, out);
+            }
+        }
+        TyKind::Unit
+        | TyKind::Bool
+        | TyKind::Int(_)
+        | TyKind::Float(_)
+        | TyKind::Never
+        | TyKind::Param(_)
+        | TyKind::Array { .. }
+        | TyKind::Slice(_)
+        | TyKind::Ref { .. }
+        | TyKind::FnPtr { .. }
+        | TyKind::Closure { .. }
+        | TyKind::Dyn(_)
+        | TyKind::OwnedDyn(_)
+        | TyKind::ErrorUnion { .. }
+        | TyKind::Managed(_)
+        | TyKind::Desc(_)
+        | TyKind::Opaque(_) => {
+            out.push(place.clone());
+        }
+    }
+}
+
 /// Rewrites every `(block, inst_idx)` auto-drop marker in `body`.
 pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(BlockId, usize)>) {
     if auto_drops.is_empty() || body.blocks.is_empty() {
@@ -290,6 +369,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
     //    at some reachable auto-drop point).
     let mut flagged: HashMap<Local, Local> = HashMap::new();
     let mut per_point: HashMap<(BlockId, usize), Init> = HashMap::new();
+    let mut partial_drops: HashMap<(BlockId, usize), Vec<Place>> = HashMap::new();
     let mut replace_to_assign: HashSet<(BlockId, usize)> = HashSet::new();
     for (b_idx, block) in body.blocks.iter().enumerate() {
         let Some((mut state, mut ufields)) = entry[b_idx].clone() else {
@@ -328,6 +408,21 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                             place: Place::local(l),
                         });
                         flagged.insert(l, flag);
+                    } else if !st.is_definitely_uninit()
+                        && !st.is_maybe()
+                        && ufields
+                            .iter()
+                            .any(|u| u.root == zil_ir::body::PlaceRoot::Local(l))
+                    {
+                        let mut subs = Vec::new();
+                        collect_live_cleanup_places(
+                            &Place::local(l),
+                            body.locals[l.index()].ty,
+                            tys,
+                            &ufields,
+                            &mut subs,
+                        );
+                        partial_drops.insert((bid, i), subs);
                     }
                 } else if ufields.contains(place) {
                     per_point.insert((bid, i), Init::UNINIT);
@@ -405,6 +500,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                 && let InstructionKind::Replace { place, value, old } = inst.kind
             {
                 skip_drop_old = Some(old);
+                let flag_target = place.as_local().and_then(|l| flagged.get(&l).copied());
                 cur_insts.push(Instruction {
                     kind: InstructionKind::Assign {
                         dest: place,
@@ -412,6 +508,9 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     },
                     span,
                 });
+                if let Some(flag) = flag_target {
+                    cur_insts.push(bool_assign(flag, true, span));
+                }
                 continue;
             }
             if let Some(&st) = per_point.get(&(bid, i)) {
@@ -469,8 +568,17 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     cur_id = after;
                     continue;
                 }
-                // Definitely initialized: keep the drop (and clear flag if any).
-                cur_insts.push(inst);
+                // Definitely initialized: keep the drop (or expand partial-move field drops).
+                if let Some(sub_places) = partial_drops.get(&(bid, i)) {
+                    for sub in sub_places {
+                        cur_insts.push(Instruction {
+                            kind: InstructionKind::Drop { place: sub.clone() },
+                            span,
+                        });
+                    }
+                } else {
+                    cur_insts.push(inst);
+                }
                 if let Some(&flag) = flagged.get(&l) {
                     cur_insts.push(bool_assign(flag, false, span));
                 }
@@ -501,11 +609,12 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                                 PlaceAccess::Move | PlaceAccess::Drop => {
                                     updates.push((flag, false))
                                 }
-                                PlaceAccess::Init => updates.push((flag, true)),
+                                PlaceAccess::Init | PlaceAccess::ReplaceInstance => {
+                                    updates.push((flag, true))
+                                }
                                 PlaceAccess::Copy
                                 | PlaceAccess::Borrow(_)
                                 | PlaceAccess::Describe
-                                | PlaceAccess::ReplaceInstance
                                 | PlaceAccess::InspectTag
                                 | PlaceAccess::InspectLen
                                 | PlaceAccess::CallClosure(_) => {}

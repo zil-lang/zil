@@ -45,10 +45,13 @@ pub fn check_fidelity(
         };
         let body = &func.body;
 
-        for (at, _) in &fn_map.spans {
+        let mut span_by_loc: HashMap<OpLocation, zil_base::Span> =
+            HashMap::with_capacity(fn_map.spans.len());
+        for (at, sp) in &fn_map.spans {
             if !valid_op_location(body, *at) {
                 return Err(fail("source map span references invalid op location"));
             }
+            span_by_loc.insert(*at, *sp);
         }
 
         let mut eval_order: HashMap<(u32, u32), (u32, u32)> = HashMap::new();
@@ -84,12 +87,34 @@ pub fn check_fidelity(
                         ));
                     }
                     // 2. Cross-check source expression field name against IR field name.
-                    if let Some(&src_field_name) = ast_selects.get(&node.0)
-                        && src_field_name != fdef.name.as_str()
+                    // Enum variant payload fields are projected by pattern destructuring
+                    // rather than `base.field` syntax.
+                    if adt.kind != zil_ir::body::AdtKind::Enum
+                        && let Some(sp) = span_by_loc.get(at)
+                        && let Some(file_selects) = ast_selects.get(&sp.file)
                     {
-                        return Err(fail(
-                            "field name disagrees with original AST field selection",
-                        ));
+                        let mut found_any = false;
+                        let mut matched = false;
+                        let sp_start = u32::try_from(sp.start).unwrap_or(u32::MAX);
+                        let sp_end = u32::try_from(sp.end).unwrap_or(u32::MAX);
+                        for &(sel_start, sel_end, name) in file_selects {
+                            let in_span = sel_start == node.0
+                                || (sp_end > sp_start
+                                    && sel_start >= sp_start
+                                    && sel_end <= sp_end);
+                            if in_span {
+                                found_any = true;
+                                if name == fdef.name.as_str() {
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if found_any && !matched {
+                            return Err(fail(
+                                "field name disagrees with original AST field selection",
+                            ));
+                        }
                     }
                 }
                 SourceRelation::Evaluation { node, ordinal, at } => {
@@ -238,9 +263,11 @@ fn collect_ast_field_indices<'a>(
     map
 }
 
-/// Collects `span.start -> field_name` for every `base.field` expression in
-/// the original parsed AST.
-fn collect_ast_field_selects<'a>(sources: &[&'a ast::Module]) -> HashMap<u32, &'a str> {
+/// Collects `(span.start, span.end, field_name)` per file for every
+/// `base.field` / `.field` expression in the original parsed AST.
+type FileFieldSelects<'a> = HashMap<zil_base::FileId, Vec<(u32, u32, &'a str)>>;
+
+fn collect_ast_field_selects<'a>(sources: &[&'a ast::Module]) -> FileFieldSelects<'a> {
     let mut map = HashMap::new();
     for m in sources {
         for item in &m.items {
@@ -250,7 +277,7 @@ fn collect_ast_field_selects<'a>(sources: &[&'a ast::Module]) -> HashMap<u32, &'
     map
 }
 
-fn collect_item_selects<'a>(item: &'a ast::Item, map: &mut HashMap<u32, &'a str>) {
+fn collect_item_selects<'a>(item: &'a ast::Item, map: &mut FileFieldSelects<'a>) {
     match &item.kind {
         ast::ItemKind::Function(f) => collect_fn_selects(f, map),
         ast::ItemKind::Impl(imp) => {
@@ -273,7 +300,7 @@ fn collect_item_selects<'a>(item: &'a ast::Item, map: &mut HashMap<u32, &'a str>
     }
 }
 
-fn collect_fn_selects<'a>(f: &'a ast::Function, map: &mut HashMap<u32, &'a str>) {
+fn collect_fn_selects<'a>(f: &'a ast::Function, map: &mut FileFieldSelects<'a>) {
     match &f.body {
         ast::FunctionBody::Block(b) => collect_block_selects(b, map),
         ast::FunctionBody::Expression(e) => collect_expr_selects(e, map),
@@ -282,7 +309,7 @@ fn collect_fn_selects<'a>(f: &'a ast::Function, map: &mut HashMap<u32, &'a str>)
 }
 
 #[allow(clippy::wildcard_enum_match_arm)]
-fn collect_block_selects<'a>(b: &'a ast::Block, map: &mut HashMap<u32, &'a str>) {
+fn collect_block_selects<'a>(b: &'a ast::Block, map: &mut FileFieldSelects<'a>) {
     for stmt in &b.statements {
         match &stmt.kind {
             ast::StmtKind::Binding { value, .. } | ast::StmtKind::Yield(value) => {
@@ -350,7 +377,7 @@ fn collect_block_selects<'a>(b: &'a ast::Block, map: &mut HashMap<u32, &'a str>)
     }
 }
 
-fn collect_cond_selects<'a>(c: &'a ast::Condition, map: &mut HashMap<u32, &'a str>) {
+fn collect_cond_selects<'a>(c: &'a ast::Condition, map: &mut FileFieldSelects<'a>) {
     match c {
         ast::Condition::Expression(e) | ast::Condition::Let { value: e, .. } => {
             collect_expr_selects(e, map);
@@ -359,19 +386,24 @@ fn collect_cond_selects<'a>(c: &'a ast::Condition, map: &mut HashMap<u32, &'a st
 }
 
 #[allow(clippy::wildcard_enum_match_arm)]
-fn collect_expr_selects<'a>(e: &'a ast::Expr, map: &mut HashMap<u32, &'a str>) {
+fn collect_expr_selects<'a>(e: &'a ast::Expr, map: &mut FileFieldSelects<'a>) {
     match &e.kind {
         ast::ExprKind::Member { object, member } => {
             if let ast::MemberName::Name(name) = member
-                && let Ok(start) = u32::try_from(e.span.start)
+                && let (Ok(start), Ok(end)) =
+                    (u32::try_from(e.span.start), u32::try_from(e.span.end))
             {
-                map.insert(start, name.as_str());
+                map.entry(e.span.file)
+                    .or_default()
+                    .push((start, end, name.as_str()));
             }
             collect_expr_selects(object, map);
         }
         ast::ExprKind::ReceiverMember(name) => {
-            if let Ok(start) = u32::try_from(e.span.start) {
-                map.insert(start, name.as_str());
+            if let (Ok(start), Ok(end)) = (u32::try_from(e.span.start), u32::try_from(e.span.end)) {
+                map.entry(e.span.file)
+                    .or_default()
+                    .push((start, end, name.as_str()));
             }
         }
         ast::ExprKind::Binary { left, right, .. }
