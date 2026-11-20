@@ -38,7 +38,10 @@ def archive_project(repo, project, commit, destination):
     destination.mkdir(parents=True)
     archive = git(repo, 'archive', revision)
     with tarfile.open(fileobj=io.BytesIO(archive)) as files:
-        files.extractall(destination, filter='data')
+        if hasattr(tarfile, 'data_filter'):
+            files.extractall(destination, filter='data')
+        else:
+            files.extractall(destination)
 
 
 def require_digest(path, expected):
