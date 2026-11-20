@@ -173,8 +173,10 @@ pub fn build_verified_body(
                     object_reports.push(receipt_to_json(&object.receipt));
                 }
 
+                let target_flag = format!("--target={triple}");
                 let mut cmd = Command::new(&clang);
-                let mut argv = vec![clang.display().to_string()];
+                let mut argv = vec![clang.display().to_string(), target_flag.clone()];
+                cmd.arg(&target_flag);
                 for obj_path in &obj_paths {
                     cmd.arg(obj_path);
                     argv.push(obj_path.display().to_string());
@@ -220,15 +222,24 @@ pub fn build_verified_body(
                 Optimization::O0 => "-O0",
                 Optimization::O2 => "-O2",
             };
+            let target_flag = if cfg!(target_arch = "aarch64") {
+                "--target=aarch64-unknown-linux-gnu"
+            } else {
+                "--target=x86_64-unknown-linux-gnu"
+            };
 
             let mut cmd = Command::new(&clang);
             let mut argv = vec![
                 clang.display().to_string(),
+                target_flag.into(),
                 opt_flag.into(),
                 "-Wno-override-module".into(),
                 ir_path.display().to_string(),
             ];
-            cmd.arg(opt_flag).arg("-Wno-override-module").arg(&ir_path);
+            cmd.arg(target_flag)
+                .arg(opt_flag)
+                .arg("-Wno-override-module")
+                .arg(&ir_path);
             for c_src in &options.extra_c_sources {
                 cmd.arg(c_src);
                 argv.push(c_src.display().to_string());

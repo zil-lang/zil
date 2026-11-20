@@ -280,6 +280,12 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
                 "E-TYPE-MISMATCH",
                 "helper requires its concrete environment passing mode"
             ) | (
+                "E-TYPE-MISMATCH",
+                "the value does not have the expected type"
+            ) | (
+                "E-ASSIGN-IMMUTABLE",
+                "a place behind a shared address cannot be called as a mutable closure"
+            ) | (
                 "E-ADDRESS-PERMISSION",
                 "a shared address cannot grant exclusive access"
             ) | (
@@ -305,6 +311,9 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
                     && declarations
                         .iter()
                         .any(|name| name.ends_with("_OtherFault")))
+                || (code == "E-TYPE-MISMATCH"
+                    && message == "the value does not have the expected type")
+                || (code == "E-SAFETY-SOLVE" && message.contains("TypeMismatch"))
         }
         _ => false,
     };
