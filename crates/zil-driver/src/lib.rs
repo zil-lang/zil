@@ -805,6 +805,7 @@ impl CompilationSession {
             Ok(built) => {
                 report.phase = Phase::Codegen;
                 report.commands = built.commands;
+                report.artifacts.insert("llvm".into(), built.ir_path);
                 report.artifacts.insert("executable".into(), out_path);
                 report.native_codegen = Some(CodegenSummary {
                     backend: options.backend,
@@ -989,6 +990,7 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                     Ok(built) => {
                         report.phase = Phase::Codegen;
                         report.commands = built.commands;
+                        report.artifacts.insert("llvm".into(), built.ir_path);
                         report.artifacts.insert("executable".into(), out_path);
                         report.native_codegen = Some(CodegenSummary {
                             backend: options.backend,

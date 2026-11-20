@@ -199,21 +199,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
-name = "zil-analyze"
-version = "0.1.0"
-dependencies = [
- "zil-base",
- "zil-ir",
-]
-
-[[package]]
 name = "zil-backend-llvm"
 version = "0.1.0"
 dependencies = [
  "zil-base",
+ "zil-check",
  "zil-ir",
  "zil-llvm-api",
- "zil-verify",
 ]
 
 [[package]]
@@ -225,12 +217,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "zil-ct"
+name = "zil-check"
 version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-ir",
- "zil-verify",
+ "zil-semantics",
+ "zil-syntax",
 ]
 
 [[package]]
@@ -244,26 +237,24 @@ dependencies = [
 name = "zil-driver"
 version = "0.1.0"
 dependencies = [
- "zil-analyze",
  "zil-backend-llvm",
  "zil-base",
- "zil-ct",
+ "zil-check",
  "zil-db",
- "zil-expand",
+ "zil-interp",
  "zil-ir",
- "zil-lower",
+ "zil-solve",
  "zil-syntax",
- "zil-types",
- "zil-verify",
+ "zil-typeck",
 ]
 
 [[package]]
-name = "zil-expand"
+name = "zil-interp"
 version = "0.1.0"
 dependencies = [
  "zil-base",
+ "zil-check",
  "zil-ir",
- "zil-syntax",
 ]
 
 [[package]]
@@ -278,12 +269,19 @@ name = "zil-llvm-api"
 version = "0.1.0"
 
 [[package]]
-name = "zil-lower"
+name = "zil-semantics"
 version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-ir",
- "zil-verify",
+]
+
+[[package]]
+name = "zil-solve"
+version = "0.1.0"
+dependencies = [
+ "zil-ir",
+ "zil-semantics",
 ]
 
 [[package]]
@@ -294,16 +292,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zil-types"
-version = "0.1.0"
-dependencies = [
- "zil-base",
- "zil-ir",
- "zil-syntax",
-]
-
-[[package]]
-name = "zil-verify"
+name = "zil-typeck"
 version = "0.1.0"
 dependencies = [
  "zil-base",

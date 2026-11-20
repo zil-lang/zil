@@ -106,7 +106,7 @@ def matches_work_profile(report, work_profile):
 
 def matches_native_build(report, backend, opt, work_profile):
     codegen = report.get('native_codegen') or {}
-    if (report.get('phase') != 'link' or not matches_work_profile(report, work_profile)
+    if (report.get('phase') not in ('link', 'codegen') or not matches_work_profile(report, work_profile)
             or codegen.get('backend') != backend or 'fallback' not in codegen
             or codegen['fallback'] is not None):
         return False
@@ -118,7 +118,7 @@ def matches_native_build(report, backend, opt, work_profile):
     if backend == 'clang':
         # A linker invocation can carry -O2 even when no IR was compiled at O2.
         ir_commands = [cmd for cmd in report.get('commands', [])
-                       if ('-x', 'ir') in zip(cmd, cmd[1:])]
+                       if ('-x', 'ir') in zip(cmd, cmd[1:]) or any(arg.endswith('.ll') for arg in cmd)]
         return bool(ir_commands) and all([flag for flag in cmd if flag.startswith('-O')] == [f'-{opt}']
                                          for cmd in ir_commands)
     return False

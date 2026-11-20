@@ -22,6 +22,7 @@ pub struct BodyBuildOptions {
 #[derive(Clone, Debug)]
 pub struct BodyBuildOutput {
     pub ir: String,
+    pub ir_path: PathBuf,
     pub commands: Vec<Vec<String>>,
     pub object_reports: Vec<String>,
     pub actual_units: usize,
@@ -201,6 +202,7 @@ pub fn build_verified_body(
                 }
                 Ok(BodyBuildOutput {
                     ir,
+                    ir_path,
                     commands: vec![argv],
                     object_reports,
                     actual_units,
@@ -250,6 +252,7 @@ pub fn build_verified_body(
             }
             Ok(BodyBuildOutput {
                 ir,
+                ir_path,
                 commands: vec![argv],
                 object_reports: Vec::new(),
                 actual_units: 1,
