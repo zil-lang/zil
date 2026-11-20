@@ -152,6 +152,7 @@ pub enum ExprKind {
         id: ClosureRef,
         captures: Vec<Expr>,
     },
+    ClosureFnRef(ClosureRef),
     ClosureCall {
         closure: Box<Expr>,
         mode: ClosureCallMode,
@@ -249,6 +250,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Call { .. }
         | ExprKind::IndirectCall { .. }
         | ExprKind::Closure { .. }
+        | ExprKind::ClosureFnRef(_)
         | ExprKind::ClosureCall { .. }
         | ExprKind::TraitCall { .. }
         | ExprKind::DynCall { .. }

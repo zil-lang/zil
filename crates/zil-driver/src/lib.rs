@@ -647,6 +647,30 @@ impl CompilationSession {
             }
         }
 
+        // Reject user declarations of reserved built-in type family `Option`.
+        for m in &loaded {
+            for item in &m.ast.items {
+                let reserved_name = match &item.kind {
+                    zil_syntax::ast::ItemKind::Enum(e) => Some(e.name.as_str()),
+                    zil_syntax::ast::ItemKind::Aggregate(a) => Some(a.name.as_str()),
+                    zil_syntax::ast::ItemKind::TypeAlias(t) => Some(t.name.as_str()),
+                    _ => None,
+                };
+                if reserved_name == Some("Option") {
+                    report.phase = Phase::Expand;
+                    report.status = ResultCategory::SafeReject;
+                    report.diagnostics.push(Diagnostic::error(
+                        Phase::Expand,
+                        "E-GENERIC-ARGUMENT",
+                        Some(item.span),
+                        "Option is a reserved built-in type family",
+                    ));
+                    report.seconds = start.elapsed().as_secs_f64();
+                    return report;
+                }
+            }
+        }
+
         let ct_import_vecs: Vec<Vec<zil_check::ct_original::CtOriginalImport<'_>>> = loaded
             .iter()
             .map(|m| {
@@ -798,6 +822,7 @@ impl CompilationSession {
                 clang: options.clang.clone(),
                 extra_c_sources: Vec::new(),
                 emit_c_main: true,
+                entry: options.entry.clone(),
                 codegen_units: options.codegen.units,
                 codegen_jobs: options.codegen.jobs,
             },
@@ -983,6 +1008,7 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                         clang: options.clang.clone(),
                         extra_c_sources: Vec::new(),
                         emit_c_main: true,
+                        entry: options.entry.clone(),
                         codegen_units: options.codegen.units,
                         codegen_jobs: options.codegen.jobs,
                     },

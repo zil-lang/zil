@@ -213,8 +213,8 @@ fn safety_negatives_reject_at_exact_phase_and_code_through_full_driver() {
         report
             .diagnostics
             .iter()
-            .any(|d| d.code == "E-GENERIC-ARGUMENT" && d.message.contains("SyncDrop")),
-        "expected E-GENERIC-ARGUMENT SyncDrop, got {:?}",
+            .any(|d| d.code == "E-ORIGINAL-CLEANUP" && d.message.contains("SyncDrop")),
+        "expected E-ORIGINAL-CLEANUP SyncDrop, got {:?}",
         report.diagnostics
     );
 

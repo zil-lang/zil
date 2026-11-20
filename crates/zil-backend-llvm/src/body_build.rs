@@ -1,6 +1,6 @@
 //! Native build driver for `zil_check::VerifiedModule` using LLVM 23 clang at O0/O2.
 
-use crate::body_emit::{BodyEmitError, emit_verified_body, emit_verified_body_units};
+use crate::body_emit::{BodyEmitError, emit_verified_body_units_with_entry};
 use crate::{NativeBackend, Optimization};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,6 +15,7 @@ pub struct BodyBuildOptions {
     pub clang: Option<PathBuf>,
     pub extra_c_sources: Vec<PathBuf>,
     pub emit_c_main: bool,
+    pub entry: Option<String>,
     pub codegen_units: usize,
     pub codegen_jobs: usize,
 }
@@ -82,7 +83,10 @@ pub fn build_verified_body(
     verified: &VerifiedModule,
     options: &BodyBuildOptions,
 ) -> Result<BodyBuildOutput, BodyBuildError> {
-    let ir = emit_verified_body(verified, options.emit_c_main)?;
+    let entry = options.entry.as_deref();
+    let ir = emit_verified_body_units_with_entry(verified, options.emit_c_main, 1, entry)?
+        .pop()
+        .unwrap_or_default();
     let ir_path = PathBuf::from(format!("{}.ll", options.output.display()));
     if let Some(parent) = ir_path.parent()
         && !parent.as_os_str().is_empty()
@@ -108,7 +112,12 @@ pub fn build_verified_body(
                 let unit_irs = if requested == 1 {
                     vec![ir.clone()]
                 } else {
-                    emit_verified_body_units(verified, options.emit_c_main, requested)?
+                    emit_verified_body_units_with_entry(
+                        verified,
+                        options.emit_c_main,
+                        requested,
+                        entry,
+                    )?
                 };
                 let actual_units = unit_irs.len();
                 let api_opt = match options.optimization {

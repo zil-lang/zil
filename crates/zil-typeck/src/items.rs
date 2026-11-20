@@ -23,6 +23,7 @@ pub enum ItemRef {
     Adt(AdtRef),
     Foreign(ForeignRef),
     Trait(TraitRef),
+    TypeAlias(ModIdx, u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -151,6 +152,7 @@ pub struct ModuleScope {
     pub names: HashMap<String, ItemRef>,
     pub publics: HashSet<String>,
     pub imports: HashMap<String, ModIdx>,
+    pub type_aliases: Vec<(usize, Ty)>,
 }
 
 pub struct Items<'a> {
@@ -181,6 +183,22 @@ impl<'a> Items<'a> {
     /// Resolves a bare or module-qualified item path from module `from`.
     pub fn lookup_item(&self, from: ModIdx, path: &[String]) -> Option<ItemRef> {
         lookup_item_in(&self.modules, &self.mod_by_path, from, path)
+    }
+
+    /// Resolves a path to an ADT, following type aliases whose target is an ADT.
+    pub fn resolve_adt_of(&self, from: ModIdx, path: &[String], types: &Types) -> Option<AdtRef> {
+        match self.lookup_item(from, path) {
+            Some(ItemRef::Adt(adt)) => Some(adt),
+            Some(ItemRef::TypeAlias(ta_mod, ta_idx)) => {
+                let (_, target) = self.modules[ta_mod.0 as usize].type_aliases[ta_idx as usize];
+                if let TyData::Adt { adt, .. } = types.data(target) {
+                    Some(*adt)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 
     /// Matches a (possibly generic) trait impl's target pattern against `self_ty`.
@@ -507,6 +525,7 @@ pub fn collect_program<'a>(
             names: HashMap::new(),
             publics: HashSet::new(),
             imports: HashMap::new(),
+            type_aliases: Vec::new(),
         });
         if !inp.path.is_empty() {
             items.mod_by_path.insert(inp.path.clone(), idx);
@@ -659,6 +678,7 @@ pub fn collect_program<'a>(
     let mut foreign_asts: Vec<(ModIdx, &str, &'a ast::Function, Span)> = Vec::new();
     let mut impl_asts: Vec<(ModIdx, &'a ast::ImplBlock, Span)> = Vec::new();
     let mut trait_asts: Vec<(ModIdx, &'a ast::TraitDecl, Span)> = Vec::new();
+    let mut alias_asts: Vec<(ModIdx, u32, &'a ast::TypeAlias, Span)> = Vec::new();
 
     for (m_i, inp) in inputs.iter().enumerate() {
         let mid = ModIdx(m_i as u32);
@@ -729,9 +749,18 @@ pub fn collect_program<'a>(
                         ItemRef::Trait(TraitRef(trait_asts.len() as u32 - 1)),
                     )
                 }
-                ast::ItemKind::TypeAlias(_) => {
-                    diags.push(diag::unsupported("type aliases", item.span));
-                    continue;
+                ast::ItemKind::TypeAlias(ta) => {
+                    let arity = ta
+                        .generics
+                        .iter()
+                        .filter(|g| matches!(g.kind, ast::GenericParamKind::Type(_)))
+                        .count();
+                    let ta_idx = items.modules[m_i].type_aliases.len() as u32;
+                    items.modules[m_i]
+                        .type_aliases
+                        .push((arity, types.error()));
+                    alias_asts.push((mid, ta_idx, ta, item.span));
+                    (&ta.name, ItemRef::TypeAlias(mid, ta_idx))
                 }
                 ast::ItemKind::Const(_) => {
                     diags.push(diag::unsupported("constant items", item.span));
@@ -777,6 +806,75 @@ pub fn collect_program<'a>(
             .names
             .entry("MutexCreateError".to_string())
             .or_insert(ItemRef::Adt(mutex_create_error_adt));
+    }
+
+    // Pass 1b: resolve type aliases (fixed-point loop for chained aliases).
+    let max_passes = alias_asts.len().max(1);
+    let mut alias_resolved = vec![false; alias_asts.len()];
+    for pass in 0..max_passes {
+        let mut progress = false;
+        for (i, &(mid, ta_idx, ta, span)) in alias_asts.iter().enumerate() {
+            if alias_resolved[i] {
+                continue;
+            }
+            let Some(val_ast) = &ta.value else {
+                diags.push(diag::error(
+                    diag::NAME_UNRESOLVED,
+                    span,
+                    format!("type alias `{}` requires a target type", ta.name),
+                ));
+                alias_resolved[i] = true;
+                continue;
+            };
+            let gen_names: Vec<String> = ta
+                .generics
+                .iter()
+                .filter(|g| matches!(g.kind, ast::GenericParamKind::Type(_)))
+                .map(|g| g.name.clone())
+                .collect();
+            let lt_names: Vec<String> = ta
+                .generics
+                .iter()
+                .filter(|g| g.kind == ast::GenericParamKind::Lifetime)
+                .map(|g| g.name.clone())
+                .collect();
+            match resolve_type_with_lifetimes(
+                val_ast,
+                mid,
+                &gen_names,
+                &lt_names,
+                &items.modules,
+                &items.mod_by_path,
+                &items.adt_kinds,
+                None,
+                None,
+                types,
+            ) {
+                Ok(ty) => {
+                    if *types.data(ty) != TyData::Error {
+                        items.modules[mid.0 as usize].type_aliases[ta_idx as usize].1 = ty;
+                        alias_resolved[i] = true;
+                        progress = true;
+                    } else if pass + 1 == max_passes {
+                        diags.push(diag::error(
+                            diag::NAME_UNRESOLVED,
+                            span,
+                            format!("cyclic or unresolved type alias `{}`", ta.name),
+                        ));
+                        alias_resolved[i] = true;
+                    }
+                }
+                Err(d) => {
+                    if pass + 1 == max_passes {
+                        diags.push(d);
+                        alias_resolved[i] = true;
+                    }
+                }
+            }
+        }
+        if !progress {
+            break;
+        }
     }
 
     // Pass 2: declarations. Collect traits first so function/ADT generic bounds can reference them.
@@ -1696,7 +1794,14 @@ fn collect_impl<'a>(
             }
             *adt
         }
-        Some(ItemRef::Adt(_) | ItemRef::Fn(_) | ItemRef::Foreign(_) | ItemRef::Trait(_)) | None => {
+        Some(
+            ItemRef::Adt(_)
+            | ItemRef::Fn(_)
+            | ItemRef::Foreign(_)
+            | ItemRef::Trait(_)
+            | ItemRef::TypeAlias(_, _),
+        )
+        | None => {
             diags.push(diag::error(
                 diag::DROP_BINDING,
                 imp.target.span,
@@ -2311,6 +2416,49 @@ fn resolve_type_with_lifetimes(
                     } else {
                         Ok(adt_ty)
                     }
+                }
+                Some(ItemRef::TypeAlias(ta_mod, ta_idx)) => {
+                    let (arity, target) =
+                        modules[ta_mod.0 as usize].type_aliases[ta_idx as usize];
+                    let mut tys = Vec::new();
+                    for a in args {
+                        match a {
+                            ast::GenericArg::Type(t) => tys.push(resolve_type_with_lifetimes(
+                                t,
+                                from,
+                                generics,
+                                lifetimes,
+                                modules,
+                                mod_by_path,
+                                adt_kinds,
+                                self_ty,
+                                None,
+                                types,
+                            )?),
+                            ast::GenericArg::Lifetime(_) => {}
+                            ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                                return Err(diag::unsupported(
+                                    "non-type generic arguments",
+                                    t.span,
+                                ));
+                            }
+                        }
+                    }
+                    if tys.len() != arity {
+                        return Err(diag::error(
+                            diag::TYPE_ARGUMENT,
+                            t.span,
+                            format!(
+                                "type alias expects {arity} type argument(s), found {}",
+                                tys.len()
+                            ),
+                        ));
+                    }
+                    Ok(if tys.is_empty() {
+                        target
+                    } else {
+                        types.subst(target, &tys)
+                    })
                 }
                 Some(ItemRef::Fn(_) | ItemRef::Foreign(_) | ItemRef::Trait(_)) | None => {
                     Err(diag::error(

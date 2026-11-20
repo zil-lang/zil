@@ -305,11 +305,11 @@ fn task_owner_transport_explicit_manifest() {
         // 9 negative safety contracts — exact stage & semantic reason verified
         (
             "direct-worker-owner-cleanup.zil",
-            Expected::Rejected("typeck", "E-GENERIC-ARGUMENT"),
+            Expected::Rejected("typeck", "E-ORIGINAL-CLEANUP"),
         ),
         (
             "invalid-source-contracts/direct-worker-owner-cleanup.zil",
-            Expected::Rejected("typeck", "E-GENERIC-ARGUMENT"),
+            Expected::Rejected("typeck", "E-ORIGINAL-CLEANUP"),
         ),
         (
             "invalid-source-contracts/equal-distinct-task-classes.zil",
@@ -321,7 +321,7 @@ fn task_owner_transport_explicit_manifest() {
         ),
         (
             "invalid-source-contracts/nested-callable-child-cleanup.zil",
-            Expected::Rejected("typeck", "E-GENERIC-ARGUMENT"),
+            Expected::Rejected("typeck", "E-ORIGINAL-CLEANUP"),
         ),
         (
             "invalid-source-contracts/nested-once-callable-child-cleanup.zil",
@@ -333,7 +333,7 @@ fn task_owner_transport_explicit_manifest() {
         ),
         (
             "invalid-source-contracts/unused-direct-generic-drop.zil",
-            Expected::Rejected("typeck", "E-GENERIC-ARGUMENT"),
+            Expected::Rejected("typeck", "E-ORIGINAL-CLEANUP"),
         ),
         (
             "invalid-source-contracts/unused-nonconsuming-wrapper.zil",

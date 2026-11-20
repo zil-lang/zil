@@ -306,42 +306,48 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
     let n_locals = body.locals.len();
     let n_blocks = body.blocks.len();
 
-    // 1. Forward dataflow: maybe_init / maybe_uninit per local + must-uninit fields.
-    let mut entry: Vec<Option<(Vec<Init>, HashSet<Place>)>> = vec![None; n_blocks];
+    // 1. Forward dataflow: maybe_init / maybe_uninit per local + must-uninit and may-uninit fields.
+    let mut entry: Vec<Option<(Vec<Init>, HashSet<Place>, HashSet<Place>)>> = vec![None; n_blocks];
     let mut init0 = vec![Init::UNINIT; n_locals];
     for slot in init0.iter_mut().take(body.param_count as usize) {
         *slot = Init::INIT;
     }
-    entry[0] = Some((init0, HashSet::new()));
+    entry[0] = Some((init0, HashSet::new(), HashSet::new()));
     let mut queue = VecDeque::from([BlockId(0)]);
     let mut queued = vec![false; n_blocks];
     queued[0] = true;
 
     while let Some(b) = queue.pop_front() {
         queued[b.index()] = false;
-        let Some((mut state, mut ufields)) = entry[b.index()].clone() else {
+        let Some((mut state, mut ufields, mut may_ufields)) = entry[b.index()].clone() else {
             continue;
         };
         let block = &body.blocks[b.index()];
         for inst in &block.instructions {
+            let mut state_dup = state.clone();
             step_instruction(&mut state, &mut ufields, &inst.kind);
+            step_instruction(&mut state_dup, &mut may_ufields, &inst.kind);
         }
+        let mut state_dup = state.clone();
         step_terminator(&mut state, &mut ufields, &block.terminator);
+        step_terminator(&mut state_dup, &mut may_ufields, &block.terminator);
         for (edge_kind, target) in block.terminator.edges() {
             let mut s = state.clone();
             let mut uf = ufields.clone();
+            let mut muf = may_ufields.clone();
             for a in block.terminator.edge_accesses(edge_kind) {
                 if let (PlaceAccess::Init, Some(l)) = (a.access, a.place.as_local()) {
                     s[l.index()] = Init::INIT;
                     uf.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
+                    muf.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
                 }
             }
             let changed = match &mut entry[target.index()] {
                 None => {
-                    entry[target.index()] = Some((s, uf));
+                    entry[target.index()] = Some((s, uf, muf));
                     true
                 }
-                Some((old, old_uf)) => {
+                Some((old, old_uf, old_muf)) => {
                     let mut diff = false;
                     for (o, n) in old.iter_mut().zip(&s) {
                         let j = o.join(*n);
@@ -355,6 +361,11 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     if old_uf.len() != before_len {
                         diff = true;
                     }
+                    let before_muf = old_muf.len();
+                    old_muf.extend(muf);
+                    if old_muf.len() != before_muf {
+                        diff = true;
+                    }
                     diff
                 }
             };
@@ -365,14 +376,14 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
         }
     }
 
-    // 2. Decide which locals need a drop flag (only those observed as Maybe
+    // 2. Decide which places need a drop flag (only those observed as Maybe
     //    at some reachable auto-drop point).
-    let mut flagged: HashMap<Local, Local> = HashMap::new();
+    let mut flagged: HashMap<Place, Local> = HashMap::new();
     let mut per_point: HashMap<(BlockId, usize), Init> = HashMap::new();
     let mut partial_drops: HashMap<(BlockId, usize), Vec<Place>> = HashMap::new();
     let mut replace_to_assign: HashSet<(BlockId, usize)> = HashSet::new();
     for (b_idx, block) in body.blocks.iter().enumerate() {
-        let Some((mut state, mut ufields)) = entry[b_idx].clone() else {
+        let Some((mut state, mut ufields, mut may_ufields)) = entry[b_idx].clone() else {
             continue;
         };
         let bid = BlockId::from_index(b_idx);
@@ -396,7 +407,8 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         st = Init::UNINIT;
                     }
                     per_point.insert((bid, i), st);
-                    if st.is_maybe() && !flagged.contains_key(&l) {
+                    let lp = Place::local(l);
+                    if st.is_maybe() && !flagged.contains_key(&lp) {
                         let bool_ty = tys.intern(TyKind::Bool);
                         let flag = Local::from_index(body.locals.len());
                         body.locals.push(LocalDecl {
@@ -405,9 +417,9 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         });
                         body.drop_flags.push(DropFlag {
                             flag,
-                            place: Place::local(l),
+                            place: lp.clone(),
                         });
-                        flagged.insert(l, flag);
+                        flagged.insert(lp, flag);
                     } else if !st.is_definitely_uninit()
                         && !st.is_maybe()
                         && ufields
@@ -426,16 +438,39 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     }
                 } else if ufields.contains(place) {
                     per_point.insert((bid, i), Init::UNINIT);
+                } else if may_ufields.contains(place) {
+                    per_point.insert((bid, i), Init::INIT.join(Init::UNINIT));
+                    if !flagged.contains_key(place) {
+                        let bool_ty = tys.intern(TyKind::Bool);
+                        let flag = Local::from_index(body.locals.len());
+                        body.locals.push(LocalDecl {
+                            ty: bool_ty,
+                            name: None,
+                        });
+                        body.drop_flags.push(DropFlag {
+                            flag,
+                            place: place.clone(),
+                        });
+                        flagged.insert(place.clone(), flag);
+                    }
                 } else {
                     per_point.insert((bid, i), Init::INIT);
                 }
             }
+            let mut state_dup = state.clone();
             step_instruction(&mut state, &mut ufields, &inst.kind);
+            step_instruction(&mut state_dup, &mut may_ufields, &inst.kind);
         }
     }
 
+    let place_is_prefix = |prefix: &Place, full: &Place| -> bool {
+        prefix.root == full.root
+            && prefix.projections.len() <= full.projections.len()
+            && full.projections[..prefix.projections.len()] == prefix.projections[..]
+    };
+
     // 3. Rewrite blocks: drop definite-uninit auto-drops, maintain flags for
-    //    flagged locals, and split blocks for maybe-init auto-drops.
+    //    flagged places, and split blocks for maybe-init auto-drops.
     let mut extra_blocks: Vec<Block> = Vec::new();
     let orig_len = body.blocks.len();
     let alloc_block = |extra: &mut Vec<Block>, block: Block| -> BlockId {
@@ -461,12 +496,15 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
         let mut cur_id = bid;
         let mut cur_insts: Vec<Instruction> = Vec::new();
 
-        // Initialize flags at entry: parameters start initialized (`true`),
-        // other flagged locals (including compiler temporaries) start `false`.
+        // Initialize flags at entry: parameters and captures start initialized (`true`),
+        // other flagged places start `false`.
         if b_idx == 0 {
-            for (&l, &flag) in &flagged {
-                let is_param = (l.0 as usize) < (body.param_count as usize);
-                cur_insts.push(bool_assign(flag, is_param, orig.terminator_span));
+            for (p, &flag) in &flagged {
+                let starts_init = match p.root {
+                    zil_ir::body::PlaceRoot::Local(l) => (l.0 as usize) < (body.param_count as usize),
+                    zil_ir::body::PlaceRoot::Capture(_) => true,
+                };
+                cur_insts.push(bool_assign(flag, starts_init, orig.terminator_span));
             }
         }
 
@@ -500,7 +538,12 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                 && let InstructionKind::Replace { place, value, old } = inst.kind
             {
                 skip_drop_old = Some(old);
-                let flag_target = place.as_local().and_then(|l| flagged.get(&l).copied());
+                let mut set_flags = Vec::new();
+                for (fp, &flag) in &flagged {
+                    if place_is_prefix(&place, fp) {
+                        set_flags.push(flag);
+                    }
+                }
                 cur_insts.push(Instruction {
                     kind: InstructionKind::Assign {
                         dest: place,
@@ -508,7 +551,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     },
                     span,
                 });
-                if let Some(flag) = flag_target {
+                for flag in set_flags {
                     cur_insts.push(bool_assign(flag, true, span));
                 }
                 continue;
@@ -522,12 +565,9 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     // Already moved on every path: omit drop.
                     continue;
                 }
-                let Some(l) = place.as_local() else {
-                    cur_insts.push(inst);
-                    continue;
-                };
                 if st.is_maybe() {
-                    let flag = flagged[&l];
+                    let flag = flagged[place];
+                    let drop_place = place.clone();
                     let after = alloc_block(
                         &mut extra_blocks,
                         Block {
@@ -541,9 +581,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         Block {
                             instructions: vec![
                                 Instruction {
-                                    kind: InstructionKind::Drop {
-                                        place: Place::local(l),
-                                    },
+                                    kind: InstructionKind::Drop { place: drop_place },
                                     span,
                                 },
                                 bool_assign(flag, false, span),
@@ -569,6 +607,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     continue;
                 }
                 // Definitely initialized: keep the drop (or expand partial-move field drops).
+                let drop_place = place.clone();
                 if let Some(sub_places) = partial_drops.get(&(bid, i)) {
                     for sub in sub_places {
                         cur_insts.push(Instruction {
@@ -579,8 +618,10 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                 } else {
                     cur_insts.push(inst);
                 }
-                if let Some(&flag) = flagged.get(&l) {
-                    cur_insts.push(bool_assign(flag, false, span));
+                for (fp, &flag) in &flagged {
+                    if place_is_prefix(&drop_place, fp) {
+                        cur_insts.push(bool_assign(flag, false, span));
+                    }
                 }
                 continue;
             }
@@ -589,8 +630,10 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
             let mut updates: Vec<(Local, bool)> = Vec::new();
             match &inst.kind {
                 InstructionKind::StorageLive(l) => {
-                    if let Some(&flag) = flagged.get(l) {
-                        updates.push((flag, false));
+                    for (fp, &flag) in &flagged {
+                        if fp.root == zil_ir::body::PlaceRoot::Local(*l) {
+                            updates.push((flag, false));
+                        }
                     }
                 }
                 InstructionKind::StorageDead(_)
@@ -601,32 +644,35 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                 | InstructionKind::Replace { .. }
                 | InstructionKind::RegisterDefer { .. } => {
                     for a in inst.kind.accesses() {
-                        if let Some(l) = a.place.as_local() {
-                            let Some(&flag) = flagged.get(&l) else {
-                                continue;
-                            };
-                            match a.access {
-                                PlaceAccess::Move | PlaceAccess::Drop => {
-                                    updates.push((flag, false))
+                        match a.access {
+                            PlaceAccess::Move | PlaceAccess::Drop => {
+                                for (fp, &flag) in &flagged {
+                                    if place_is_prefix(&a.place, fp) || place_is_prefix(fp, &a.place) {
+                                        updates.push((flag, false));
+                                    }
                                 }
-                                PlaceAccess::Init | PlaceAccess::ReplaceInstance => {
-                                    updates.push((flag, true))
+                                if let (
+                                    zil_ir::body::PlaceRoot::Local(l),
+                                    [zil_ir::body::Projection::ErrorArm(_)],
+                                ) = (a.place.root, a.place.projections.as_slice())
+                                    && let Some(&flag) = flagged.get(&Place::local(l))
+                                {
+                                    updates.push((flag, false));
                                 }
-                                PlaceAccess::Copy
-                                | PlaceAccess::Borrow(_)
-                                | PlaceAccess::Describe
-                                | PlaceAccess::InspectTag
-                                | PlaceAccess::InspectLen
-                                | PlaceAccess::CallClosure(_) => {}
                             }
-                        } else if matches!(a.access, PlaceAccess::Move | PlaceAccess::Drop)
-                            && let (
-                                zil_ir::body::PlaceRoot::Local(l),
-                                [zil_ir::body::Projection::ErrorArm(_)],
-                            ) = (a.place.root, a.place.projections.as_slice())
-                            && let Some(&flag) = flagged.get(&l)
-                        {
-                            updates.push((flag, false));
+                            PlaceAccess::Init | PlaceAccess::ReplaceInstance => {
+                                for (fp, &flag) in &flagged {
+                                    if place_is_prefix(&a.place, fp) {
+                                        updates.push((flag, true));
+                                    }
+                                }
+                            }
+                            PlaceAccess::Copy
+                            | PlaceAccess::Borrow(_)
+                            | PlaceAccess::Describe
+                            | PlaceAccess::InspectTag
+                            | PlaceAccess::InspectLen
+                            | PlaceAccess::CallClosure(_) => {}
                         }
                     }
                 }
@@ -637,7 +683,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
             }
         }
 
-        // Terminator: if it moves or initializes a flagged local on an outgoing
+        // Terminator: if it moves or initializes a flagged place on an outgoing
         // edge (e.g. `Call`), insert a trampoline block to update the flags.
         let mut term = orig.terminator;
         let tspan = orig.terminator_span;
@@ -651,17 +697,18 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
         {
             let mut edge_updates: Vec<(Local, bool)> = Vec::new();
             for a in args.iter() {
-                if let Operand::Move(p) = a
-                    && let Some(l) = p.as_local()
-                    && let Some(&flag) = flagged.get(&l)
-                {
-                    edge_updates.push((flag, false));
+                if let Operand::Move(p) = a {
+                    for (fp, &flag) in &flagged {
+                        if place_is_prefix(p, fp) || place_is_prefix(fp, p) {
+                            edge_updates.push((flag, false));
+                        }
+                    }
                 }
             }
-            if let Some(l) = dest.as_local()
-                && let Some(&flag) = flagged.get(&l)
-            {
-                edge_updates.push((flag, true));
+            for (fp, &flag) in &flagged {
+                if place_is_prefix(dest, fp) {
+                    edge_updates.push((flag, true));
+                }
             }
             if !edge_updates.is_empty() {
                 let real_target = *target;
@@ -685,11 +732,12 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
             if let Some(cancel_target) = cancel {
                 let mut cancel_updates: Vec<(Local, bool)> = Vec::new();
                 for a in args.iter() {
-                    if let Operand::Move(p) = a
-                        && let Some(l) = p.as_local()
-                        && let Some(&flag) = flagged.get(&l)
-                    {
-                        cancel_updates.push((flag, false));
+                    if let Operand::Move(p) = a {
+                        for (fp, &flag) in &flagged {
+                            if place_is_prefix(p, fp) || place_is_prefix(fp, p) {
+                                cancel_updates.push((flag, false));
+                            }
+                        }
                     }
                 }
                 if !cancel_updates.is_empty() {

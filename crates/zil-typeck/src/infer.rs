@@ -24,6 +24,7 @@ struct CaptureEntry {
     orig_ty: Ty,
     by_value: bool,
     mutable: bool,
+    mutated: bool,
     consumed: bool,
     field_ty: Ty,
 }
@@ -84,7 +85,7 @@ pub fn infer_fn<'a>(
     let body = match &decl.ast.body {
         ast::FunctionBody::Block(b) => cx.block(b),
         ast::FunctionBody::Expression(e) => {
-            let value = cx.infer(e);
+            let value = cx.infer_expected(e, decl.result);
             let value = cx.coerce_value(value, decl.result, e.span);
             let span = e.span;
             let ty = cx.types.never();
@@ -262,6 +263,34 @@ impl<'c, 'a> FnCx<'c, 'a> {
             self.unify(*gr, *wr, span);
             self.opaque_return = Some(*id);
             return value;
+        }
+
+        // 0b. Non-capturing closure -> function pointer coercion.
+        if let (
+            TyData::FnPtr {
+                params: wp,
+                result: wr,
+            },
+            TyData::Closure {
+                id,
+                params: gp,
+                result: gr,
+                ..
+            },
+        ) = (&ed, &vd)
+            && matches!(&value.kind, ExprKind::Closure { captures, .. } if captures.is_empty())
+            && gp.len() == wp.len()
+        {
+            for (g, w) in gp.iter().zip(wp) {
+                self.unify(*g, *w, span);
+            }
+            self.unify(*gr, *wr, span);
+            let vspan = value.span;
+            return Expr {
+                kind: ExprKind::ClosureFnRef(*id),
+                ty: expected,
+                span: vspan,
+            };
         }
 
         // 1. Reborrow `&mut T` -> `&mut T` / `&T`.
@@ -480,7 +509,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
 
     /// `Enum.Variant`, `Record`, `mod.Record`, or `mod.Enum.Variant`.
     fn resolve_variant_path(&mut self, path: &[String], span: Span) -> Option<(AdtRef, u32)> {
-        if let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, path) {
+        if let Some(adt) = self.items.resolve_adt_of(self.decl.module, path, self.types) {
             if self.items.adt(adt).kind != AdtKind::Enum {
                 return Some((adt, 0));
             }
@@ -489,7 +518,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
         }
         if path.len() >= 2 {
             let (enum_path, variant) = (&path[..path.len() - 1], &path[path.len() - 1]);
-            if let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, enum_path)
+            if let Some(adt) = self
+                .items
+                .resolve_adt_of(self.decl.module, enum_path, self.types)
                 && self.items.adt(adt).kind == AdtKind::Enum
             {
                 return match self.items.adt(adt).variant_named(variant) {
@@ -608,23 +639,52 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 ty,
                 value,
             } => {
-                let mut init = self.infer(value);
-                let declared = match ty {
+                let (init, declared) = match ty {
                     Some(t) => {
                         let t = self.resolve_written(t);
+                        let mut init = self.infer_expected(value, t);
                         let tt = self.types.shallow(t);
                         let it = self.types.shallow(init.ty);
                         if let (TyData::Desc(want), TyData::Managed(got)) =
                             (self.types.data(tt).clone(), self.types.data(it).clone())
                         {
                             self.unify(got, want, value.span);
-                            init.ty
+                            if is_place(&init.kind) {
+                                let vspan = init.span;
+                                init = Expr {
+                                    kind: ExprKind::Describe(Box::new(init)),
+                                    ty: t,
+                                    span: vspan,
+                                };
+                                (init, t)
+                            } else {
+                                let ty = init.ty;
+                                (init, ty)
+                            }
                         } else {
                             init = self.coerce_value(init, t, value.span);
-                            t
+                            (init, t)
                         }
                     }
-                    None => init.ty,
+                    None => {
+                        let mut init = self.infer(value);
+                        let it = self.types.shallow(init.ty);
+                        if is_place(&init.kind)
+                            && let TyData::Managed(inner) = self.types.data(it).clone()
+                        {
+                            let desc_ty = self.types.intern(TyData::Desc(inner));
+                            let vspan = init.span;
+                            init = Expr {
+                                kind: ExprKind::Describe(Box::new(init)),
+                                ty: desc_ty,
+                                span: vspan,
+                            };
+                            (init, desc_ty)
+                        } else {
+                            let ty = init.ty;
+                            (init, ty)
+                        }
+                    }
                 };
                 let pattern = self.pattern(pattern, declared, *mutable);
                 if !self.irrefutable(&pattern) {
@@ -640,40 +700,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let result = self.ret_ty;
                 let value = match value {
                     Some(v) => {
-                        let inferred = if let ast::ExprKind::Closure {
-                            move_capture,
-                            params,
-                            return_type,
-                            body,
-                            ..
-                        } = &v.kind
-                        {
-                            let exp = if let TyData::ImplCallable {
-                                params: ep,
-                                result: er,
-                                ..
-                            }
-                            | TyData::FnPtr {
-                                params: ep,
-                                result: er,
-                            } = self.types.data(result).clone()
-                                && ep.len() == params.len()
-                            {
-                                Some((ep, er))
-                            } else {
-                                None
-                            };
-                            self.infer_closure(
-                                *move_capture,
-                                params,
-                                return_type.as_ref(),
-                                body,
-                                v.span,
-                                exp.as_ref().map(|(p, r)| (p.as_slice(), *r)),
-                            )
-                        } else {
-                            self.infer(v)
-                        };
+                        let inferred = self.infer_expected(v, result);
                         let v = self.coerce_value(inferred, result, span);
                         Some(Box::new(v))
                     }
@@ -813,7 +840,6 @@ impl<'c, 'a> FnCx<'c, 'a> {
             ast::StmtKind::Assign { target, op, value } => {
                 let place = self.infer(target);
                 self.check_assignable(&place);
-                let rhs = self.infer(value);
                 let bin = match op {
                     ast::AssignOp::Set => None,
                     ast::AssignOp::Add => Some(BinOp::Add),
@@ -825,7 +851,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     ast::AssignOp::BitOr => Some(BinOp::BitOr),
                     ast::AssignOp::BitXor => Some(BinOp::BitXor),
                 };
-                self.coerce(&rhs, place.ty, value.span);
+                let rhs = if bin.is_none() {
+                    let v = self.infer_expected(value, place.ty);
+                    self.coerce_value(v, place.ty, value.span)
+                } else {
+                    let v = self.infer(value);
+                    self.coerce(&v, place.ty, value.span);
+                    v
+                };
                 e(
                     ExprKind::Assign {
                         place: Box::new(place),
@@ -1098,15 +1131,18 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     return;
                 }
                 ExprKind::Capture(idx) => {
-                    if let Some(env) = &self.capture_env
-                        && let Some(cap) = env.captures.get(*idx as usize)
-                        && !cap.mutable
+                    if let Some(env) = &mut self.capture_env
+                        && let Some(cap) = env.captures.get_mut(*idx as usize)
                     {
-                        self.error(
-                            diag::ASSIGN_IMMUTABLE,
-                            place.span,
-                            format!("captured variable cannot be {what}"),
-                        );
+                        if !cap.mutable {
+                            self.error(
+                                diag::ASSIGN_IMMUTABLE,
+                                place.span,
+                                format!("captured variable cannot be {what}"),
+                            );
+                        } else {
+                            cap.mutated = true;
+                        }
                     }
                     return;
                 }
@@ -1121,6 +1157,11 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             place.span,
                             format!("a place behind a shared address cannot be {what}"),
                         );
+                    } else if let ExprKind::Capture(idx) = base.kind
+                        && let Some(env) = &mut self.capture_env
+                        && let Some(cap) = env.captures.get_mut(idx as usize)
+                    {
+                        cap.mutated = true;
                     }
                     return;
                 }
@@ -1146,6 +1187,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Call { .. }
                 | ExprKind::IndirectCall { .. }
                 | ExprKind::Closure { .. }
+                | ExprKind::ClosureFnRef(_)
                 | ExprKind::ClosureCall { .. }
                 | ExprKind::TraitCall { .. }
                 | ExprKind::DynCall { .. }
@@ -1464,7 +1506,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             }));
                         mk(ExprKind::ForeignRef(f), ty)
                     }
-                    Some(ItemRef::Adt(_) | ItemRef::Trait(_)) => {
+                    Some(ItemRef::Adt(_) | ItemRef::Trait(_) | ItemRef::TypeAlias(_, _)) => {
                         self.error(diag::NAME_UNRESOLVED, span, format!("`{n}` is a type"));
                         self.err_expr(span)
                     }
@@ -1760,6 +1802,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 orig_ty,
                 by_value,
                 mutable,
+                mutated: false,
                 consumed: false,
                 field_ty,
             });
@@ -1779,6 +1822,111 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 ty: cap.orig_ty,
                 span,
             })
+        }
+    }
+
+    fn infer_expected(&mut self, expr: &ast::Expr, expected: Ty) -> Expr {
+        let et = self.items.normalize_ty(expected, self.types);
+        let ed = self.types.data(et).clone();
+        match &expr.kind {
+            ast::ExprKind::Closure {
+                move_capture,
+                params,
+                return_type,
+                body,
+                ..
+            } => {
+                let exp = if let TyData::ImplCallable {
+                    params: ep,
+                    result: er,
+                    ..
+                }
+                | TyData::FnPtr {
+                    params: ep,
+                    result: er,
+                } = &ed
+                    && ep.len() == params.len()
+                {
+                    Some((ep.clone(), *er))
+                } else {
+                    None
+                };
+                self.infer_closure(
+                    *move_capture,
+                    params,
+                    return_type.as_ref(),
+                    body,
+                    expr.span,
+                    exp.as_ref().map(|(p, r)| (p.as_slice(), *r)),
+                )
+            }
+            ast::ExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                let cond = self.infer(condition);
+                let b = self.types.bool();
+                self.coerce(&cond, b, condition.span);
+                let then_v = self.infer_expected(then_value, expected);
+                let then_v = self.coerce_value(then_v, expected, then_value.span);
+                let else_v = self.infer_expected(else_value, expected);
+                let else_v = self.coerce_value(else_v, expected, else_value.span);
+                let ty = self.join(then_v.ty, else_v.ty, expr.span);
+                Expr {
+                    kind: ExprKind::If {
+                        cond: Box::new(cond),
+                        then: Box::new(then_v),
+                        otherwise: Some(Box::new(else_v)),
+                    },
+                    ty,
+                    span: expr.span,
+                }
+            }
+            ast::ExprKind::Tuple(items) => {
+                if let TyData::Tuple(elem_tys) = &ed
+                    && elem_tys.len() == items.len()
+                {
+                    let mut out = Vec::with_capacity(items.len());
+                    let mut tys = Vec::with_capacity(items.len());
+                    for (it, &ety) in items.iter().zip(elem_tys) {
+                        let v = self.infer_expected(it, ety);
+                        let v = self.coerce_value(v, ety, it.span);
+                        tys.push(v.ty);
+                        out.push(v);
+                    }
+                    let ty = self.types.intern(TyData::Tuple(tys));
+                    return Expr {
+                        kind: ExprKind::Tuple(out),
+                        ty,
+                        span: expr.span,
+                    };
+                }
+                self.infer(expr)
+            }
+            ast::ExprKind::Array(items) => {
+                if let TyData::Array { element, .. } = ed
+                    && !items.is_empty()
+                {
+                    let mut out = Vec::with_capacity(items.len());
+                    for it in items {
+                        let v = self.infer_expected(it, element);
+                        let v = self.coerce_value(v, element, it.span);
+                        out.push(v);
+                    }
+                    let ty = self.types.intern(TyData::Array {
+                        element,
+                        length: items.len() as u32,
+                    });
+                    return Expr {
+                        kind: ExprKind::Array(out),
+                        ty,
+                        span: expr.span,
+                    };
+                }
+                self.infer(expr)
+            }
+            _ => self.infer(expr),
         }
     }
 
@@ -1841,7 +1989,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         let body_expr = match body {
             ast::ArrowBody::Block(b) => self.block(b),
             ast::ArrowBody::Expression(e) => {
-                let val = self.infer(e);
+                let val = self.infer_expected(e, result_ty);
                 let val = self.coerce_value(val, result_ty, e.span);
                 let ty = self.types.never();
                 Expr {
@@ -1877,7 +2025,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
 
         let kind = if env.captures.iter().any(|c| c.consumed) {
             ClosureKind::FnOnce
-        } else if env.captures.iter().any(|c| c.mutable) {
+        } else if env.captures.iter().any(|c| c.mutated) {
             ClosureKind::FnMut
         } else {
             ClosureKind::Fn
@@ -2367,15 +2515,15 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 );
                 continue;
             }
+            let ft = self.field_ty(adt, variant, i as u32, &args);
             let value = match &f.value {
-                Some(v) => self.infer(v),
+                Some(v) => self.infer_expected(v, ft),
                 None => self.infer(&ast::Expr {
                     kind: ast::ExprKind::Name(f.name.clone()),
                     span: f.span,
                     semantic: ast::SemanticContextMarker::default(),
                 }),
             };
-            let ft = self.field_ty(adt, variant, i as u32, &args);
             let value = self.coerce_value(value, ft, f.span);
             slots[i] = Some(value);
         }
@@ -2446,7 +2594,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 arguments: enum_type_args,
             } = &object.kind
             && let Some(enum_path) = Self::expr_path(enum_callee).filter(|p| !self.path_is_value(p))
-            && let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, &enum_path)
+            && let Some(adt) = self
+                .items
+                .resolve_adt_of(self.decl.module, &enum_path, self.types)
             && self.items.adt(adt).kind == AdtKind::Enum
         {
             let Some(v_idx) = self.items.adt(adt).variant_named(variant) else {
@@ -2543,7 +2693,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         }
                         return self.foreign_call(f, arguments, span);
                     }
-                    ItemRef::Adt(_) | ItemRef::Trait(_) => {
+                    ItemRef::Adt(_) | ItemRef::Trait(_) | ItemRef::TypeAlias(_, _) => {
                         self.error(diag::ENUM_VARIANT, span, "a type cannot be called directly");
                         return self.err_expr(span);
                     }
@@ -2551,7 +2701,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             if path.len() >= 2 && explicit.is_none() {
                 let (enum_path, variant) = (&path[..path.len() - 1], &path[path.len() - 1]);
-                if let Some(ItemRef::Adt(adt)) = self.items.lookup_item(self.decl.module, enum_path)
+                if let Some(adt) = self
+                    .items
+                    .resolve_adt_of(self.decl.module, enum_path, self.types)
                     && self.items.adt(adt).kind == AdtKind::Enum
                 {
                     let Some(v_idx) = self.items.adt(adt).variant_named(variant) else {
@@ -2893,9 +3045,31 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             let mut args = Vec::new();
             for (a, p) in arguments.iter().zip(&params) {
-                let v = self.infer(&a.value);
+                let v = self.infer_expected(&a.value, *p);
                 args.push(self.coerce_arg(v, *p, a.span));
             }
+            Expr {
+                kind: ExprKind::IndirectCall {
+                    callee: Box::new(callee_expr),
+                    args,
+                },
+                ty: result,
+                span,
+            }
+        } else if matches!(self.types.data(ct), TyData::Var(_)) {
+            let mut args = Vec::with_capacity(arguments.len());
+            let mut param_tys = Vec::with_capacity(arguments.len());
+            for a in arguments {
+                let v = self.infer(&a.value);
+                param_tys.push(v.ty);
+                args.push(v);
+            }
+            let result = self.types.fresh(VarKind::General);
+            let fn_ptr = self.types.intern(TyData::FnPtr {
+                params: param_tys,
+                result,
+            });
+            self.unify(ct, fn_ptr, span);
             Expr {
                 kind: ExprKind::IndirectCall {
                     callee: Box::new(callee_expr),
@@ -3545,9 +3719,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
         }
         let mut args = Vec::new();
         for (p, a) in param_tys.iter().zip(arguments) {
-            let value = self.infer(&a.value);
             let expected = self.types.subst(*p, &type_args);
             let expected = self.types.erase_regions(expected);
+            let value = self.infer_expected(&a.value, expected);
             let value = self.coerce_arg(value, expected, a.span);
             args.push(value);
         }
@@ -3671,6 +3845,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
             | ExprKind::DynCall { .. }
@@ -3749,15 +3924,13 @@ impl Finalizer<'_, '_> {
                     && let Some(g) = self.generics.get(i as usize)
                     && !g.copy
                     && !g.sync_drop
+                    && !g.store_element
                     && !local_is_consumed(&f.body, p)
                 {
                     let mut d = diag::error(
-                        diag::GENERIC_BOUND,
+                        "E-ORIGINAL-CLEANUP",
                         l.span,
-                        format!(
-                            "dropping unconsumed parameter of generic type `{}` requires `Copy` or `SyncDrop`",
-                            g.name
-                        ),
+                        "live original value has no independent SyncDrop proof",
                     );
                     d.notes
                         .push(format!("original scope cleanup binding \"{}\"", l.name));
@@ -3773,6 +3946,7 @@ impl Finalizer<'_, '_> {
                     && let Some(g) = self.generics.get(i as usize)
                     && !g.copy
                     && !g.sync_drop
+                    && !g.store_element
                     && !local_is_consumed(&f.body, lid)
                 {
                     let mut d = diag::error(
@@ -3795,6 +3969,7 @@ impl Finalizer<'_, '_> {
                     && let Some(g) = self.generics.get(i as usize)
                     && !g.copy
                     && !g.sync_drop
+                    && !g.store_element
                     && !capture_is_consumed(&c.body, ci as u32)
                 {
                     self.diags.push(diag::error(
@@ -4018,6 +4193,7 @@ impl Finalizer<'_, '_> {
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::ForeignRef(_)
+            | ExprKind::ClosureFnRef(_)
             | ExprKind::Break
             | ExprKind::Continue => {}
             ExprKind::FnRef { func, type_args } => {
@@ -4357,6 +4533,7 @@ fn expr_contains_suspend(e: &Expr) -> bool {
         | ExprKind::Capture(_)
         | ExprKind::FnRef { .. }
         | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
         | ExprKind::Break
         | ExprKind::Continue => false,
         ExprKind::Field { base, .. }
@@ -4460,6 +4637,7 @@ fn unwrap_local_ref(e: &Expr) -> Option<LocalId> {
         | ExprKind::Convert { .. }
         | ExprKind::FnRef { .. }
         | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
         | ExprKind::Call { .. }
         | ExprKind::IndirectCall { .. }
         | ExprKind::Closure { .. }
@@ -4516,6 +4694,7 @@ fn unwrap_capture_ref(e: &Expr) -> Option<u32> {
         | ExprKind::Convert { .. }
         | ExprKind::FnRef { .. }
         | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
         | ExprKind::Call { .. }
         | ExprKind::IndirectCall { .. }
         | ExprKind::Closure { .. }
@@ -4564,6 +4743,9 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
                         Stmt::Expr(x) => {
                             if walk(x, aliases, root_cap) {
                                 return true;
+                            }
+                            if matches!(x.kind, ExprKind::Return(_)) {
+                                return false;
                             }
                         }
                     }
@@ -4617,17 +4799,18 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
                 otherwise,
             } => {
                 walk(cond, aliases, root_cap)
-                    || walk(then, aliases, root_cap)
-                    || otherwise
-                        .as_deref()
-                        .is_some_and(|x| walk(x, aliases, root_cap))
+                    || (walk(then, &mut aliases.clone(), root_cap)
+                        && otherwise
+                            .as_deref()
+                            .is_some_and(|x| walk(x, &mut aliases.clone(), root_cap)))
             }
-            ExprKind::While { cond, body } => {
-                walk(cond, aliases, root_cap) || walk(body, aliases, root_cap)
-            }
+            ExprKind::While { cond, .. } => walk(cond, aliases, root_cap),
             ExprKind::Match { scrutinee, arms } => {
                 walk(scrutinee, aliases, root_cap)
-                    || arms.iter().any(|a| walk(&a.body, aliases, root_cap))
+                    || (!arms.is_empty()
+                        && arms
+                            .iter()
+                            .all(|a| walk(&a.body, &mut aliases.clone(), root_cap)))
             }
             ExprKind::Loop(inner)
             | ExprKind::CtEval(inner)
@@ -4661,6 +4844,7 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
             | ExprKind::Capture(_)
             | ExprKind::FnRef { .. }
             | ExprKind::ForeignRef(_)
+            | ExprKind::ClosureFnRef(_)
             | ExprKind::Break
             | ExprKind::Continue => false,
         }

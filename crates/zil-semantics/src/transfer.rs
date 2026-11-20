@@ -200,10 +200,9 @@ impl<'a> Kernel<'a> {
             {
                 return Err(bad("flag declared twice"));
             }
-            let PlaceRoot::Local(root) = decl.place.root else {
-                return Err(bad("flagged place is not local storage"));
-            };
-            if root == decl.flag {
+            if let PlaceRoot::Local(root) = decl.place.root
+                && root == decl.flag
+            {
                 return Err(bad("flag guards itself"));
             }
             if tracked_len(&decl.place) != decl.place.projections.len() {
@@ -615,10 +614,14 @@ impl<'a> Kernel<'a> {
         let key_written = |l: &Local| written.root == PlaceRoot::Local(*l);
         state.variants.retain(|p, _| !stale(p));
         state.tags.retain(|l, p| !stale(p) && !key_written(l));
-        // Any change inside a flagged place changes its initialization.
-        state
-            .flags
-            .retain(|l, p| written.relation(p) == PlaceRelation::Disjoint && !key_written(l));
+        // Any change inside a flagged place changes its initialization,
+        // whereas a write behind a Deref cannot initialize or deinitialize
+        // an inline flagged place (OpSpec forbids moves/drops behind Deref).
+        state.flags.retain(|l, p| {
+            !key_written(l)
+                && (written.first_deref().is_some()
+                    || written.relation(p) == PlaceRelation::Disjoint)
+        });
     }
 
     fn invalidate_root(&self, state: &mut State, root: PlaceRoot) {
@@ -802,15 +805,21 @@ impl<'a> Kernel<'a> {
         for i in 0..self.body.locals.len() {
             self.obligation(state, self.root_path(Local::from_index(i))?)?;
         }
-        let owns_captures = self
+        let closure_kind = self
             .body
             .closure
             .and_then(|c| self.tys.closure(c))
-            .is_some_and(|c| c.kind == ClosureKind::FnOnce);
-        if owns_captures {
+            .map(|c| c.kind);
+        if closure_kind == Some(ClosureKind::FnOnce) {
             for c in 0..self.body.captures.len() {
                 if let Some(path) = self.paths.root(PlaceRoot::Capture(c as u32)) {
                     self.obligation(state, path)?;
+                }
+            }
+        } else if closure_kind == Some(ClosureKind::FnMut) {
+            for c in 0..self.body.captures.len() {
+                if let Some(path) = self.paths.root(PlaceRoot::Capture(c as u32)) {
+                    self.require_full(state, path)?;
                 }
             }
         }

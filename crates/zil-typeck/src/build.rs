@@ -53,6 +53,8 @@ pub struct Mono<'c, 'a, 'e> {
     dyns: HashMap<TraitRef, DynId>,
     closures: HashMap<(FnRef, Vec<Ty>, ClosureRef), ClosureId>,
     closure_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, ClosureId)>,
+    closure_fns: HashMap<(FnRef, Vec<Ty>, ClosureRef), FnId>,
+    closure_fn_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, FnId)>,
     ensured: HashSet<TyId>,
 }
 
@@ -80,6 +82,8 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             dyns: HashMap::new(),
             closures: HashMap::new(),
             closure_queue: VecDeque::new(),
+            closure_fns: HashMap::new(),
+            closure_fn_queue: VecDeque::new(),
             ensured: HashSet::new(),
         }
     }
@@ -197,9 +201,65 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         Some(def_id)
     }
 
+    fn ensure_closure_fn(
+        &mut self,
+        owner: FnRef,
+        args: Vec<Ty>,
+        cid: ClosureRef,
+        span: Span,
+    ) -> Option<FnId> {
+        let key = (owner, args.clone(), cid);
+        if let Some(&id) = self.closure_fns.get(&key) {
+            return Some(id);
+        }
+        if self.module.functions.len() >= self.limits.instances {
+            self.diags
+                .push(diag::limit("too many function instances", span));
+            return None;
+        }
+        let thir = self.thir.get(owner.0 as usize).and_then(Option::as_ref)?;
+        let c = thir.closures.get(cid.0 as usize)?;
+        let mut param_tys = Vec::with_capacity(c.param_tys.len());
+        for t in &c.param_tys {
+            let t = self.types.subst(*t, &args);
+            param_tys.push(self.lower_ty(t, span)?);
+        }
+        let r = self.types.subst(c.result, &args);
+        let result = self.lower_ty(r, span)?;
+        let sig = FnSig {
+            params: param_tys,
+            result,
+            type_params: 0,
+            region_params: self.items.func(owner).region_params.len() as u32,
+            role: FnRole::Normal,
+        };
+        let owner_name = self.items.func(owner).name.clone();
+        let id = FnId::from_index(self.module.functions.len());
+        self.module.functions.push(Function {
+            name: format!("{owner_name}::$fn_closure#{}", cid.0),
+            sig,
+            body: Body {
+                param_count: 0,
+                locals: Vec::new(),
+                captures: Vec::new(),
+                closure: None,
+                result,
+                param_env: ParamEnv::default(),
+                drop_flags: Vec::new(),
+                blocks: Vec::new(),
+            },
+        });
+        self.closure_fns.insert(key, id);
+        self.closure_fn_queue.push_back((owner, args, cid, id));
+        Some(id)
+    }
+
     /// Builds every requested function and closure instance.
     pub fn run(&mut self) {
-        while !self.queue.is_empty() || !self.closure_queue.is_empty() {
+        while !self.queue.is_empty()
+            || !self.closure_queue.is_empty()
+            || !self.closure_fn_queue.is_empty()
+        {
             while let Some((f, args, id)) = self.queue.pop_front() {
                 let Some(thir) = self.thir.get(f.0 as usize).and_then(Option::as_ref) else {
                     continue;
@@ -260,6 +320,33 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     sig: csig,
                     body: cbody,
                 });
+            }
+            while let Some((owner, args, cid, fn_id)) = self.closure_fn_queue.pop_front() {
+                let Some(thir) = self.thir.get(owner.0 as usize).and_then(Option::as_ref) else {
+                    continue;
+                };
+                let Some(c) = thir.closures.get(cid.0 as usize) else {
+                    continue;
+                };
+                let sig = self.module.functions[fn_id.index()].sig.clone();
+                let cthir = ThirFn {
+                    locals: c.locals.clone(),
+                    params: c.params.clone(),
+                    body: c.body.clone(),
+                    closures: Vec::new(),
+                    opaque_return: None,
+                };
+                let mut cb = Builder::new(self, owner, &cthir, args, sig);
+                cb.function(&cthir);
+                let (cbody, ceval_rels) = cb.finish();
+                let decl_span = self.items.func(owner).ast.span;
+                self.source_map.functions.push(build_fn_source_map(
+                    fn_id,
+                    decl_span,
+                    &cbody,
+                    ceval_rels,
+                ));
+                self.module.functions[fn_id.index()].body = cbody;
             }
         }
     }
@@ -1004,6 +1091,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
             | ExprKind::DynCall { .. }
@@ -1190,6 +1278,18 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 Rvalue::Aggregate {
                     kind: AggregateKind::Closure { def, args },
                     operands,
+                }
+            }
+            ExprKind::ClosureFnRef(id) => {
+                match self
+                    .mono
+                    .ensure_closure_fn(self.owner_fn, self.subst.clone(), *id, e.span)
+                {
+                    Some(fn_id) => Rvalue::FnRef(fn_id),
+                    None => {
+                        self.failed = true;
+                        Rvalue::Use(Operand::Const(ConstValue::Unit))
+                    }
                 }
             }
             ExprKind::FnRef { func, type_args } => {
@@ -1586,6 +1686,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::FnRef { .. }
             | ExprKind::ForeignRef(_)
             | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
             | ExprKind::Describe(_)
             | ExprKind::ErrorInject { .. }
             | ExprKind::Unary { .. }
@@ -1955,7 +2056,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 };
                 if !self.needs_cleanup(ty) {
                     self.assign(p, rv, span);
-                } else {
+                } else if p.first_deref().is_some() {
                     let v = self.temp(ty);
                     self.assign(Place::local(v), rv, span);
                     let old = self.temp(ty);
@@ -1973,6 +2074,18 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                         },
                         span,
                     );
+                } else {
+                    let v = self.temp(ty);
+                    self.assign(Place::local(v), rv, span);
+                    let idx = self.blocks[self.cur.index()].instructions.len();
+                    self.push(
+                        InstructionKind::Drop {
+                            place: p.clone(),
+                        },
+                        span,
+                    );
+                    self.auto_drops.insert((self.cur, idx));
+                    self.assign(p, Rvalue::Use(Operand::Move(Place::local(v))), span);
                 }
             }
             ExprKind::Lit(_)
@@ -1982,6 +2095,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
             | ExprKind::DynCall { .. }

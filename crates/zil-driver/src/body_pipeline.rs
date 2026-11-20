@@ -200,6 +200,7 @@ pub fn build_body_source_native(
             clang: None,
             extra_c_sources,
             emit_c_main: true,
+            entry: None,
             codegen_units: 1,
             codegen_jobs: 1,
         },

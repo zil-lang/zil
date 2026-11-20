@@ -87,9 +87,15 @@ pub fn check_fidelity(
                         ));
                     }
                     // 2. Cross-check source expression field name against IR field name.
-                    // Enum variant payload fields are projected by pattern destructuring
-                    // rather than `base.field` syntax.
+                    // Enum variant payload fields (matched via pattern destructuring) and
+                    // compiler-inserted partial-move Drop instructions (anchored at scope
+                    // exit spans) do not correspond to `base.field` syntax.
+                    let is_drop = at
+                        .instruction
+                        .and_then(|i| body.block(at.block)?.instructions.get(i as usize))
+                        .is_some_and(|inst| matches!(inst.kind, InstructionKind::Drop { .. }));
                     if adt.kind != zil_ir::body::AdtKind::Enum
+                        && !is_drop
                         && let Some(sp) = span_by_loc.get(at)
                         && let Some(file_selects) = ast_selects.get(&sp.file)
                     {

@@ -53,6 +53,15 @@ pub fn emit_verified_body_units(
     emit_c_main: bool,
     requested_units: usize,
 ) -> Result<Vec<String>, BodyEmitError> {
+    emit_verified_body_units_with_entry(verified, emit_c_main, requested_units, None)
+}
+
+pub fn emit_verified_body_units_with_entry(
+    verified: &VerifiedModule,
+    emit_c_main: bool,
+    requested_units: usize,
+    entry_name: Option<&str>,
+) -> Result<Vec<String>, BodyEmitError> {
     let module = verified.module();
     let fn_count = module.functions.len();
     let actual_units = requested_units.clamp(1, fn_count.max(1));
@@ -64,7 +73,11 @@ pub fn emit_verified_body_units(
     header.push_str("declare ptr @calloc(i64, i64)\n");
     header.push_str("declare ptr @realloc(ptr, i64) nobuiltin\n");
     header.push_str("declare void @free(ptr) nobuiltin\n");
-    header.push_str("declare void @abort() noreturn\n\n");
+    header.push_str("declare void @abort() noreturn\n");
+    header.push_str("declare i32 @printf(ptr, ...)\n");
+    header.push_str(
+        "@__zil_fmt_i64 = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\", align 1\n\n",
+    );
 
     for (idx, bytes) in module.statics.iter().enumerate() {
         let escaped = escape_llvm_bytes(bytes);
@@ -98,12 +111,14 @@ pub fn emit_verified_body_units(
         header.push('\n');
     }
 
+    let target_entry = entry_name.unwrap_or("main");
+    let custom_entry = target_entry != "main";
     let mut main_fn: Option<(FnId, String, TyId)> = None;
     let mut syms = Vec::with_capacity(fn_count);
     for (idx, func) in module.functions.iter().enumerate() {
         let fn_id = FnId::from_index(idx);
         let sym = fn_symbol(fn_id, func);
-        if (func.name == "main" || func.name.ends_with(".main"))
+        if (func.name == target_entry || func.name.ends_with(&format!(".{target_entry}")))
             && func.sig.params.is_empty()
             && func.sig.role == FnRole::Normal
         {
@@ -142,15 +157,60 @@ pub fn emit_verified_body_units(
         {
             let ret = llvm_ty(&module.tys, res_ty)?;
             out.push_str("define i32 @main() {\nentry:\n");
-            if ret == "void" {
+            if let Some(TyKind::ErrorUnion { ok, .. }) = module.tys.get(res_ty) {
+                let ok_ty = *ok;
+                let ok_llvm = llvm_ty(&module.tys, ok_ty)?;
+                let _ = writeln!(out, "  %r = call {ret} @{sym}()");
+                let _ = writeln!(out, "  %tag = extractvalue {ret} %r, 0");
+                out.push_str("  br i1 %tag, label %ok_bb, label %err_bb\n");
+                out.push_str("ok_bb:\n");
+                if ok_llvm == "void" {
+                    out.push_str("  ret i32 0\n");
+                } else if ok_llvm == "i32" {
+                    let _ = writeln!(out, "  %v = extractvalue {ret} %r, 1");
+                    if custom_entry {
+                        out.push_str("  %ext = sext i32 %v to i64\n");
+                        out.push_str(
+                            "  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %ext)\n",
+                        );
+                        out.push_str("  ret i32 0\n");
+                    } else {
+                        out.push_str("  ret i32 %v\n");
+                    }
+                } else if ok_llvm == "i64" {
+                    let _ = writeln!(out, "  %v = extractvalue {ret} %r, 1");
+                    if custom_entry {
+                        out.push_str(
+                            "  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %v)\n",
+                        );
+                        out.push_str("  ret i32 0\n");
+                    } else {
+                        out.push_str("  %t = trunc i64 %v to i32\n  ret i32 %t\n");
+                    }
+                } else {
+                    out.push_str("  ret i32 0\n");
+                }
+                out.push_str("err_bb:\n  ret i32 1\n");
+            } else if ret == "void" {
                 let _ = writeln!(out, "  call void @{sym}()");
                 out.push_str("  ret i32 0\n");
             } else if ret == "i32" {
                 let _ = writeln!(out, "  %r = call i32 @{sym}()");
-                out.push_str("  ret i32 %r\n");
+                if custom_entry {
+                    out.push_str("  %ext = sext i32 %r to i64\n");
+                    out.push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %ext)\n");
+                    out.push_str("  ret i32 0\n");
+                } else {
+                    out.push_str("  ret i32 %r\n");
+                }
             } else if ret == "i64" {
                 let _ = writeln!(out, "  %r = call i64 @{sym}()");
-                out.push_str("  %t = trunc i64 %r to i32\n  ret i32 %t\n");
+                if custom_entry {
+                    out.push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %r)\n");
+                    out.push_str("  ret i32 0\n");
+                } else {
+                    out.push_str("  %t = trunc i64 %r to i32\n  ret i32 %t\n");
+                }
             } else if ret == "i1" {
                 let _ = writeln!(out, "  %r = call i1 @{sym}()");
                 out.push_str("  %t = zext i1 %r to i32\n  ret i32 %t\n");
@@ -798,7 +858,7 @@ impl<'a> FnEmitter<'a> {
                     return Ok(());
                 };
                 let base_llvm = llvm_storage_ty(self.tys(), ty)?;
-                for (i, &cty) in cdef.captures.iter().enumerate().rev() {
+                for (i, &cty) in cdef.captures.iter().enumerate() {
                     let fty = self.tys().subst_lookup(cty, args).unwrap_or(cty);
                     let gep = self.fresh();
                     let _ = writeln!(

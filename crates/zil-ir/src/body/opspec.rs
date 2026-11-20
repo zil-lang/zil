@@ -871,7 +871,10 @@ pub fn check_access(access: &Access<'_>, cx: &ConstraintCx<'_>) -> Result<(), Co
     });
     let through_shared =
         typing.derefs.contains(&DerefBase::SharedRef) || capture_kind == Some(ClosureKind::Fn);
-    let owned_root = matches!(capture_kind, None | Some(ClosureKind::FnOnce));
+    let owned_root = matches!(
+        capture_kind,
+        None | Some(ClosureKind::FnOnce) | Some(ClosureKind::FnMut)
+    );
     let moving = |cx_place: &Place| -> Result<(), ConstraintError> {
         if indirect || !owned_root {
             return Err(ConstraintError::MoveFromBorrowed {
@@ -1376,11 +1379,15 @@ fn intrinsic_sig(
             let d = bytes()?;
             let u8_ty = cx.lookup(TyKind::Int(IntTy::U8))?;
             let slice_u8 = cx.lookup(TyKind::Slice(u8_ty))?;
+            let mutability = match tys.get(dest_ty) {
+                Some(TyKind::Ref { mutability, .. }) => *mutability,
+                _ => Mutability::Shared,
+            };
             Ok((
                 vec![d],
                 cx.lookup(TyKind::Ref {
                     region: super::ty::Region::Static,
-                    mutability: Mutability::Shared,
+                    mutability,
                     pointee: slice_u8,
                 })?,
             ))
