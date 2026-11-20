@@ -340,12 +340,9 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 cb.function(&cthir);
                 let (cbody, ceval_rels) = cb.finish();
                 let decl_span = self.items.func(owner).ast.span;
-                self.source_map.functions.push(build_fn_source_map(
-                    fn_id,
-                    decl_span,
-                    &cbody,
-                    ceval_rels,
-                ));
+                self.source_map
+                    .functions
+                    .push(build_fn_source_map(fn_id, decl_span, &cbody, ceval_rels));
                 self.module.functions[fn_id.index()].body = cbody;
             }
         }
@@ -2078,12 +2075,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     let v = self.temp(ty);
                     self.assign(Place::local(v), rv, span);
                     let idx = self.blocks[self.cur.index()].instructions.len();
-                    self.push(
-                        InstructionKind::Drop {
-                            place: p.clone(),
-                        },
-                        span,
-                    );
+                    self.push(InstructionKind::Drop { place: p.clone() }, span);
                     self.auto_drops.insert((self.cur, idx));
                     self.assign(p, Rvalue::Use(Operand::Move(Place::local(v))), span);
                 }

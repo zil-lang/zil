@@ -424,7 +424,7 @@ fn helper_and_readiness_explicit_manifest() {
         ),
         (
             "tests/fixtures/borrowed-enums/poll-module-api.zil",
-            Expected::Rejected("typeck", "TaskPollState"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/borrowed-enums/poll-module-main.zil",

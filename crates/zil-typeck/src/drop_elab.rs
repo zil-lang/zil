@@ -307,7 +307,8 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
     let n_blocks = body.blocks.len();
 
     // 1. Forward dataflow: maybe_init / maybe_uninit per local + must-uninit and may-uninit fields.
-    let mut entry: Vec<Option<(Vec<Init>, HashSet<Place>, HashSet<Place>)>> = vec![None; n_blocks];
+    type BlockEntry = (Vec<Init>, HashSet<Place>, HashSet<Place>);
+    let mut entry: Vec<Option<BlockEntry>> = vec![None; n_blocks];
     let mut init0 = vec![Init::UNINIT; n_locals];
     for slot in init0.iter_mut().take(body.param_count as usize) {
         *slot = Init::INIT;
@@ -501,7 +502,9 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
         if b_idx == 0 {
             for (p, &flag) in &flagged {
                 let starts_init = match p.root {
-                    zil_ir::body::PlaceRoot::Local(l) => (l.0 as usize) < (body.param_count as usize),
+                    zil_ir::body::PlaceRoot::Local(l) => {
+                        (l.0 as usize) < (body.param_count as usize)
+                    }
                     zil_ir::body::PlaceRoot::Capture(_) => true,
                 };
                 cur_insts.push(bool_assign(flag, starts_init, orig.terminator_span));
@@ -647,7 +650,9 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         match a.access {
                             PlaceAccess::Move | PlaceAccess::Drop => {
                                 for (fp, &flag) in &flagged {
-                                    if place_is_prefix(&a.place, fp) || place_is_prefix(fp, &a.place) {
+                                    if place_is_prefix(&a.place, fp)
+                                        || place_is_prefix(fp, &a.place)
+                                    {
                                         updates.push((flag, false));
                                     }
                                 }

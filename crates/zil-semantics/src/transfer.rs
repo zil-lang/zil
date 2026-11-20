@@ -638,9 +638,12 @@ impl<'a> Kernel<'a> {
         let stale = |p: &Place| {
             if deref_write {
                 p.first_deref().is_some()
-                    || deref_targets
-                        .iter()
-                        .any(|t| !matches!(t.relation(p), PlaceRelation::Disjoint | PlaceRelation::ContainedBy))
+                    || deref_targets.iter().any(|t| {
+                        !matches!(
+                            t.relation(p),
+                            PlaceRelation::Disjoint | PlaceRelation::ContainedBy
+                        )
+                    })
             } else {
                 !matches!(
                     written.relation(p),
@@ -664,8 +667,7 @@ impl<'a> Kernel<'a> {
         // whereas a write behind a Deref cannot initialize or deinitialize
         // an inline flagged place (OpSpec forbids moves/drops behind Deref).
         state.flags.retain(|l, p| {
-            !key_written(l)
-                && (deref_write || written.relation(p) == PlaceRelation::Disjoint)
+            !key_written(l) && (deref_write || written.relation(p) == PlaceRelation::Disjoint)
         });
     }
 

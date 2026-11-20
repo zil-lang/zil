@@ -82,10 +82,11 @@
         "all 7 helper/projection composition shapes (direct, h, p, hh, hp, ph, pp) x 4 exits x 4 native configs (Clang/LLVM-API x O0/O2)",
         "all 14 paired exclusive-receiver and nominal-error safety negatives rejected with exact semantic diagnostics",
         "static trait impl dispatch, inherited self receivers, and Managed<R> -> Desc<R> method calls",
-        "range for-loops (for pat in start..end), aggregate field defaults, and bytes_view_mut"
+        "range for-loops (for pat in start..end), aggregate field defaults, and bytes_view_mut",
+        "type aliases with generic substitution and ADT/enum variant path resolution (generic-alias-loop)",
+        "non-capturing contextual closures lowered to env-less function pointers (function-pointer-pipeline)"
       ],
       "open_gaps": [
-        "type aliases (generic-alias-loop, generic-module-enums)",
         "generic function returning impl FnOnce capturing generic type parameter (ImplCallable monomorphization args)"
       ]
     },
@@ -120,16 +121,18 @@
       ],
       "current_tests": [
         "crates/zil-safety-cases/tests/readiness_census.rs",
-        "crates/zil-driver/tests/alpha_e2e_acceptance.rs"
+        "crates/zil-driver/tests/alpha_e2e_acceptance.rs",
+        "tools/roam-rs task-result-combinations (16 positive x O0/O2 native + 8 negative = 24/24 PASS)"
       ],
-      "status": "partial",
+      "status": "covered_with_tracked_gaps",
       "verified_properties": [
-        "21/24 positive task-owner-transport static ownership/cleanup programs admitted",
-        "9/9 negative task-owner-transport safety contracts rejected at exact phase and diagnostic (0 false admits)"
+        "native single-calloc ucontext_t coroutine runtime for TaskCreate/TaskYield/TaskPoll/TaskRequestCancel/TaskPollClose/TaskFinishDestroy/TaskValid",
+        "TaskPollState builtin enum (Cancelled/Complete/Invalid) and complete/compact Task context tuples",
+        "all 16 positive task-result-combinations (compact/complete x direct/relay x ready/cancel-before-start/cancel-after-pending/allocation-error) passing natively at O0/O2 with exact single-frame allocation/free witness",
+        "all 8 negative task-result-combinations (worker-result-source, active-input-write) rejected with exact semantic safety diagnostics",
+        "21/24 positive task-owner-transport static programs admitted and 9/9 negative safety contracts rejected (0 false admits)"
       ],
       "open_gaps": [
-        "native LLVM coroutine frame state machine for TaskCreate/TaskPoll/TaskRequestCancel/TaskPollClose/TaskFinishDestroy (blocks roam task-result-combinations 24-case native execution)",
-        "TaskPollState builtin enum (Cancelled/Complete/Invalid)",
         "3 higher-order task-owner-transport static cases: nested-once-callable-child-cleanup, returned-second-task-fnonce, returned-shared-task-classes"
       ]
     },
@@ -167,14 +170,13 @@
         "tools/research/native-api-validation/validate.py",
         "tools/language/check-fixed-projects.py"
       ],
-      "status": "partial",
+      "status": "covered_with_tracked_gaps",
       "verified_properties": [
         "dual native backends (Clang and in-process LLVM 23 C API) at O0 and O2",
         "real multi-codegen-unit parallel object emission (1-unit and 8-unit) with multi-object clang linking",
-        "fixed-projects runner adapted and operational: 7/17 positive original projects verified, 52/152 original comparisons + 44/56 additional comparisons + 16/60 control comparisons + 8/8 cleanup witness comparisons passing"
+        "fixed-projects matrix 100% PASS (exit 0): 21/21 projects (17/17 originals verified, 4/4 expected rejections exact), 60/60 original builds & 152/152 required comparisons, 12/12 additional builds & 56/56 comparisons, 4/4 controls & 16/16 builds & 60/60 comparisons, 8/8 cleanup control comparisons"
       ],
       "open_gaps": [
-        "remaining fixed-projects gaps: type aliases (2), fidelity/solver on UI/byte_buffer/resources (8), function-pointer/app/mixed-captures (3), expected_rejection diagnostic mapping (4)",
         "direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser under llvm-api feature)"
       ]
     },

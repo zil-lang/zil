@@ -509,7 +509,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
 
     /// `Enum.Variant`, `Record`, `mod.Record`, or `mod.Enum.Variant`.
     fn resolve_variant_path(&mut self, path: &[String], span: Span) -> Option<(AdtRef, u32)> {
-        if let Some(adt) = self.items.resolve_adt_of(self.decl.module, path, self.types) {
+        if let Some(adt) = self
+            .items
+            .resolve_adt_of(self.decl.module, path, self.types)
+        {
             if self.items.adt(adt).kind != AdtKind::Enum {
                 return Some((adt, 0));
             }
@@ -1926,7 +1929,26 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
                 self.infer(expr)
             }
-            _ => self.infer(expr),
+            ast::ExprKind::Literal(_)
+            | ast::ExprKind::Name(_)
+            | ast::ExprKind::ReceiverMember(_)
+            | ast::ExprKind::Group(_)
+            | ast::ExprKind::Ascribed { .. }
+            | ast::ExprKind::Unary { .. }
+            | ast::ExprKind::Binary { .. }
+            | ast::ExprKind::Pipeline { .. }
+            | ast::ExprKind::Member { .. }
+            | ast::ExprKind::TypeApply { .. }
+            | ast::ExprKind::Call { .. }
+            | ast::ExprKind::Index { .. }
+            | ast::ExprKind::Slice { .. }
+            | ast::ExprKind::Try(_)
+            | ast::ExprKind::Record { .. }
+            | ast::ExprKind::MetaEval(_)
+            | ast::ExprKind::MetaSplice(_)
+            | ast::ExprKind::Quote { .. }
+            | ast::ExprKind::MetaBlock(_)
+            | ast::ExprKind::SyntaxIsland { .. } => self.infer(expr),
         }
     }
 
@@ -2701,9 +2723,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             if path.len() >= 2 && explicit.is_none() {
                 let (enum_path, variant) = (&path[..path.len() - 1], &path[path.len() - 1]);
-                if let Some(adt) = self
-                    .items
-                    .resolve_adt_of(self.decl.module, enum_path, self.types)
+                if let Some(adt) =
+                    self.items
+                        .resolve_adt_of(self.decl.module, enum_path, self.types)
                     && self.items.adt(adt).kind == AdtKind::Enum
                 {
                     let Some(v_idx) = self.items.adt(adt).variant_named(variant) else {
@@ -3321,21 +3343,17 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 many => Some(self.types.intern(TyData::Tuple(many.to_vec()))),
             };
             let ret_shallow = self.types.shallow(self.ret_ty);
-            let exp_task_ctx = match self.types.data(ret_shallow).clone() {
-                TyData::ErrorUnion { ok, .. } => {
-                    let ok_s = self.types.shallow(ok);
-                    match self.types.data(ok_s).clone() {
-                        TyData::Managed(inner) => {
-                            let inner_s = self.types.shallow(inner);
-                            match self.types.data(inner_s).clone() {
-                                TyData::Opaque(OpaqueKind::Task { context, .. }) => context,
-                                _ => None,
-                            }
-                        }
-                        _ => None,
-                    }
-                }
-                _ => None,
+            let exp_task_ctx = if let TyData::ErrorUnion { ok, .. } =
+                self.types.data(ret_shallow).clone()
+                && let ok_s = self.types.shallow(ok)
+                && let TyData::Managed(inner) = self.types.data(ok_s).clone()
+                && let inner_s = self.types.shallow(inner)
+                && let TyData::Opaque(OpaqueKind::Task { context, .. }) =
+                    self.types.data(inner_s).clone()
+            {
+                context
+            } else {
+                None
             };
             let context = if let (Some(full), Some(exp)) = (full_context, exp_task_ctx)
                 && self.types.can_unify(full, exp)

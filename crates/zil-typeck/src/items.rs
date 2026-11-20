@@ -761,9 +761,7 @@ pub fn collect_program<'a>(
                         .filter(|g| matches!(g.kind, ast::GenericParamKind::Type(_)))
                         .count();
                     let ta_idx = items.modules[m_i].type_aliases.len() as u32;
-                    items.modules[m_i]
-                        .type_aliases
-                        .push((arity, types.error()));
+                    items.modules[m_i].type_aliases.push((arity, types.error()));
                     alias_asts.push((mid, ta_idx, ta, item.span));
                     (&ta.name, ItemRef::TypeAlias(mid, ta_idx))
                 }
@@ -2427,8 +2425,7 @@ fn resolve_type_with_lifetimes(
                     }
                 }
                 Some(ItemRef::TypeAlias(ta_mod, ta_idx)) => {
-                    let (arity, target) =
-                        modules[ta_mod.0 as usize].type_aliases[ta_idx as usize];
+                    let (arity, target) = modules[ta_mod.0 as usize].type_aliases[ta_idx as usize];
                     let mut tys = Vec::new();
                     for a in args {
                         match a {

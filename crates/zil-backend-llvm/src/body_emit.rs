@@ -79,7 +79,8 @@ pub fn emit_verified_body_units_with_entry(
     header.push_str("declare void @makecontext(ptr, ptr, i32, ...)\n");
     header.push_str("declare i32 @swapcontext(ptr, ptr)\n");
     header.push_str("@__zil_current_task = linkonce_odr global ptr null\n");
-    header.push_str("%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [8192 x i64] }\n");
+    header
+        .push_str("%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [8192 x i64] }\n");
     header.push_str(
         "@__zil_fmt_i64 = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\", align 1\n\n",
     );
@@ -185,9 +186,7 @@ pub fn emit_verified_body_units_with_entry(
                 } else if ok_llvm == "i64" {
                     let _ = writeln!(out, "  %v = extractvalue {ret} %r, 1");
                     if custom_entry {
-                        out.push_str(
-                            "  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %v)\n",
-                        );
+                        out.push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %v)\n");
                         out.push_str("  ret i32 0\n");
                     } else {
                         out.push_str("  %t = trunc i64 %v to i32\n  ret i32 %t\n");
@@ -2282,9 +2281,7 @@ impl<'a> FnEmitter<'a> {
                         Some(TyKind::Managed(inner)) => match self.tys().get(*inner) {
                             Some(TyKind::Opaque(OpaqueTy::Task { result, .. })) => *result,
                             _ => {
-                                return Err(BodyEmitError::new(
-                                    "TaskCreate ok inner is not Task",
-                                ));
+                                return Err(BodyEmitError::new("TaskCreate ok inner is not Task"));
                             }
                         },
                         _ => return Err(BodyEmitError::new("TaskCreate ok is not Managed")),
@@ -2317,12 +2314,14 @@ impl<'a> FnEmitter<'a> {
                 self.extra_defs.push_str("  %hi64 = zext i32 %hi to i64\n");
                 self.extra_defs.push_str("  %hi_sh = shl i64 %hi64, 32\n");
                 self.extra_defs.push_str("  %addr = or i64 %hi_sh, %lo64\n");
-                self.extra_defs.push_str("  %frame = inttoptr i64 %addr to ptr\n");
+                self.extra_defs
+                    .push_str("  %frame = inttoptr i64 %addr to ptr\n");
                 let _ = writeln!(
                     self.extra_defs,
                     "  %fn_slot = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 2"
                 );
-                self.extra_defs.push_str("  %wfn = load ptr, ptr %fn_slot\n");
+                self.extra_defs
+                    .push_str("  %wfn = load ptr, ptr %fn_slot\n");
                 let mut call_args = Vec::new();
                 for (i, (_, lt, _)) in arg_vals.iter().enumerate() {
                     if lt != "void" {
@@ -2578,17 +2577,29 @@ impl<'a> FnEmitter<'a> {
                     "  {wctx0} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
                 );
                 let _ = writeln!(self.out, "  call i32 @getcontext(ptr {wctx0})");
-                let _ = writeln!(self.out, "  {link_p} = getelementptr inbounds i8, ptr {wctx0}, i64 8");
+                let _ = writeln!(
+                    self.out,
+                    "  {link_p} = getelementptr inbounds i8, ptr {wctx0}, i64 8"
+                );
                 let _ = writeln!(self.out, "  store ptr null, ptr {link_p}");
                 let _ = writeln!(
                     self.out,
                     "  {stk_p} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 4"
                 );
-                let _ = writeln!(self.out, "  {sp_p} = getelementptr inbounds i8, ptr {wctx0}, i64 16");
+                let _ = writeln!(
+                    self.out,
+                    "  {sp_p} = getelementptr inbounds i8, ptr {wctx0}, i64 16"
+                );
                 let _ = writeln!(self.out, "  store ptr {stk_p}, ptr {sp_p}");
-                let _ = writeln!(self.out, "  {flg_p} = getelementptr inbounds i8, ptr {wctx0}, i64 24");
+                let _ = writeln!(
+                    self.out,
+                    "  {flg_p} = getelementptr inbounds i8, ptr {wctx0}, i64 24"
+                );
                 let _ = writeln!(self.out, "  store i32 0, ptr {flg_p}");
-                let _ = writeln!(self.out, "  {sz_p} = getelementptr inbounds i8, ptr {wctx0}, i64 32");
+                let _ = writeln!(
+                    self.out,
+                    "  {sz_p} = getelementptr inbounds i8, ptr {wctx0}, i64 32"
+                );
                 let _ = writeln!(self.out, "  store i64 65536, ptr {sz_p}");
                 let _ = writeln!(
                     self.out,

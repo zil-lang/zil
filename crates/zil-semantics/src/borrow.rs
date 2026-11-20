@@ -721,7 +721,21 @@ impl Kernel<'_> {
                 | zil_ir::body::TyKind::Desc(inner)
                 | zil_ir::body::TyKind::Ref { pointee: inner, .. } => ty = *inner,
                 zil_ir::body::TyKind::ErrorUnion { ok, .. } => ty = *ok,
-                _ => return None,
+                zil_ir::body::TyKind::Unit
+                | zil_ir::body::TyKind::Bool
+                | zil_ir::body::TyKind::Never
+                | zil_ir::body::TyKind::Int(_)
+                | zil_ir::body::TyKind::Float(_)
+                | zil_ir::body::TyKind::Adt { .. }
+                | zil_ir::body::TyKind::Tuple(_)
+                | zil_ir::body::TyKind::Array { .. }
+                | zil_ir::body::TyKind::Slice(_)
+                | zil_ir::body::TyKind::FnPtr { .. }
+                | zil_ir::body::TyKind::Closure { .. }
+                | zil_ir::body::TyKind::Dyn(_)
+                | zil_ir::body::TyKind::OwnedDyn(_)
+                | zil_ir::body::TyKind::Param(_)
+                | zil_ir::body::TyKind::Opaque(_) => return None,
             }
         }
         None
@@ -735,16 +749,16 @@ impl Kernel<'_> {
                 continue;
             }
             seen.push(l);
-            if self.body.is_param(l) {
-                if let Some(decl) = self.body.locals.get(l.index()) {
-                    let regs = self.tys.regions_in(decl.ty);
-                    if regs.is_empty() {
-                        out.insert(EXTERNAL);
-                    } else {
-                        for r in regs {
-                            if let Some(id) = self.loans.region_loan(r) {
-                                out.insert(id);
-                            }
+            if self.body.is_param(l)
+                && let Some(decl) = self.body.locals.get(l.index())
+            {
+                let regs = self.tys.regions_in(decl.ty);
+                if regs.is_empty() {
+                    out.insert(EXTERNAL);
+                } else {
+                    for r in regs {
+                        if let Some(id) = self.loans.region_loan(r) {
+                            out.insert(id);
                         }
                     }
                 }
@@ -775,7 +789,20 @@ impl Kernel<'_> {
                                     work.push(src);
                                 }
                             }
-                            _ => {}
+                            Rvalue::Use(
+                                zil_ir::body::Operand::Const(_) | zil_ir::body::Operand::Pooled(_),
+                            )
+                            | Rvalue::Aggregate { .. }
+                            | Rvalue::ErrorUnion { .. }
+                            | Rvalue::Unary { .. }
+                            | Rvalue::Binary { .. }
+                            | Rvalue::Convert { .. }
+                            | Rvalue::Discriminant(_)
+                            | Rvalue::ErrorArm(_)
+                            | Rvalue::Len(_)
+                            | Rvalue::FnRef(_)
+                            | Rvalue::ForeignFnRef(_)
+                            | Rvalue::StaticUtf(_) => {}
                         }
                     }
                 }
@@ -791,7 +818,7 @@ impl Kernel<'_> {
     ) -> Option<BitSet> {
         let arg0 = match args.first()? {
             zil_ir::body::Operand::Copy(p) | zil_ir::body::Operand::Move(p) => p.as_local()?,
-            _ => return None,
+            zil_ir::body::Operand::Const(_) | zil_ir::body::Operand::Pooled(_) => return None,
         };
         let mut work: Vec<Local> = Vec::new();
         for id in self.direct(state, PlaceRoot::Local(arg0)).iter() {
@@ -819,14 +846,12 @@ impl Kernel<'_> {
                 for inst in &block.instructions {
                     if let InstructionKind::Assign { dest, value } = &inst.kind
                         && dest.as_local() == Some(cur)
-                    {
-                        if let Rvalue::Use(
+                        && let Rvalue::Use(
                             zil_ir::body::Operand::Move(p) | zil_ir::body::Operand::Copy(p),
                         ) = value
-                            && let PlaceRoot::Local(src) = p.root
-                        {
-                            work.push(src);
-                        }
+                        && let PlaceRoot::Local(src) = p.root
+                    {
+                        work.push(src);
                     }
                 }
                 if let Terminator::Call {
@@ -881,7 +906,11 @@ impl Kernel<'_> {
                                 }
                             }
                         }
-                        _ => return None,
+                        zil_ir::body::Callee::Indirect(_)
+                        | zil_ir::body::Callee::Closure { .. }
+                        | zil_ir::body::Callee::DynSlot { .. }
+                        | zil_ir::body::Callee::Foreign(_)
+                        | zil_ir::body::Callee::Intrinsic(_) => return None,
                     }
                 }
             }
