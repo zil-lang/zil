@@ -284,16 +284,23 @@ impl Types {
             ) if n == m => self.unify(x, y),
             (
                 TyData::Ref {
+                    region: r1,
                     mutable: m1,
                     pointee: x,
-                    ..
                 },
                 TyData::Ref {
+                    region: r2,
                     mutable: m2,
                     pointee: y,
-                    ..
                 },
-            ) if m1 == m2 => self.unify(x, y),
+            ) if m1 == m2
+                && match (r1, r2) {
+                    (Some(a), Some(b)) => a == b,
+                    _ => true,
+                } =>
+            {
+                self.unify(x, y)
+            }
             (TyData::Managed(x), TyData::Managed(y))
             | (TyData::Desc(x), TyData::Desc(y))
             | (TyData::Slice(x), TyData::Slice(y)) => self.unify(x, y),
@@ -821,6 +828,128 @@ impl Types {
             | TyData::Float(_)
             | TyData::Dyn(_)
             | TyData::OwnedDyn(_)
+            | TyData::SelfParam
+            | TyData::Var(_)
+            | TyData::Error => ty,
+        }
+    }
+
+    /// Erases callee-bound region parameter indices (`Some(_)` -> `None`) when
+    /// instantiating a callee's signature at a cross-function call site so the
+    /// callee's region indices do not collide with the caller's rigid region
+    /// parameters. (Local closures in the same function keep their rigid regions.)
+    pub fn erase_regions(&mut self, ty: Ty) -> Ty {
+        let ty = self.shallow(ty);
+        let data = self.data(ty).clone();
+        match data {
+            TyData::Adt { adt, args } => {
+                let args = args.iter().map(|t| self.erase_regions(*t)).collect();
+                self.intern(TyData::Adt { adt, args })
+            }
+            TyData::Tuple(items) => {
+                let items = items.iter().map(|t| self.erase_regions(*t)).collect();
+                self.intern(TyData::Tuple(items))
+            }
+            TyData::Array { element, length } => {
+                let element = self.erase_regions(element);
+                self.intern(TyData::Array { element, length })
+            }
+            TyData::Slice(element) => {
+                let element = self.erase_regions(element);
+                self.intern(TyData::Slice(element))
+            }
+            TyData::Ref {
+                mutable, pointee, ..
+            } => {
+                let pointee = self.erase_regions(pointee);
+                self.intern(TyData::Ref {
+                    region: None,
+                    mutable,
+                    pointee,
+                })
+            }
+            TyData::Managed(inner) => {
+                let inner = self.erase_regions(inner);
+                self.intern(TyData::Managed(inner))
+            }
+            TyData::Desc(inner) => {
+                let inner = self.erase_regions(inner);
+                self.intern(TyData::Desc(inner))
+            }
+            TyData::Opaque(o) => {
+                let o = match o {
+                    OpaqueKind::OwnedStore(e) => OpaqueKind::OwnedStore(self.erase_regions(e)),
+                    OpaqueKind::Mutex(e) => OpaqueKind::Mutex(self.erase_regions(e)),
+                    OpaqueKind::MutexGuard(e) => OpaqueKind::MutexGuard(self.erase_regions(e)),
+                    OpaqueKind::Task { result, context } => OpaqueKind::Task {
+                        result: self.erase_regions(result),
+                        context: context.map(|c| self.erase_regions(c)),
+                    },
+                    OpaqueKind::AsyncRegistration(e) => {
+                        OpaqueKind::AsyncRegistration(self.erase_regions(e))
+                    }
+                    OpaqueKind::ForeignCallback { params, result } => OpaqueKind::ForeignCallback {
+                        params: params.iter().map(|t| self.erase_regions(*t)).collect(),
+                        result: self.erase_regions(result),
+                    },
+                    OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle => o,
+                };
+                self.intern(TyData::Opaque(o))
+            }
+            TyData::ErrorUnion { ok, err } => {
+                let ok = self.erase_regions(ok);
+                let err = self.erase_regions(err);
+                self.intern(TyData::ErrorUnion { ok, err })
+            }
+            TyData::FnPtr { params, result } => {
+                let params = params.iter().map(|t| self.erase_regions(*t)).collect();
+                let result = self.erase_regions(result);
+                self.intern(TyData::FnPtr { params, result })
+            }
+            TyData::Closure {
+                owner,
+                id,
+                kind,
+                params,
+                result,
+            } => {
+                let params = params.iter().map(|t| self.erase_regions(*t)).collect();
+                let result = self.erase_regions(result);
+                self.intern(TyData::Closure {
+                    owner,
+                    id,
+                    kind,
+                    params,
+                    result,
+                })
+            }
+            TyData::ImplCallable {
+                owner,
+                kind,
+                params,
+                result,
+            } => {
+                let params = params.iter().map(|t| self.erase_regions(*t)).collect();
+                let result = self.erase_regions(result);
+                self.intern(TyData::ImplCallable {
+                    owner,
+                    kind,
+                    params,
+                    result,
+                })
+            }
+            TyData::Assoc { base, name } => {
+                let base = self.erase_regions(base);
+                self.intern(TyData::Assoc { base, name })
+            }
+            TyData::Unit
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_)
+            | TyData::Param(_)
             | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,

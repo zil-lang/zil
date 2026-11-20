@@ -28,7 +28,7 @@ impl BodyEmitError {
     }
 }
 
-/// Emits LLVM 23 opaque-pointer IR for a verified Body IR module.
+/// Emits LLVM 23 opaque-pointer IR for a verified Body IR module as a single unit.
 ///
 /// When `emit_c_main` is true and a zero-argument `main` function exists, a C
 /// `main()` entry wrapper is emitted that invokes it and returns its `i32`
@@ -37,29 +37,47 @@ pub fn emit_verified_body(
     verified: &VerifiedModule,
     emit_c_main: bool,
 ) -> Result<String, BodyEmitError> {
-    let module = verified.module();
-    let mut out = String::with_capacity(8192);
-    out.push_str("; ZIL Verified Body IR -> LLVM 23 IR\n");
-    out.push_str("target triple = \"x86_64-unknown-linux-gnu\"\n\n");
-    out.push_str("declare ptr @calloc(i64, i64)\n");
-    out.push_str("declare ptr @realloc(ptr, i64) nobuiltin\n");
-    out.push_str("declare void @free(ptr) nobuiltin\n");
-    out.push_str("declare void @abort() noreturn\n\n");
+    let mut units = emit_verified_body_units(verified, emit_c_main, 1)?;
+    Ok(units.pop().unwrap_or_default())
+}
 
-    // Emit static UTF-8 byte globals.
+/// Partitions `verified` into `actual_units = requested_units.clamp(1, fn_count.max(1))`
+/// independent LLVM 23 IR modules suitable for parallel per-unit object generation.
+///
+/// Every unit defines its assigned functions (`fn_idx % actual_units == unit_idx`),
+/// emits external `declare` prototypes for functions assigned to other units, and
+/// emits `private` static byte constants so units link without symbol collisions.
+/// The C `main()` wrapper (when requested) is emitted in unit 0.
+pub fn emit_verified_body_units(
+    verified: &VerifiedModule,
+    emit_c_main: bool,
+    requested_units: usize,
+) -> Result<Vec<String>, BodyEmitError> {
+    let module = verified.module();
+    let fn_count = module.functions.len();
+    let actual_units = requested_units.clamp(1, fn_count.max(1));
+
+    // Precompute header (target triple, runtime decls, private statics, foreign decls).
+    let mut header = String::with_capacity(2048);
+    header.push_str("; ZIL Verified Body IR -> LLVM 23 IR\n");
+    header.push_str("target triple = \"x86_64-unknown-linux-gnu\"\n\n");
+    header.push_str("declare ptr @calloc(i64, i64)\n");
+    header.push_str("declare ptr @realloc(ptr, i64) nobuiltin\n");
+    header.push_str("declare void @free(ptr) nobuiltin\n");
+    header.push_str("declare void @abort() noreturn\n\n");
+
     for (idx, bytes) in module.statics.iter().enumerate() {
         let escaped = escape_llvm_bytes(bytes);
         let _ = writeln!(
-            out,
+            header,
             "@__zil_str_{idx} = private unnamed_addr constant [{} x i8] c\"{escaped}\", align 1",
             bytes.len()
         );
     }
     if !module.statics.is_empty() {
-        out.push('\n');
+        header.push('\n');
     }
 
-    // Emit foreign declarations.
     for f in &module.foreigns {
         let ret = llvm_ty(&module.tys, f.result)?;
         let mut params = Vec::with_capacity(f.params.len());
@@ -70,18 +88,18 @@ pub fn emit_verified_body(
             }
         }
         let _ = writeln!(
-            out,
+            header,
             "declare {ret} @{}({})",
             sanitize_symbol(&f.symbol),
             params.join(", ")
         );
     }
     if !module.foreigns.is_empty() {
-        out.push('\n');
+        header.push('\n');
     }
 
-    // Emit all functions.
     let mut main_fn: Option<(FnId, String, TyId)> = None;
+    let mut syms = Vec::with_capacity(fn_count);
     for (idx, func) in module.functions.iter().enumerate() {
         let fn_id = FnId::from_index(idx);
         let sym = fn_symbol(fn_id, func);
@@ -91,33 +109,62 @@ pub fn emit_verified_body(
         {
             main_fn = Some((fn_id, sym.clone(), func.sig.result));
         }
-        emit_function(module, fn_id, func, &sym, &mut out)?;
-        out.push('\n');
+        syms.push(sym);
     }
 
-    if emit_c_main && let Some((_, sym, res_ty)) = main_fn {
-        let ret = llvm_ty(&module.tys, res_ty)?;
-        out.push_str("define i32 @main() {\nentry:\n");
-        if ret == "void" {
-            let _ = writeln!(out, "  call void @{sym}()");
-            out.push_str("  ret i32 0\n");
-        } else if ret == "i32" {
-            let _ = writeln!(out, "  %r = call i32 @{sym}()");
-            out.push_str("  ret i32 %r\n");
-        } else if ret == "i64" {
-            let _ = writeln!(out, "  %r = call i64 @{sym}()");
-            out.push_str("  %t = trunc i64 %r to i32\n  ret i32 %t\n");
-        } else if ret == "i1" {
-            let _ = writeln!(out, "  %r = call i1 @{sym}()");
-            out.push_str("  %t = zext i1 %r to i32\n  ret i32 %t\n");
-        } else {
-            let _ = writeln!(out, "  %r = call {ret} @{sym}()");
-            out.push_str("  ret i32 0\n");
+    let mut units = Vec::with_capacity(actual_units);
+    for unit_idx in 0..actual_units {
+        let mut out = String::with_capacity(header.len() + 4096);
+        out.push_str(&header);
+
+        // Emit declarations for functions owned by other units.
+        if actual_units > 1 {
+            for (idx, func) in module.functions.iter().enumerate() {
+                if idx % actual_units != unit_idx {
+                    emit_function_decl(module, func, &syms[idx], &mut out)?;
+                }
+            }
+            out.push('\n');
         }
-        out.push_str("}\n");
+
+        // Emit definitions for functions owned by this unit.
+        for (idx, func) in module.functions.iter().enumerate() {
+            if idx % actual_units == unit_idx {
+                emit_function(module, FnId::from_index(idx), func, &syms[idx], &mut out)?;
+                out.push('\n');
+            }
+        }
+
+        // Emit C `main()` wrapper in unit 0.
+        if unit_idx == 0
+            && emit_c_main
+            && let Some((_, ref sym, res_ty)) = main_fn
+        {
+            let ret = llvm_ty(&module.tys, res_ty)?;
+            out.push_str("define i32 @main() {\nentry:\n");
+            if ret == "void" {
+                let _ = writeln!(out, "  call void @{sym}()");
+                out.push_str("  ret i32 0\n");
+            } else if ret == "i32" {
+                let _ = writeln!(out, "  %r = call i32 @{sym}()");
+                out.push_str("  ret i32 %r\n");
+            } else if ret == "i64" {
+                let _ = writeln!(out, "  %r = call i64 @{sym}()");
+                out.push_str("  %t = trunc i64 %r to i32\n  ret i32 %t\n");
+            } else if ret == "i1" {
+                let _ = writeln!(out, "  %r = call i1 @{sym}()");
+                out.push_str("  %t = zext i1 %r to i32\n  ret i32 %t\n");
+            } else {
+                let _ = writeln!(out, "  %r = call {ret} @{sym}()");
+                out.push_str("  ret i32 0\n");
+            }
+            out.push_str("}\n");
+        }
+
+        units.push(out);
     }
 
-    Ok(out)
+    Ok(units)
 }
 
 fn fn_symbol(id: FnId, f: &Function) -> String {
@@ -2156,6 +2203,28 @@ impl<'a> FnEmitter<'a> {
             Err(BodyEmitError::new("Store handle inner is not OwnedStore"))
         }
     }
+}
+
+fn emit_function_decl(
+    module: &Module,
+    func: &Function,
+    sym: &str,
+    out: &mut String,
+) -> Result<(), BodyEmitError> {
+    let tys = &module.tys;
+    let ret = llvm_ty(tys, func.sig.result)?;
+    let mut param_tys = Vec::new();
+    if func.body.closure.is_some() {
+        param_tys.push("ptr".to_string());
+    }
+    for &pt in &func.sig.params {
+        let lt = llvm_ty(tys, pt)?;
+        if lt != "void" {
+            param_tys.push(lt);
+        }
+    }
+    let _ = writeln!(out, "declare {ret} @{sym}({})", param_tys.join(", "));
+    Ok(())
 }
 
 fn emit_function(

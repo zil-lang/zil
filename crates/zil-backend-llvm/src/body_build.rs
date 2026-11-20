@@ -1,6 +1,6 @@
 //! Native build driver for `zil_check::VerifiedModule` using LLVM 23 clang at O0/O2.
 
-use crate::body_emit::{BodyEmitError, emit_verified_body};
+use crate::body_emit::{BodyEmitError, emit_verified_body, emit_verified_body_units};
 use crate::{NativeBackend, Optimization};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,6 +15,8 @@ pub struct BodyBuildOptions {
     pub clang: Option<PathBuf>,
     pub extra_c_sources: Vec<PathBuf>,
     pub emit_c_main: bool,
+    pub codegen_units: usize,
+    pub codegen_jobs: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -70,9 +72,11 @@ fn receipt_to_json(receipt: &zil_llvm_api::Receipt) -> String {
 
 /// Emits LLVM 23 IR from `verified` and compiles/links a native executable.
 ///
-/// For `NativeBackend::LlvmApi` (when built with feature `llvm-api`), compiles
-/// the IR in-process through `zil-llvm-api` to a native `.o` object file and
-/// invokes `clang` strictly for linking the `.o` into the final executable.
+/// For `NativeBackend::LlvmApi` (when built with feature `llvm-api`), partitions
+/// the module into `actual_units = codegen_units.clamp(1, fn_count.max(1))`
+/// independent IR units, compiles each unit in parallel (up to `codegen_jobs`)
+/// through `zil-llvm-api` to its own `.o` object file, and invokes `clang`
+/// strictly for linking the produced `.o` files into the final executable.
 pub fn build_verified_body(
     verified: &VerifiedModule,
     options: &BodyBuildOptions,
@@ -99,26 +103,81 @@ pub fn build_verified_body(
         NativeBackend::LlvmApi => {
             #[cfg(feature = "llvm-api")]
             {
+                let requested = options.codegen_units.max(1);
+                let unit_irs = if requested == 1 {
+                    vec![ir.clone()]
+                } else {
+                    emit_verified_body_units(verified, options.emit_c_main, requested)?
+                };
+                let actual_units = unit_irs.len();
                 let api_opt = match options.optimization {
                     Optimization::O0 => zil_llvm_api::Optimization::O0,
                     Optimization::O2 => zil_llvm_api::Optimization::O2,
                 };
-                let config = zil_llvm_api::Config {
-                    triple: host_triple(),
-                    optimization: api_opt,
-                };
-                let object =
-                    zil_llvm_api::compile(&ir, &config, &|| false).map_err(|e| BodyBuildError {
-                        message: format!("zil-llvm-api failed: {e}"),
+                let triple = host_triple();
+                let jobs = options.codegen_jobs.clamp(1, actual_units);
+
+                let results: Vec<std::sync::Mutex<Option<Result<zil_llvm_api::Object, String>>>> =
+                    (0..actual_units)
+                        .map(|_| std::sync::Mutex::new(None))
+                        .collect();
+                let next_idx = std::sync::atomic::AtomicUsize::new(0);
+
+                std::thread::scope(|s| {
+                    for _ in 0..jobs {
+                        s.spawn(|| {
+                            let config = zil_llvm_api::Config {
+                                triple,
+                                optimization: api_opt,
+                            };
+                            loop {
+                                let idx =
+                                    next_idx.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                if idx >= actual_units {
+                                    break;
+                                }
+                                let compiled =
+                                    zil_llvm_api::compile(&unit_irs[idx], &config, &|| false)
+                                        .map_err(|e| {
+                                            format!("zil-llvm-api unit {idx} failed: {e}")
+                                        });
+                                if let Ok(mut slot) = results[idx].lock() {
+                                    *slot = Some(compiled);
+                                }
+                            }
+                        });
+                    }
+                });
+
+                let mut obj_paths = Vec::with_capacity(actual_units);
+                let mut object_reports = Vec::with_capacity(actual_units);
+                for (idx, slot) in results.into_iter().enumerate() {
+                    let object = slot
+                        .into_inner()
+                        .ok()
+                        .flatten()
+                        .ok_or_else(|| BodyBuildError {
+                            message: format!("missing compilation result for unit {idx}"),
+                        })?
+                        .map_err(|message| BodyBuildError { message })?;
+                    let obj_path = if actual_units == 1 {
+                        PathBuf::from(format!("{}.o", options.output.display()))
+                    } else {
+                        PathBuf::from(format!("{}.u{idx}.o", options.output.display()))
+                    };
+                    fs::write(&obj_path, &object.bytes).map_err(|e| BodyBuildError {
+                        message: format!("failed to write object file {}: {e}", obj_path.display()),
                     })?;
-                let obj_path = PathBuf::from(format!("{}.o", options.output.display()));
-                fs::write(&obj_path, &object.bytes).map_err(|e| BodyBuildError {
-                    message: format!("failed to write object file: {e}"),
-                })?;
+                    obj_paths.push(obj_path);
+                    object_reports.push(receipt_to_json(&object.receipt));
+                }
 
                 let mut cmd = Command::new(&clang);
-                let mut argv = vec![clang.display().to_string(), obj_path.display().to_string()];
-                cmd.arg(&obj_path);
+                let mut argv = vec![clang.display().to_string()];
+                for obj_path in &obj_paths {
+                    cmd.arg(obj_path);
+                    argv.push(obj_path.display().to_string());
+                }
                 for c_src in &options.extra_c_sources {
                     cmd.arg(c_src);
                     argv.push(c_src.display().to_string());
@@ -143,8 +202,8 @@ pub fn build_verified_body(
                 Ok(BodyBuildOutput {
                     ir,
                     commands: vec![argv],
-                    object_reports: vec![receipt_to_json(&object.receipt)],
-                    actual_units: 1,
+                    object_reports,
+                    actual_units,
                 })
             }
             #[cfg(not(feature = "llvm-api"))]

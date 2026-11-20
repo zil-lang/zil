@@ -1,9 +1,13 @@
-//! Explicit per-file manifest across `tests/language-readiness/task-owner-transport`
+//! Component-level per-file manifest across `tests/language-readiness/task-owner-transport`
 //! (33 files) and helper/readiness fixtures (60 files) on the Body IR pipeline
-//! (`zil-typeck` -> `zil-check::check_fidelity` -> `zil-solve` -> `zil-check`).
+//! (`zil-typeck` -> `zil-solve` -> `zil-check`).
 //!
-//! Every file on disk must appear in the manifest with an explicit expected
-//! verdict (no aggregate minimum thresholds and no silent unverified rejects).
+//! Full end-to-end CLI verification (CT original checks, AST fidelity, and dual-backend
+//! native O0/O2 execution) is covered by `crates/zil-driver/tests/alpha_e2e_acceptance.rs`
+//! and `tools/research/native-api-validation/validate.py`.
+//!
+//! Every file on disk must appear in this manifest with an explicit expected
+//! verdict (no aggregate minimum thresholds and zero known-gap false admits).
 
 use std::collections::{BTreeSet, HashSet, VecDeque};
 use std::fs;
@@ -28,13 +32,10 @@ enum Outcome {
 
 #[derive(Clone, Copy, Debug)]
 enum Expected {
-    /// Positive program that must be admitted through typeck, fidelity, solve, and check.
+    /// Positive program that must be admitted through typeck, solve, and check.
     Admitted,
-    /// Negative or bounded program that must be rejected at `stage` with diagnostic containing `needle`.
+    /// Negative or out-of-scope program that must be rejected at `stage` with diagnostic containing `needle`.
     Rejected(&'static str, &'static str),
-    /// Explicitly tracked negative control currently admitted due to an open rigid-life gap
-    /// (never counted as a positive pass).
-    KnownGapAdmitted,
 }
 
 fn collect_imported_modules(entry: &Path) -> Vec<(String, String, String)> {
@@ -225,7 +226,6 @@ fn verify_manifest(base: &Path, discovered: &[PathBuf], manifest: &[(&str, Expec
         let actual = run_entry(&path);
         match (expected, actual) {
             (Expected::Admitted, Outcome::Admitted) => {}
-            (Expected::KnownGapAdmitted, Outcome::Admitted) => {}
             (Expected::Rejected(exp_stage, exp_needle), Outcome::Rejected(act_stage, act_msg)) => {
                 if act_stage != exp_stage || !act_msg.contains(exp_needle) {
                     failures.push(format!(
@@ -393,10 +393,9 @@ fn helper_and_readiness_explicit_manifest() {
     // - 42 admitted positive programs (7 directories at 100%: nested-store,
     //   optional-store-address, ownership, threading, store-allocation,
     //   store-lending, store-mutation)
-    // - 2 verified negative controls (call-regions/negative-closure-whole-type,
-    //   error-union-calls/definition-selected)
-    // - 1 explicitly tracked rigid-life negative gap (call-regions/negative-closure-rigid-life)
-    // - 15 explicitly tracked out-of-scope / open-feature fixtures
+    // - 3 verified negative controls (call-regions/negative-closure-rigid-life,
+    //   call-regions/negative-closure-whole-type, error-union-calls/definition-selected)
+    // - 15 explicitly tracked out-of-scope / open-feature fixtures (0 false admits)
     let manifest: &[(&str, Expected)] = &[
         // tests/fixtures/borrowed-enums (12)
         (
@@ -454,7 +453,7 @@ fn helper_and_readiness_explicit_manifest() {
         ),
         (
             "tests/fixtures/call-regions/negative-closure-rigid-life.zil",
-            Expected::KnownGapAdmitted,
+            Expected::Rejected("typeck", "E-TYPE-MISMATCH"),
         ),
         (
             "tests/fixtures/call-regions/negative-closure-whole-type.zil",

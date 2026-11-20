@@ -449,6 +449,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             t,
             self.decl.module,
             &self.generic_names,
+            &self.decl.region_params,
             self.items,
             self.types,
         ) {
@@ -3367,10 +3368,12 @@ impl<'c, 'a> FnCx<'c, 'a> {
         for (p, a) in param_tys.iter().zip(arguments) {
             let value = self.infer(&a.value);
             let expected = self.types.subst(*p, &type_args);
+            let expected = self.types.erase_regions(expected);
             let value = self.coerce_arg(value, expected, a.span);
             args.push(value);
         }
         let ty = self.types.subst(result, &type_args);
+        let ty = self.types.erase_regions(ty);
         Expr {
             kind: ExprKind::Call {
                 callee: f,

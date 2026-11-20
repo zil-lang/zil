@@ -2001,19 +2001,21 @@ fn collect_trait_impl<'a>(
     });
 }
 
-/// Resolves a written type in the scope of module `from` and `generics`.
+/// Resolves a written type in the scope of module `from`, `generics`, and `lifetimes`.
 #[allow(clippy::result_large_err)] // `Diagnostic` is the workspace-wide error type.
 pub fn resolve_type(
     t: &ast::TypeRef,
     from: ModIdx,
     generics: &[String],
+    lifetimes: &[String],
     items: &Items<'_>,
     types: &mut Types,
 ) -> Result<Ty, Diagnostic> {
-    resolve_type_in(
+    resolve_type_with_lifetimes(
         t,
         from,
         generics,
+        lifetimes,
         &items.modules,
         &items.mod_by_path,
         &items.adt_kinds,

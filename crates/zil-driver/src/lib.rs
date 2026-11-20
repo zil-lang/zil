@@ -798,6 +798,8 @@ impl CompilationSession {
                 clang: options.clang.clone(),
                 extra_c_sources: Vec::new(),
                 emit_c_main: true,
+                codegen_units: options.codegen.units,
+                codegen_jobs: options.codegen.jobs,
             },
         ) {
             Ok(built) => {
@@ -980,6 +982,8 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                         clang: options.clang.clone(),
                         extra_c_sources: Vec::new(),
                         emit_c_main: true,
+                        codegen_units: options.codegen.units,
+                        codegen_jobs: options.codegen.jobs,
                     },
                 ) {
                     Ok(built) => {
