@@ -376,7 +376,11 @@ impl Parser<'_> {
                 p.enter_nested()?;
                 openings.push(p.bump().span);
             }
-            let mut first = if p.at(Symbol::RParen) { None } else { Some(p.expr(true)?) };
+            let mut first = if p.at(Symbol::RParen) {
+                None
+            } else {
+                Some(p.expr(true)?)
+            };
             loop {
                 let kind = match first.take() {
                     None => ExprKind::Tuple(Vec::new()),
@@ -384,7 +388,9 @@ impl Parser<'_> {
                         let mut elements = vec![value];
                         while !p.at(Symbol::RParen) {
                             elements.push(p.expr(true)?);
-                            if !p.eat(Symbol::Comma) { break; }
+                            if !p.eat(Symbol::Comma) {
+                                break;
+                            }
                         }
                         ExprKind::Tuple(elements)
                     }
@@ -392,8 +398,14 @@ impl Parser<'_> {
                 };
                 p.expect(Symbol::RParen)?;
                 let start = openings.pop().expect("current parenthesis");
-                let value = Expr { semantic: Default::default(), kind, span: p.span_from(start) };
-                if openings.is_empty() { return Ok(value); }
+                let value = Expr {
+                    semantic: Default::default(),
+                    kind,
+                    span: p.span_from(start),
+                };
+                if openings.is_empty() {
+                    return Ok(value);
+                }
                 let value = p.postfix(value, true)?;
                 first = Some(p.pratt_tail(value, 0, true)?);
                 p.depth -= 2;

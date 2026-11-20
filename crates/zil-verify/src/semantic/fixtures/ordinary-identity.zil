@@ -1,2 +1,0 @@
-fn identity<T>(value:T)->T{return value}
-fn main()->i32{return identity(42)-42}

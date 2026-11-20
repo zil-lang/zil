@@ -19,23 +19,61 @@ pub fn exclusive_place_root<Annotation, E>(
     loop {
         visit(depth, expression.span)?;
         expression = match &expression.kind {
-            X::Name(name) => return Ok(Some(NamedPlaceRoot { node: expression.id, name })),
-            X::Group(base) | X::Ascribed { value: base, .. }
+            X::Name(name) => {
+                return Ok(Some(NamedPlaceRoot {
+                    node: expression.id,
+                    name,
+                }));
+            }
+            X::Group(base)
+            | X::Ascribed { value: base, .. }
             | X::Sequence { value: base, .. }
-            | X::Unary { op: UnaryOp::BorrowMut | UnaryOp::Dereference, operand: base }
-            | X::Member { object: base, .. } | X::Index { object: base, .. }
+            | X::Unary {
+                op: UnaryOp::BorrowMut | UnaryOp::Dereference,
+                operand: base,
+            }
+            | X::Member { object: base, .. }
+            | X::Index { object: base, .. }
             | X::Slice { object: base, .. } => base,
-            X::Unary { op: UnaryOp::Borrow | UnaryOp::Give | UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot, .. }
-            | X::ReceiverMember(_) | X::MakeDynBorrow { .. } | X::MakeDynOwned { .. }
-            | X::CallDynSlot { .. } | X::Literal(_) | X::Integer(_) | X::Float(_)
-            | X::Bool(_) | X::String(_) | X::Character(_) | X::Unit
-            | X::NumericConvert { .. } | X::IntegerConvert { .. } | X::Binary { .. }
-            | X::TypeApply { .. } | X::GenericApply { .. } | X::Call { .. }
-            | X::Tuple(_) | X::Array(_) | X::Record { .. } | X::RecordUpdate { .. }
-            | X::RecordConstructor { .. } | X::CompileTime(_) | X::CompileTimeBlock(_)
-            | X::Try(_) | X::Closure { .. } | X::If { .. } | X::Unsupported(_)
-            | X::Spread(_) | X::Range { .. } | X::Pipeline { .. } | X::Splice(_)
-            | X::SyntaxQuote { .. } | X::SyntaxIsland { .. } => return Ok(None),
+            X::Unary {
+                op:
+                    UnaryOp::Borrow | UnaryOp::Give | UnaryOp::Negate | UnaryOp::Not | UnaryOp::BitNot,
+                ..
+            }
+            | X::ReceiverMember(_)
+            | X::MakeDynBorrow { .. }
+            | X::MakeDynOwned { .. }
+            | X::CallDynSlot { .. }
+            | X::Literal(_)
+            | X::Integer(_)
+            | X::Float(_)
+            | X::Bool(_)
+            | X::String(_)
+            | X::Character(_)
+            | X::Unit
+            | X::NumericConvert { .. }
+            | X::IntegerConvert { .. }
+            | X::Binary { .. }
+            | X::TypeApply { .. }
+            | X::GenericApply { .. }
+            | X::Call { .. }
+            | X::Tuple(_)
+            | X::Array(_)
+            | X::Record { .. }
+            | X::RecordUpdate { .. }
+            | X::RecordConstructor { .. }
+            | X::CompileTime(_)
+            | X::CompileTimeBlock(_)
+            | X::Try(_)
+            | X::Closure { .. }
+            | X::If { .. }
+            | X::Unsupported(_)
+            | X::Spread(_)
+            | X::Range { .. }
+            | X::Pipeline { .. }
+            | X::Splice(_)
+            | X::SyntaxQuote { .. }
+            | X::SyntaxIsland { .. } => return Ok(None),
         };
         depth = depth.saturating_add(1);
     }
@@ -461,19 +499,37 @@ mod tests {
 
     #[test]
     fn exclusive_place_syntax_selects_the_actual_name_occurrence() {
-        let borrow = |op| expression(1, CoreExprKind::Unary {
-            op, operand: Box::new(expression(2, CoreExprKind::Group(Box::new(name(3))))),
-        });
+        let borrow = |op| {
+            expression(
+                1,
+                CoreExprKind::Unary {
+                    op,
+                    operand: Box::new(expression(2, CoreExprKind::Group(Box::new(name(3))))),
+                },
+            )
+        };
         let exclusive = borrow(UnaryOp::BorrowMut);
         let mut visited = Vec::new();
-        assert_eq!(exclusive_place_root(&exclusive, |depth, _| {
-            visited.push(depth);
-            Ok::<(), ()>(())
-        }), Ok(Some(NamedPlaceRoot { node: NodeId(3), name: "captured" })));
+        assert_eq!(
+            exclusive_place_root(&exclusive, |depth, _| {
+                visited.push(depth);
+                Ok::<(), ()>(())
+            }),
+            Ok(Some(NamedPlaceRoot {
+                node: NodeId(3),
+                name: "captured"
+            }))
+        );
         assert_eq!(visited, [0, 1, 2]);
-        for value in [borrow(UnaryOp::Borrow), borrow(UnaryOp::Give),
-            expression(4, CoreExprKind::String("\"static\"".into()))] {
-            assert_eq!(exclusive_place_root(&value, |_, _| Ok::<(), ()>(())), Ok(None));
+        for value in [
+            borrow(UnaryOp::Borrow),
+            borrow(UnaryOp::Give),
+            expression(4, CoreExprKind::String("\"static\"".into())),
+        ] {
+            assert_eq!(
+                exclusive_place_root(&value, |_, _| Ok::<(), ()>(())),
+                Ok(None)
+            );
         }
     }
 
@@ -519,12 +575,22 @@ mod tests {
 
     #[test]
     fn nested_free_name_is_owned_by_the_child_even_when_the_parent_reads_it_later() {
-        let child = expression(2, CoreExprKind::Closure {
-            parameters: vec![], return_type: None, move_capture: false,
-            body: CoreBlock { statements: vec![CoreStatement {
-                id: NodeId(3), kind: CoreStatementKind::Return(Some(name(4))), span: Span::default(),
-            }], span: Span::default() },
-        });
+        let child = expression(
+            2,
+            CoreExprKind::Closure {
+                parameters: vec![],
+                return_type: None,
+                move_capture: false,
+                body: CoreBlock {
+                    statements: vec![CoreStatement {
+                        id: NodeId(3),
+                        kind: CoreStatementKind::Return(Some(name(4))),
+                        span: Span::default(),
+                    }],
+                    span: Span::default(),
+                },
+            },
+        );
         assert_eq!(selected(&child, CaptureUse::First), None);
         let value = expression(1, CoreExprKind::Tuple(vec![child, name(7)]));
         assert_eq!(selected(&value, CaptureUse::First), Some(NodeId(7)));

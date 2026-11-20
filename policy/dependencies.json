@@ -13,26 +13,7 @@
       "zil-base",
       "zil-ir"
     ],
-    "zil-expand": [
-      "zil-base",
-      "zil-syntax",
-      "zil-ir"
-    ],
-    "zil-types": [
-      "zil-base",
-      "zil-syntax",
-      "zil-ir"
-    ],
     "zil-typeck": [
-      "zil-base",
-      "zil-syntax",
-      "zil-ir"
-    ],
-    "zil-analyze": [
-      "zil-base",
-      "zil-ir"
-    ],
-    "zil-verify": [
       "zil-base",
       "zil-syntax",
       "zil-ir"
@@ -56,47 +37,31 @@
       "zil-check",
       "zil-interp"
     ],
-    "zil-ct": [
-      "zil-base",
-      "zil-ir",
-      "zil-verify",
-      "zil-check"
-    ],
     "zil-interp": [
       "zil-base",
       "zil-ir",
       "zil-check",
       "zil-solve"
     ],
-    "zil-lower": [
-      "zil-base",
-      "zil-ir",
-      "zil-verify",
-      "zil-check"
-    ],
     "zil-backend-c": [
       "zil-base",
       "zil-ir",
-      "zil-verify",
       "zil-check"
     ],
     "zil-backend-llvm": [
       "zil-base",
       "zil-ir",
-      "zil-verify",
       "zil-check",
       "zil-llvm-api"
     ],
     "zil-backend-cranelift": [
       "zil-base",
       "zil-ir",
-      "zil-verify",
       "zil-check"
     ],
     "zil-backend-wasm": [
       "zil-base",
       "zil-ir",
-      "zil-verify",
       "zil-check"
     ],
     "zil-db": [
@@ -107,16 +72,10 @@
       "zil-base",
       "zil-syntax",
       "zil-ir",
-      "zil-expand",
-      "zil-types",
       "zil-typeck",
-      "zil-analyze",
       "zil-solve",
-      "zil-verify",
       "zil-check",
-      "zil-ct",
       "zil-interp",
-      "zil-lower",
       "zil-db",
       "zil-backend-c",
       "zil-backend-llvm",
@@ -155,11 +114,6 @@
       "zil-syntax": [
         "src/fidelity",
         "src/ct_original"
-      ]
-    },
-    "zil-verify": {
-      "zil-syntax": [
-        "src/ct_original.rs"
       ]
     }
   }

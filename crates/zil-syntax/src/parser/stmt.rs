@@ -234,7 +234,10 @@ impl Parser<'_> {
                     context: Default::default(),
                     move_capture: false,
                     params: Vec::new(),
-                    return_type: Some(TypeRef { kind: TypeKind::Tuple(Vec::new()), span }),
+                    return_type: Some(TypeRef {
+                        kind: TypeKind::Tuple(Vec::new()),
+                        span,
+                    }),
                     body: ArrowBody::Block(body),
                 },
                 span,

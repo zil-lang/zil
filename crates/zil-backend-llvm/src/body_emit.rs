@@ -293,21 +293,6 @@ impl<'a> FnEmitter<'a> {
             .ok_or_else(|| BodyEmitError::new(format!("unknown local {local:?}")))
     }
 
-    fn place_ty(&self, place: &Place) -> Result<TyId, BodyEmitError> {
-        let mut ty = match place.root {
-            PlaceRoot::Local(l) => self.local_ty(l)?,
-            PlaceRoot::Capture(i) => *self
-                .body
-                .captures
-                .get(i as usize)
-                .ok_or_else(|| BodyEmitError::new(format!("unknown capture {i}")))?,
-        };
-        for step in &place.projections {
-            ty = self.step_ty(ty, *step)?;
-        }
-        Ok(ty)
-    }
-
     fn step_ty(&self, base: TyId, step: Projection) -> Result<TyId, BodyEmitError> {
         let tys = self.tys();
         match step {

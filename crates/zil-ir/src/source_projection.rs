@@ -944,17 +944,26 @@ mod tests {
         let value = Type::Array {
             element: Box::new(Type::Enum {
                 name: "Choice".into(),
-                variants: vec![("Only".into(), vec![Type::ErrorUnion {
-                    error: Box::new(Type::I8),
-                    result: Box::new(parent()),
-                }])],
+                variants: vec![(
+                    "Only".into(),
+                    vec![Type::ErrorUnion {
+                        error: Box::new(Type::I8),
+                        result: Box::new(parent()),
+                    }],
+                )],
             }),
             length: 2,
         };
         let enumeration = physical_child(&value, p(1)).unwrap();
-        let payload = PlaceProjection::Variant(VariantProjection { variant: 0, index: 0 });
+        let payload = PlaceProjection::Variant(VariantProjection {
+            variant: 0,
+            index: 0,
+        });
         let union = physical_child(enumeration, payload).unwrap();
-        assert_eq!(physical_child(union, PlaceProjection::ErrorArm(true)), Some(&Type::I8));
+        assert_eq!(
+            physical_child(union, PlaceProjection::ErrorArm(true)),
+            Some(&Type::I8)
+        );
         let qualified = physical_child(union, PlaceProjection::ErrorArm(false)).unwrap();
         let pair = physical_child(qualified, p(1)).unwrap();
         let address = physical_child(pair, p(0)).unwrap();

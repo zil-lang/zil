@@ -12,10 +12,10 @@ const mk=(entries)=>({workspace_members:entries.map(([name])=>name+'#0'), packag
 const results=[];
 function test(name, fn){ fn(); results.push({name,passed:true}); }
 test('policy graph is acyclic',()=>assert.deepEqual(validatePolicy(policy),[]));
-test('approved real-shaped metadata passes',()=>assert.equal(checkMetadata(mk([['zil-base',[]],['zil-ir',['zil-base']],['zil-verify',['zil-ir','zil-base']]]),policy).ok,true));
-test('verifier cannot import analyzer',()=>assert.equal(checkMetadata(mk([['zil-analyze',[]],['zil-verify',['zil-analyze']]]),policy).ok,false));
-test('renaming analyzer cannot bypass',()=>assert.equal(checkMetadata(mk([['zil-analyze',[]],['zil-verify',[{name:'zil-analyze',rename:'shared_rules'}]]]),policy).ok,false));
-test('dev dependency still checked',()=>assert.equal(checkMetadata(mk([['zil-types',[]],['zil-verify',[{name:'zil-types',kind:'dev'}]]]),policy).ok,false));
+test('approved real-shaped metadata passes',()=>assert.equal(checkMetadata(mk([['zil-base',[]],['zil-ir',['zil-base']],['zil-semantics',['zil-ir','zil-base']],['zil-check',['zil-ir','zil-base','zil-semantics']]]),policy).ok,true));
+test('checker cannot import solver',()=>assert.equal(checkMetadata(mk([['zil-solve',[]],['zil-check',['zil-solve']]]),policy).ok,false));
+test('renaming solver cannot bypass',()=>assert.equal(checkMetadata(mk([['zil-solve',[]],['zil-check',[{name:'zil-solve',rename:'shared_rules'}]]]),policy).ok,false));
+test('dev dependency still checked',()=>assert.equal(checkMetadata(mk([['zil-typeck',[]],['zil-check',[{name:'zil-typeck',kind:'dev'}]]]),policy).ok,false));
 test('unknown workspace crate rejected',()=>assert.equal(checkMetadata(mk([['zil-magic',[]]]),policy).ok,false));
 test('unknown internal dependency rejected',()=>assert.equal(checkMetadata(mk([['zil-ir',['zil-private-checker']]]),policy).ok,false));
 test('external crates allowed, hidden path packages rejected',()=>{

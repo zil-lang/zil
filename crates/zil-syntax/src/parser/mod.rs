@@ -193,7 +193,11 @@ impl Parser<'_> {
     }
     fn synthetic_nodes(&mut self, count: usize, span: Span) -> P<()> {
         if count > self.limits.max_nodes.saturating_sub(self.nodes) {
-            self.diagnostics.push(Diagnostic::limit(Phase::Parse, "syntax node limit exceeded", Some(span)));
+            self.diagnostics.push(Diagnostic::limit(
+                Phase::Parse,
+                "syntax node limit exceeded",
+                Some(span),
+            ));
             return Err(());
         }
         self.nodes += count;

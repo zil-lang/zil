@@ -1,7 +1,7 @@
 //! Native build driver for `zil_check::VerifiedModule` using LLVM 23 clang at O0/O2.
 
+use crate::Optimization;
 use crate::body_emit::{BodyEmitError, emit_verified_body};
-use crate::build::Optimization;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;

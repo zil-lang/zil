@@ -6,18 +6,12 @@ members = [
   "crates/zil-semantics",
   "crates/zil-syntax",
   "crates/zil-typeck",
-  "crates/zil-expand",
-  "crates/zil-types",
-  "crates/zil-analyze",
-  "crates/zil-verify",
   "crates/zil-solve",
   "crates/zil-check",
   "crates/zil-safety-cases",
-  "crates/zil-lower",
   "crates/zil-backend-llvm",
   "crates/zil-llvm-api",
   "crates/zil-db",
-  "crates/zil-ct",
   "crates/zil-interp",
   "crates/zil-driver",
   "crates/zil-cli",
@@ -36,18 +30,12 @@ zil-base = { path = "crates/zil-base" }
 zil-ir = { path = "crates/zil-ir" }
 zil-semantics = { path = "crates/zil-semantics" }
 zil-syntax = { path = "crates/zil-syntax" }
-zil-expand = { path = "crates/zil-expand" }
-zil-types = { path = "crates/zil-types" }
-zil-analyze = { path = "crates/zil-analyze" }
-zil-verify = { path = "crates/zil-verify" }
 zil-solve = { path = "crates/zil-solve" }
 zil-typeck = { path = "crates/zil-typeck" }
 zil-check = { path = "crates/zil-check" }
-zil-lower = { path = "crates/zil-lower" }
 zil-backend-llvm = { path = "crates/zil-backend-llvm" }
 zil-llvm-api = { path = "crates/zil-llvm-api" }
 zil-db = { path = "crates/zil-db" }
-zil-ct = { path = "crates/zil-ct" }
 zil-interp = { path = "crates/zil-interp" }
 zil-driver = { path = "crates/zil-driver" }
 

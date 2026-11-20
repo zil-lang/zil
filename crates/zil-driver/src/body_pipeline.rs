@@ -18,7 +18,7 @@ pub struct BodyCompileError {
     pub diagnostics: Vec<Diagnostic>,
 }
 
-struct InterpCtEvaluator;
+pub(crate) struct InterpCtEvaluator;
 
 impl ConstEvaluator for InterpCtEvaluator {
     fn eval(&mut self, module: Module, entry: FnId, span: Span) -> Result<CtValue, Diagnostic> {

@@ -15,16 +15,18 @@ use zil_base::{
 };
 
 mod closure_context;
-mod value_operands;
 mod ct_frozen;
-mod semantic_scopes;
-mod original_pattern_rows;
 mod original_capture_syntax;
+mod original_pattern_rows;
 mod original_reaching;
-pub use original_reaching::OriginalSlotWrite;
-pub use original_capture_syntax::{CaptureUse, NamedPlaceRoot, exclusive_place_root, original_capture_use};
-pub use original_pattern_rows::*;
+mod semantic_scopes;
+mod value_operands;
 pub use ct_frozen::*;
+pub use original_capture_syntax::{
+    CaptureUse, NamedPlaceRoot, exclusive_place_root, original_capture_use,
+};
+pub use original_pattern_rows::*;
+pub use original_reaching::OriginalSlotWrite;
 pub use semantic_scopes::*;
 mod storage_sources;
 pub use storage_sources::*;
@@ -43,9 +45,9 @@ use dynamic_recipes_fingerprint::*;
 pub use dynamic_recipes_visit::*;
 mod pod_extent;
 pub use pod_extent::PodExtent;
+pub mod body;
 mod program;
 pub mod source_projection;
-pub mod body;
 pub mod wire;
 pub use program::*;
 
@@ -494,40 +496,68 @@ mod life_inventory_encoding_tests {
     #[test]
     fn measured_inventory_uses_the_exact_versioned_identity_encoding() {
         let id = LifeDeclarationId {
-            module: ModuleId(7), declaration: zil_base::NodeId(11), compiler: false,
+            module: ModuleId(7),
+            declaration: zil_base::NodeId(11),
+            compiler: false,
         };
         let declarations = vec![LifeNominalDeclaration {
             id,
             identity: LifeDeclarationIdentity {
-                package: "p".into(), module_path: vec!["模块".into()],
-                declaration_path: vec!["Record".into()], generation_path: vec![0, 9],
+                package: "p".into(),
+                module_path: vec!["模块".into()],
+                declaration_path: vec!["Record".into()],
+                generation_path: vec![0, 9],
             },
             kind: LifeNominalKind::Record,
-            parameters: vec![LifeParameterKind::Type, LifeParameterKind::Lifetime,
-                LifeParameterKind::Const(Type::CWideString)],
+            parameters: vec![
+                LifeParameterKind::Type,
+                LifeParameterKind::Lifetime,
+                LifeParameterKind::Const(Type::CWideString),
+            ],
         }];
         // Raw identity data exercises all actual kinds and phantom metadata;
         // this encoder test does not assert any formation or permission fact.
         let instances = vec![LifeNominalInstance {
             declaration: id,
-            ty: Type::Record { name: "Record<长>".into(), fields: vec![
-                ("bytes".into(), Type::Array { element: Box::new(Type::U8), length: 3 }),
-            ] },
+            ty: Type::Record {
+                name: "Record<长>".into(),
+                fields: vec![(
+                    "bytes".into(),
+                    Type::Array {
+                        element: Box::new(Type::U8),
+                        length: 3,
+                    },
+                )],
+            },
             arguments: vec![
                 LifeNominalActual::Type(Type::I64),
                 LifeNominalActual::Lifetime(1),
                 LifeNominalActual::Const(Constant::WideString(vec![0, 0x20ac, 0xffff])),
-                LifeNominalActual::QualifiedType { ty: Type::I32, life: StorageLifeShape {
-                    binder_count: 2, slots: vec![], retained: vec![], nominal_arguments: vec![],
-                } },
+                LifeNominalActual::QualifiedType {
+                    ty: Type::I32,
+                    life: StorageLifeShape {
+                        binder_count: 2,
+                        slots: vec![],
+                        retained: vec![],
+                        nominal_arguments: vec![],
+                    },
+                },
             ],
         }];
-        for (declarations, instances) in [(&[][..], &[][..]),
-            (declarations.as_slice(), instances.as_slice())] {
+        for (declarations, instances) in [
+            (&[][..], &[][..]),
+            (declarations.as_slice(), instances.as_slice()),
+        ] {
             let mut bytes = b"ZIL-LIFE-INVENTORY-V48\0".to_vec();
             encode_life_inventory(&mut bytes, declarations, instances);
-            assert_eq!(life_inventory_encoded_len(declarations, instances), Some(bytes.len()));
-            assert_eq!(life_inventory_fingerprint(declarations, instances), Fingerprint::of(&bytes));
+            assert_eq!(
+                life_inventory_encoded_len(declarations, instances),
+                Some(bytes.len())
+            );
+            assert_eq!(
+                life_inventory_fingerprint(declarations, instances),
+                Fingerprint::of(&bytes)
+            );
         }
     }
 }
@@ -678,11 +708,14 @@ impl Type {
     /// and storage epoch. A user product with this shape is still a product.
     pub fn binding_cell_element(&self) -> Option<(&Type, LifeTypeProjection)> {
         match self {
-            Type::Array { element, length: 1 } if matches!(element.as_ref(), Type::Closure(_)) =>
-                Some((element, LifeTypeProjection::Element)),
+            Type::Array { element, length: 1 } if matches!(element.as_ref(), Type::Closure(_)) => {
+                Some((element, LifeTypeProjection::Element))
+            }
             Type::Package { fields, .. } => match fields.as_slice() {
-                [(_, element @ Type::Managed(_))] =>
-                    Some((element, LifeTypeProjection::Place(PlaceProjection::Field(0)))),
+                [(_, element @ Type::Managed(_))] => Some((
+                    element,
+                    LifeTypeProjection::Place(PlaceProjection::Field(0)),
+                )),
                 _ => None,
             },
             _ => None,
@@ -696,7 +729,10 @@ impl Type {
             (Type::Package { .. }, InstructionKind::MakePackage { fields }) => fields,
             _ => return None,
         };
-        match inputs.as_slice() { [input] => Some(*input), _ => None }
+        match inputs.as_slice() {
+            [input] => Some(*input),
+            _ => None,
+        }
     }
 
     /// Raw structural identity, never a proof of type or access validity.
@@ -790,34 +826,70 @@ impl Type {
     /// An indirect assignment still has to prove the selected source and
     /// destination and their live permissions at the actual write.
     pub fn is_inline_scalar_product<E>(
-        &self, visit: &mut impl FnMut() -> Result<(), E>,
+        &self,
+        visit: &mut impl FnMut() -> Result<(), E>,
     ) -> Result<bool, E> {
         visit()?;
         match self {
-            Self::Unit | Self::Bool | Self::I8 | Self::I16 | Self::I32 | Self::I64
-            | Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Usize | Self::Isize
-            | Self::F32 | Self::F64 => Ok(true),
+            Self::Unit
+            | Self::Bool
+            | Self::I8
+            | Self::I16
+            | Self::I32
+            | Self::I64
+            | Self::U8
+            | Self::U16
+            | Self::U32
+            | Self::U64
+            | Self::Usize
+            | Self::Isize
+            | Self::F32
+            | Self::F64 => Ok(true),
             Self::Array { element, .. } => element.is_inline_scalar_product(visit),
             Self::Record { fields, .. } => {
                 for (_, field) in fields {
-                    if !field.is_inline_scalar_product(visit)? { return Ok(false); }
+                    if !field.is_inline_scalar_product(visit)? {
+                        return Ok(false);
+                    }
                 }
                 Ok(true)
             }
             Self::Tuple(fields) => {
                 for field in fields {
-                    if !field.is_inline_scalar_product(visit)? { return Ok(false); }
+                    if !field.is_inline_scalar_product(visit)? {
+                        return Ok(false);
+                    }
                 }
                 Ok(true)
             }
-            Self::Dyn { .. } | Self::OwnedDyn { .. } | Self::BorrowedStorage { .. }
-            | Self::ByteBuffer | Self::OwnedStore { .. } | Self::ForeignHandle | Self::SyncCell(_)
-            | Self::Mutex { .. } | Self::MutexGuard { .. } | Self::Registration { .. }
-            | Self::AsyncRegistration { .. } | Self::TaskI32 | Self::Task { .. } | Self::CWideString
-            | Self::ForeignCallback { .. } | Self::Slice { .. } | Self::Named(_) | Self::Package { .. }
-            | Self::Enum { .. } | Self::ErrorUnion { .. } | Self::Address { .. } | Self::Managed(_)
-            | Self::Desc(_) | Self::FunctionPointer { .. } | Self::BorrowedFunctionPointer { .. }
-            | Self::Closure(_) | Self::Opaque { .. } | Self::Unsupported(_) => Ok(false),
+            Self::Dyn { .. }
+            | Self::OwnedDyn { .. }
+            | Self::BorrowedStorage { .. }
+            | Self::ByteBuffer
+            | Self::OwnedStore { .. }
+            | Self::ForeignHandle
+            | Self::SyncCell(_)
+            | Self::Mutex { .. }
+            | Self::MutexGuard { .. }
+            | Self::Registration { .. }
+            | Self::AsyncRegistration { .. }
+            | Self::TaskI32
+            | Self::Task { .. }
+            | Self::CWideString
+            | Self::ForeignCallback { .. }
+            | Self::Slice { .. }
+            | Self::Named(_)
+            | Self::Package { .. }
+            | Self::Enum { .. }
+            | Self::ErrorUnion { .. }
+            | Self::Address { .. }
+            | Self::Managed(_)
+            | Self::Desc(_)
+            | Self::FunctionPointer { .. }
+            | Self::BorrowedFunctionPointer { .. }
+            | Self::Closure(_)
+            | Self::Opaque { .. }
+            | Self::Unsupported(_) => Ok(false),
         }
     }
 
@@ -1377,7 +1449,11 @@ impl CallbackRegistration {
     pub fn provider_roles(self, threaded: bool) -> &'static [ScopedCallbackRole] {
         use ScopedCallbackRole::*;
         match (self, threaded) {
-            (Self::AsyncOwned, true) => &[ThreadAsyncRegister, ThreadAsyncRequestClose, ThreadAsyncPollDrain],
+            (Self::AsyncOwned, true) => &[
+                ThreadAsyncRegister,
+                ThreadAsyncRequestClose,
+                ThreadAsyncPollDrain,
+            ],
             (Self::AsyncOwned, false) => &[AsyncRegister, AsyncRequestClose, AsyncPollDrain],
             _ => &[Register, Close],
         }
@@ -1392,7 +1468,11 @@ impl CallbackRegistration {
             (Self::Owned | Self::AsyncOwned, [callback]) => (callback, None),
             _ => return None,
         };
-        Some(CallbackRegistrationOperands { providers, callback, body })
+        Some(CallbackRegistrationOperands {
+            providers,
+            callback,
+            body,
+        })
     }
 }
 
@@ -1542,10 +1622,24 @@ impl<Annotation> CoreBlock<Annotation> {
     /// Select the actual closure operand of a synchronous defer registration.
     /// The consumer checks the result annotation in its own type domain.
     pub fn deferred_action(&self) -> Option<(&CoreExpr<Annotation>, &Annotation, &Self)> {
-        let [CoreStatement { kind: CoreStatementKind::Expression(action), .. }] =
-            self.statements.as_slice() else { return None };
-        let CoreExprKind::Closure { move_capture: false, parameters, return_type: Some(result), body } =
-            &action.kind else { return None };
+        let [
+            CoreStatement {
+                kind: CoreStatementKind::Expression(action),
+                ..
+            },
+        ] = self.statements.as_slice()
+        else {
+            return None;
+        };
+        let CoreExprKind::Closure {
+            move_capture: false,
+            parameters,
+            return_type: Some(result),
+            body,
+        } = &action.kind
+        else {
+            return None;
+        };
         parameters.is_empty().then_some((action, result, body))
     }
 }
@@ -3009,8 +3103,11 @@ impl InstructionKind {
     /// boundary the owner remains live until every active owned leaf is ready.
     pub fn whole_aggregate_drop(&self) -> Option<LocalId> {
         match *self {
-            Self::DropTuple { local } | Self::DropEnum { local } | Self::DropPackage { local }
-            | Self::DropErrorUnion { local } | Self::DropOwnedArray { local } => Some(local),
+            Self::DropTuple { local }
+            | Self::DropEnum { local }
+            | Self::DropPackage { local }
+            | Self::DropErrorUnion { local }
+            | Self::DropOwnedArray { local } => Some(local),
             _ => None,
         }
     }
@@ -3033,9 +3130,11 @@ impl InstructionKind {
     }
 
     pub fn drops_aggregate_storage(&self, ty: &Type) -> bool {
-        self.whole_aggregate_drop().and_then(|local| Self::aggregate_drop(local, ty)).as_ref() == Some(self)
+        self.whole_aggregate_drop()
+            .and_then(|local| Self::aggregate_drop(local, ty))
+            .as_ref()
+            == Some(self)
     }
-
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terminator {

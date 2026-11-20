@@ -1,73 +1,92 @@
 #![forbid(unsafe_code)]
 
-//! Native LLVM backend. Emission accepts a sealed verifier result and its exact
-//! LIR, including finite Copy/address/resource closure environments. It never interprets
-//! source or delegates ZIL safety to a host
-//! language compiler. `clang` receives LLVM IR directly.
+//! Native LLVM 23 backend consuming `zil_check::VerifiedModule` directly.
 //!
-//! A closure is its named LLVM struct value. Capture order is field order; Unit
-//! captures occupy an `i8` field containing zero, and other fields use `i1`,
-//! `i32`, `i64`, or `ptr`. A borrowed scalar capture stores its real local stack
-//! address; each capture read loads through it. Address-taken Unit locals have
-//! one-byte storage, while Unit value reads remain erased. Empty environments
-//! are empty structs. Copy Shared environments pass the hidden struct by value;
-//! owning Shared, Exclusive and Consume entries receive an actual environment
-//! pointer. Managed fields have appended live flags; local carrier flags and
-//! fixed entry-block Consume scratch preserve transfer and normal cleanup.
-//! Ordinary Unit parameters and results
-//! retain the scalar ABI's erasure (`void` return); a Unit capture read likewise
-//! has no runtime scalar value. Closure locals use ordinary aggregate storage,
-//! aligned to the largest capture field (one byte for an empty environment).
-//! No closure allocation, shared box, indirect dispatch table, or source-body
-//! substitution participates in this ABI.
+//! Only a sealed `VerifiedModule` constructed by `zil_check::check_module`
+//! enters this crate. There is no legacy LIR path.
 
 mod body_build;
 mod body_emit;
-mod build;
-#[cfg(test)]
-mod cgu;
-mod emit;
-mod machine_cgu;
-mod machine_checked_add_chain;
-mod machine_closure_linkage;
-#[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
-mod machine_object_patch;
-mod machine_scalar;
-mod machine_stable_identity;
-#[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
-mod object_cache;
-mod task_abi;
+
 pub use body_build::{BodyBuildError, BodyBuildOptions, build_verified_body, default_clang_path};
 pub use body_emit::{BodyEmitError, emit_verified_body};
-pub use object_cache::{ObjectCacheSummary, PendingObjectCache, installed_compiler_identity};
-pub use task_abi::{TASK_DATA_LAYOUT, TaskAbiArtifact, TaskAbiEntry, TaskFrameField};
 pub use zil_llvm_api::FunctionMerging;
 
-use zil_ir::FunctionId;
+use std::path::PathBuf;
 
-pub use build::{
-    BuildArtifact, BuildOptions, CodegenOptions, CodegenSummary, NativeBackend, Optimization,
-    WindowsLinkOptions, build, build_view_with_cancellation,
-    build_view_with_cancellation_and_stable_names, build_with_cancellation,
-};
-pub use emit::{ct_layout_of_checked_type, emit, emit_with_options};
-
-/// Wrappers are explicit. `ReturnValue` prints the selected function's full
-/// signed result; `Test` maps a verified test result to process status.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum EntryPoint {
+pub enum Optimization {
     #[default]
-    None,
-    Main,
-    ReturnValue(FunctionId),
-    /// Run a verified zero-argument test and return its result as process status.
-    Test(FunctionId),
+    O0,
+    O2,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WindowsLinkOptions {
+    pub linker: PathBuf,
+    /// Explicit import archives. No ambient SDK search or automatic C host.
+    pub import_libraries: Vec<PathBuf>,
+}
+
+impl Default for WindowsLinkOptions {
+    fn default() -> Self {
+        Self {
+            linker: "lld-link".into(),
+            import_libraries: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct EmitOptions {
-    pub entry: EntryPoint,
+pub enum NativeBackend {
+    #[default]
+    Clang,
+    LlvmApi,
 }
 
-#[cfg(test)]
-mod tests;
+impl NativeBackend {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Clang => "clang",
+            Self::LlvmApi => "llvm-api",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CodegenOptions {
+    pub units: usize,
+    pub jobs: usize,
+}
+
+impl Default for CodegenOptions {
+    fn default() -> Self {
+        Self { units: 1, jobs: 1 }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct CodegenSummary {
+    pub backend: NativeBackend,
+    pub object_reports: Vec<String>,
+    pub requested_units: usize,
+    pub actual_units: usize,
+    pub jobs: usize,
+    pub fallback: Option<String>,
+}
+
+impl CodegenSummary {
+    pub fn to_json(&self) -> String {
+        format!(
+            "{{\"backend\":{},\"object_reports\":[{}],\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
+            zil_base::json_string(self.backend.name()),
+            self.object_reports.join(","),
+            self.requested_units,
+            self.actual_units,
+            self.jobs,
+            self.fallback
+                .as_ref()
+                .map_or_else(|| "null".into(), |s| zil_base::json_string(s)),
+        )
+    }
+}

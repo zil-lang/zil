@@ -25,12 +25,18 @@ pub fn original_pattern_reference_mode<E>(
     };
     match &pattern.kind {
         CorePatternKind::Reference { mutable, .. } => return Ok(Some(*mutable)),
-        CorePatternKind::Tuple(fields) | CorePatternKind::Variant { fields, .. }
+        CorePatternKind::Tuple(fields)
+        | CorePatternKind::Variant { fields, .. }
         | CorePatternKind::Constructor { fields, .. } => {
-            for field in fields { visit(field)?; }
+            for field in fields {
+                visit(field)?;
+            }
         }
-        CorePatternKind::Record { fields, .. } | CorePatternKind::RecordConstructor { fields, .. } => {
-            for (_, field) in fields { visit(field)?; }
+        CorePatternKind::Record { fields, .. }
+        | CorePatternKind::RecordConstructor { fields, .. } => {
+            for (_, field) in fields {
+                visit(field)?;
+            }
         }
         CorePatternKind::ErrorArm { pattern, .. } => visit(pattern)?,
         _ => {}
