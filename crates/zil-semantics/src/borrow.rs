@@ -477,6 +477,23 @@ impl Kernel<'_> {
             | Terminator::Trap(_) => loans.clone(),
         };
         let external_store = match term {
+            Terminator::Call {
+                callee:
+                    zil_ir::body::Callee::Intrinsic(
+                        zil_ir::body::IntrinsicOp::TaskPoll
+                        | zil_ir::body::IntrinsicOp::TaskRequestCancel
+                        | zil_ir::body::IntrinsicOp::TaskPollClose
+                        | zil_ir::body::IntrinsicOp::TaskFinishDestroy
+                        | zil_ir::body::IntrinsicOp::TaskValid
+                        | zil_ir::body::IntrinsicOp::AsyncRegistrationValid
+                        | zil_ir::body::IntrinsicOp::AsyncRegistrationRequestClose
+                        | zil_ir::body::IntrinsicOp::AsyncRegistrationPollClose
+                        | zil_ir::body::IntrinsicOp::AsyncRegistrationFinishDestroy
+                        | zil_ir::body::IntrinsicOp::RegistrationValid
+                        | zil_ir::body::IntrinsicOp::RegistrationClose,
+                    ),
+                ..
+            } => false,
             Terminator::Call { .. } => accesses.iter().any(|a| {
                 flows_value(a.role, a.access)
                     && self
@@ -554,13 +571,22 @@ impl Kernel<'_> {
                             let closed = self.close(state, &arg_loans);
                             let local_only: Vec<_> = closed
                                 .iter()
-                                .filter(|id| self.loans.get(*id).is_some())
+                                .filter(|id| {
+                                    self.loans.get(*id).is_some()
+                                        || self.loans.loan_region(*id).is_some()
+                                })
                                 .collect();
                             if local_only.is_empty() {
                                 continue;
                             }
                             if let Some(prev) = &prev_local_loans {
-                                let overlaps = prev.iter().any(|id| local_only.contains(id));
+                                let overlaps = prev.iter().any(|p_id| {
+                                    let pr = self.loans.loan_region(*p_id);
+                                    local_only.iter().any(|c_id| {
+                                        p_id == c_id
+                                            || (pr.is_some() && pr == self.loans.loan_region(*c_id))
+                                    })
+                                });
                                 if !overlaps {
                                     return Err(ViolationKind::RegionEscape { region: r });
                                 }
@@ -570,22 +596,40 @@ impl Kernel<'_> {
                         }
                     }
                 }
-                // The callee may store any argument loan into any writable,
-                // address-holding storage it receives.
-                let mut writable = Vec::new();
-                for id in flows.loans.iter() {
-                    let Some(loan) = self.loans.get(id) else {
-                        continue;
-                    };
-                    if loan.kind.writes() && loan.stores_addresses && loan.anchored {
-                        match loan.place.root {
-                            PlaceRoot::Local(y) => writable.push(y),
-                            PlaceRoot::Capture(_) => self.no_escape(state, &flows.loans)?,
+                let is_protocol_intrinsic = matches!(
+                    callee,
+                    zil_ir::body::Callee::Intrinsic(
+                        zil_ir::body::IntrinsicOp::TaskPoll
+                            | zil_ir::body::IntrinsicOp::TaskRequestCancel
+                            | zil_ir::body::IntrinsicOp::TaskPollClose
+                            | zil_ir::body::IntrinsicOp::TaskFinishDestroy
+                            | zil_ir::body::IntrinsicOp::TaskValid
+                            | zil_ir::body::IntrinsicOp::AsyncRegistrationValid
+                            | zil_ir::body::IntrinsicOp::AsyncRegistrationRequestClose
+                            | zil_ir::body::IntrinsicOp::AsyncRegistrationPollClose
+                            | zil_ir::body::IntrinsicOp::AsyncRegistrationFinishDestroy
+                            | zil_ir::body::IntrinsicOp::RegistrationValid
+                            | zil_ir::body::IntrinsicOp::RegistrationClose,
+                    )
+                );
+                if !is_protocol_intrinsic {
+                    // The callee may store any argument loan into any writable,
+                    // address-holding storage it receives.
+                    let mut writable = Vec::new();
+                    for id in flows.loans.iter() {
+                        let Some(loan) = self.loans.get(id) else {
+                            continue;
+                        };
+                        if loan.kind.writes() && loan.stores_addresses && loan.anchored {
+                            match loan.place.root {
+                                PlaceRoot::Local(y) => writable.push(y),
+                                PlaceRoot::Capture(_) => self.no_escape(state, &flows.loans)?,
+                            }
                         }
                     }
-                }
-                for y in writable {
-                    state.carries.add(y, &flows.loans);
+                    for y in writable {
+                        state.carries.add(y, &flows.loans);
+                    }
                 }
                 if flows.external_store {
                     self.no_escape(state, &flows.loans)?;

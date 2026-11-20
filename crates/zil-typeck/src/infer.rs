@@ -118,11 +118,16 @@ pub fn infer_fn<'a>(
     if diags.len() > errors_before {
         return None;
     }
+    let explicit_direct =
+        decl.ast.contract.iter().any(|c| {
+            c.name == "effects" && !c.terms.iter().any(|t| t.path.as_slice() == ["suspend"])
+        });
     Finalizer {
         items,
         types,
         diags,
         generics: &decl.generics,
+        explicit_direct,
         reported_inference: false,
     }
     .function(&mut thir);
@@ -509,15 +514,18 @@ impl<'c, 'a> FnCx<'c, 'a> {
 
     fn fn_value(&mut self, f: FnRef, span: Span) -> Expr {
         let decl = self.items.func(f);
-        if !decl.generics.is_empty() {
-            self.unsupported("generic function values", span);
-            return self.err_expr(span);
-        }
-        let params: Vec<Ty> = decl.params.iter().map(|p| p.ty).collect();
-        let result = decl.result;
+        let type_args: Vec<Ty> = (0..decl.generics.len())
+            .map(|_| self.types.fresh(VarKind::General))
+            .collect();
+        let params: Vec<Ty> = decl
+            .params
+            .iter()
+            .map(|p| self.types.subst(p.ty, &type_args))
+            .collect();
+        let result = self.types.subst(decl.result, &type_args);
         let ty = self.types.intern(TyData::FnPtr { params, result });
         Expr {
-            kind: ExprKind::FnRef(f),
+            kind: ExprKind::FnRef { func: f, type_args },
             ty,
             span,
         }
@@ -974,7 +982,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Binary { .. }
                 | ExprKind::Logical { .. }
                 | ExprKind::Convert { .. }
-                | ExprKind::FnRef(_)
+                | ExprKind::FnRef { .. }
                 | ExprKind::ForeignRef(_)
                 | ExprKind::Call { .. }
                 | ExprKind::IndirectCall { .. }
@@ -1458,7 +1466,44 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("pipelines", span);
                 self.err_expr(span)
             }
-            ast::ExprKind::TypeApply { .. } => {
+            ast::ExprKind::TypeApply { callee, arguments } => {
+                if let Some(path) = Self::expr_path(callee).filter(|p| !self.path_is_value(p))
+                    && let Some(ItemRef::Fn(f)) = self.items.lookup_item(self.decl.module, &path)
+                {
+                    let n = self.items.func(f).generics.len();
+                    let mut explicit_tys = Vec::new();
+                    for g in arguments {
+                        match g {
+                            ast::GenericArg::Type(t) => explicit_tys.push(self.resolve_written(t)),
+                            ast::GenericArg::Lifetime(_) => {}
+                            ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                                self.unsupported("non-type generic arguments", span);
+                                return self.err_expr(span);
+                            }
+                        }
+                    }
+                    let type_args = if explicit_tys.is_empty() {
+                        (0..n).map(|_| self.types.fresh(VarKind::General)).collect()
+                    } else if explicit_tys.len() == n {
+                        explicit_tys
+                    } else {
+                        self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
+                        return self.err_expr(span);
+                    };
+                    let decl = self.items.func(f);
+                    let params: Vec<Ty> = decl
+                        .params
+                        .iter()
+                        .map(|p| self.types.subst(p.ty, &type_args))
+                        .collect();
+                    let result = self.types.subst(decl.result, &type_args);
+                    let ty = self.types.intern(TyData::FnPtr { params, result });
+                    return Expr {
+                        kind: ExprKind::FnRef { func: f, type_args },
+                        ty,
+                        span,
+                    };
+                }
                 self.unsupported("explicit type arguments outside a call", span);
                 self.err_expr(span)
             }
@@ -2244,23 +2289,24 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 return self.err_expr(span);
             }
             let expected_n = self.items.adt(adt).generics.len();
-            let args = if enum_type_args.len() != expected_n {
+            let mut explicit_tys = Vec::new();
+            for g in enum_type_args {
+                match g {
+                    ast::GenericArg::Type(t) => explicit_tys.push(self.resolve_written(t)),
+                    ast::GenericArg::Lifetime(_) => {}
+                    ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                        self.unsupported("non-type generic arguments", span);
+                        explicit_tys.push(self.types.error());
+                    }
+                }
+            }
+            let args = if explicit_tys.is_empty() {
+                self.fresh_args(adt)
+            } else if explicit_tys.len() != expected_n {
                 self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
                 self.fresh_args(adt)
             } else {
-                let mut out = Vec::with_capacity(enum_type_args.len());
-                for g in enum_type_args {
-                    match g {
-                        ast::GenericArg::Type(t) => out.push(self.resolve_written(t)),
-                        ast::GenericArg::Lifetime(_)
-                        | ast::GenericArg::Const(_)
-                        | ast::GenericArg::AssociatedBinding(_) => {
-                            self.unsupported("non-type generic arguments", span);
-                            out.push(self.types.error());
-                        }
-                    }
-                }
-                out
+                explicit_tys
             };
             let mut fields = Vec::new();
             for (i, a) in arguments.iter().enumerate() {
@@ -2826,7 +2872,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
             "mutex_lock" => IntrinsicOp::MutexLock,
             "mutex_value" => IntrinsicOp::MutexValue,
             "thread_scope" => IntrinsicOp::ThreadScope,
-            "task_create" => IntrinsicOp::TaskCreate,
+            "task_create" | "task_create_owned" => IntrinsicOp::TaskCreate,
+            "task_valid" => IntrinsicOp::TaskValid,
             "task_yield" => IntrinsicOp::TaskYield,
             "task_poll" => IntrinsicOp::TaskPoll,
             "task_request_cancel" => IntrinsicOp::TaskRequestCancel,
@@ -2855,6 +2902,66 @@ impl<'c, 'a> FnCx<'c, 'a> {
         let bytes_inner = self.types.intern(TyData::Opaque(OpaqueKind::ByteBuffer));
         let bytes_desc = self.types.intern(TyData::Desc(bytes_inner));
         let bytes_managed = self.types.intern(TyData::Managed(bytes_inner));
+
+        if op == IntrinsicOp::TaskCreate {
+            if arguments.is_empty() {
+                self.error(
+                    diag::CALL_ARITY,
+                    span,
+                    format!("`{name}` expects at least 1 argument"),
+                );
+                return Some(self.err_expr(span));
+            }
+            let res = self.types.fresh(VarKind::General);
+            let param_tys: Vec<Ty> = (1..arguments.len())
+                .map(|_| self.types.fresh(VarKind::General))
+                .collect();
+            let worker_expected = self.types.intern(TyData::FnPtr {
+                params: param_tys.clone(),
+                result: res,
+            });
+            let worker_raw = self.infer(&arguments[0].value);
+            let worker = self.coerce_arg(worker_raw, worker_expected, arguments[0].span);
+            let mut args = Vec::with_capacity(arguments.len());
+            args.push(worker);
+            for (a, pt) in arguments[1..].iter().zip(&param_tys) {
+                let v = self.infer(&a.value);
+                args.push(self.coerce_arg(v, *pt, a.span));
+            }
+            let borrowed: Vec<Ty> = param_tys
+                .iter()
+                .copied()
+                .filter(|t| self.ty_contains_ref(*t))
+                .collect();
+            let context = match borrowed.as_slice() {
+                [] => None,
+                [single] => Some(*single),
+                many => Some(self.types.intern(TyData::Tuple(many.to_vec()))),
+            };
+            let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                result: res,
+                context,
+            }));
+            let ok = self.types.intern(TyData::Managed(inner));
+            let err = if name == "task_create_owned" {
+                let inputs_ty = self.types.intern(TyData::Tuple(param_tys));
+                self.types.intern(TyData::Adt {
+                    adt: AdtRef(6),
+                    args: vec![inputs_ty],
+                })
+            } else {
+                self.types.intern(TyData::Adt {
+                    adt: AdtRef(3),
+                    args: Vec::new(),
+                })
+            };
+            let ret_ty = self.types.intern(TyData::ErrorUnion { ok, err });
+            return Some(Expr {
+                kind: ExprKind::Intrinsic { op, args },
+                ty: ret_ty,
+                span,
+            });
+        }
 
         if op == IntrinsicOp::ThreadScope {
             let [w_arg, c_arg, p_arg] = arguments else {
@@ -3014,38 +3121,15 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 });
                 (vec![guard_ref], val_ref)
             }
-            IntrinsicOp::TaskCreate => {
+            IntrinsicOp::TaskCreate => unreachable!("handled above"),
+            IntrinsicOp::TaskValid => {
                 let res = self.types.fresh(VarKind::General);
-                let err = self.types.intern(TyData::Adt {
-                    adt: AdtRef(3),
-                    args: Vec::new(),
-                });
-                if arguments.len() == 2 {
-                    let ctx = self.types.fresh(VarKind::General);
-                    let worker = self.types.intern(TyData::FnPtr {
-                        params: vec![ctx],
-                        result: res,
-                    });
-                    let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
-                        result: res,
-                        context: Some(ctx),
-                    }));
-                    let ok = self.types.intern(TyData::Managed(inner));
-                    let ret = self.types.intern(TyData::ErrorUnion { ok, err });
-                    (vec![worker, ctx], ret)
-                } else {
-                    let worker = self.types.intern(TyData::FnPtr {
-                        params: Vec::new(),
-                        result: res,
-                    });
-                    let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
-                        result: res,
-                        context: None,
-                    }));
-                    let ok = self.types.intern(TyData::Managed(inner));
-                    let ret = self.types.intern(TyData::ErrorUnion { ok, err });
-                    (vec![worker], ret)
-                }
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                    result: res,
+                    context: None,
+                }));
+                let desc = self.types.intern(TyData::Desc(inner));
+                (vec![desc], bool_ty)
             }
             IntrinsicOp::TaskYield => (Vec::new(), unit_ty),
             IntrinsicOp::TaskPoll => {
@@ -3177,7 +3261,6 @@ impl<'c, 'a> FnCx<'c, 'a> {
             | IntrinsicOp::SyncFetchAdd
             | IntrinsicOp::SyncCompareExchange
             | IntrinsicOp::TaskStart
-            | IntrinsicOp::TaskValid
             | IntrinsicOp::RegistrationStart
             | IntrinsicOp::RegistrationValid
             | IntrinsicOp::RegistrationClose
@@ -3221,23 +3304,25 @@ impl<'c, 'a> FnCx<'c, 'a> {
         let type_args: Vec<Ty> = match explicit {
             None => (0..n).map(|_| self.types.fresh(VarKind::General)).collect(),
             Some(given) => {
-                if given.len() != n {
-                    self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
-                    return self.err_expr(span);
-                }
                 let mut out = Vec::new();
                 for g in given {
                     match g {
                         ast::GenericArg::Type(t) => out.push(self.resolve_written(t)),
-                        ast::GenericArg::Lifetime(_)
-                        | ast::GenericArg::Const(_)
-                        | ast::GenericArg::AssociatedBinding(_) => {
+                        ast::GenericArg::Lifetime(_) => {}
+                        ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
                             self.unsupported("non-type generic arguments", span);
                             return self.err_expr(span);
                         }
                     }
                 }
-                out
+                if out.is_empty() {
+                    (0..n).map(|_| self.types.fresh(VarKind::General)).collect()
+                } else if out.len() != n {
+                    self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
+                    return self.err_expr(span);
+                } else {
+                    out
+                }
             }
         };
         let param_tys: Vec<Ty> = decl.params.iter().map(|p| p.ty).collect();
@@ -3272,6 +3357,62 @@ impl<'c, 'a> FnCx<'c, 'a> {
             ty,
             span,
         }
+    }
+
+    fn ty_contains_ref(&mut self, ty: Ty) -> bool {
+        fn walk(types: &mut Types, ty: Ty, depth: u32) -> bool {
+            if depth > 32 {
+                return false;
+            }
+            let t = types.shallow(ty);
+            match types.data(t).clone() {
+                TyData::Ref { .. } => true,
+                TyData::Tuple(xs) => xs.into_iter().any(|x| walk(types, x, depth + 1)),
+                TyData::Array { element: elem, .. }
+                | TyData::Slice(elem)
+                | TyData::Managed(elem)
+                | TyData::Desc(elem) => walk(types, elem, depth + 1),
+                TyData::ErrorUnion { ok, err } => {
+                    walk(types, ok, depth + 1) || walk(types, err, depth + 1)
+                }
+                TyData::Adt { args, .. } => args.into_iter().any(|a| walk(types, a, depth + 1)),
+                TyData::Opaque(OpaqueKind::Task {
+                    result,
+                    context: Some(ctx),
+                }) => walk(types, result, depth + 1) || walk(types, ctx, depth + 1),
+                TyData::Opaque(OpaqueKind::Task {
+                    result,
+                    context: None,
+                }) => walk(types, result, depth + 1),
+                TyData::Opaque(
+                    OpaqueKind::OwnedStore(e)
+                    | OpaqueKind::Mutex(e)
+                    | OpaqueKind::MutexGuard(e)
+                    | OpaqueKind::AsyncRegistration(e),
+                ) => walk(types, e, depth + 1),
+                TyData::Unit
+                | TyData::Bool
+                | TyData::Int(_)
+                | TyData::Float(_)
+                | TyData::Never
+                | TyData::Param(_)
+                | TyData::Var(_)
+                | TyData::FnPtr { .. }
+                | TyData::Closure { .. }
+                | TyData::Dyn(_)
+                | TyData::OwnedDyn(_)
+                | TyData::Opaque(
+                    OpaqueKind::ByteBuffer
+                    | OpaqueKind::ForeignHandle
+                    | OpaqueKind::ForeignCallback { .. },
+                )
+                | TyData::ImplCallable { .. }
+                | TyData::SelfParam
+                | TyData::Assoc { .. }
+                | TyData::Error => false,
+            }
+        }
+        walk(self.types, ty, 0)
     }
 }
 
@@ -3320,7 +3461,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Binary { .. }
             | ExprKind::Logical { .. }
             | ExprKind::Convert { .. }
-            | ExprKind::FnRef(_)
+            | ExprKind::FnRef { .. }
             | ExprKind::ForeignRef(_)
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
@@ -3349,6 +3490,7 @@ struct Finalizer<'c, 'a> {
     types: &'c mut Types,
     diags: &'c mut Vec<Diagnostic>,
     generics: &'c [crate::items::GenericInfo],
+    explicit_direct: bool,
     reported_inference: bool,
 }
 
@@ -3395,23 +3537,90 @@ impl Finalizer<'_, '_> {
             }
             self.expr(&mut c.body);
         }
-        for &p in &f.params {
-            let l = &f.locals[p.0 as usize];
-            if let TyData::Param(i) = self.data(l.ty)
-                && let Some(g) = self.generics.get(i as usize)
-                && !g.copy
-                && !g.sync_drop
-                && !expr_mentions_local(&f.body, p)
-            {
-                self.diags.push(diag::error(
-                    diag::GENERIC_BOUND,
-                    l.span,
-                    format!(
-                        "dropping unconsumed parameter of generic type `{}` requires `Copy` or `SyncDrop`",
-                        g.name
-                    ),
-                ));
+        if !expr_contains_suspend(&f.body) {
+            for &p in &f.params {
+                let l = &f.locals[p.0 as usize];
+                if let TyData::Param(i) = self.data(l.ty)
+                    && let Some(g) = self.generics.get(i as usize)
+                    && !g.copy
+                    && !g.sync_drop
+                    && !local_is_consumed(&f.body, p)
+                {
+                    self.diags.push(diag::error(
+                        diag::GENERIC_BOUND,
+                        l.span,
+                        format!(
+                            "dropping unconsumed parameter of generic type `{}` requires `Copy` or `SyncDrop`",
+                            g.name
+                        ),
+                    ));
+                }
             }
+        }
+        for c in &f.closures {
+            if expr_contains_suspend(&c.body) {
+                continue;
+            }
+            for (ci, &cap_ty) in c.capture_tys.iter().enumerate() {
+                if let TyData::Param(i) = self.data(cap_ty)
+                    && let Some(g) = self.generics.get(i as usize)
+                    && !g.copy
+                    && !g.sync_drop
+                    && !capture_is_consumed(&c.body, ci as u32)
+                {
+                    self.diags.push(diag::error(
+                        diag::GENERIC_BOUND,
+                        c.body.span,
+                        format!(
+                            "dropping unconsumed capture of generic type `{}` requires `Copy` or `SyncDrop`",
+                            g.name
+                        ),
+                    ));
+                }
+            }
+        }
+        if self.explicit_direct && !expr_contains_suspend(&f.body) {
+            for (li, l) in f.locals.iter().enumerate() {
+                let lid = LocalId(li as u32);
+                if self.may_suspend_on_drop(l.ty) && !local_is_consumed(&f.body, lid) {
+                    self.diags.push(diag::error(
+                        diag::GENERIC_BOUND,
+                        l.span,
+                        "default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+                    ));
+                }
+            }
+        }
+    }
+
+    fn may_suspend_on_drop(&self, ty: Ty) -> bool {
+        match self.data(ty) {
+            TyData::Managed(inner) => matches!(
+                self.data(inner),
+                TyData::Opaque(OpaqueKind::Task { .. } | OpaqueKind::AsyncRegistration(_))
+            ),
+            TyData::Closure { .. } | TyData::ImplCallable { .. } => true,
+            TyData::Tuple(xs) => xs.iter().any(|&x| self.may_suspend_on_drop(x)),
+            TyData::Unit
+            | TyData::Bool
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Never
+            | TyData::Param(_)
+            | TyData::Var(_)
+            | TyData::Array { .. }
+            | TyData::Slice(_)
+            | TyData::Ref { .. }
+            | TyData::FnPtr { .. }
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn(_)
+            | TyData::Desc(_)
+            | TyData::Adt { .. }
+            | TyData::ErrorUnion { .. }
+            | TyData::Opaque(_)
+            | TyData::SelfParam
+            | TyData::Assoc { .. }
+            | TyData::Error => false,
         }
     }
 
@@ -3579,10 +3788,73 @@ impl Finalizer<'_, '_> {
             ExprKind::StaticUtf(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
-            | ExprKind::FnRef(_)
             | ExprKind::ForeignRef(_)
             | ExprKind::Break
             | ExprKind::Continue => {}
+            ExprKind::FnRef { func, type_args } => {
+                for a in type_args.iter_mut() {
+                    *a = self.zonk(*a, span);
+                }
+                let generics = self.items.func(*func).generics.clone();
+                for (g, a) in generics.iter().zip(type_args.iter()) {
+                    if g.store_element
+                        && matches!(self.data(*a), TyData::Ref { .. } | TyData::Desc(_))
+                    {
+                        self.diags.push(diag::error(
+                            diag::GENERIC_BOUND,
+                            span,
+                            format!("type argument for `{}` must satisfy StoreElement", g.name),
+                        ));
+                    }
+                    if g.copy && !self.is_copy(*a) {
+                        self.diags.push(diag::error(
+                            diag::GENERIC_BOUND,
+                            span,
+                            format!("type argument for `{}` must be Copy", g.name),
+                        ));
+                    }
+                    for (tr_ref, tr_args) in &g.traits {
+                        if !matches!(self.data(*a), TyData::Param(_) | TyData::Error) {
+                            let resolved_args: Vec<Ty> = tr_args
+                                .iter()
+                                .map(|t| {
+                                    let s = self.types.subst(*t, type_args);
+                                    self.items.normalize_ty(s, self.types)
+                                })
+                                .collect();
+                            let found = self.items.trait_impls.iter().any(|imp| {
+                                if imp.trait_ref != *tr_ref {
+                                    return false;
+                                }
+                                let Some(impl_args) = self.items.match_impl(imp, *a, self.types)
+                                else {
+                                    return false;
+                                };
+                                let imp_targs: Vec<Ty> = imp
+                                    .trait_args
+                                    .iter()
+                                    .map(|t| {
+                                        let s = self.types.subst(*t, &impl_args);
+                                        self.items.normalize_ty(s, self.types)
+                                    })
+                                    .collect();
+                                imp_targs == resolved_args
+                            });
+                            if !found {
+                                let tname = &self.items.trait_decl(*tr_ref).name;
+                                self.diags.push(diag::error(
+                                    diag::GENERIC_BOUND,
+                                    span,
+                                    format!(
+                                        "type argument for `{}` does not implement `{tname}`",
+                                        g.name
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
             ExprKind::Field { base, args, .. } => {
                 self.expr(base);
                 for a in args.iter_mut() {
@@ -3844,13 +4116,17 @@ impl Finalizer<'_, '_> {
     }
 }
 
-fn expr_mentions_local(e: &Expr, target: LocalId) -> bool {
+fn expr_contains_suspend(e: &Expr) -> bool {
     match &e.kind {
-        ExprKind::Local(l) => *l == target,
+        ExprKind::Intrinsic {
+            op: IntrinsicOp::TaskYield,
+            ..
+        } => true,
         ExprKind::Lit(_)
         | ExprKind::StaticUtf(_)
+        | ExprKind::Local(_)
         | ExprKind::Capture(_)
-        | ExprKind::FnRef(_)
+        | ExprKind::FnRef { .. }
         | ExprKind::ForeignRef(_)
         | ExprKind::Break
         | ExprKind::Continue => false,
@@ -3864,17 +4140,15 @@ fn expr_mentions_local(e: &Expr, target: LocalId) -> bool {
         | ExprKind::Convert { operand: base }
         | ExprKind::Len(base)
         | ExprKind::Try(base)
-        | ExprKind::ErrorInject { value: base, .. } => expr_mentions_local(base, target),
+        | ExprKind::ErrorInject { value: base, .. }
+        | ExprKind::CtEval(base)
+        | ExprKind::Loop(base) => expr_contains_suspend(base),
         ExprKind::SliceBorrow {
             place, start, end, ..
         } => {
-            expr_mentions_local(place, target)
-                || start
-                    .as_deref()
-                    .is_some_and(|s| expr_mentions_local(s, target))
-                || end
-                    .as_deref()
-                    .is_some_and(|s| expr_mentions_local(s, target))
+            expr_contains_suspend(place)
+                || start.as_deref().is_some_and(expr_contains_suspend)
+                || end.as_deref().is_some_and(expr_contains_suspend)
         }
         ExprKind::Index { base, index }
         | ExprKind::Binary {
@@ -3891,7 +4165,7 @@ fn expr_mentions_local(e: &Expr, target: LocalId) -> bool {
             place: base,
             value: index,
             ..
-        } => expr_mentions_local(base, target) || expr_mentions_local(index, target),
+        } => expr_contains_suspend(base) || expr_contains_suspend(index),
         ExprKind::Tuple(xs)
         | ExprKind::Array(xs)
         | ExprKind::Call { args: xs, .. }
@@ -3900,9 +4174,7 @@ fn expr_mentions_local(e: &Expr, target: LocalId) -> bool {
         | ExprKind::Intrinsic { args: xs, .. }
         | ExprKind::ManagedCreate { fields: xs, .. }
         | ExprKind::Adt { fields: xs, .. }
-        | ExprKind::Closure { captures: xs, .. } => {
-            xs.iter().any(|x| expr_mentions_local(x, target))
-        }
+        | ExprKind::Closure { captures: xs, .. } => xs.iter().any(expr_contains_suspend),
         ExprKind::IndirectCall { callee, args }
         | ExprKind::ClosureCall {
             closure: callee,
@@ -3913,33 +4185,257 @@ fn expr_mentions_local(e: &Expr, target: LocalId) -> bool {
             object: callee,
             args,
             ..
-        } => {
-            expr_mentions_local(callee, target)
-                || args.iter().any(|a| expr_mentions_local(a, target))
-        }
-        ExprKind::Return(v) => v.as_deref().is_some_and(|x| expr_mentions_local(x, target)),
-        ExprKind::CtEval(inner) | ExprKind::Loop(inner) => expr_mentions_local(inner, target),
+        } => expr_contains_suspend(callee) || args.iter().any(expr_contains_suspend),
+        ExprKind::Return(v) => v.as_deref().is_some_and(expr_contains_suspend),
         ExprKind::If {
             cond,
             then,
             otherwise,
         } => {
-            expr_mentions_local(cond, target)
-                || expr_mentions_local(then, target)
-                || otherwise
-                    .as_deref()
-                    .is_some_and(|x| expr_mentions_local(x, target))
+            expr_contains_suspend(cond)
+                || expr_contains_suspend(then)
+                || otherwise.as_deref().is_some_and(expr_contains_suspend)
         }
         ExprKind::While { cond, body } => {
-            expr_mentions_local(cond, target) || expr_mentions_local(body, target)
+            expr_contains_suspend(cond) || expr_contains_suspend(body)
         }
         ExprKind::Match { scrutinee, arms } => {
-            expr_mentions_local(scrutinee, target)
-                || arms.iter().any(|a| expr_mentions_local(&a.body, target))
+            expr_contains_suspend(scrutinee) || arms.iter().any(|a| expr_contains_suspend(&a.body))
         }
         ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
-            Stmt::Let { init, .. } => expr_mentions_local(init, target),
-            Stmt::Expr(x) => expr_mentions_local(x, target),
+            Stmt::Let { init, .. } => expr_contains_suspend(init),
+            Stmt::Expr(x) => expr_contains_suspend(x),
         }),
     }
+}
+
+fn unwrap_local_ref(e: &Expr) -> Option<LocalId> {
+    match &e.kind {
+        ExprKind::Local(l) => Some(*l),
+        ExprKind::Give(inner) => unwrap_local_ref(inner),
+        ExprKind::Lit(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Capture(_)
+        | ExprKind::Field { .. }
+        | ExprKind::TupleField { .. }
+        | ExprKind::Index { .. }
+        | ExprKind::Deref(_)
+        | ExprKind::Borrow { .. }
+        | ExprKind::SliceBorrow { .. }
+        | ExprKind::Len(_)
+        | ExprKind::Describe(_)
+        | ExprKind::ManagedCreate { .. }
+        | ExprKind::Unary { .. }
+        | ExprKind::Binary { .. }
+        | ExprKind::Logical { .. }
+        | ExprKind::Convert { .. }
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::Call { .. }
+        | ExprKind::IndirectCall { .. }
+        | ExprKind::Closure { .. }
+        | ExprKind::ClosureCall { .. }
+        | ExprKind::TraitCall { .. }
+        | ExprKind::DynCall { .. }
+        | ExprKind::ForeignCall { .. }
+        | ExprKind::Intrinsic { .. }
+        | ExprKind::Adt { .. }
+        | ExprKind::ErrorInject { .. }
+        | ExprKind::Try(_)
+        | ExprKind::CtEval(_)
+        | ExprKind::Tuple(_)
+        | ExprKind::Array(_)
+        | ExprKind::If { .. }
+        | ExprKind::Match { .. }
+        | ExprKind::Block(_)
+        | ExprKind::Loop(_)
+        | ExprKind::While { .. }
+        | ExprKind::Break
+        | ExprKind::Continue
+        | ExprKind::Return(_)
+        | ExprKind::Assign { .. } => None,
+    }
+}
+
+fn local_is_consumed(e: &Expr, root: LocalId) -> bool {
+    value_is_consumed(e, Some(root), None)
+}
+
+fn capture_is_consumed(e: &Expr, cap: u32) -> bool {
+    value_is_consumed(e, None, Some(cap))
+}
+
+fn unwrap_capture_ref(e: &Expr) -> Option<u32> {
+    match &e.kind {
+        ExprKind::Capture(c) => Some(*c),
+        ExprKind::Give(inner) => unwrap_capture_ref(inner),
+        ExprKind::Lit(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Local(_)
+        | ExprKind::Field { .. }
+        | ExprKind::TupleField { .. }
+        | ExprKind::Index { .. }
+        | ExprKind::Deref(_)
+        | ExprKind::Borrow { .. }
+        | ExprKind::SliceBorrow { .. }
+        | ExprKind::Len(_)
+        | ExprKind::Describe(_)
+        | ExprKind::ManagedCreate { .. }
+        | ExprKind::Unary { .. }
+        | ExprKind::Binary { .. }
+        | ExprKind::Logical { .. }
+        | ExprKind::Convert { .. }
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::Call { .. }
+        | ExprKind::IndirectCall { .. }
+        | ExprKind::Closure { .. }
+        | ExprKind::ClosureCall { .. }
+        | ExprKind::TraitCall { .. }
+        | ExprKind::DynCall { .. }
+        | ExprKind::ForeignCall { .. }
+        | ExprKind::Intrinsic { .. }
+        | ExprKind::Adt { .. }
+        | ExprKind::ErrorInject { .. }
+        | ExprKind::Try(_)
+        | ExprKind::CtEval(_)
+        | ExprKind::Tuple(_)
+        | ExprKind::Array(_)
+        | ExprKind::If { .. }
+        | ExprKind::Match { .. }
+        | ExprKind::Block(_)
+        | ExprKind::Loop(_)
+        | ExprKind::While { .. }
+        | ExprKind::Break
+        | ExprKind::Continue
+        | ExprKind::Return(_)
+        | ExprKind::Assign { .. } => None,
+    }
+}
+
+fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32>) -> bool {
+    fn walk(e: &Expr, aliases: &mut Vec<LocalId>, root_cap: Option<u32>) -> bool {
+        let is_alias = |x: &Expr, aliases: &[LocalId]| {
+            unwrap_local_ref(x).is_some_and(|l| aliases.contains(&l))
+                || (root_cap.is_some() && unwrap_capture_ref(x) == root_cap)
+        };
+        match &e.kind {
+            ExprKind::Block(stmts) => {
+                for s in stmts {
+                    match s {
+                        Stmt::Let { pattern, init } => {
+                            if is_alias(init, aliases) {
+                                if let PatKind::Binding(local) = pattern.kind {
+                                    aliases.push(local);
+                                }
+                            } else if walk(init, aliases, root_cap) {
+                                return true;
+                            }
+                        }
+                        Stmt::Expr(x) => {
+                            if walk(x, aliases, root_cap) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                false
+            }
+            ExprKind::ClosureCall {
+                closure,
+                mode,
+                args,
+            } => {
+                if *mode == ClosureCallMode::Once && is_alias(closure, aliases) {
+                    return true;
+                }
+                if args.iter().any(|a| is_alias(a, aliases)) {
+                    return true;
+                }
+                walk(closure, aliases, root_cap) || args.iter().any(|a| walk(a, aliases, root_cap))
+            }
+            ExprKind::Call { args, .. }
+            | ExprKind::TraitCall { args, .. }
+            | ExprKind::ForeignCall { args, .. }
+            | ExprKind::Intrinsic { args, .. }
+            | ExprKind::Tuple(args)
+            | ExprKind::Array(args)
+            | ExprKind::ManagedCreate { fields: args, .. }
+            | ExprKind::Adt { fields: args, .. }
+            | ExprKind::Closure { captures: args, .. } => {
+                args.iter().any(|a| is_alias(a, aliases))
+                    || args.iter().any(|a| walk(a, aliases, root_cap))
+            }
+            ExprKind::IndirectCall { callee, args }
+            | ExprKind::DynCall {
+                object: callee,
+                args,
+                ..
+            } => {
+                args.iter().any(|a| is_alias(a, aliases))
+                    || walk(callee, aliases, root_cap)
+                    || args.iter().any(|a| walk(a, aliases, root_cap))
+            }
+            ExprKind::Return(Some(v)) => is_alias(v, aliases) || walk(v, aliases, root_cap),
+            ExprKind::Return(None) => false,
+            ExprKind::ErrorInject { value, .. } => {
+                is_alias(value, aliases) || walk(value, aliases, root_cap)
+            }
+            ExprKind::Borrow { .. } | ExprKind::SliceBorrow { .. } | ExprKind::Describe(_) => false,
+            ExprKind::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                walk(cond, aliases, root_cap)
+                    || walk(then, aliases, root_cap)
+                    || otherwise
+                        .as_deref()
+                        .is_some_and(|x| walk(x, aliases, root_cap))
+            }
+            ExprKind::While { cond, body } => {
+                walk(cond, aliases, root_cap) || walk(body, aliases, root_cap)
+            }
+            ExprKind::Match { scrutinee, arms } => {
+                walk(scrutinee, aliases, root_cap)
+                    || arms.iter().any(|a| walk(&a.body, aliases, root_cap))
+            }
+            ExprKind::Loop(inner)
+            | ExprKind::CtEval(inner)
+            | ExprKind::Try(inner)
+            | ExprKind::Give(inner)
+            | ExprKind::Deref(inner)
+            | ExprKind::Len(inner)
+            | ExprKind::Unary { operand: inner, .. }
+            | ExprKind::Convert { operand: inner }
+            | ExprKind::Field { base: inner, .. }
+            | ExprKind::TupleField { base: inner, .. } => walk(inner, aliases, root_cap),
+            ExprKind::Index { base, index }
+            | ExprKind::Binary {
+                lhs: base,
+                rhs: index,
+                ..
+            }
+            | ExprKind::Logical {
+                lhs: base,
+                rhs: index,
+                ..
+            } => walk(base, aliases, root_cap) || walk(index, aliases, root_cap),
+            ExprKind::Assign { place, value, .. } => {
+                is_alias(value, aliases)
+                    || walk(place, aliases, root_cap)
+                    || walk(value, aliases, root_cap)
+            }
+            ExprKind::Lit(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::Capture(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::Break
+            | ExprKind::Continue => false,
+        }
+    }
+    let mut aliases: Vec<LocalId> = root_local.into_iter().collect();
+    walk(e, &mut aliases, root_cap)
 }

@@ -231,7 +231,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     params: def.params.clone(),
                     result: def.result,
                     type_params: 0,
-                    region_params: 0,
+                    region_params: self.items.func(owner).region_params.len() as u32,
                     role: FnRole::Normal,
                 };
                 let cthir = ThirFn {
@@ -613,15 +613,17 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
 
     fn record_eval(&mut self, parent_span: Span, ordinal: u32) {
         let len = self.blocks[self.cur.index()].instructions.len();
-        let at = OpLocation {
-            block: self.cur,
-            instruction: len.checked_sub(1).map(|i| i as u32),
-        };
-        self.eval_relations.push(SourceRelation::Evaluation {
-            node: NodeId(u32::try_from(parent_span.start).unwrap_or(u32::MAX)),
-            ordinal,
-            at,
-        });
+        if let Some(last) = len.checked_sub(1) {
+            let at = OpLocation {
+                block: self.cur,
+                instruction: Some(last as u32),
+            };
+            self.eval_relations.push(SourceRelation::Evaluation {
+                node: NodeId(u32::try_from(parent_span.start).unwrap_or(u32::MAX)),
+                ordinal,
+                at,
+            });
+        }
     }
 
     fn eval_operands(&mut self, parent_span: Span, exprs: &[Expr]) -> Vec<Operand> {
@@ -780,6 +782,26 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             let params: Vec<Local> = self.param_locals.iter().rev().copied().collect();
             for p in params {
                 self.push_auto_drop(p, span);
+            }
+            if let Some(cid) = self.closure_id
+                && self
+                    .tys()
+                    .closure(cid)
+                    .is_some_and(|c| c.kind == zil_ir::body::ClosureKind::FnOnce)
+            {
+                for ci in (0..self.captures.len()).rev() {
+                    let ty = self.captures[ci];
+                    if self.needs_cleanup(ty) {
+                        let idx = self.blocks[self.cur.index()].instructions.len();
+                        self.push(
+                            InstructionKind::Drop {
+                                place: Place::capture(ci as u32),
+                            },
+                            span,
+                        );
+                        self.auto_drops.insert((self.cur, idx));
+                    }
+                }
             }
         }
     }
@@ -977,7 +999,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Binary { .. }
             | ExprKind::Logical { .. }
             | ExprKind::Convert { .. }
-            | ExprKind::FnRef(_)
+            | ExprKind::FnRef { .. }
             | ExprKind::ForeignRef(_)
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
@@ -1170,13 +1192,16 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     operands,
                 }
             }
-            ExprKind::FnRef(f) => match self.mono.instance(*f, Vec::new(), e.span) {
-                Some(id) => Rvalue::FnRef(id),
-                None => {
-                    self.failed = true;
-                    Rvalue::Use(Operand::Const(ConstValue::Unit))
+            ExprKind::FnRef { func, type_args } => {
+                let closed: Vec<Ty> = type_args.iter().map(|a| self.closed(*a)).collect();
+                match self.mono.instance(*func, closed, e.span) {
+                    Some(id) => Rvalue::FnRef(id),
+                    None => {
+                        self.failed = true;
+                        Rvalue::Use(Operand::Const(ConstValue::Unit))
+                    }
                 }
-            },
+            }
             ExprKind::ForeignRef(f) => Rvalue::ForeignFnRef(ForeignId(f.0)),
             ExprKind::ErrorInject { ok, value } => {
                 let ty = self.ty(e.ty, e.span);
@@ -1558,7 +1583,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Borrow { .. }
             | ExprKind::SliceBorrow { .. }
             | ExprKind::Give(_)
-            | ExprKind::FnRef(_)
+            | ExprKind::FnRef { .. }
             | ExprKind::ForeignRef(_)
             | ExprKind::Closure { .. }
             | ExprKind::Describe(_)
@@ -1960,7 +1985,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::ClosureCall { .. }
             | ExprKind::TraitCall { .. }
             | ExprKind::DynCall { .. }
-            | ExprKind::FnRef(_)
+            | ExprKind::FnRef { .. }
             | ExprKind::ForeignRef(_)
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }

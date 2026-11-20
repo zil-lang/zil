@@ -847,6 +847,7 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::MutexValue
         | I::ThreadScope
         | I::TaskCreate
+        | I::TaskValid
         | I::TaskYield
         | I::TaskPoll
         | I::TaskRequestCancel
@@ -863,7 +864,6 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::SyncFetchAdd
         | I::SyncCompareExchange
         | I::TaskStart
-        | I::TaskValid
         | I::RegistrationStart
         | I::RegistrationValid
         | I::RegistrationClose => Err(zil_ir::body::intrinsic_name(op)),

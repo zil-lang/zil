@@ -710,7 +710,7 @@ pub fn rvalue_ty(rvalue: &Rvalue, cx: &ConstraintCx<'_>) -> Result<TyId, Constra
         }
         Rvalue::FnRef(f) => {
             let sig = callable(cx, f.0)?;
-            if sig.type_params != 0 || sig.region_params != 0 {
+            if sig.type_params != 0 {
                 return Err(ConstraintError::Unspecified("generic function values"));
             }
             cx.lookup(TyKind::FnPtr {
@@ -1476,25 +1476,21 @@ fn intrinsic_sig(
             Ok((vec![*worker_ty, *cell_ty, *parent_ty], out_ty))
         }
         IntrinsicOp::TaskCreate => {
-            let (worker_ty, ctx_ty) = match found {
-                [w] => (*w, None),
-                [w, c] => (*w, Some(*c)),
-                _ => return Err(bad("task.create takes worker or (worker, context)")),
+            let Some((&worker_ty, ctx_args)) = found.split_first() else {
+                return Err(bad("task.create requires a worker function"));
             };
             let Some(TyKind::FnPtr { params, result }) = tys.get(worker_ty) else {
                 return Err(bad("task.create worker must be a function pointer"));
             };
-            match ctx_ty {
-                None => {
-                    if !params.is_empty() {
-                        return Err(bad("task.create worker takes no parameters"));
-                    }
-                }
-                Some(c) => {
-                    if params.len() != 1 || !tys.same_erased_region(params[0], c) {
-                        return Err(bad("task.create worker parameter must match context type"));
-                    }
-                }
+            if params.len() != ctx_args.len()
+                || !params
+                    .iter()
+                    .zip(ctx_args)
+                    .all(|(p, c)| tys.same_erased_region(*p, *c))
+            {
+                return Err(bad(
+                    "task.create worker parameters must match context arguments",
+                ));
             }
             let Some(TyKind::ErrorUnion { ok, err }) = tys.get(dest_ty) else {
                 return Err(bad("task.create requires an error union destination"));
@@ -1504,30 +1500,43 @@ fn intrinsic_sig(
                 Some(TyKind::Managed(inner))
                     if matches!(
                         tys.get(*inner),
-                        Some(TyKind::Opaque(OpaqueTy::Task { result: tr, context: tc }))
+                        Some(TyKind::Opaque(OpaqueTy::Task { result: tr, .. }))
                             if tys.same_erased_region(*tr, *result)
-                                && match (tc, ctx_ty) {
-                                    (None, None) => true,
-                                    (Some(a), Some(b)) => tys.same_erased_region(*a, b),
-                                    (None, Some(_)) | (Some(_), None) => false,
-                                }
                     )
             );
-            let err_is_enum = matches!(
+            let err_is_adt = matches!(
                 tys.get(*err),
                 Some(TyKind::Adt { adt, .. })
-                    if tys.get_adt(*adt).is_some_and(|d| d.kind == AdtKind::Enum)
+                    if tys.get_adt(*adt).is_some_and(|d| matches!(d.kind, AdtKind::Enum | AdtKind::Package))
             );
-            if !ok_matches || !err_is_enum {
+            if !ok_matches || !err_is_adt {
                 return Err(bad(
                     "task.create destination must be Error!Managed<Task<T>>",
                 ));
             }
-            let mut expected = vec![worker_ty];
-            if let Some(c) = ctx_ty {
-                expected.push(c);
+            Ok((found.to_vec(), dest_ty))
+        }
+        IntrinsicOp::TaskValid => {
+            let [task_arg] = found else {
+                return Err(bad("task.valid takes one task handle"));
+            };
+            let ok_arg = matches!(
+                tys.get(*task_arg),
+                Some(TyKind::Desc(inner) | TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { .. })))
+            ) || matches!(
+                tys.get(*task_arg),
+                Some(TyKind::Ref { pointee, .. })
+                    if matches!(
+                        tys.get(*pointee),
+                        Some(TyKind::Managed(inner) | TyKind::Desc(inner))
+                            if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { .. })))
+                    )
+            );
+            if !ok_arg {
+                return Err(bad("task.valid expects a Task handle"));
             }
-            Ok((expected, dest_ty))
+            Ok((vec![*task_arg], bool_ty()?))
         }
         IntrinsicOp::TaskYield => Ok((Vec::new(), cx.lookup(TyKind::Unit)?)),
         IntrinsicOp::TaskPoll => {
@@ -1726,7 +1735,6 @@ fn intrinsic_sig(
         | IntrinsicOp::SyncFetchAdd
         | IntrinsicOp::SyncCompareExchange
         | IntrinsicOp::TaskStart
-        | IntrinsicOp::TaskValid
         | IntrinsicOp::RegistrationStart
         | IntrinsicOp::RegistrationValid
         | IntrinsicOp::RegistrationClose => Err(ConstraintError::Unspecified(intrinsic_name(op))),

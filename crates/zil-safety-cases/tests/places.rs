@@ -695,7 +695,7 @@ fn writing_a_copy_value_through_an_exclusive_address_is_accepted() {
     let mut m = ModuleBuilder::new();
     let i32 = m.t.i32;
     let r = m.ty(TyKind::Ref {
-        region: Region::Param(0),
+        region: Region::Static,
         mutability: Mutability::Exclusive,
         pointee: i32,
     });

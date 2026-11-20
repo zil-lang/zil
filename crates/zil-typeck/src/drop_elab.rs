@@ -137,44 +137,86 @@ fn bool_assign(flag: Local, value: bool, span: Span) -> Instruction {
     }
 }
 
+fn place_cleanup_uninit(
+    place: &Place,
+    ty: zil_ir::body::TyId,
+    tys: &TyTable,
+    ufields: &HashSet<Place>,
+) -> bool {
+    if !tys.needs_cleanup(ty, &zil_ir::body::ParamEnv::default()) {
+        return true;
+    }
+    if ufields.contains(place) {
+        return true;
+    }
+    match tys.kind(ty) {
+        TyKind::Tuple(elems) => {
+            let elems = elems.clone();
+            if elems.is_empty() {
+                return false;
+            }
+            elems.iter().enumerate().all(|(i, &ety)| {
+                let mut sub = place.clone();
+                sub.projections
+                    .push(zil_ir::body::Projection::TupleField(i as u32));
+                place_cleanup_uninit(&sub, ety, tys, ufields)
+            })
+        }
+        TyKind::Adt { adt, args } => {
+            let adt = *adt;
+            let args = *args;
+            let def = tys.adt(adt);
+            if def.user_drop || def.variants.len() != 1 {
+                return false;
+            }
+            let arg_tys = tys.args(args);
+            def.variants[0].fields.iter().enumerate().all(|(fi, f)| {
+                let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
+                    arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
+                } else {
+                    f.ty
+                };
+                let mut sub = place.clone();
+                sub.projections
+                    .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
+                        adt,
+                        variant: zil_ir::body::VariantIdx(0),
+                        field: zil_ir::body::FieldIdx(fi as u32),
+                        args,
+                    }));
+                place_cleanup_uninit(&sub, fty, tys, ufields)
+            })
+        }
+        TyKind::Unit
+        | TyKind::Bool
+        | TyKind::Int(_)
+        | TyKind::Float(_)
+        | TyKind::Never
+        | TyKind::Param(_)
+        | TyKind::Array { .. }
+        | TyKind::Slice(_)
+        | TyKind::Ref { .. }
+        | TyKind::FnPtr { .. }
+        | TyKind::Closure { .. }
+        | TyKind::Dyn(_)
+        | TyKind::OwnedDyn(_)
+        | TyKind::ErrorUnion { .. }
+        | TyKind::Managed(_)
+        | TyKind::Desc(_)
+        | TyKind::Opaque(_) => false,
+    }
+}
+
 fn all_cleanup_fields_uninit(
     l: Local,
     ty: zil_ir::body::TyId,
     tys: &TyTable,
     ufields: &HashSet<Place>,
 ) -> bool {
-    let TyKind::Adt { adt, args } = *tys.kind(ty) else {
-        return false;
-    };
-    let def = tys.adt(adt);
-    if def.user_drop || def.variants.len() != 1 {
+    if !tys.needs_cleanup(ty, &zil_ir::body::ParamEnv::default()) {
         return false;
     }
-    let arg_tys = tys.args(args);
-    let mut saw_cleanup = false;
-    for (fi, f) in def.variants[0].fields.iter().enumerate() {
-        let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
-            arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
-        } else {
-            f.ty
-        };
-        if tys.needs_cleanup(fty, &zil_ir::body::ParamEnv::default()) {
-            saw_cleanup = true;
-            let fp = Place {
-                root: zil_ir::body::PlaceRoot::Local(l),
-                projections: vec![zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
-                    adt,
-                    variant: zil_ir::body::VariantIdx(0),
-                    field: zil_ir::body::FieldIdx(fi as u32),
-                    args,
-                })],
-            };
-            if !ufields.contains(&fp) {
-                return false;
-            }
-        }
-    }
-    saw_cleanup
+    place_cleanup_uninit(&Place::local(l), ty, tys, ufields)
 }
 
 /// Rewrites every `(block, inst_idx)` auto-drop marker in `body`.
@@ -256,33 +298,41 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
         let bid = BlockId::from_index(b_idx);
         for (i, inst) in block.instructions.iter().enumerate() {
             if let InstructionKind::Replace { place, .. } = &inst.kind
-                && ufields.contains(place)
+                && (ufields.contains(place)
+                    || place
+                        .as_local()
+                        .is_some_and(|l| state[l.index()].is_definitely_uninit()))
             {
                 replace_to_assign.insert((bid, i));
             }
             if auto_drops.contains(&(bid, i))
                 && let InstructionKind::Drop { place } = &inst.kind
-                && let Some(l) = place.as_local()
             {
-                let mut st = state[l.index()];
-                if !st.is_definitely_uninit()
-                    && all_cleanup_fields_uninit(l, body.locals[l.index()].ty, tys, &ufields)
-                {
-                    st = Init::UNINIT;
-                }
-                per_point.insert((bid, i), st);
-                if st.is_maybe() && !flagged.contains_key(&l) {
-                    let bool_ty = tys.intern(TyKind::Bool);
-                    let flag = Local::from_index(body.locals.len());
-                    body.locals.push(LocalDecl {
-                        ty: bool_ty,
-                        name: None,
-                    });
-                    body.drop_flags.push(DropFlag {
-                        flag,
-                        place: Place::local(l),
-                    });
-                    flagged.insert(l, flag);
+                if let Some(l) = place.as_local() {
+                    let mut st = state[l.index()];
+                    if !st.is_definitely_uninit()
+                        && all_cleanup_fields_uninit(l, body.locals[l.index()].ty, tys, &ufields)
+                    {
+                        st = Init::UNINIT;
+                    }
+                    per_point.insert((bid, i), st);
+                    if st.is_maybe() && !flagged.contains_key(&l) {
+                        let bool_ty = tys.intern(TyKind::Bool);
+                        let flag = Local::from_index(body.locals.len());
+                        body.locals.push(LocalDecl {
+                            ty: bool_ty,
+                            name: None,
+                        });
+                        body.drop_flags.push(DropFlag {
+                            flag,
+                            place: Place::local(l),
+                        });
+                        flagged.insert(l, flag);
+                    }
+                } else if ufields.contains(place) {
+                    per_point.insert((bid, i), Init::UNINIT);
+                } else {
+                    per_point.insert((bid, i), Init::INIT);
                 }
             }
             step_instruction(&mut state, &mut ufields, &inst.kind);
@@ -369,14 +419,14 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     cur_insts.push(inst);
                     continue;
                 };
-                let Some(l) = place.as_local() else {
-                    cur_insts.push(inst);
-                    continue;
-                };
                 if st.is_definitely_uninit() {
                     // Already moved on every path: omit drop.
                     continue;
                 }
+                let Some(l) = place.as_local() else {
+                    cur_insts.push(inst);
+                    continue;
+                };
                 if st.is_maybe() {
                     let flag = flagged[&l];
                     let after = alloc_block(

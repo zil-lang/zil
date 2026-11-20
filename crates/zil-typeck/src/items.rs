@@ -621,6 +621,32 @@ pub fn collect_program<'a>(
         }],
         user_drop: false,
     });
+    let task_create_error_ty = types.intern(TyData::Adt {
+        adt: task_create_error_adt,
+        args: Vec::new(),
+    });
+    let _task_create_owned_failure_adt = AdtRef(6);
+    items.adt_kinds.push(AdtKind::Package);
+    items.adts.push(AdtDecl {
+        name: "TaskCreateOwnedFailure".to_string(),
+        kind: AdtKind::Package,
+        generics: vec!["Inputs".to_string()],
+        variants: vec![VariantDecl {
+            name: "TaskCreateOwnedFailure".to_string(),
+            shape: VariantShape::Record,
+            fields: vec![
+                FieldDecl {
+                    name: "reason".to_string(),
+                    ty: task_create_error_ty,
+                },
+                FieldDecl {
+                    name: "inputs".to_string(),
+                    ty: option_t,
+                },
+            ],
+        }],
+        user_drop: false,
+    });
 
     // Pass 1: top-level names, ADT kinds and module imports.
     let mut adt_asts: Vec<(ModIdx, AdtAst<'a>)> = Vec::new();
@@ -1333,8 +1359,8 @@ fn parse_result_mode(clauses: &[ast::ContractClause], diags: &mut Vec<Diagnostic
                     None => diags.push(diag::unsupported("function contracts", term.span)),
                 }
             }
-        } else if c.name == "requires" || c.name == "provides" {
-            // Protocol state pre/postconditions (checked by protocol rules).
+        } else if c.name == "requires" || c.name == "provides" || c.name == "effects" {
+            // Protocol state pre/postconditions and effect bounds (checked in Finalizer/semantics).
             continue;
         } else {
             diags.push(diag::unsupported("function contracts", c.span));
@@ -1527,6 +1553,9 @@ fn collect_foreign(
                     [s] if matches!(
                         s.as_str(),
                         "static_callbacks"
+                            | "async_callback_register"
+                            | "async_callback_request_close"
+                            | "async_callback_poll_drain"
                             | "thread_async_callback_register"
                             | "thread_async_callback_request_close"
                             | "thread_async_callback_poll_drain"
@@ -2247,9 +2276,8 @@ fn resolve_type_with_lifetimes(
                                 None,
                                 types,
                             )?),
-                            ast::GenericArg::Lifetime(_)
-                            | ast::GenericArg::Const(_)
-                            | ast::GenericArg::AssociatedBinding(_) => {
+                            ast::GenericArg::Lifetime(_) => {}
+                            ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
                                 return Err(diag::unsupported(
                                     "non-type generic arguments",
                                     t.span,
