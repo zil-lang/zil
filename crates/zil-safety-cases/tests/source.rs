@@ -791,3 +791,48 @@ fn fn_mut_closure_mutating_captured_local_executes_in_interp() {
         }
     );
 }
+
+// ---- traits, impl Trait, StoreElement and draft_foundations ----------------
+
+#[test]
+fn full_mainline_draft_foundations_example_is_admitted_end_to_end() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            ("std.store", include_str!("../../../lib/std/store.zil")),
+            (
+                "api",
+                include_str!("../../../examples/mainline/draft_foundations/api.zil"),
+            ),
+            (
+                "model",
+                include_str!("../../../examples/mainline/draft_foundations/model.zil"),
+            ),
+            (
+                "operations",
+                include_str!("../../../examples/mainline/draft_foundations/operations.zil"),
+            ),
+            (
+                "usecase",
+                include_str!("../../../examples/mainline/draft_foundations/usecase.zil"),
+            ),
+            (
+                "main",
+                include_str!("../../../examples/mainline/draft_foundations/main.zil"),
+            ),
+        ],
+        None,
+    )
+    .expect("draft_foundations lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn missing_trait_impl_for_generic_bound_is_rejected() {
+    reject(
+        "trait Make { fn make() -> Self; }\n\
+         struct A { x: i32 }\n\
+         fn build<T: Make>() -> T { return T.make() }\n\
+         fn main() -> i32 { let a = build::<A>(); return a.x }",
+        "E-GENERIC-ARGUMENT",
+    );
+}

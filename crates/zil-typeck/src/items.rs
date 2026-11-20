@@ -8,7 +8,7 @@
 use crate::ModuleInput;
 use crate::diag;
 use crate::thir::{FnRef, ForeignRef};
-use crate::ty::{AdtRef, OpaqueKind, Ty, TyData, Types};
+use crate::ty::{AdtRef, OpaqueKind, TraitRef, Ty, TyData, Types};
 use std::collections::{HashMap, HashSet};
 use zil_base::{Diagnostic, Span};
 use zil_ir::body::{AdtKind, FloatTy, IntTy};
@@ -22,6 +22,7 @@ pub enum ItemRef {
     Fn(FnRef),
     Adt(AdtRef),
     Foreign(ForeignRef),
+    Trait(TraitRef),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,6 +43,31 @@ pub struct GenericInfo {
     pub name: String,
     /// Declared `Copy` bound.
     pub copy: bool,
+    /// Declared `StoreElement` bound.
+    pub store_element: bool,
+    /// Declared user trait bounds: `(trait_ref, trait_args)`.
+    pub traits: Vec<(TraitRef, Vec<Ty>)>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitMethodDecl {
+    pub name: String,
+    pub params: Vec<Ty>,
+    pub result: Ty,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitDecl {
+    pub name: String,
+    pub methods: Vec<TraitMethodDecl>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitImplDecl {
+    pub trait_ref: TraitRef,
+    pub trait_args: Vec<Ty>,
+    pub target: Ty,
+    pub methods: Vec<(String, FnRef)>,
 }
 
 #[derive(Clone, Debug)]
@@ -124,6 +150,8 @@ pub struct Items<'a> {
     pub fns: Vec<FnDecl<'a>>,
     pub adts: Vec<AdtDecl>,
     pub foreigns: Vec<ForeignDeclInfo>,
+    pub traits: Vec<TraitDecl>,
+    pub trait_impls: Vec<TraitImplDecl>,
     pub adt_kinds: Vec<AdtKind>,
 }
 
@@ -136,6 +164,9 @@ impl<'a> Items<'a> {
     }
     pub fn foreign(&self, f: ForeignRef) -> &ForeignDeclInfo {
         &self.foreigns[f.0 as usize]
+    }
+    pub fn trait_decl(&self, t: TraitRef) -> &TraitDecl {
+        &self.traits[t.0 as usize]
     }
 
     /// Resolves a bare or module-qualified item path from module `from`.
@@ -220,6 +251,8 @@ pub fn collect_program<'a>(
         fns: Vec::new(),
         adts: Vec::new(),
         foreigns: Vec::new(),
+        traits: Vec::new(),
+        trait_impls: Vec::new(),
         adt_kinds: Vec::new(),
     };
     for (i, inp) in inputs.iter().enumerate() {
@@ -240,6 +273,7 @@ pub fn collect_program<'a>(
     let mut fn_asts: Vec<(ModIdx, &'a ast::Function)> = Vec::new();
     let mut foreign_asts: Vec<(ModIdx, &str, &'a ast::Function, Span)> = Vec::new();
     let mut impl_asts: Vec<(ModIdx, &'a ast::ImplBlock, Span)> = Vec::new();
+    let mut trait_asts: Vec<(ModIdx, &'a ast::TraitDecl, Span)> = Vec::new();
 
     for (m_i, inp) in inputs.iter().enumerate() {
         let mid = ModIdx(m_i as u32);
@@ -297,9 +331,12 @@ pub fn collect_program<'a>(
                     impl_asts.push((mid, imp, item.span));
                     continue;
                 }
-                ast::ItemKind::Trait(_) => {
-                    diags.push(diag::unsupported("trait declarations", item.span));
-                    continue;
+                ast::ItemKind::Trait(tr) => {
+                    trait_asts.push((mid, tr, item.span));
+                    (
+                        &tr.name,
+                        ItemRef::Trait(TraitRef(trait_asts.len() as u32 - 1)),
+                    )
                 }
                 ast::ItemKind::TypeAlias(_) => {
                     diags.push(diag::unsupported("type aliases", item.span));
@@ -327,7 +364,20 @@ pub fn collect_program<'a>(
         }
     }
 
-    // Pass 2: declarations.
+    // Pass 2: declarations. Collect traits first so function/ADT generic bounds can reference them.
+    for (mid, tr, span) in trait_asts {
+        let decl = collect_trait(
+            mid,
+            tr,
+            span,
+            &items.modules,
+            &items.mod_by_path,
+            &items.adt_kinds,
+            types,
+            diags,
+        );
+        items.traits.push(decl);
+    }
     for (mid, item) in adt_asts {
         let decl = collect_adt(
             mid,
@@ -372,25 +422,74 @@ pub fn collect_program<'a>(
     items
 }
 
-fn type_generics(generics: &[ast::GenericParam], diags: &mut Vec<Diagnostic>) -> Vec<GenericInfo> {
+#[allow(clippy::too_many_arguments)]
+fn type_generics(
+    mid: ModIdx,
+    generics: &[ast::GenericParam],
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) -> Vec<GenericInfo> {
+    let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
     let mut out = Vec::new();
     for g in generics {
         match &g.kind {
             ast::GenericParamKind::Type(bounds) => {
                 let mut copy = false;
+                let mut store_element = false;
+                let mut traits = Vec::new();
                 for b in bounds {
-                    if let ast::TypeKind::Named { path, args } = &b.kind
-                        && args.is_empty()
-                        && path == &["Copy"]
-                    {
-                        copy = true;
+                    if let ast::TypeKind::Named { path, args } = &b.kind {
+                        if args.is_empty() && path == &["Copy"] {
+                            copy = true;
+                        } else if args.is_empty() && path == &["StoreElement"] {
+                            store_element = true;
+                        } else if let Some(ItemRef::Trait(tr)) =
+                            lookup_item_in(modules, mod_by_path, mid, path)
+                        {
+                            let mut targs = Vec::new();
+                            for a in args {
+                                if let ast::GenericArg::Type(t) = a {
+                                    targs.push(
+                                        resolve_type_in(
+                                            t,
+                                            mid,
+                                            &scope,
+                                            modules,
+                                            mod_by_path,
+                                            adt_kinds,
+                                            None,
+                                            types,
+                                        )
+                                        .unwrap_or_else(
+                                            |d| {
+                                                diags.push(d);
+                                                types.error()
+                                            },
+                                        ),
+                                    );
+                                } else {
+                                    diags.push(diag::unsupported(
+                                        "non-type trait arguments",
+                                        b.span,
+                                    ));
+                                }
+                            }
+                            traits.push((tr, targs));
+                        } else {
+                            diags.push(diag::unsupported("unknown trait bound", b.span));
+                        }
                     } else {
-                        diags.push(diag::unsupported("trait bounds other than Copy", b.span));
+                        diags.push(diag::unsupported("non-named trait bound", b.span));
                     }
                 }
                 out.push(GenericInfo {
                     name: g.name.clone(),
                     copy,
+                    store_element,
+                    traits,
                 });
             }
             ast::GenericParamKind::Lifetime => {
@@ -402,6 +501,81 @@ fn type_generics(generics: &[ast::GenericParam], diags: &mut Vec<Diagnostic>) ->
         }
     }
     out
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_trait(
+    mid: ModIdx,
+    tr: &ast::TraitDecl,
+    _span: Span,
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) -> TraitDecl {
+    let generics = type_generics(
+        mid,
+        &tr.generics,
+        modules,
+        mod_by_path,
+        adt_kinds,
+        types,
+        diags,
+    );
+    let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
+    let self_param = types.intern(TyData::SelfParam);
+    let mut methods = Vec::new();
+    for m in &tr.members {
+        let ast::ItemKind::Function(f) = &m.kind else {
+            diags.push(diag::unsupported("non-function trait member", m.span));
+            continue;
+        };
+        let mut params = Vec::new();
+        for p in &f.params {
+            let ty = resolve_type_in(
+                &p.ty,
+                mid,
+                &scope,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                Some(self_param),
+                types,
+            )
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            });
+            params.push(ty);
+        }
+        let result = match &f.return_type {
+            Some(t) => resolve_type_in(
+                t,
+                mid,
+                &scope,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                Some(self_param),
+                types,
+            )
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            }),
+            None => types.unit(),
+        };
+        methods.push(TraitMethodDecl {
+            name: f.name.clone(),
+            params,
+            result,
+        });
+    }
+    TraitDecl {
+        name: qualify(&modules[mid.0 as usize].path, &tr.name),
+        methods,
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -422,12 +596,14 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::Adt { .. }
         | TyData::Tuple(_)
         | TyData::Array { .. }
+        | TyData::Slice(_)
         | TyData::Ref { .. }
         | TyData::Opaque(_)
         | TyData::ErrorUnion { .. }
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::Param(_)
+        | TyData::SelfParam
         | TyData::Var(_) => None,
     }
 }
@@ -467,7 +643,7 @@ fn collect_adt(
         }
         AdtAst::Enum(e, span) => (&e.name, AdtKind::Enum, &e.generics, span),
     };
-    let generic_info = type_generics(generics, diags);
+    let generic_info = type_generics(mid, generics, modules, mod_by_path, adt_kinds, types, diags);
     let scope: Vec<String> = generic_info.iter().map(|g| g.name.clone()).collect();
     let mut resolve = |t: &ast::TypeRef, diags: &mut Vec<Diagnostic>, types: &mut Types| {
         resolve_type_in(t, mid, &scope, modules, mod_by_path, adt_kinds, None, types)
@@ -627,7 +803,15 @@ fn collect_fn<'a>(
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> FnDecl<'a> {
-    let generics = type_generics(&f.generics, diags);
+    let generics = type_generics(
+        mid,
+        &f.generics,
+        modules,
+        mod_by_path,
+        adt_kinds,
+        types,
+        diags,
+    );
     let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
     if !f.where_clause.is_empty() {
         diags.push(diag::unsupported("where clauses", f.span));
@@ -808,7 +992,7 @@ fn collect_impl<'a>(
         Some(t) if matches!(&t.kind, ast::TypeKind::Named { path, args } if path == &["Drop"] && args.is_empty())
     );
     if !is_drop {
-        diags.push(diag::unsupported("impl blocks", span));
+        collect_trait_impl(mid, imp, span, items, types, diags);
         return;
     }
     if !imp.generics.is_empty() || !imp.where_clause.is_empty() || imp.receiver_default.is_some() {
@@ -847,7 +1031,7 @@ fn collect_impl<'a>(
             }
             *adt
         }
-        Some(ItemRef::Adt(_) | ItemRef::Fn(_) | ItemRef::Foreign(_)) | None => {
+        Some(ItemRef::Adt(_) | ItemRef::Fn(_) | ItemRef::Foreign(_) | ItemRef::Trait(_)) | None => {
             diags.push(diag::error(
                 diag::DROP_BINDING,
                 imp.target.span,
@@ -959,6 +1143,139 @@ fn collect_impl<'a>(
         result: types.unit(),
         role: FnRoleSpec::Drop(target_adt),
         ast: f,
+    });
+}
+
+fn collect_trait_impl<'a>(
+    mid: ModIdx,
+    imp: &'a ast::ImplBlock,
+    span: Span,
+    items: &mut Items<'a>,
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) {
+    let Some(trait_ty) = &imp.trait_type else {
+        diags.push(diag::unsupported("inherent impl blocks", span));
+        return;
+    };
+    let ast::TypeKind::Named { path, args } = &trait_ty.kind else {
+        diags.push(diag::unsupported("non-named trait impl", trait_ty.span));
+        return;
+    };
+    let Some(ItemRef::Trait(trait_ref)) =
+        lookup_item_in(&items.modules, &items.mod_by_path, mid, path)
+    else {
+        diags.push(diag::error(
+            diag::NAME_UNRESOLVED,
+            trait_ty.span,
+            format!("unknown trait `{}`", path.join(".")),
+        ));
+        return;
+    };
+    if !imp.generics.is_empty() || !imp.where_clause.is_empty() {
+        diags.push(diag::unsupported("generic trait impls", span));
+        return;
+    }
+    let mut trait_args = Vec::new();
+    for a in args {
+        if let ast::GenericArg::Type(t) = a {
+            trait_args.push(
+                resolve_type_in(
+                    t,
+                    mid,
+                    &[],
+                    &items.modules,
+                    &items.mod_by_path,
+                    &items.adt_kinds,
+                    None,
+                    types,
+                )
+                .unwrap_or_else(|d| {
+                    diags.push(d);
+                    types.error()
+                }),
+            );
+        } else {
+            diags.push(diag::unsupported("non-type trait arguments", trait_ty.span));
+        }
+    }
+    let target = resolve_type_in(
+        &imp.target,
+        mid,
+        &[],
+        &items.modules,
+        &items.mod_by_path,
+        &items.adt_kinds,
+        None,
+        types,
+    )
+    .unwrap_or_else(|d| {
+        diags.push(d);
+        types.error()
+    });
+    let trait_name = items.traits[trait_ref.0 as usize].name.clone();
+    let mut methods = Vec::new();
+    for m in &imp.members {
+        let ast::ItemKind::Function(f) = &m.kind else {
+            diags.push(diag::unsupported("non-function impl member", m.span));
+            continue;
+        };
+        let mut params = Vec::new();
+        for p in &f.params {
+            let ty = resolve_type_in(
+                &p.ty,
+                mid,
+                &[],
+                &items.modules,
+                &items.mod_by_path,
+                &items.adt_kinds,
+                Some(target),
+                types,
+            )
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            });
+            params.push(ParamInfo {
+                name: p.name.clone(),
+                ty,
+                span: p.span,
+            });
+        }
+        let result = match &f.return_type {
+            Some(t) => resolve_type_in(
+                t,
+                mid,
+                &[],
+                &items.modules,
+                &items.mod_by_path,
+                &items.adt_kinds,
+                Some(target),
+                types,
+            )
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            }),
+            None => types.unit(),
+        };
+        let fn_ref = FnRef(items.fns.len() as u32);
+        items.fns.push(FnDecl {
+            module: mid,
+            name: format!("{trait_name}::{}", f.name),
+            generics: Vec::new(),
+            params,
+            result,
+            role: FnRoleSpec::Normal,
+            ast: f,
+        });
+        methods.push((f.name.clone(), fn_ref));
+    }
+    items.trait_impls.push(TraitImplDecl {
+        trait_ref,
+        trait_args,
+        target,
+        methods,
     });
 }
 
@@ -1122,11 +1439,13 @@ fn resolve_type_in(
                         Ok(adt_ty)
                     }
                 }
-                Some(ItemRef::Fn(_) | ItemRef::Foreign(_)) | None => Err(diag::error(
-                    diag::NAME_UNRESOLVED,
-                    t.span,
-                    format!("unknown type `{}`", path.join(".")),
-                )),
+                Some(ItemRef::Fn(_) | ItemRef::Foreign(_) | ItemRef::Trait(_)) | None => {
+                    Err(diag::error(
+                        diag::NAME_UNRESOLVED,
+                        t.span,
+                        format!("unknown type `{}`", path.join(".")),
+                    ))
+                }
             }
         }
         ast::TypeKind::Tuple(items) => {
@@ -1170,7 +1489,7 @@ fn resolve_type_in(
                 types,
             )?;
             let Some(length) = length else {
-                return Err(diag::unsupported("slices", t.span));
+                return Ok(types.intern(TyData::Slice(element)));
             };
             let n = if let ast::ExprKind::Literal(ast::Literal::Integer(text)) = &length.kind {
                 crate::literal::parse_int(text).and_then(|(v, suffix)| match suffix {

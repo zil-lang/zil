@@ -6,7 +6,7 @@
 //! `Local`, `Field`, `TupleField`, `Index` and `Deref`; every other kind is
 //! a value expression.
 
-use crate::ty::{AdtRef, ClosureRef, Ty};
+use crate::ty::{AdtRef, ClosureRef, TraitRef, Ty};
 use zil_base::Span;
 use zil_ir::body::{BinOp, ClosureCallMode, ClosureKind, IntrinsicOp, UnOp};
 
@@ -141,6 +141,13 @@ pub enum ExprKind {
         mode: ClosureCallMode,
         args: Vec<Expr>,
     },
+    TraitCall {
+        trait_ref: TraitRef,
+        trait_args: Vec<Ty>,
+        self_ty: Ty,
+        method: String,
+        args: Vec<Expr>,
+    },
     ForeignCall {
         callee: ForeignRef,
         args: Vec<Expr>,
@@ -218,6 +225,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::IndirectCall { .. }
         | ExprKind::Closure { .. }
         | ExprKind::ClosureCall { .. }
+        | ExprKind::TraitCall { .. }
         | ExprKind::ForeignCall { .. }
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }

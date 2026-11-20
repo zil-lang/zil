@@ -14,7 +14,9 @@ use crate::literal;
 use crate::thir::*;
 use crate::ty::{AdtRef, ClosureRef, OpaqueKind, Ty, TyData, Types, VarKind};
 use zil_base::{Diagnostic, Span};
-use zil_ir::body::{AdtKind, BinOp, ClosureCallMode, ClosureKind, IntTy, IntrinsicOp, UnOp};
+use zil_ir::body::{
+    AdtKind, BinOp, ClosureCallMode, ClosureKind, IntTy, IntrinsicOp, Mutability, UnOp,
+};
 use zil_syntax::ast;
 
 struct CaptureEntry {
@@ -881,6 +883,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::IndirectCall { .. }
                 | ExprKind::Closure { .. }
                 | ExprKind::ClosureCall { .. }
+                | ExprKind::TraitCall { .. }
                 | ExprKind::Adt { .. }
                 | ExprKind::Tuple(_)
                 | ExprKind::Array(_)
@@ -919,19 +922,25 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 None => PatKind::Wild,
             },
             ast::PatternKind::Tuple(items) => {
-                let tys: Vec<Ty> = items
-                    .iter()
-                    .map(|_| self.types.fresh(VarKind::General))
-                    .collect();
-                let t = self.types.intern(TyData::Tuple(tys.clone()));
-                self.unify(t, expected, span);
-                PatKind::Tuple(
-                    items
+                if items.is_empty() {
+                    let unit = self.types.unit();
+                    self.unify(unit, expected, span);
+                    PatKind::Wild
+                } else {
+                    let tys: Vec<Ty> = items
                         .iter()
-                        .zip(tys)
-                        .map(|(i, t)| self.pattern(i, t, mutable))
-                        .collect(),
-                )
+                        .map(|_| self.types.fresh(VarKind::General))
+                        .collect();
+                    let t = self.types.intern(TyData::Tuple(tys.clone()));
+                    self.unify(t, expected, span);
+                    PatKind::Tuple(
+                        items
+                            .iter()
+                            .zip(tys)
+                            .map(|(i, t)| self.pattern(i, t, mutable))
+                            .collect(),
+                    )
+                }
             }
             ast::PatternKind::Constructor { path, arguments } => {
                 let Some((adt, variant)) = self.resolve_variant_path(path, span) else {
@@ -1143,7 +1152,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         self.unsupported("foreign function values", span);
                         self.err_expr(span)
                     }
-                    Some(ItemRef::Adt(_)) => {
+                    Some(ItemRef::Adt(_) | ItemRef::Trait(_)) => {
                         self.error(diag::NAME_UNRESOLVED, span, format!("`{n}` is a type"));
                         self.err_expr(span)
                     }
@@ -1197,7 +1206,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
                 let bt = self.types.shallow(base.ty);
                 let element = match self.types.data(bt) {
-                    TyData::Array { element, .. } => *element,
+                    TyData::Array { element, .. } | TyData::Slice(element) => *element,
                     TyData::Error => self.types.error(),
                     TyData::Unit
                     | TyData::Bool
@@ -1214,6 +1223,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
                     | TyData::Param(_)
+                    | TyData::SelfParam
                     | TyData::Var(_) => {
                         self.error(diag::OPERATOR_TYPE, span, "only arrays can be indexed");
                         self.types.error()
@@ -1614,13 +1624,15 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Adt { .. }
                     | TyData::Tuple(_)
                     | TyData::Array { .. }
+                    | TyData::Slice(_)
                     | TyData::Managed(_)
                     | TyData::Desc(_)
                     | TyData::Opaque(_)
                     | TyData::ErrorUnion { .. }
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
-                    | TyData::Param(_) => {
+                    | TyData::Param(_)
+                    | TyData::SelfParam => {
                         self.error(
                             diag::OPERATOR_TYPE,
                             span,
@@ -1996,7 +2008,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         }
                         return self.foreign_call(f, arguments, span);
                     }
-                    ItemRef::Adt(_) => {
+                    ItemRef::Adt(_) | ItemRef::Trait(_) => {
                         self.error(diag::ENUM_VARIANT, span, "a type cannot be called directly");
                         return self.err_expr(span);
                     }
@@ -2043,6 +2055,50 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         ty,
                         span,
                     };
+                }
+            }
+            if let [param_name, method_name] = path.as_slice()
+                && explicit.is_none()
+                && let Some(param_idx) = self.generic_names.iter().position(|g| g == param_name)
+            {
+                let bounds = self.decl.generics[param_idx].traits.clone();
+                let self_ty = self.types.intern(TyData::Param(param_idx as u32));
+                for (tr_ref, tr_args) in bounds {
+                    let tr = self.items.trait_decl(tr_ref);
+                    if let Some(m) = tr.methods.iter().find(|m| m.name == *method_name) {
+                        if arguments.len() != m.params.len() {
+                            self.error(
+                                diag::CALL_ARITY,
+                                span,
+                                format!(
+                                    "`{param_name}.{method_name}` expects {} argument(s), found {}",
+                                    m.params.len(),
+                                    arguments.len()
+                                ),
+                            );
+                            return self.err_expr(span);
+                        }
+                        let m_params = m.params.clone();
+                        let m_result = m.result;
+                        let mut args = Vec::with_capacity(arguments.len());
+                        for (a, pt) in arguments.iter().zip(&m_params) {
+                            let expected = self.types.subst_with_self(*pt, &tr_args, self_ty);
+                            let v = self.infer(&a.value);
+                            args.push(self.coerce_arg(v, expected, a.span));
+                        }
+                        let ret = self.types.subst_with_self(m_result, &tr_args, self_ty);
+                        return Expr {
+                            kind: ExprKind::TraitCall {
+                                trait_ref: tr_ref,
+                                trait_args: tr_args,
+                                self_ty,
+                                method: method_name.clone(),
+                                args,
+                            },
+                            ty: ret,
+                            span,
+                        };
+                    }
                 }
             }
             if let [name] = path.as_slice()
@@ -2198,6 +2254,13 @@ impl<'c, 'a> FnCx<'c, 'a> {
             "store_pop" => IntrinsicOp::StorePop,
             "store_len" => IntrinsicOp::StoreLen,
             "store_capacity" => IntrinsicOp::StoreCapacity,
+            "store_at" => IntrinsicOp::StoreBorrow {
+                mutability: Mutability::Shared,
+            },
+            "store_at_mut" => IntrinsicOp::StoreBorrow {
+                mutability: Mutability::Exclusive,
+            },
+            "bytes_view" => IntrinsicOp::ByteBufferBorrow,
             _ => return None,
         };
         if explicit.is_some() {
@@ -2272,9 +2335,27 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let desc = self.types.intern(TyData::Desc(inner));
                 (vec![desc], i64_ty)
             }
-            IntrinsicOp::StoreBorrow { .. }
-            | IntrinsicOp::ByteBufferBorrow
-            | IntrinsicOp::MutexCreate
+            IntrinsicOp::StoreBorrow { mutability } => {
+                let elem = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                let res = self.types.intern(TyData::Ref {
+                    mutable: mutability == Mutability::Exclusive,
+                    pointee: elem,
+                });
+                (vec![desc, i64_ty], res)
+            }
+            IntrinsicOp::ByteBufferBorrow => {
+                let slice_u8 = self.types.intern(TyData::Slice(u8_ty));
+                let res = self.types.intern(TyData::Ref {
+                    mutable: false,
+                    pointee: slice_u8,
+                });
+                (vec![bytes_desc], res)
+            }
+            IntrinsicOp::MutexCreate
             | IntrinsicOp::MutexLock
             | IntrinsicOp::MutexValue
             | IntrinsicOp::MutexUnlock
@@ -2431,6 +2512,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
             | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::ManagedCreate { .. }
@@ -2523,6 +2605,7 @@ impl Finalizer<'_, '_> {
             | TyData::Error => true,
             TyData::Tuple(items) => items.iter().all(|t| self.is_copy_depth(*t, depth + 1)),
             TyData::Array { element, .. } => self.is_copy_depth(element, depth + 1),
+            TyData::Slice(_) | TyData::SelfParam => false,
             TyData::Ref { mutable, .. } => !mutable,
             TyData::Desc(_) | TyData::FnPtr { .. } => true,
             TyData::Closure { .. } => false,
@@ -2722,12 +2805,45 @@ impl Finalizer<'_, '_> {
                 }
                 let generics = self.items.func(*callee).generics.clone();
                 for (g, a) in generics.iter().zip(type_args.iter()) {
+                    if g.store_element
+                        && matches!(self.data(*a), TyData::Ref { .. } | TyData::Desc(_))
+                    {
+                        self.diags.push(diag::error(
+                            diag::GENERIC_BOUND,
+                            span,
+                            format!("type argument for `{}` must satisfy StoreElement", g.name),
+                        ));
+                    }
                     if g.copy && !self.is_copy(*a) {
                         self.diags.push(diag::error(
                             diag::GENERIC_BOUND,
                             span,
                             format!("type argument for `{}` must be Copy", g.name),
                         ));
+                    }
+                    for (tr_ref, tr_args) in &g.traits {
+                        if !matches!(self.data(*a), TyData::Param(_) | TyData::Error) {
+                            let resolved_args: Vec<Ty> = tr_args
+                                .iter()
+                                .map(|t| self.types.subst(*t, type_args))
+                                .collect();
+                            let found = self.items.trait_impls.iter().any(|imp| {
+                                imp.trait_ref == *tr_ref
+                                    && imp.target == *a
+                                    && imp.trait_args == resolved_args
+                            });
+                            if !found {
+                                let tname = &self.items.trait_decl(*tr_ref).name;
+                                self.diags.push(diag::error(
+                                    diag::GENERIC_BOUND,
+                                    span,
+                                    format!(
+                                        "type argument for `{}` does not implement `{tname}`",
+                                        g.name
+                                    ),
+                                ));
+                            }
+                        }
                     }
                 }
                 args.iter_mut().for_each(|a| self.expr(a));
@@ -2741,6 +2857,18 @@ impl Finalizer<'_, '_> {
             }
             ExprKind::ClosureCall { closure, args, .. } => {
                 self.expr(closure);
+                args.iter_mut().for_each(|a| self.expr(a));
+            }
+            ExprKind::TraitCall {
+                trait_args,
+                self_ty,
+                args,
+                ..
+            } => {
+                for a in trait_args.iter_mut() {
+                    *a = self.zonk(*a, span);
+                }
+                *self_ty = self.zonk(*self_ty, span);
                 args.iter_mut().for_each(|a| self.expr(a));
             }
             ExprKind::ForeignCall { args, .. } | ExprKind::Intrinsic { args, .. } => {

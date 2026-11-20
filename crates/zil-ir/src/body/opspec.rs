@@ -1172,11 +1172,31 @@ fn intrinsic_sig(
         IntrinsicOp::ByteBufferLen | IntrinsicOp::ByteBufferCapacity => {
             Ok((vec![bytes()?], i64_ty()?))
         }
-        // Element and view borrows need the store borrow protocol: a live
-        // element address must block growth through any descriptor.
-        IntrinsicOp::StoreBorrow { .. }
-        | IntrinsicOp::ByteBufferBorrow
-        | IntrinsicOp::MutexCreate
+        IntrinsicOp::StoreBorrow { mutability } => {
+            let (d, element) = store()?;
+            Ok((
+                vec![d, i64_ty()?],
+                cx.lookup(TyKind::Ref {
+                    region: super::ty::Region::Static,
+                    mutability,
+                    pointee: element,
+                })?,
+            ))
+        }
+        IntrinsicOp::ByteBufferBorrow => {
+            let d = bytes()?;
+            let u8_ty = cx.lookup(TyKind::Int(IntTy::U8))?;
+            let slice_u8 = cx.lookup(TyKind::Slice(u8_ty))?;
+            Ok((
+                vec![d],
+                cx.lookup(TyKind::Ref {
+                    region: super::ty::Region::Static,
+                    mutability: Mutability::Shared,
+                    pointee: slice_u8,
+                })?,
+            ))
+        }
+        IntrinsicOp::MutexCreate
         | IntrinsicOp::MutexLock
         | IntrinsicOp::MutexValue
         | IntrinsicOp::MutexUnlock

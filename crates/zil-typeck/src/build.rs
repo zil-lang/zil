@@ -301,6 +301,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 element: self.lower_ty(element, span)?,
                 length,
             },
+            TyData::Slice(element) => TyKind::Slice(self.lower_ty(element, span)?),
             TyData::Adt { adt, args } => {
                 let adt = self.adt_id(adt, span)?;
                 let args = self.args_id(&args, span)?;
@@ -350,7 +351,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 let args = self.args_id(&[], span)?;
                 TyKind::Closure { def, args }
             }
-            TyData::Var(_) | TyData::Error => {
+            TyData::SelfParam | TyData::Var(_) | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
                     span,
@@ -778,6 +779,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
             | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
             | ExprKind::Adt { .. }
             | ExprKind::Tuple(_)
             | ExprKind::Array(_)
@@ -960,6 +962,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
             | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
             | ExprKind::If { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
@@ -1054,6 +1057,53 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                             closure: place,
                             mode: *mode,
                         },
+                        args: operands,
+                        dest,
+                        target,
+                        cancel: None,
+                    },
+                    span,
+                );
+                self.cur = target;
+            }
+            ExprKind::TraitCall {
+                trait_ref,
+                trait_args,
+                self_ty,
+                method,
+                args,
+            } => {
+                let closed_self = self.closed(*self_ty);
+                let closed_args: Vec<Ty> = trait_args.iter().map(|a| self.closed(*a)).collect();
+                let impl_fn = self
+                    .mono
+                    .items
+                    .trait_impls
+                    .iter()
+                    .find(|imp| {
+                        imp.trait_ref == *trait_ref
+                            && imp.target == closed_self
+                            && imp.trait_args == closed_args
+                    })
+                    .and_then(|imp| {
+                        imp.methods
+                            .iter()
+                            .find(|(n, _)| n == method)
+                            .map(|(_, f)| *f)
+                    });
+                let Some(fn_ref) = impl_fn else {
+                    self.failed = true;
+                    return;
+                };
+                let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
+                let Some(f) = self.mono.instance(fn_ref, Vec::new(), span) else {
+                    self.failed = true;
+                    return;
+                };
+                let target = self.new_block(span);
+                self.terminate(
+                    Terminator::Call {
+                        callee: Callee::Direct(f),
                         args: operands,
                         dest,
                         target,
@@ -1593,6 +1643,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::IndirectCall { .. }
             | ExprKind::Closure { .. }
             | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
             | ExprKind::FnRef(_)
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }

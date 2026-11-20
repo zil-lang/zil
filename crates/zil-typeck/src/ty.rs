@@ -19,6 +19,9 @@ pub struct AdtRef(pub u32);
 pub struct ClosureRef(pub u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TraitRef(pub u32);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -54,6 +57,7 @@ pub enum TyData {
         element: Ty,
         length: u32,
     },
+    Slice(Ty),
     /// An address window. Regions are not part of typeck types yet: the
     /// kernel's loan model carries safety until region contracts (P4).
     Ref {
@@ -84,6 +88,8 @@ pub enum TyData {
     },
     /// The n-th type parameter of the enclosing generic declaration.
     Param(u32),
+    /// `Self` inside a trait method signature.
+    SelfParam,
     Var(VarId),
     /// Already diagnosed; unifies with everything to avoid cascades.
     Error,
@@ -162,7 +168,7 @@ impl Types {
             TyData::Var(w) => *w == v,
             TyData::Adt { args, .. } => args.iter().any(|t| self.occurs(v, *t)),
             TyData::Tuple(items) => items.iter().any(|t| self.occurs(v, *t)),
-            TyData::Array { element, .. } => self.occurs(v, *element),
+            TyData::Array { element, .. } | TyData::Slice(element) => self.occurs(v, *element),
             TyData::Ref { pointee, .. } => self.occurs(v, *pointee),
             TyData::Managed(inner) | TyData::Desc(inner) => self.occurs(v, *inner),
             TyData::Opaque(OpaqueKind::OwnedStore(elem)) => self.occurs(v, *elem),
@@ -177,6 +183,7 @@ impl Types {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Param(_)
+            | TyData::SelfParam
             | TyData::Error => false,
         }
     }
@@ -244,9 +251,9 @@ impl Types {
                     pointee: y,
                 },
             ) if m1 == m2 => self.unify(x, y),
-            (TyData::Managed(x), TyData::Managed(y)) | (TyData::Desc(x), TyData::Desc(y)) => {
-                self.unify(x, y)
-            }
+            (TyData::Managed(x), TyData::Managed(y))
+            | (TyData::Desc(x), TyData::Desc(y))
+            | (TyData::Slice(x), TyData::Slice(y)) => self.unify(x, y),
             (
                 TyData::Opaque(OpaqueKind::OwnedStore(x)),
                 TyData::Opaque(OpaqueKind::OwnedStore(y)),
@@ -315,6 +322,10 @@ impl Types {
                 let element = self.zonk(element)?;
                 self.intern(TyData::Array { element, length })
             }
+            TyData::Slice(element) => {
+                let element = self.zonk(element)?;
+                self.intern(TyData::Slice(element))
+            }
             TyData::Ref { mutable, pointee } => {
                 let pointee = self.zonk(pointee)?;
                 self.intern(TyData::Ref { mutable, pointee })
@@ -369,8 +380,95 @@ impl Types {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Param(_)
+            | TyData::SelfParam
             | TyData::Error => ty,
         })
+    }
+
+    /// Replaces `Param(i)` with `args[i]` and `SelfParam` with `self_ty`.
+    pub fn subst_with_self(&mut self, ty: Ty, args: &[Ty], self_ty: Ty) -> Ty {
+        let data = self.data(ty).clone();
+        match data {
+            TyData::SelfParam => self_ty,
+            TyData::Param(i) => args.get(i as usize).copied().unwrap_or(ty),
+            TyData::Adt { adt, args: inner } => {
+                let inner = inner
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
+                self.intern(TyData::Adt { adt, args: inner })
+            }
+            TyData::Tuple(items) => {
+                let items = items
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
+                self.intern(TyData::Tuple(items))
+            }
+            TyData::Array { element, length } => {
+                let element = self.subst_with_self(element, args, self_ty);
+                self.intern(TyData::Array { element, length })
+            }
+            TyData::Slice(element) => {
+                let element = self.subst_with_self(element, args, self_ty);
+                self.intern(TyData::Slice(element))
+            }
+            TyData::Ref { mutable, pointee } => {
+                let pointee = self.subst_with_self(pointee, args, self_ty);
+                self.intern(TyData::Ref { mutable, pointee })
+            }
+            TyData::Managed(inner) => {
+                let inner = self.subst_with_self(inner, args, self_ty);
+                self.intern(TyData::Managed(inner))
+            }
+            TyData::Desc(inner) => {
+                let inner = self.subst_with_self(inner, args, self_ty);
+                self.intern(TyData::Desc(inner))
+            }
+            TyData::Opaque(OpaqueKind::OwnedStore(elem)) => {
+                let elem = self.subst_with_self(elem, args, self_ty);
+                self.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::ErrorUnion { ok, err } => {
+                let ok = self.subst_with_self(ok, args, self_ty);
+                let err = self.subst_with_self(err, args, self_ty);
+                self.intern(TyData::ErrorUnion { ok, err })
+            }
+            TyData::FnPtr { params, result } => {
+                let params = params
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
+                let result = self.subst_with_self(result, args, self_ty);
+                self.intern(TyData::FnPtr { params, result })
+            }
+            TyData::Closure {
+                id,
+                kind,
+                params,
+                result,
+            } => {
+                let params = params
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
+                let result = self.subst_with_self(result, args, self_ty);
+                self.intern(TyData::Closure {
+                    id,
+                    kind,
+                    params,
+                    result,
+                })
+            }
+            TyData::Unit
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Var(_)
+            | TyData::Error => ty,
+        }
     }
 
     /// Replaces `Param(i)` with `args[i]`.
@@ -389,6 +487,10 @@ impl Types {
             TyData::Array { element, length } => {
                 let element = self.subst(element, args);
                 self.intern(TyData::Array { element, length })
+            }
+            TyData::Slice(element) => {
+                let element = self.subst(element, args);
+                self.intern(TyData::Slice(element))
             }
             TyData::Ref { mutable, pointee } => {
                 let pointee = self.subst(pointee, args);
@@ -437,6 +539,7 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
+            | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,
         }

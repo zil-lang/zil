@@ -444,7 +444,7 @@ fn a_store_of_addresses_is_rejected() {
 }
 
 #[test]
-fn element_borrows_wait_for_the_store_borrow_protocol() {
+fn store_element_borrow_is_accepted_when_ended_before_drop() {
     let mut c = store_case();
     let unit = c.m.t.unit;
     let elem_ref = c.m.ty(TyKind::Ref {
@@ -452,27 +452,84 @@ fn element_borrows_wait_for_the_store_borrow_protocol() {
         mutability: Mutability::Shared,
         pointee: c.pkg_ty,
     });
-    let mut f = FnBuilder::new("f", &[c.store_desc], unit);
-    let (b0, b1) = (f.block(), f.block());
+    let mut f = FnBuilder::new("f", &[], unit);
+    let (b0, b1, b2) = (f.block(), f.block(), f.block());
+    let s = f.local(c.store_managed);
+    let d = f.local(c.store_desc);
     let r = f.local(elem_ref);
     f.terminate(
         b0,
+        call(Callee::Intrinsic(IntrinsicOp::StoreNew), vec![], l(s), b1),
+    );
+    f.assign(b1, l(d), Rvalue::Describe { place: l(s) });
+    f.terminate(
+        b1,
         call(
             Callee::Intrinsic(IntrinsicOp::StoreBorrow {
                 mutability: Mutability::Shared,
             }),
             vec![
-                copy(l(f.param(0))),
+                copy(l(d)),
                 Operand::Const(ConstValue::Int {
                     ty: IntTy::I64,
                     bits: 0,
                 }),
             ],
             l(r),
-            b1,
+            b2,
         ),
     );
-    f.terminate(b1, ret_unit());
+    // `r` is dead here, so closing `s` is safe.
+    f.push(b2, InstructionKind::Drop { place: l(s) });
+    f.terminate(b2, ret_unit());
     c.m.function(f);
-    assert_eq!(reason(&verdict(c.m.finish())), "Unspecified");
+    assert_eq!(reason(&verdict(c.m.finish())), "Accepted");
+}
+
+#[test]
+fn dropping_a_store_while_an_element_borrow_is_live_is_a_loan_conflict() {
+    let mut c = store_case();
+    let unit = c.m.t.unit;
+    let elem_ref = c.m.ty(TyKind::Ref {
+        region: Region::Static,
+        mutability: Mutability::Shared,
+        pointee: c.pkg_ty,
+    });
+    let mut f = FnBuilder::new("f", &[], unit);
+    let (b0, b1, b2) = (f.block(), f.block(), f.block());
+    let s = f.local(c.store_managed);
+    let d = f.local(c.store_desc);
+    let r = f.local(elem_ref);
+    let r2 = f.local(elem_ref);
+    f.terminate(
+        b0,
+        call(Callee::Intrinsic(IntrinsicOp::StoreNew), vec![], l(s), b1),
+    );
+    f.assign(b1, l(d), Rvalue::Describe { place: l(s) });
+    f.terminate(
+        b1,
+        call(
+            Callee::Intrinsic(IntrinsicOp::StoreBorrow {
+                mutability: Mutability::Shared,
+            }),
+            vec![
+                copy(l(d)),
+                Operand::Const(ConstValue::Int {
+                    ty: IntTy::I64,
+                    bits: 0,
+                }),
+            ],
+            l(r),
+            b2,
+        ),
+    );
+    f.push(b2, InstructionKind::Drop { place: l(s) });
+    // `r` is still live across the drop of `s`.
+    f.assign(b2, l(r2), Rvalue::Use(copy(l(r))));
+    f.terminate(b2, ret_unit());
+    c.m.function(f);
+    assert!(
+        format!("{:?}", verdict(c.m.finish())).contains("LoanConflict"),
+        "expected LoanConflict"
+    );
 }

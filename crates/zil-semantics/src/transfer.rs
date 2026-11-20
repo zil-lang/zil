@@ -822,10 +822,10 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::ByteBufferPush
         | I::ByteBufferTruncate
         | I::ByteBufferLen
-        | I::ByteBufferCapacity => Ok(()),
-        I::StoreBorrow { .. }
-        | I::ByteBufferBorrow
-        | I::MutexCreate
+        | I::ByteBufferCapacity
+        | I::StoreBorrow { .. }
+        | I::ByteBufferBorrow => Ok(()),
+        I::MutexCreate
         | I::MutexLock
         | I::MutexValue
         | I::MutexUnlock
