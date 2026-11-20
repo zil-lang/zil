@@ -50,8 +50,6 @@ zil-db = { path = "crates/zil-db" }
 zil-ct = { path = "crates/zil-ct" }
 zil-interp = { path = "crates/zil-interp" }
 zil-driver = { path = "crates/zil-driver" }
-zil-cli = { path = "crates/zil-cli" }
-zil-ide = { path = "crates/zil-ide" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
