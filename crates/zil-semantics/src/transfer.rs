@@ -9,8 +9,8 @@ use crate::paths::{MovePaths, PathId, tracked_len};
 use crate::state::{Carries, InitState, MustFacts, State};
 use zil_ir::body::{
     Access, AdtKind, AggregateKind, BlockId, Body, ClosureKind, ConstraintCx, ConstraintError,
-    EdgeKind, FieldIdx, FieldRef, FnSig, InitClaim, InstructionKind, Local, OpLocation, Operand,
-    Place, PlaceAccess, PlaceRelation, PlaceRoot, PlaceTypes, Projection, Rvalue, Terminator,
+    EdgeKind, FieldIdx, FieldRef, InitClaim, InstructionKind, Local, OpLocation, Operand, Place,
+    PlaceAccess, PlaceRelation, PlaceRoot, PlaceTypes, Projection, Rvalue, Sigs, Terminator,
     TyKind, TyTable, check_instruction, check_terminator, type_place,
 };
 
@@ -80,18 +80,18 @@ pub type Successor = (EdgeKind, BlockId, Option<State>);
 pub struct Kernel<'a> {
     pub body: &'a Body,
     pub tys: &'a TyTable,
-    pub functions: &'a [FnSig],
+    pub sigs: Sigs<'a>,
     pub paths: MovePaths,
     pub loans: LoanTable,
     pub live: Liveness,
 }
 
 impl<'a> Kernel<'a> {
-    pub fn new(body: &'a Body, tys: &'a TyTable, functions: &'a [FnSig]) -> Self {
+    pub fn new(body: &'a Body, tys: &'a TyTable, sigs: Sigs<'a>) -> Self {
         Kernel {
             body,
             tys,
-            functions,
+            sigs,
             paths: MovePaths::build(body),
             loans: LoanTable::build(body, tys),
             live: Liveness::compute(body),
@@ -101,7 +101,7 @@ impl<'a> Kernel<'a> {
     fn cx(&self) -> ConstraintCx<'a> {
         ConstraintCx {
             body: self.body.cx(self.tys),
-            functions: self.functions,
+            sigs: self.sigs,
         }
     }
 
@@ -374,22 +374,12 @@ impl<'a> Kernel<'a> {
             Terminator::Call {
                 callee: zil_ir::body::Callee::Intrinsic(op),
                 ..
-            } => {
-                return Err(fail(ViolationKind::Unspecified(
-                    zil_ir::body::intrinsic_name(*op),
-                )));
-            }
+            } => intrinsic_rule(*op).map_err(|what| fail(ViolationKind::Unspecified(what)))?,
             Terminator::Call {
                 callee: zil_ir::body::Callee::DynSlot { .. },
                 ..
             } => {
                 return Err(fail(ViolationKind::Unspecified("dynamic interface calls")));
-            }
-            Terminator::Call {
-                callee: zil_ir::body::Callee::Foreign(_),
-                ..
-            } => {
-                return Err(fail(ViolationKind::Unspecified("foreign calls")));
             }
             Terminator::Goto { .. }
             | Terminator::Switch { .. }
@@ -809,5 +799,55 @@ impl<'a> Kernel<'a> {
             }
         }
         Ok(())
+    }
+}
+
+/// Intrinsics whose effects are exactly the ordinary call effects: operands
+/// are read or moved, the destination is initialized on return, and loans
+/// flow as for any call. A Desc argument keeps its resource described for
+/// the call only; none of these returns an address. Every other intrinsic
+/// has a protocol that is not specified yet.
+fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
+    use zil_ir::body::IntrinsicOp as I;
+    match op {
+        I::ManagedCreate
+        | I::StoreNew
+        | I::StoreReserve
+        | I::StorePush
+        | I::StorePop
+        | I::StoreLen
+        | I::StoreCapacity
+        | I::ByteBufferNew
+        | I::ByteBufferReserve
+        | I::ByteBufferPush
+        | I::ByteBufferTruncate
+        | I::ByteBufferLen
+        | I::ByteBufferCapacity => Ok(()),
+        I::StoreBorrow { .. }
+        | I::ByteBufferBorrow
+        | I::MutexCreate
+        | I::MutexLock
+        | I::MutexValue
+        | I::MutexUnlock
+        | I::SyncLoad
+        | I::SyncStore
+        | I::SyncFetchAdd
+        | I::SyncCompareExchange
+        | I::TaskStart
+        | I::TaskCreate
+        | I::TaskYield
+        | I::TaskValid
+        | I::TaskPoll
+        | I::TaskRequestCancel
+        | I::TaskPollClose
+        | I::TaskFinishDestroy
+        | I::RegistrationStart
+        | I::RegistrationValid
+        | I::RegistrationClose
+        | I::AsyncRegistrationStart
+        | I::AsyncRegistrationValid
+        | I::AsyncRegistrationRequestClose
+        | I::AsyncRegistrationPollClose
+        | I::AsyncRegistrationFinishDestroy => Err(zil_ir::body::intrinsic_name(op)),
     }
 }

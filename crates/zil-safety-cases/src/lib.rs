@@ -21,6 +21,7 @@ pub struct ModuleBuilder {
     pub tys: TyTable,
     pub t: Types,
     pub functions: Vec<Function>,
+    pub foreigns: Vec<ForeignDecl>,
 }
 
 impl Default for ModuleBuilder {
@@ -46,6 +47,7 @@ impl ModuleBuilder {
             tys,
             t,
             functions: Vec::new(),
+            foreigns: Vec::new(),
         }
     }
 
@@ -118,6 +120,7 @@ impl ModuleBuilder {
         Module {
             tys: self.tys,
             functions: self.functions,
+            foreigns: self.foreigns,
         }
     }
 }
@@ -130,6 +133,7 @@ pub struct FnBuilder {
     blocks: Vec<Option<Block>>,
     pending: Vec<Vec<Instruction>>,
     drop_flags: Vec<DropFlag>,
+    role: FnRole,
 }
 
 impl FnBuilder {
@@ -145,7 +149,13 @@ impl FnBuilder {
             blocks: Vec::new(),
             pending: Vec::new(),
             drop_flags: Vec::new(),
+            role: FnRole::Normal,
         }
+    }
+    /// Marks this function as the cleanup entry of `adt`.
+    pub fn drop_entry(mut self, adt: AdtId) -> Self {
+        self.role = FnRole::Drop(adt);
+        self
     }
     pub fn param(&self, i: u32) -> Local {
         Local(i)
@@ -193,6 +203,7 @@ impl FnBuilder {
                 result: self.result,
                 type_params: 0,
                 region_params: 0,
+                role: self.role,
             },
             body: Body {
                 param_count: self.params.len() as u32,

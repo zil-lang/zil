@@ -279,7 +279,10 @@ fn constraints_reject_copy_of_affine_and_resource_aggregates() {
     );
     let cx = ConstraintCx {
         body: b0.cx(&f.tys),
-        functions: &[],
+        sigs: Sigs {
+            functions: &[],
+            foreigns: &[],
+        },
     };
     let copy_pkg = InstructionKind::Assign {
         dest: Place::local(Local(1)),

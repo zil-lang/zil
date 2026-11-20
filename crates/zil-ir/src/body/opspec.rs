@@ -14,8 +14,8 @@
 
 use super::ids::{BlockId, FieldIdx, Local, TyId};
 use super::inst::{
-    AggregateKind, BinOp, BodyCx, Callee, ClosureCallMode, ConstValue, EdgeKind, FnSig,
-    InstructionKind, IntrinsicOp, Operand, Rvalue, Terminator, UnOp,
+    AggregateKind, BinOp, BodyCx, Callee, ClosureCallMode, ConstValue, EdgeKind, FnRole, FnSig,
+    InstructionKind, IntrinsicOp, Operand, Rvalue, Sigs, Terminator, UnOp,
 };
 use super::place::{FieldRef, Place, PlaceTyError, type_place};
 use super::ty::{AdtKind, IntTy, Mutability, TyKind, ValueClass};
@@ -463,7 +463,7 @@ impl From<PlaceTyError> for ConstraintError {
 #[derive(Clone, Copy)]
 pub struct ConstraintCx<'a> {
     pub body: BodyCx<'a>,
-    pub functions: &'a [FnSig],
+    pub sigs: Sigs<'a>,
 }
 
 impl ConstraintCx<'_> {
@@ -654,10 +654,7 @@ pub fn rvalue_ty(rvalue: &Rvalue, cx: &ConstraintCx<'_>) -> Result<TyId, Constra
             }
         }
         Rvalue::FnRef(f) => {
-            let sig = cx
-                .functions
-                .get(f.index())
-                .ok_or(ConstraintError::UnknownFunction(f.0))?;
+            let sig = callable(cx, f.0)?;
             if sig.type_params != 0 || sig.region_params != 0 {
                 return Err(ConstraintError::Unspecified("generic function values"));
             }
@@ -933,7 +930,8 @@ pub fn check_terminator(term: &Terminator, cx: &ConstraintCx<'_>) -> Result<(), 
                 .iter()
                 .map(|a| operand_ty(a, cx))
                 .collect::<Result<_, _>>()?;
-            let (params, result) = callee_sig(callee, cx)?;
+            let dest_ty = cx.place_ty(dest)?;
+            let (params, result) = callee_sig(callee, &found, dest_ty, cx)?;
             if params.len() != found.len() {
                 return Err(ConstraintError::Arity {
                     expected: params.len(),
@@ -943,22 +941,45 @@ pub fn check_terminator(term: &Terminator, cx: &ConstraintCx<'_>) -> Result<(), 
             for (p, f) in params.iter().zip(&found) {
                 cx.expect(*p, *f)?;
             }
-            cx.expect(cx.place_ty(dest)?, result)
+            cx.expect(dest_ty, result)
         }
+    }
+}
+
+/// A function that ordinary code may call or name: not a cleanup entry.
+fn callable<'a>(cx: &ConstraintCx<'a>, f: u32) -> Result<&'a FnSig, ConstraintError> {
+    let sig = cx
+        .sigs
+        .functions
+        .get(f as usize)
+        .ok_or(ConstraintError::UnknownFunction(f))?;
+    match sig.role {
+        FnRole::Normal => Ok(sig),
+        FnRole::Drop(_) => Err(ConstraintError::Operator {
+            reason: "a cleanup entry is neither called nor named",
+        }),
+    }
+}
+
+/// C ABI value types of foreign parameters (`_zil_design.md` §12.4).
+fn c_abi_value(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    match tys.get(ty) {
+        Some(TyKind::Int(_) | TyKind::Float(_)) => true,
+        Some(TyKind::Opaque(o)) => matches!(o, super::ty::OpaqueTy::ForeignHandle),
+        Some(_) | None => false,
     }
 }
 
 fn callee_sig(
     callee: &Callee,
+    found: &[TyId],
+    dest_ty: TyId,
     cx: &ConstraintCx<'_>,
 ) -> Result<(Vec<TyId>, TyId), ConstraintError> {
     let tys = cx.body.tys;
     match callee {
         Callee::Direct(f) => {
-            let sig = cx
-                .functions
-                .get(f.index())
-                .ok_or(ConstraintError::UnknownFunction(f.0))?;
+            let sig = callable(cx, f.0)?;
             if sig.type_params != 0 || sig.region_params != 0 {
                 return Err(ConstraintError::Unspecified("generic call instantiation"));
             }
@@ -1013,8 +1034,174 @@ fn callee_sig(
             Ok((params, result))
         }
         Callee::DynSlot { .. } => Err(ConstraintError::Unspecified("dynamic interface slots")),
-        Callee::Foreign(_) => Err(ConstraintError::Unspecified("foreign calls")),
-        Callee::Intrinsic(op) => Err(ConstraintError::Unspecified(intrinsic_name(*op))),
+        Callee::Foreign(id) => {
+            let decl = cx
+                .sigs
+                .foreigns
+                .get(id.index())
+                .ok_or(ConstraintError::Operator {
+                    reason: "unknown foreign function",
+                })?;
+            let result_ok =
+                matches!(tys.get(decl.result), Some(TyKind::Unit)) || c_abi_value(tys, decl.result);
+            if !result_ok || !decl.params.iter().all(|p| c_abi_value(tys, *p)) {
+                return Err(ConstraintError::Operator {
+                    reason: "foreign signature outside the C value ABI",
+                });
+            }
+            Ok((decl.params.clone(), decl.result))
+        }
+        Callee::Intrinsic(op) => intrinsic_sig(*op, found, dest_ty, cx),
+    }
+}
+
+/// Signature of an intrinsic, instantiated from its descriptor argument or
+/// its destination. Intrinsics whose protocol is not specified yet are
+/// rejected (`spec/semantic-kernel.md` §5: P3 protocols).
+fn intrinsic_sig(
+    op: IntrinsicOp,
+    found: &[TyId],
+    dest_ty: TyId,
+    cx: &ConstraintCx<'_>,
+) -> Result<(Vec<TyId>, TyId), ConstraintError> {
+    use super::ty::OpaqueTy;
+    let tys = cx.body.tys;
+    let bad = |reason| ConstraintError::Operator { reason };
+    let i64_ty = || cx.lookup(TyKind::Int(IntTy::I64));
+    let bool_ty = || cx.lookup(TyKind::Bool);
+    // The opaque payload of a `Managed` destination.
+    let managed_dest = || match tys.get(dest_ty) {
+        Some(TyKind::Managed(p)) => tys.get(*p).cloned().map(|k| (*p, k)),
+        Some(_) | None => None,
+    };
+    // The opaque payload behind the descriptor in argument 0.
+    let desc_arg = || -> Result<(TyId, OpaqueTy), ConstraintError> {
+        let first = *found.first().ok_or(bad("intrinsic without a descriptor"))?;
+        match tys.get(first) {
+            Some(TyKind::Desc(p)) => match tys.get(*p) {
+                Some(TyKind::Opaque(o)) => Ok((first, o.clone())),
+                Some(_) | None => Err(bad("descriptor of the wrong resource")),
+            },
+            Some(_) | None => Err(bad("intrinsic without a descriptor")),
+        }
+    };
+    let store = || match desc_arg()? {
+        (d, OpaqueTy::OwnedStore { element }) => Ok((d, element)),
+        (_, _) => Err(bad("store intrinsic on a non-store")),
+    };
+    let bytes = || match desc_arg()? {
+        (d, OpaqueTy::ByteBuffer) => Ok(d),
+        (_, _) => Err(bad("byte buffer intrinsic on a non-buffer")),
+    };
+    match op {
+        IntrinsicOp::ManagedCreate => {
+            let Some((_, TyKind::Adt { adt, args })) = managed_dest() else {
+                return Err(bad("create without a managed resource destination"));
+            };
+            let def = tys.get_adt(adt).ok_or(ConstraintError::MissingType)?;
+            if def.kind != AdtKind::Resource {
+                return Err(bad("create of a non-resource"));
+            }
+            let fields = def.variants.first().map(|v| v.fields.len()).unwrap_or(0);
+            let mut params = Vec::with_capacity(fields);
+            for f in 0..fields {
+                let ty = tys
+                    .field_ty(
+                        adt,
+                        super::ids::VariantIdx(0),
+                        FieldIdx::from_index(f),
+                        args,
+                    )
+                    .ok_or(ConstraintError::MissingType)?;
+                if tys.class(ty, &cx.body.body.param_env) != ValueClass::Copy {
+                    return Err(bad("resource payload field is not Copy"));
+                }
+                params.push(ty);
+            }
+            Ok((params, dest_ty))
+        }
+        IntrinsicOp::StoreNew => match managed_dest() {
+            Some((_, TyKind::Opaque(OpaqueTy::OwnedStore { element })))
+                if !tys.holds_address(element) && !tys.may_store_address(element) =>
+            {
+                Ok((Vec::new(), dest_ty))
+            }
+            Some(_) | None => Err(bad("store.new without a store destination")),
+        },
+        IntrinsicOp::StoreReserve => {
+            let (d, _) = store()?;
+            Ok((vec![d, i64_ty()?], bool_ty()?))
+        }
+        IntrinsicOp::StorePush => {
+            let (d, element) = store()?;
+            let unit = cx.lookup(TyKind::Unit)?;
+            Ok((
+                vec![d, element],
+                cx.lookup(TyKind::ErrorUnion {
+                    ok: unit,
+                    err: element,
+                })?,
+            ))
+        }
+        IntrinsicOp::StorePop => {
+            let (d, element) = store()?;
+            let unit = cx.lookup(TyKind::Unit)?;
+            Ok((
+                vec![d],
+                cx.lookup(TyKind::ErrorUnion {
+                    ok: element,
+                    err: unit,
+                })?,
+            ))
+        }
+        IntrinsicOp::StoreLen | IntrinsicOp::StoreCapacity => {
+            let (d, _) = store()?;
+            Ok((vec![d], i64_ty()?))
+        }
+        IntrinsicOp::ByteBufferNew => match managed_dest() {
+            Some((_, TyKind::Opaque(OpaqueTy::ByteBuffer))) => Ok((Vec::new(), dest_ty)),
+            Some(_) | None => Err(bad("bytes.new without a buffer destination")),
+        },
+        IntrinsicOp::ByteBufferReserve | IntrinsicOp::ByteBufferTruncate => {
+            Ok((vec![bytes()?, i64_ty()?], bool_ty()?))
+        }
+        IntrinsicOp::ByteBufferPush => Ok((
+            vec![bytes()?, cx.lookup(TyKind::Int(IntTy::U8))?],
+            bool_ty()?,
+        )),
+        IntrinsicOp::ByteBufferLen | IntrinsicOp::ByteBufferCapacity => {
+            Ok((vec![bytes()?], i64_ty()?))
+        }
+        // Element and view borrows need the store borrow protocol: a live
+        // element address must block growth through any descriptor.
+        IntrinsicOp::StoreBorrow { .. }
+        | IntrinsicOp::ByteBufferBorrow
+        | IntrinsicOp::MutexCreate
+        | IntrinsicOp::MutexLock
+        | IntrinsicOp::MutexValue
+        | IntrinsicOp::MutexUnlock
+        | IntrinsicOp::SyncLoad
+        | IntrinsicOp::SyncStore
+        | IntrinsicOp::SyncFetchAdd
+        | IntrinsicOp::SyncCompareExchange
+        | IntrinsicOp::TaskStart
+        | IntrinsicOp::TaskCreate
+        | IntrinsicOp::TaskYield
+        | IntrinsicOp::TaskValid
+        | IntrinsicOp::TaskPoll
+        | IntrinsicOp::TaskRequestCancel
+        | IntrinsicOp::TaskPollClose
+        | IntrinsicOp::TaskFinishDestroy
+        | IntrinsicOp::RegistrationStart
+        | IntrinsicOp::RegistrationValid
+        | IntrinsicOp::RegistrationClose
+        | IntrinsicOp::AsyncRegistrationStart
+        | IntrinsicOp::AsyncRegistrationValid
+        | IntrinsicOp::AsyncRegistrationRequestClose
+        | IntrinsicOp::AsyncRegistrationPollClose
+        | IntrinsicOp::AsyncRegistrationFinishDestroy => {
+            Err(ConstraintError::Unspecified(intrinsic_name(op)))
+        }
     }
 }
 

@@ -344,6 +344,9 @@ impl TyTable {
     pub fn get_adt(&self, adt: AdtId) -> Option<&AdtDef> {
         self.adts.get(adt.index())
     }
+    pub fn adt_count(&self) -> usize {
+        self.adts.len()
+    }
     /// The declaration kind of a nominal type; `None` for every structural type.
     pub fn adt_kind(&self, ty: TyId) -> Option<AdtKind> {
         let TyKind::Adt { adt, .. } = self.get(ty)? else {
@@ -585,11 +588,13 @@ impl TyTable {
             | TyKind::Float(_)
             | TyKind::FnPtr { .. } => false,
             TyKind::Ref { .. } | TyKind::Desc(_) => true,
-            TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
-            | TyKind::Param(_)
-            | TyKind::Opaque(_)
-            | TyKind::Closure { .. } => true,
+            TyKind::Opaque(o) => match opaque_contents(o) {
+                Some(parts) => parts.iter().any(|t| self.holds_address_in(*t, visiting)),
+                None => true,
+            },
+            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) | TyKind::Closure { .. } => {
+                true
+            }
             TyKind::Tuple(items) => items.iter().any(|t| self.holds_address_in(*t, visiting)),
             TyKind::Array { element, .. } | TyKind::Slice(element) | TyKind::Managed(element) => {
                 self.holds_address_in(*element, visiting)
@@ -641,11 +646,15 @@ impl TyTable {
             | TyKind::Int(_)
             | TyKind::Float(_)
             | TyKind::FnPtr { .. } => false,
-            TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
-            | TyKind::Param(_)
-            | TyKind::Opaque(_)
-            | TyKind::Closure { .. } => true,
+            TyKind::Opaque(o) => match opaque_contents(o) {
+                Some(parts) => parts
+                    .iter()
+                    .any(|t| self.may_store_address_in(*t, visiting)),
+                None => true,
+            },
+            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) | TyKind::Closure { .. } => {
+                true
+            }
             TyKind::Ref {
                 mutability: Mutability::Exclusive,
                 pointee,
@@ -769,5 +778,24 @@ pub fn map_kind(
                 result: ty(result),
             },
         }),
+    }
+}
+
+/// The values an opaque runtime object owns, when its structure is fixed by
+/// the language: a byte buffer owns bytes, a store owns its elements, a
+/// foreign handle is a scalar. `None` when unknown, which every address
+/// predicate reads as "may hold an address".
+fn opaque_contents(o: &OpaqueTy) -> Option<Vec<TyId>> {
+    match o {
+        OpaqueTy::ByteBuffer | OpaqueTy::ForeignHandle => Some(Vec::new()),
+        OpaqueTy::OwnedStore { element } => Some(vec![*element]),
+        OpaqueTy::Mutex { .. }
+        | OpaqueTy::MutexGuard { .. }
+        | OpaqueTy::Registration { .. }
+        | OpaqueTy::AsyncRegistration { .. }
+        | OpaqueTy::Task { .. }
+        | OpaqueTy::CWideString
+        | OpaqueTy::ForeignCallback { .. }
+        | OpaqueTy::SyncCell(_) => None,
     }
 }

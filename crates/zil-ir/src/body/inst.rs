@@ -461,12 +461,48 @@ impl PlaceTypes for BodyCx<'_> {
     }
 }
 
+/// What a function may be used for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum FnRole {
+    /// Callable and nameable as a value.
+    Normal,
+    /// The bound `impl Drop` entry of a resource (`_zil_design.md` §7): its
+    /// only parameter is the descriptor of the closing resource, and it runs
+    /// only from cleanup of a `Managed` carrier. No call or value names it.
+    Drop(AdtId),
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FnSig {
     pub params: Vec<TyId>,
     pub result: TyId,
     pub type_params: u32,
     pub region_params: u32,
+    pub role: FnRole,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ForeignAbi {
+    C,
+}
+
+/// A foreign function declaration (`extern "C"`). Parameters and result
+/// are C ABI scalars (`_zil_design.md` §12.4); they carry no address and no
+/// obligation, so a call has the ordinary call effects only.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ForeignDecl {
+    /// Link symbol.
+    pub symbol: String,
+    pub abi: ForeignAbi,
+    pub params: Vec<TyId>,
+    pub result: TyId,
+}
+
+/// The signatures a body may refer to.
+#[derive(Clone, Copy, Debug)]
+pub struct Sigs<'a> {
+    pub functions: &'a [FnSig],
+    pub foreigns: &'a [ForeignDecl],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -481,4 +517,20 @@ pub struct Function {
 pub struct Module {
     pub tys: TyTable,
     pub functions: Vec<Function>,
+    /// Indexed by [`ForeignId`].
+    pub foreigns: Vec<ForeignDecl>,
+}
+
+impl Module {
+    /// Function signatures in [`FnId`] order.
+    pub fn fn_sigs(&self) -> Vec<FnSig> {
+        self.functions.iter().map(|f| f.sig.clone()).collect()
+    }
+    /// The bound `impl Drop` entry of `adt`, if any.
+    pub fn drop_fn(&self, adt: AdtId) -> Option<FnId> {
+        self.functions
+            .iter()
+            .position(|f| f.sig.role == FnRole::Drop(adt))
+            .map(FnId::from_index)
+    }
 }

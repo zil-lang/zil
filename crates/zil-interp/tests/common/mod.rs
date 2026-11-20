@@ -96,6 +96,7 @@ impl ModuleBuilder {
         let module = Module {
             tys: self.tys,
             functions: self.functions,
+            foreigns: Vec::new(),
         };
         let cert = zil_solve::solve_module(&module, zil_solve::Budget { steps: 1_000_000 })
             .unwrap_or_else(|e| panic!("solver rejected the test program: {e:?}"));
@@ -161,6 +162,7 @@ impl FnBuilder {
                 result: self.result,
                 type_params: 0,
                 region_params: 0,
+                role: FnRole::Normal,
             },
             body: Body {
                 param_count: self.params.len() as u32,

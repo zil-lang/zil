@@ -7,7 +7,7 @@
 use std::collections::VecDeque;
 use zil_ir::body::{
     BlockId, BlockInvariant, Certificate, FlagClaim, FnId, FunctionCertificate, InitClaim,
-    LoanClaim, Local, Module, OpLocation, PlaceInit, TagClaim, VariantClaim,
+    LoanClaim, Local, Module, OpLocation, PlaceInit, Sigs, TagClaim, VariantClaim,
 };
 use zil_semantics::{Kernel, State, Violation};
 
@@ -30,13 +30,17 @@ pub enum SolveError {
 
 /// Solves every function; the first failure of each function is reported.
 pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<SolveError>> {
-    let sigs: Vec<_> = module.functions.iter().map(|f| f.sig.clone()).collect();
+    let fn_sigs = module.fn_sigs();
+    let sigs = Sigs {
+        functions: &fn_sigs,
+        foreigns: &module.foreigns,
+    };
     let mut remaining = budget.steps;
     let mut certificate = Certificate::default();
     let mut errors = Vec::new();
     for (i, function) in module.functions.iter().enumerate() {
         let id = FnId::from_index(i);
-        let kernel = Kernel::new(&function.body, &module.tys, &sigs);
+        let kernel = Kernel::new(&function.body, &module.tys, sigs);
         match solve_function(&kernel, id, &mut remaining) {
             Ok(c) => certificate.functions.push(c),
             Err(e) => errors.push(e),

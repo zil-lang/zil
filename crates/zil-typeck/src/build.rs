@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use zil_base::{Diagnostic, Span};
 use zil_ir::body::{
     AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ConstValue,
-    FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnSig, Function, GenericArgs, Instruction,
+    FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnRole, FnSig, Function, GenericArgs, Instruction,
     InstructionKind, IntTy, Local, LocalDecl, Module, Mutability, Operand, ParamEnv, Place,
     Projection, Region, Rvalue, Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
 };
@@ -101,6 +101,7 @@ impl<'c, 'a> Mono<'c, 'a> {
                 result,
                 type_params: 0,
                 region_params: 0,
+                role: FnRole::Normal,
             },
             body: Body {
                 param_count: 0,

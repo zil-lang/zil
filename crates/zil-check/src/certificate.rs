@@ -14,7 +14,7 @@
 //!    calls arrive with P4.
 
 use zil_ir::body::{
-    BlockId, Body, FnId, FnSig, FunctionCertificate, OpLocation, PlaceTypes, TyTable, type_place,
+    BlockId, Body, FnId, FunctionCertificate, OpLocation, PlaceTypes, Sigs, TyTable, type_place,
 };
 use zil_semantics::{Kernel, State, Violation};
 
@@ -42,6 +42,8 @@ pub enum CheckErrorKind {
         to: BlockId,
     },
     Violation(Violation),
+    /// A malformed `impl Drop` binding.
+    DropBinding(&'static str),
     ResourceLimit,
 }
 
@@ -54,7 +56,7 @@ pub struct CheckError {
 pub fn check_function(
     body: &Body,
     tys: &TyTable,
-    sigs: &[FnSig],
+    sigs: Sigs<'_>,
     id: FnId,
     cert: &FunctionCertificate,
     budget: &mut CheckBudget,
