@@ -7,13 +7,16 @@
 //! internal form yet is reported as `Unsupported`, never approximated.
 
 use std::collections::HashMap;
-use zil_ir::body::{FloatTy, IntTy};
+use zil_ir::body::{ClosureKind, FloatTy, IntTy};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Ty(u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AdtRef(pub u32);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClosureRef(pub u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VarId(u32);
@@ -69,6 +72,13 @@ pub enum TyData {
     },
     /// `fn(P...) -> R`: non-capturing function pointer.
     FnPtr {
+        params: Vec<Ty>,
+        result: Ty,
+    },
+    /// A unique closure expression inside the enclosing function.
+    Closure {
+        id: ClosureRef,
+        kind: ClosureKind,
         params: Vec<Ty>,
         result: Ty,
     },
@@ -158,7 +168,7 @@ impl Types {
             TyData::Opaque(OpaqueKind::OwnedStore(elem)) => self.occurs(v, *elem),
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => false,
             TyData::ErrorUnion { ok, err } => self.occurs(v, *ok) || self.occurs(v, *err),
-            TyData::FnPtr { params, result } => {
+            TyData::FnPtr { params, result } | TyData::Closure { params, result, .. } => {
                 params.iter().any(|t| self.occurs(v, *t)) || self.occurs(v, *result)
             }
             TyData::Unit
@@ -335,6 +345,24 @@ impl Types {
                 let result = self.zonk(result)?;
                 self.intern(TyData::FnPtr { params, result })
             }
+            TyData::Closure {
+                id,
+                kind,
+                params,
+                result,
+            } => {
+                let params = params
+                    .iter()
+                    .map(|t| self.zonk(*t))
+                    .collect::<Option<Vec<_>>>()?;
+                let result = self.zonk(result)?;
+                self.intern(TyData::Closure {
+                    id,
+                    kind,
+                    params,
+                    result,
+                })
+            }
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -388,6 +416,21 @@ impl Types {
                 let params = params.iter().map(|t| self.subst(*t, args)).collect();
                 let result = self.subst(result, args);
                 self.intern(TyData::FnPtr { params, result })
+            }
+            TyData::Closure {
+                id,
+                kind,
+                params,
+                result,
+            } => {
+                let params = params.iter().map(|t| self.subst(*t, args)).collect();
+                let result = self.subst(result, args);
+                self.intern(TyData::Closure {
+                    id,
+                    kind,
+                    params,
+                    result,
+                })
             }
             TyData::Unit
             | TyData::Bool

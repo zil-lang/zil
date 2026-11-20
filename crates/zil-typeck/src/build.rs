@@ -13,16 +13,16 @@ use crate::infer::POINTER_BITS;
 use crate::items::{FnRoleSpec, Items};
 use crate::literal;
 use crate::thir::*;
-use crate::ty::{AdtRef, OpaqueKind, Ty, TyData, Types};
+use crate::ty::{AdtRef, ClosureRef, OpaqueKind, Ty, TyData, Types};
 use crate::{ConstEvaluator, CtValue, diag};
 use std::collections::{HashMap, HashSet, VecDeque};
 use zil_base::{Diagnostic, Span};
 use zil_ir::body::{
-    AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ConstValue,
-    FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId,
-    Function, GenericArgs, Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl,
-    Module, Mutability, OpaqueTy, Operand, ParamEnv, Place, Projection, Region, Rvalue, Terminator,
-    TyId, TyKind, ValueClass, VariantDef, VariantIdx,
+    AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ClosureDef,
+    ClosureId, ConstValue, FieldDef, FieldIdx, FieldRef, FloatTy, FnId, FnRole, FnSig, ForeignAbi,
+    ForeignDecl, ForeignId, Function, GenericArgs, Instruction, InstructionKind, IntTy,
+    IntrinsicOp, Local, LocalDecl, Module, Mutability, OpaqueTy, Operand, ParamEnv, Place,
+    Projection, Region, Rvalue, Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
 };
 
 /// Work limits of one lowering request.
@@ -48,6 +48,7 @@ pub struct Mono<'c, 'a, 'e> {
     instances: HashMap<(FnRef, Vec<Ty>), FnId>,
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
     adts: HashMap<AdtRef, AdtId>,
+    active_closures: HashMap<ClosureRef, ClosureId>,
     ensured: HashSet<TyId>,
 }
 
@@ -71,6 +72,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             instances: HashMap::new(),
             queue: VecDeque::new(),
             adts: HashMap::new(),
+            active_closures: HashMap::new(),
             ensured: HashSet::new(),
         }
     }
@@ -149,17 +151,77 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         Some(id)
     }
 
-    /// Builds every requested instance.
+    /// Builds every requested instance (including any closures it declares).
     pub fn run(&mut self) {
         while let Some((f, args, id)) = self.queue.pop_front() {
             let Some(thir) = self.thir.get(f.0 as usize).and_then(Option::as_ref) else {
                 continue;
             };
+            let fn_name = self.module.functions[id.index()].name.clone();
+            self.active_closures.clear();
+            let mut closure_jobs: Vec<(usize, ClosureId, Vec<TyId>, FnSig)> = Vec::new();
+            for (ci, c) in thir.closures.iter().enumerate() {
+                let span = c.body.span;
+                let mut capture_tys = Vec::with_capacity(c.capture_tys.len());
+                for t in &c.capture_tys {
+                    let t = self.types.subst(*t, &args);
+                    if let Some(id) = self.lower_ty(t, span) {
+                        capture_tys.push(id);
+                    }
+                }
+                let mut param_tys = Vec::with_capacity(c.param_tys.len());
+                for t in &c.param_tys {
+                    let t = self.types.subst(*t, &args);
+                    if let Some(id) = self.lower_ty(t, span) {
+                        param_tys.push(id);
+                    }
+                }
+                let r = self.types.subst(c.result, &args);
+                let result = self
+                    .lower_ty(r, span)
+                    .unwrap_or_else(|| self.module.tys.intern(TyKind::Unit));
+                let def_id = self.module.tys.add_closure(ClosureDef {
+                    kind: c.kind,
+                    type_params: 0,
+                    captures: capture_tys.clone(),
+                    params: param_tys.clone(),
+                    result,
+                });
+                self.active_closures.insert(c.id, def_id);
+                let csig = FnSig {
+                    params: param_tys,
+                    result,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                };
+                closure_jobs.push((ci, def_id, capture_tys, csig));
+            }
             let sig = self.module.functions[id.index()].sig.clone();
-            let mut b = Builder::new(self, thir, args, sig);
+            let mut b = Builder::new(self, thir, args.clone(), sig);
             b.function(thir);
             let body = b.finish();
             self.module.functions[id.index()].body = body;
+
+            for (ci, def_id, capture_tys, csig) in closure_jobs {
+                let c = &thir.closures[ci];
+                let cthir = ThirFn {
+                    locals: c.locals.clone(),
+                    params: c.params.clone(),
+                    body: c.body.clone(),
+                    closures: Vec::new(),
+                };
+                let mut cb = Builder::new(self, &cthir, args.clone(), csig.clone());
+                cb.captures = capture_tys;
+                cb.closure_id = Some(def_id);
+                cb.function(&cthir);
+                let cbody = cb.finish();
+                self.module.functions.push(Function {
+                    name: format!("{fn_name}::$closure#{ci}"),
+                    sig: csig,
+                    body: cbody,
+                });
+            }
         }
     }
 
@@ -276,6 +338,18 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     result: self.lower_ty(result, span)?,
                 }
             }
+            TyData::Closure { id, .. } => {
+                let Some(&def) = self.active_closures.get(&id) else {
+                    self.diags.push(diag::error(
+                        diag::TYPE_INFERENCE,
+                        span,
+                        "internal: closure definition missing during lowering",
+                    ));
+                    return None;
+                };
+                let args = self.args_id(&[], span)?;
+                TyKind::Closure { def, args }
+            }
             TyData::Var(_) | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
@@ -373,6 +447,8 @@ struct Builder<'m, 'c, 'a, 'e> {
     sig: FnSig,
     locals_info: Vec<LocalInfo>,
     param_locals: Vec<Local>,
+    captures: Vec<TyId>,
+    closure_id: Option<ClosureId>,
     auto_drops: HashSet<(BlockId, usize)>,
     failed: bool,
     reported_exhaustive: bool,
@@ -393,6 +469,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             sig,
             locals_info: Vec::new(),
             param_locals: Vec::new(),
+            captures: Vec::new(),
+            closure_id: None,
             auto_drops: HashSet::new(),
             failed: false,
             reported_exhaustive: false,
@@ -583,8 +661,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         let mut body = Body {
             param_count: self.sig.params.len() as u32,
             locals: std::mem::take(&mut self.locals),
-            captures: Vec::new(),
-            closure: None,
+            captures: std::mem::take(&mut self.captures),
+            closure: self.closure_id,
             result: self.sig.result,
             param_env: ParamEnv::default(),
             drop_flags: Vec::new(),
@@ -652,6 +730,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     fn place(&mut self, e: &Expr) -> Place {
         match &e.kind {
             ExprKind::Local(l) => Place::local(self.local(*l)),
+            ExprKind::Capture(i) => Place::capture(*i),
             ExprKind::Field {
                 base,
                 adt,
@@ -697,6 +776,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::FnRef(_)
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureCall { .. }
             | ExprKind::Adt { .. }
             | ExprKind::Tuple(_)
             | ExprKind::Array(_)
@@ -832,6 +913,21 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             ExprKind::Describe(inner) => Rvalue::Describe {
                 place: self.place(inner),
             },
+            ExprKind::Closure { id, captures } => {
+                let operands = captures.iter().map(|c| self.operand(c)).collect();
+                let Some(&def) = self.mono.active_closures.get(id) else {
+                    self.failed = true;
+                    return Rvalue::Use(Operand::Const(ConstValue::Unit));
+                };
+                let Some(args) = self.mono.args_id(&[], e.span) else {
+                    self.failed = true;
+                    return Rvalue::Use(Operand::Const(ConstValue::Unit));
+                };
+                Rvalue::Aggregate {
+                    kind: AggregateKind::Closure { def, args },
+                    operands,
+                }
+            }
             ExprKind::FnRef(f) => match self.mono.instance(*f, Vec::new(), e.span) {
                 Some(id) => Rvalue::FnRef(id),
                 None => {
@@ -855,6 +951,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Try(_)
             | ExprKind::CtEval(_)
             | ExprKind::Local(_)
+            | ExprKind::Capture(_)
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
             | ExprKind::Index { .. }
@@ -862,6 +959,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Logical { .. }
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
+            | ExprKind::ClosureCall { .. }
             | ExprKind::If { .. }
             | ExprKind::Match { .. }
             | ExprKind::Block(_)
@@ -933,6 +1031,29 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 self.terminate(
                     Terminator::Call {
                         callee: Callee::Direct(f),
+                        args: operands,
+                        dest,
+                        target,
+                        cancel: None,
+                    },
+                    span,
+                );
+                self.cur = target;
+            }
+            ExprKind::ClosureCall {
+                closure,
+                mode,
+                args,
+            } => {
+                let place = self.place(closure);
+                let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
+                let target = self.new_block(span);
+                self.terminate(
+                    Terminator::Call {
+                        callee: Callee::Closure {
+                            closure: place,
+                            mode: *mode,
+                        },
                         args: operands,
                         dest,
                         target,
@@ -1076,6 +1197,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             }
             ExprKind::Lit(_)
             | ExprKind::Local(_)
+            | ExprKind::Capture(_)
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
             | ExprKind::Index { .. }
@@ -1083,6 +1205,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Borrow { .. }
             | ExprKind::Give(_)
             | ExprKind::FnRef(_)
+            | ExprKind::Closure { .. }
             | ExprKind::Describe(_)
             | ExprKind::ErrorInject { .. }
             | ExprKind::Unary { .. }
@@ -1137,6 +1260,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 ty: inner.ty,
                 span,
             },
+            closures: Vec::new(),
         };
         let mut b = Builder::new(&mut ct_mono, &synthetic_thir, subst, sig.clone());
         b.function(&synthetic_thir);
@@ -1464,9 +1588,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     );
                 }
             }
-            ExprKind::Lit(_) | ExprKind::Local(_) => {}
+            ExprKind::Lit(_) | ExprKind::Local(_) | ExprKind::Capture(_) => {}
             ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureCall { .. }
             | ExprKind::FnRef(_)
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }

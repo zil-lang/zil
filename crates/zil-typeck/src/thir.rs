@@ -6,9 +6,9 @@
 //! `Local`, `Field`, `TupleField`, `Index` and `Deref`; every other kind is
 //! a value expression.
 
-use crate::ty::{AdtRef, Ty};
+use crate::ty::{AdtRef, ClosureRef, Ty};
 use zil_base::Span;
-use zil_ir::body::{BinOp, IntrinsicOp, UnOp};
+use zil_ir::body::{BinOp, ClosureCallMode, ClosureKind, IntrinsicOp, UnOp};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LocalId(pub u32);
@@ -28,10 +28,24 @@ pub struct LocalInfo {
 }
 
 #[derive(Clone, Debug)]
+pub struct ThirClosure {
+    pub id: ClosureRef,
+    pub kind: ClosureKind,
+    /// Types of the captured environment fields (in capture order).
+    pub capture_tys: Vec<Ty>,
+    pub locals: Vec<LocalInfo>,
+    pub params: Vec<LocalId>,
+    pub param_tys: Vec<Ty>,
+    pub result: Ty,
+    pub body: Expr,
+}
+
+#[derive(Clone, Debug)]
 pub struct ThirFn {
     pub locals: Vec<LocalInfo>,
     pub params: Vec<LocalId>,
     pub body: Expr,
+    pub closures: Vec<ThirClosure>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -55,6 +69,8 @@ pub struct Expr {
 pub enum ExprKind {
     Lit(Lit),
     Local(LocalId),
+    /// The n-th captured environment field inside a closure body.
+    Capture(u32),
     Field {
         base: Box<Expr>,
         adt: AdtRef,
@@ -116,6 +132,15 @@ pub enum ExprKind {
         callee: Box<Expr>,
         args: Vec<Expr>,
     },
+    Closure {
+        id: ClosureRef,
+        captures: Vec<Expr>,
+    },
+    ClosureCall {
+        closure: Box<Expr>,
+        mode: ClosureCallMode,
+        args: Vec<Expr>,
+    },
     ForeignCall {
         callee: ForeignRef,
         args: Vec<Expr>,
@@ -174,6 +199,7 @@ pub enum ExprKind {
 pub fn is_place(kind: &ExprKind) -> bool {
     match kind {
         ExprKind::Local(_)
+        | ExprKind::Capture(_)
         | ExprKind::Field { .. }
         | ExprKind::TupleField { .. }
         | ExprKind::Index { .. }
@@ -190,6 +216,8 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::FnRef(_)
         | ExprKind::Call { .. }
         | ExprKind::IndirectCall { .. }
+        | ExprKind::Closure { .. }
+        | ExprKind::ClosureCall { .. }
         | ExprKind::ForeignCall { .. }
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }

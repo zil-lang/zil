@@ -549,18 +549,79 @@ impl TyTable {
 
     /// Whether ending the lifetime of an initialized value of `ty` carries a
     /// cleanup obligation (as opposed to merely forgetting bits).
+    ///
+    /// Compositional over structural types and closures: an exclusive address
+    /// `&mut T` is affine (cannot be duplicated) but carries no cleanup
+    /// obligation, so a tuple, enum, error union or closure whose only affine
+    /// fields are `&mut` borrows likewise carries no cleanup obligation.
     pub fn needs_cleanup(&self, ty: TyId, env: &ParamEnv) -> bool {
-        match self.class(ty, env) {
-            ValueClass::Copy => false,
-            ValueClass::NotValue => true,
-            ValueClass::Affine => !matches!(
-                self.get(ty),
-                Some(TyKind::Ref {
-                    mutability: Mutability::Exclusive,
-                    ..
-                })
-            ),
+        let mut visiting = Vec::new();
+        self.needs_cleanup_in(ty, env, &mut visiting)
+    }
+
+    fn needs_cleanup_in(&self, ty: TyId, env: &ParamEnv, visiting: &mut Vec<TyId>) -> bool {
+        if visiting.contains(&ty) {
+            return false;
         }
+        let Some(kind) = self.get(ty) else {
+            return true;
+        };
+        visiting.push(ty);
+        let result = match kind {
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. }
+            | TyKind::Desc(_)
+            | TyKind::Ref { .. } => false,
+            TyKind::Managed(_) | TyKind::OwnedDyn(_) | TyKind::Slice(_) | TyKind::Dyn(_) => true,
+            TyKind::Tuple(items) => items
+                .iter()
+                .any(|t| self.needs_cleanup_in(*t, env, visiting)),
+            TyKind::Array { element, .. } => self.needs_cleanup_in(*element, env, visiting),
+            TyKind::ErrorUnion { ok, err } => {
+                self.needs_cleanup_in(*ok, env, visiting)
+                    || self.needs_cleanup_in(*err, env, visiting)
+            }
+            TyKind::Closure { def, args } => match self.closure(*def) {
+                None => true,
+                Some(c) => c
+                    .captures
+                    .iter()
+                    .any(|cap| match self.subst_lookup(*cap, *args) {
+                        Some(t) => self.needs_cleanup_in(t, env, visiting),
+                        None => true,
+                    }),
+            },
+            TyKind::Adt { adt, args } => match self.get_adt(*adt) {
+                None => true,
+                Some(def) => match def.kind {
+                    AdtKind::Package | AdtKind::Resource => true,
+                    AdtKind::Record => def.user_drop,
+                    AdtKind::Enum => {
+                        def.user_drop
+                            || def.variants.iter().enumerate().any(|(v, variant)| {
+                                (0..variant.fields.len()).any(|f| {
+                                    match self.field_ty(
+                                        *adt,
+                                        VariantIdx::from_index(v),
+                                        FieldIdx::from_index(f),
+                                        *args,
+                                    ) {
+                                        Some(t) => self.needs_cleanup_in(t, env, visiting),
+                                        None => true,
+                                    }
+                                })
+                            })
+                    }
+                },
+            },
+            TyKind::Param(_) | TyKind::Opaque(_) => self.class(ty, env) != ValueClass::Copy,
+        };
+        visiting.pop();
+        result
     }
 
     /// Whether a value of `ty` may contain an address or descriptor, i.e.

@@ -12,10 +12,25 @@ use crate::items::{
 };
 use crate::literal;
 use crate::thir::*;
-use crate::ty::{AdtRef, OpaqueKind, Ty, TyData, Types, VarKind};
+use crate::ty::{AdtRef, ClosureRef, OpaqueKind, Ty, TyData, Types, VarKind};
 use zil_base::{Diagnostic, Span};
-use zil_ir::body::{AdtKind, BinOp, IntTy, IntrinsicOp, UnOp};
+use zil_ir::body::{AdtKind, BinOp, ClosureCallMode, ClosureKind, IntTy, IntrinsicOp, UnOp};
 use zil_syntax::ast;
+
+struct CaptureEntry {
+    source: LocalId,
+    orig_ty: Ty,
+    by_value: bool,
+    mutable: bool,
+    field_ty: Ty,
+}
+
+struct CaptureEnv {
+    /// Visible locals in the enclosing function: `(name, local, ty, mutable)`.
+    outer: Vec<(String, LocalId, Ty, bool)>,
+    move_capture: bool,
+    captures: Vec<CaptureEntry>,
+}
 
 pub struct FnCx<'c, 'a> {
     items: &'c Items<'a>,
@@ -23,8 +38,11 @@ pub struct FnCx<'c, 'a> {
     diags: &'c mut Vec<Diagnostic>,
     decl: &'c FnDecl<'a>,
     generic_names: Vec<String>,
+    ret_ty: Ty,
     locals: Vec<LocalInfo>,
     scopes: Vec<Vec<(String, LocalId)>>,
+    closures: Vec<ThirClosure>,
+    capture_env: Option<CaptureEnv>,
     loop_depth: u32,
     in_unsafe: u32,
 }
@@ -44,8 +62,11 @@ pub fn infer_fn<'a>(
         diags,
         decl,
         generic_names: decl.generics.iter().map(|g| g.name.clone()).collect(),
+        ret_ty: decl.result,
         locals: Vec::new(),
         scopes: vec![Vec::new()],
+        closures: Vec::new(),
+        capture_env: None,
         loop_depth: 0,
         in_unsafe: 0,
     };
@@ -84,6 +105,7 @@ pub fn infer_fn<'a>(
         locals: cx.locals,
         params,
         body,
+        closures: cx.closures,
     };
     if diags.len() > errors_before {
         return None;
@@ -428,7 +450,13 @@ impl<'c, 'a> FnCx<'c, 'a> {
 
     /// Whether `path` starts with a local binding (and so is a value).
     fn path_is_value(&self, path: &[String]) -> bool {
-        path.first().is_some_and(|n| self.lookup_local(n).is_some())
+        path.first().is_some_and(|n| {
+            self.lookup_local(n).is_some()
+                || self
+                    .capture_env
+                    .as_ref()
+                    .is_some_and(|env| env.outer.iter().any(|(name, ..)| name == n))
+        })
     }
 
     // ---- blocks and statements ---------------------------------------------
@@ -505,7 +533,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 Some(Stmt::Let { pattern, init })
             }
             ast::StmtKind::Return(value) => {
-                let result = self.decl.result;
+                let result = self.ret_ty;
                 let value = match value {
                     Some(v) => {
                         let v = self.infer(v);
@@ -807,6 +835,19 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     }
                     return;
                 }
+                ExprKind::Capture(idx) => {
+                    if let Some(env) = &self.capture_env
+                        && let Some(cap) = env.captures.get(*idx as usize)
+                        && !cap.mutable
+                    {
+                        self.error(
+                            diag::ASSIGN_IMMUTABLE,
+                            place.span,
+                            format!("captured variable cannot be {what}"),
+                        );
+                    }
+                    return;
+                }
                 ExprKind::Field { base, .. }
                 | ExprKind::TupleField { base, .. }
                 | ExprKind::Index { base, .. } => cur = base,
@@ -838,6 +879,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::FnRef(_)
                 | ExprKind::Call { .. }
                 | ExprKind::IndirectCall { .. }
+                | ExprKind::Closure { .. }
+                | ExprKind::ClosureCall { .. }
                 | ExprKind::Adt { .. }
                 | ExprKind::Tuple(_)
                 | ExprKind::Array(_)
@@ -1088,6 +1131,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     let ty = self.locals[l.0 as usize].ty;
                     return mk(ExprKind::Local(l), ty);
                 }
+                if let Some(captured) = self.capture_outer(n, span) {
+                    return captured;
+                }
                 match self
                     .items
                     .lookup_item(self.decl.module, std::slice::from_ref(n))
@@ -1166,6 +1212,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Opaque(_)
                     | TyData::ErrorUnion { .. }
                     | TyData::FnPtr { .. }
+                    | TyData::Closure { .. }
                     | TyData::Param(_)
                     | TyData::Var(_) => {
                         self.error(diag::OPERATOR_TYPE, span, "only arrays can be indexed");
@@ -1270,7 +1317,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         );
                         return self.err_expr(span);
                     };
-                let ret_t = self.types.shallow(self.decl.result);
+                let ret_t = self.types.shallow(self.ret_ty);
                 if let TyData::ErrorUnion { err: ret_err, .. } = self.types.data(ret_t).clone() {
                     if self.types.unify(err_ty, ret_err).is_err() {
                         self.error(
@@ -1288,10 +1335,13 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
                 mk(ExprKind::Try(Box::new(x)), ok_ty)
             }
-            ast::ExprKind::Closure { .. } => {
-                self.unsupported("closures", span);
-                self.err_expr(span)
-            }
+            ast::ExprKind::Closure {
+                move_capture,
+                params,
+                return_type,
+                body,
+                ..
+            } => self.infer_closure(*move_capture, params, return_type.as_ref(), body, span),
             ast::ExprKind::MetaEval(inner) => {
                 // Compile-time expressions cannot observe enclosing runtime locals.
                 let saved_scopes = std::mem::take(&mut self.scopes);
@@ -1308,6 +1358,188 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("compile-time evaluation", span);
                 self.err_expr(span)
             }
+        }
+    }
+
+    fn capture_outer(&mut self, name: &str, span: Span) -> Option<Expr> {
+        let env = self.capture_env.as_mut()?;
+        let (_, source, orig_ty, outer_mut) =
+            env.outer.iter().rev().find(|(n, ..)| n == name).cloned()?;
+        let idx = if let Some(pos) = env.captures.iter().position(|c| c.source == source) {
+            pos
+        } else {
+            let by_value = env.move_capture;
+            let mutable = outer_mut;
+            let field_ty = if by_value {
+                orig_ty
+            } else {
+                self.types.intern(TyData::Ref {
+                    mutable,
+                    pointee: orig_ty,
+                })
+            };
+            env.captures.push(CaptureEntry {
+                source,
+                orig_ty,
+                by_value,
+                mutable,
+                field_ty,
+            });
+            env.captures.len() - 1
+        };
+        let cap = &env.captures[idx];
+        let cap_expr = Expr {
+            kind: ExprKind::Capture(idx as u32),
+            ty: cap.field_ty,
+            span,
+        };
+        if cap.by_value {
+            Some(cap_expr)
+        } else {
+            Some(Expr {
+                kind: ExprKind::Deref(Box::new(cap_expr)),
+                ty: cap.orig_ty,
+                span,
+            })
+        }
+    }
+
+    fn infer_closure(
+        &mut self,
+        move_capture: bool,
+        params: &[ast::ClosureParam],
+        return_type: Option<&ast::TypeRef>,
+        body: &ast::ArrowBody,
+        span: Span,
+    ) -> Expr {
+        if self.capture_env.is_some() {
+            self.unsupported("nested closures", span);
+            return self.err_expr(span);
+        }
+        // Snapshot currently visible locals of the enclosing function.
+        let mut outer = Vec::new();
+        for scope in &self.scopes {
+            for (name, l) in scope {
+                let info = &self.locals[l.0 as usize];
+                outer.push((name.clone(), *l, info.ty, info.mutable));
+            }
+        }
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_scopes = std::mem::take(&mut self.scopes);
+        let saved_ret = self.ret_ty;
+        let saved_loop = self.loop_depth;
+        let saved_unsafe = self.in_unsafe;
+
+        self.scopes.push(Vec::new());
+        self.loop_depth = 0;
+        self.in_unsafe = 0;
+        self.capture_env = Some(CaptureEnv {
+            outer,
+            move_capture,
+            captures: Vec::new(),
+        });
+
+        let mut param_ids = Vec::with_capacity(params.len());
+        let mut param_tys = Vec::with_capacity(params.len());
+        for p in params {
+            let ty = match &p.ty {
+                Some(t) => self.resolve_written(t),
+                None => self.types.fresh(VarKind::General),
+            };
+            param_tys.push(ty);
+            param_ids.push(self.declare(&p.name, ty, false, p.span));
+        }
+        let result_ty = match return_type {
+            Some(t) => self.resolve_written(t),
+            None => match body {
+                ast::ArrowBody::Block(_) => self.types.unit(),
+                ast::ArrowBody::Expression(_) => self.types.fresh(VarKind::General),
+            },
+        };
+        self.ret_ty = result_ty;
+
+        let body_expr = match body {
+            ast::ArrowBody::Block(b) => self.block(b),
+            ast::ArrowBody::Expression(e) => {
+                let val = self.infer(e);
+                let val = self.coerce_value(val, result_ty, e.span);
+                let ty = self.types.never();
+                Expr {
+                    kind: ExprKind::Return(Some(Box::new(val))),
+                    ty,
+                    span: e.span,
+                }
+            }
+        };
+        let unit = self.types.unit();
+        if !self.types.is_never(body_expr.ty) && result_ty != unit {
+            self.error(
+                diag::MISSING_RETURN,
+                span,
+                "closure can finish without returning a value",
+            );
+        }
+
+        let closure_locals = std::mem::replace(&mut self.locals, saved_locals);
+        self.scopes = saved_scopes;
+        self.ret_ty = saved_ret;
+        self.loop_depth = saved_loop;
+        self.in_unsafe = saved_unsafe;
+        let env = self.capture_env.take().expect("capture_env set above");
+
+        let kind = if env.captures.iter().any(|c| !c.by_value && c.mutable) {
+            ClosureKind::FnMut
+        } else {
+            ClosureKind::Fn
+        };
+        let id = ClosureRef(self.closures.len() as u32);
+        let capture_tys: Vec<Ty> = env.captures.iter().map(|c| c.field_ty).collect();
+        let capture_exprs: Vec<Expr> = env
+            .captures
+            .iter()
+            .map(|c| {
+                let place = Expr {
+                    kind: ExprKind::Local(c.source),
+                    ty: c.orig_ty,
+                    span,
+                };
+                if c.by_value {
+                    place
+                } else {
+                    Expr {
+                        kind: ExprKind::Borrow {
+                            mutable: c.mutable,
+                            place: Box::new(place),
+                        },
+                        ty: c.field_ty,
+                        span,
+                    }
+                }
+            })
+            .collect();
+        self.closures.push(ThirClosure {
+            id,
+            kind,
+            capture_tys,
+            locals: closure_locals,
+            params: param_ids,
+            param_tys: param_tys.clone(),
+            result: result_ty,
+            body: body_expr,
+        });
+        let ty = self.types.intern(TyData::Closure {
+            id,
+            kind,
+            params: param_tys,
+            result: result_ty,
+        });
+        Expr {
+            kind: ExprKind::Closure {
+                id,
+                captures: capture_exprs,
+            },
+            ty,
+            span,
         }
     }
 
@@ -1387,6 +1619,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Opaque(_)
                     | TyData::ErrorUnion { .. }
                     | TyData::FnPtr { .. }
+                    | TyData::Closure { .. }
                     | TyData::Param(_) => {
                         self.error(
                             diag::OPERATOR_TYPE,
@@ -1862,6 +2095,47 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 ty: result,
                 span,
             }
+        } else if let TyData::Closure {
+            kind,
+            params,
+            result,
+            ..
+        } = self.types.data(ct).clone()
+        {
+            let mode = match kind {
+                ClosureKind::Fn => ClosureCallMode::Shared,
+                ClosureKind::FnMut => ClosureCallMode::Mut,
+                ClosureKind::FnOnce => ClosureCallMode::Once,
+            };
+            if mode == ClosureCallMode::Mut && is_place(&callee_expr.kind) {
+                self.check_mutable_place(&callee_expr, "called as a mutable closure");
+            }
+            if arguments.len() != params.len() {
+                self.error(
+                    diag::CALL_ARITY,
+                    span,
+                    format!(
+                        "closure expects {} argument(s), found {}",
+                        params.len(),
+                        arguments.len()
+                    ),
+                );
+                return self.err_expr(span);
+            }
+            let mut args = Vec::new();
+            for (a, p) in arguments.iter().zip(&params) {
+                let v = self.infer(&a.value);
+                args.push(self.coerce_arg(v, *p, a.span));
+            }
+            Expr {
+                kind: ExprKind::ClosureCall {
+                    closure: Box::new(callee_expr),
+                    mode,
+                    args,
+                },
+                ty: result,
+                span,
+            }
         } else if matches!(self.types.data(ct), TyData::Error) {
             self.err_expr(span)
         } else {
@@ -2143,6 +2417,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::CtEval(inner) => walk(inner),
             ExprKind::Lit(_)
             | ExprKind::Local(_)
+            | ExprKind::Capture(_)
             | ExprKind::Continue
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
@@ -2154,6 +2429,8 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::FnRef(_)
             | ExprKind::Call { .. }
             | ExprKind::IndirectCall { .. }
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureCall { .. }
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::ManagedCreate { .. }
@@ -2206,6 +2483,21 @@ impl Finalizer<'_, '_> {
             l.ty = self.zonk(l.ty, span);
         }
         self.expr(&mut f.body);
+        for c in &mut f.closures {
+            let span = c.body.span;
+            for t in &mut c.capture_tys {
+                *t = self.zonk(*t, span);
+            }
+            for t in &mut c.param_tys {
+                *t = self.zonk(*t, span);
+            }
+            c.result = self.zonk(c.result, span);
+            for l in &mut c.locals {
+                let lspan = l.span;
+                l.ty = self.zonk(l.ty, lspan);
+            }
+            self.expr(&mut c.body);
+        }
     }
 
     fn data(&self, ty: Ty) -> TyData {
@@ -2233,6 +2525,7 @@ impl Finalizer<'_, '_> {
             TyData::Array { element, .. } => self.is_copy_depth(element, depth + 1),
             TyData::Ref { mutable, .. } => !mutable,
             TyData::Desc(_) | TyData::FnPtr { .. } => true,
+            TyData::Closure { .. } => false,
             TyData::Managed(_) => false,
             TyData::Opaque(OpaqueKind::ForeignHandle) => true,
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::OwnedStore(_)) => false,
@@ -2357,7 +2650,11 @@ impl Finalizer<'_, '_> {
                 let l = *l;
                 self.literal(l, ty, span);
             }
-            ExprKind::Local(_) | ExprKind::FnRef(_) | ExprKind::Break | ExprKind::Continue => {}
+            ExprKind::Local(_)
+            | ExprKind::Capture(_)
+            | ExprKind::FnRef(_)
+            | ExprKind::Break
+            | ExprKind::Continue => {}
             ExprKind::Field { base, args, .. } => {
                 self.expr(base);
                 for a in args.iter_mut() {
@@ -2437,6 +2734,13 @@ impl Finalizer<'_, '_> {
             }
             ExprKind::IndirectCall { callee, args } => {
                 self.expr(callee);
+                args.iter_mut().for_each(|a| self.expr(a));
+            }
+            ExprKind::Closure { captures, .. } => {
+                captures.iter_mut().for_each(|c| self.expr(c));
+            }
+            ExprKind::ClosureCall { closure, args, .. } => {
+                self.expr(closure);
                 args.iter_mut().for_each(|a| self.expr(a));
             }
             ExprKind::ForeignCall { args, .. } | ExprKind::Intrinsic { args, .. } => {

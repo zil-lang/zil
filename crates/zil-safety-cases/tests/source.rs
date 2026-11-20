@@ -714,3 +714,80 @@ fn function_pointer_array_and_indirect_call_execute_in_interp() {
         }
     );
 }
+
+// ---- closures (Fn / FnMut) and full examples/mainline/stream ---------------
+
+#[test]
+fn full_mainline_stream_example_is_admitted_end_to_end() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            (
+                "io",
+                include_str!("../../../examples/mainline/stream/io.zil"),
+            ),
+            (
+                "model",
+                include_str!("../../../examples/mainline/stream/model.zil"),
+            ),
+            (
+                "tokens",
+                include_str!("../../../examples/mainline/stream/tokens.zil"),
+            ),
+            (
+                "transform",
+                include_str!("../../../examples/mainline/stream/transform.zil"),
+            ),
+            (
+                "main",
+                include_str!("../../../examples/mainline/stream/main.zil"),
+            ),
+        ],
+        None,
+    )
+    .expect("full mainline/stream example lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
+
+#[test]
+fn fn_mut_closure_mutating_captured_local_executes_in_interp() {
+    let lowered = zil_typeck::lower_source(
+        "closure_mut.zil",
+        "fn run() -> i32 {\n\
+             var total: i32 = 10\n\
+             let scale: i32 = 3\n\
+             var add = (x: i32) => {\n\
+                 total += x * scale\n\
+             }\n\
+             add(4)\n\
+             add(5)\n\
+             return total\n\
+         }",
+    )
+    .expect("closure lowers");
+    let run_id = lowered
+        .roots
+        .iter()
+        .find(|(n, _)| n == "run")
+        .map(|(_, id)| *id)
+        .expect("run");
+    let cert = solve(&lowered.module);
+    let verified = zil_check::check_module(lowered.module, &cert, CheckBudget { steps: STEPS })
+        .expect("verified");
+    let out = zil_interp::evaluate(
+        &verified,
+        run_id,
+        Vec::new(),
+        zil_interp::EvalBudget {
+            steps: 10_000,
+            call_depth: 16,
+        },
+    )
+    .expect("executes");
+    assert_eq!(
+        out,
+        zil_interp::Value::Int {
+            ty: zil_ir::body::IntTy::I32,
+            bits: 37,
+        }
+    );
+}

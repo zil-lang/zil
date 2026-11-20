@@ -426,6 +426,7 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::Opaque(_)
         | TyData::ErrorUnion { .. }
         | TyData::FnPtr { .. }
+        | TyData::Closure { .. }
         | TyData::Param(_)
         | TyData::Var(_) => None,
     }
