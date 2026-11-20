@@ -6,6 +6,7 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 mod certificate;
+pub mod ct_original;
 pub mod fidelity;
 
 pub use certificate::{CheckBudget, CheckError, CheckErrorKind, check_function};

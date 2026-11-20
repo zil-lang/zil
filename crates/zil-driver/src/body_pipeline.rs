@@ -120,6 +120,32 @@ pub fn verify_body_program(sources: &[(&str, &str)]) -> Result<VerifiedModule, B
         .collect();
     let ast_refs: Vec<&zil_syntax::ast::Module> = parsed.iter().map(|(_, ast)| ast).collect();
 
+    // Independent universal CT original-definition verification (checks unused
+    // CT declarations and every branch directly against parsed AST).
+    let ct_mods: Vec<zil_check::ct_original::CtOriginalModule<'_>> = ast_refs
+        .iter()
+        .map(|syntax| zil_check::ct_original::CtOriginalModule {
+            syntax,
+            imports: &[],
+        })
+        .collect();
+    let mut ct_meter = zil_check::ct_original::CtVerificationMeter::new(1_000_000);
+    zil_check::ct_original::verify_ct_original_definitions(
+        &ct_mods,
+        &[],
+        &zil_base::TargetProfile::host_llvm(),
+        &zil_base::Limits::default(),
+        &mut ct_meter,
+    )
+    .map_err(|diags| BodyCompileError {
+        phase: Phase::Ct,
+        message: format!(
+            "CT original check failed with {} diagnostic(s)",
+            diags.len()
+        ),
+        diagnostics: diags,
+    })?;
+
     let mut ct = InterpCtEvaluator;
     let lowered =
         lower_program(&inputs, TypeckLimits::default(), Some(&mut ct)).map_err(|diags| {
@@ -273,5 +299,21 @@ fn main() -> i32 {
             );
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn unused_invalid_ct_declaration_is_rejected_by_ct_original() {
+        let src = r#"
+fn never_called(t: Type) -> i32 {
+    return unknown_ct_symbol
+}
+
+fn main() -> i32 {
+    return 0
+}
+"#;
+        let err = verify_body_program(&[("ct_unused", src)])
+            .expect_err("unused invalid ct fn must be rejected by ct_original");
+        assert_eq!(err.phase, Phase::Ct);
     }
 }

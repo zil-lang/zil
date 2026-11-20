@@ -207,11 +207,11 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 let sig = self.module.functions[id.index()].sig.clone();
                 let mut b = Builder::new(self, f, thir, args, sig);
                 b.function(thir);
-                let body = b.finish();
+                let (body, eval_rels) = b.finish();
                 let decl_span = self.items.func(f).ast.span;
                 self.source_map
                     .functions
-                    .push(build_fn_source_map(id, decl_span, &body));
+                    .push(build_fn_source_map(id, decl_span, &body, eval_rels));
                 self.module.functions[id.index()].body = body;
             }
             while let Some((owner, args, cid, def_id)) = self.closure_queue.pop_front() {
@@ -245,7 +245,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 cb.captures = def.captures;
                 cb.closure_id = Some(def_id);
                 cb.function(&cthir);
-                let cbody = cb.finish();
+                let (cbody, ceval_rels) = cb.finish();
                 let owner_decl = self.items.func(owner);
                 let owner_name = owner_decl.name.clone();
                 let closure_fn_id = FnId::from_index(self.module.functions.len());
@@ -253,6 +253,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     closure_fn_id,
                     owner_decl.ast.span,
                     &cbody,
+                    ceval_rels,
                 ));
                 self.module.functions.push(Function {
                     name: format!("{owner_name}::$closure#{}", cid.0),
@@ -569,6 +570,7 @@ struct Builder<'m, 'c, 'a, 'e> {
     captures: Vec<TyId>,
     closure_id: Option<ClosureId>,
     auto_drops: HashSet<(BlockId, usize)>,
+    eval_relations: Vec<SourceRelation>,
     failed: bool,
     reported_exhaustive: bool,
 }
@@ -601,11 +603,34 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             captures: Vec::new(),
             closure_id: None,
             auto_drops: HashSet::new(),
+            eval_relations: Vec::new(),
             failed: false,
             reported_exhaustive: false,
         };
         b.cur = b.new_block(Span::default());
         b
+    }
+
+    fn record_eval(&mut self, parent_span: Span, ordinal: u32) {
+        let len = self.blocks[self.cur.index()].instructions.len();
+        let at = OpLocation {
+            block: self.cur,
+            instruction: len.checked_sub(1).map(|i| i as u32),
+        };
+        self.eval_relations.push(SourceRelation::Evaluation {
+            node: NodeId(u32::try_from(parent_span.start).unwrap_or(u32::MAX)),
+            ordinal,
+            at,
+        });
+    }
+
+    fn eval_operands(&mut self, parent_span: Span, exprs: &[Expr]) -> Vec<Operand> {
+        let mut out = Vec::with_capacity(exprs.len());
+        for (i, expr) in exprs.iter().enumerate() {
+            out.push(self.operand(expr));
+            self.record_eval(parent_span, i as u32);
+        }
+        out
     }
 
     fn tys(&self) -> &zil_ir::body::TyTable {
@@ -804,9 +829,10 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         }
     }
 
-    fn finish(mut self) -> Body {
+    fn finish(mut self) -> (Body, Vec<SourceRelation>) {
         if self.failed {
             self.blocks.clear();
+            self.eval_relations.clear();
         }
         let mut body = Body {
             param_count: self.sig.params.len() as u32,
@@ -818,11 +844,36 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             drop_flags: Vec::new(),
             blocks: std::mem::take(&mut self.blocks),
         };
+        let mut eval_rels = Vec::new();
         if !self.failed {
             crate::drop_elab::elaborate(&mut body, &mut self.mono.module.tys, &self.auto_drops);
-            body.blocks = prune(body.blocks);
+            let (blocks, remap) = prune(body.blocks);
+            body.blocks = blocks;
+            for rel in self.eval_relations {
+                if let SourceRelation::Evaluation { node, ordinal, at } = rel
+                    && let Some(&new_block) = remap.get(at.block.index())
+                    && new_block.0 != u32::MAX
+                {
+                    let max_inst = body.blocks[new_block.index()].instructions.len();
+                    let instruction = at.instruction.and_then(|idx| {
+                        if max_inst == 0 {
+                            None
+                        } else {
+                            Some(idx.min((max_inst - 1) as u32))
+                        }
+                    });
+                    eval_rels.push(SourceRelation::Evaluation {
+                        node,
+                        ordinal,
+                        at: OpLocation {
+                            block: new_block,
+                            instruction,
+                        },
+                    });
+                }
+            }
         }
-        body
+        (body, eval_rels)
     }
 
     // ---- constants ---------------------------------------------------------
@@ -1005,7 +1056,9 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             },
             ExprKind::Binary { op, lhs, rhs } => {
                 let lhs = self.operand(lhs);
+                self.record_eval(e.span, 0);
                 let rhs = self.operand(rhs);
+                self.record_eval(e.span, 1);
                 Rvalue::Binary { op: *op, lhs, rhs }
             }
             ExprKind::Convert { operand } => {
@@ -1020,7 +1073,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 fields,
             } => {
                 let closed: Vec<Ty> = args.iter().map(|a| self.closed(*a)).collect();
-                let operands = fields.iter().map(|f| self.operand(f)).collect();
+                let operands = self.eval_operands(e.span, fields);
                 let (Some(adt), Some(args)) = (
                     self.mono.adt_id(*adt, e.span),
                     self.mono.args_id(&closed, e.span),
@@ -1039,7 +1092,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             }
             ExprKind::Tuple(items) => Rvalue::Aggregate {
                 kind: AggregateKind::Tuple,
-                operands: items.iter().map(|i| self.operand(i)).collect(),
+                operands: self.eval_operands(e.span, items),
             },
             ExprKind::Array(items) => {
                 let ty = self.ty(e.ty, e.span);
@@ -1051,7 +1104,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 };
                 Rvalue::Aggregate {
                     kind: AggregateKind::Array { element },
-                    operands: items.iter().map(|i| self.operand(i)).collect(),
+                    operands: self.eval_operands(e.span, items),
                 }
             }
             ExprKind::Borrow { mutable, place } => {
@@ -1574,7 +1627,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         );
         b.function(&synthetic_thir);
         let failed = b.failed;
-        let body = b.finish();
+        let (body, _) = b.finish();
         if failed {
             self.mono.ct = ct_mono.ct.take();
             self.failed = true;
@@ -2301,9 +2354,9 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
 }
 
 /// Drops blocks unreachable from the entry and renumbers the rest.
-fn prune(blocks: Vec<Block>) -> Vec<Block> {
+fn prune(blocks: Vec<Block>) -> (Vec<Block>, Vec<BlockId>) {
     if blocks.is_empty() {
-        return blocks;
+        return (blocks, Vec::new());
     }
     let mut reachable = vec![false; blocks.len()];
     let mut stack = vec![0usize];
@@ -2326,7 +2379,7 @@ fn prune(blocks: Vec<Block>) -> Vec<Block> {
         }
     }
     let map = |b: BlockId| remap[b.index()];
-    blocks
+    let pruned = blocks
         .into_iter()
         .enumerate()
         .filter(|(i, _)| reachable[*i])
@@ -2374,11 +2427,17 @@ fn prune(blocks: Vec<Block>) -> Vec<Block> {
             };
             block
         })
-        .collect()
+        .collect();
+    (pruned, remap)
 }
 
-fn build_fn_source_map(function: FnId, decl_span: Span, body: &Body) -> FunctionSourceMap {
-    let mut relations = Vec::new();
+fn build_fn_source_map(
+    function: FnId,
+    decl_span: Span,
+    body: &Body,
+    eval_rels: Vec<SourceRelation>,
+) -> FunctionSourceMap {
+    let mut relations = eval_rels;
     let mut spans = Vec::new();
     let decl_start = u32::try_from(decl_span.start).unwrap_or(u32::MAX);
     for (idx, decl) in body.locals.iter().enumerate() {
