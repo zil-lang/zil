@@ -112,6 +112,7 @@ name = "zil-backend-llvm"
 version = "0.1.0"
 dependencies = [
  "zil-base",
+ "zil-check",
  "zil-ir",
  "zil-llvm-api",
  "zil-verify",
@@ -129,8 +130,10 @@ dependencies = [
 name = "zil-check"
 version = "0.1.0"
 dependencies = [
+ "zil-base",
  "zil-ir",
  "zil-semantics",
+ "zil-syntax",
 ]
 
 [[package]]
@@ -164,12 +167,16 @@ dependencies = [
  "zil-analyze",
  "zil-backend-llvm",
  "zil-base",
+ "zil-check",
  "zil-ct",
  "zil-db",
  "zil-expand",
+ "zil-interp",
  "zil-ir",
  "zil-lower",
+ "zil-solve",
  "zil-syntax",
+ "zil-typeck",
  "zil-types",
  "zil-verify",
 ]
