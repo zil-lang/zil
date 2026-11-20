@@ -3305,15 +3305,44 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let v = self.infer(&a.value);
                 args.push(self.coerce_arg(v, *pt, a.span));
             }
+            let full_context = match param_tys.as_slice() {
+                [] => None,
+                [single] => Some(*single),
+                many => Some(self.types.intern(TyData::Tuple(many.to_vec()))),
+            };
             let borrowed: Vec<Ty> = param_tys
                 .iter()
                 .copied()
                 .filter(|t| self.ty_contains_ref(*t))
                 .collect();
-            let context = match borrowed.as_slice() {
+            let compact_context = match borrowed.as_slice() {
                 [] => None,
                 [single] => Some(*single),
                 many => Some(self.types.intern(TyData::Tuple(many.to_vec()))),
+            };
+            let ret_shallow = self.types.shallow(self.ret_ty);
+            let exp_task_ctx = match self.types.data(ret_shallow).clone() {
+                TyData::ErrorUnion { ok, .. } => {
+                    let ok_s = self.types.shallow(ok);
+                    match self.types.data(ok_s).clone() {
+                        TyData::Managed(inner) => {
+                            let inner_s = self.types.shallow(inner);
+                            match self.types.data(inner_s).clone() {
+                                TyData::Opaque(OpaqueKind::Task { context, .. }) => context,
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            let context = if let (Some(full), Some(exp)) = (full_context, exp_task_ctx)
+                && self.types.can_unify(full, exp)
+            {
+                Some(full)
+            } else {
+                compact_context
             };
             let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
                 result: res,
