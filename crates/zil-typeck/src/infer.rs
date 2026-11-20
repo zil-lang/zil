@@ -1298,14 +1298,20 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     );
                     return self.err_expr(span);
                 };
-                let Some(path) = Self::expr_path(ty) else {
+                let (ty_base, explicit_args) =
+                    if let ast::ExprKind::TypeApply { callee, arguments } = &ty.kind {
+                        (callee.as_ref(), Some(arguments.as_slice()))
+                    } else {
+                        (ty.as_ref(), None)
+                    };
+                let Some(path) = Self::expr_path(ty_base) else {
                     self.unsupported("computed record types", span);
                     return self.err_expr(span);
                 };
                 let Some((adt, variant)) = self.resolve_variant_path(&path, span) else {
                     return self.err_expr(span);
                 };
-                self.record(adt, variant, fields, span)
+                self.record(adt, variant, explicit_args, fields, span)
             }
             ast::ExprKind::If {
                 condition,
@@ -1550,7 +1556,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         self.in_unsafe = saved_unsafe;
         let env = self.capture_env.take().expect("capture_env set above");
 
-        let kind = if env.captures.iter().any(|c| !c.by_value && c.mutable) {
+        let kind = if env.captures.iter().any(|c| c.mutable) {
             ClosureKind::FnMut
         } else {
             ClosureKind::Fn
@@ -1970,6 +1976,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         &mut self,
         adt: AdtRef,
         variant: u32,
+        explicit: Option<&[ast::GenericArg]>,
         fields: &[ast::RecordField],
         span: Span,
     ) -> Expr {
@@ -1986,7 +1993,30 @@ impl<'c, 'a> FnCx<'c, 'a> {
             );
             return self.err_expr(span);
         }
-        let args = self.fresh_args(adt);
+        let args = match explicit {
+            None => self.fresh_args(adt),
+            Some(given) => {
+                let expected_n = self.items.adt(adt).generics.len();
+                if given.len() != expected_n {
+                    self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
+                    self.fresh_args(adt)
+                } else {
+                    let mut out = Vec::with_capacity(given.len());
+                    for g in given {
+                        match g {
+                            ast::GenericArg::Type(t) => out.push(self.resolve_written(t)),
+                            ast::GenericArg::Lifetime(_)
+                            | ast::GenericArg::Const(_)
+                            | ast::GenericArg::AssociatedBinding(_) => {
+                                self.unsupported("non-type generic arguments", span);
+                                out.push(self.types.error());
+                            }
+                        }
+                    }
+                    out
+                }
+            }
+        };
         let mut slots: Vec<Option<Expr>> = vec![None; decl_fields.len()];
         for f in fields {
             let Some(i) = decl_fields.iter().position(|n| *n == f.name) else {

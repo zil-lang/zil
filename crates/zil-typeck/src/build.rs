@@ -443,6 +443,8 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
 struct Frame {
     /// User bindings declared in this lexical scope, in declaration order.
     locals: Vec<Local>,
+    /// Compiler temporaries needing cleanup created in this scope (no StorageLive/Dead).
+    temps: Vec<Local>,
 }
 
 struct LoopFrame {
@@ -496,7 +498,10 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             blocks: Vec::new(),
             cur: BlockId(0),
             map: vec![None; thir.locals.len()],
-            frames: vec![Frame { locals: Vec::new() }],
+            frames: vec![Frame {
+                locals: Vec::new(),
+                temps: Vec::new(),
+            }],
             loops: Vec::new(),
             ret: None,
             sig,
@@ -563,6 +568,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     fn temp(&mut self, ty: TyId) -> Local {
         let l = Local::from_index(self.locals.len());
         self.locals.push(LocalDecl { ty, name: None });
+        if self.needs_cleanup(ty)
+            && let Some(f) = self.frames.last_mut()
+        {
+            f.temps.push(l);
+        }
         l
     }
 
@@ -595,7 +605,10 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     }
 
     fn enter_frame(&mut self) {
-        self.frames.push(Frame { locals: Vec::new() });
+        self.frames.push(Frame {
+            locals: Vec::new(),
+            temps: Vec::new(),
+        });
     }
 
     fn needs_cleanup(&self, ty: TyId) -> bool {
@@ -618,6 +631,9 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
 
     fn exit_frame(&mut self, span: Span) {
         if let Some(frame) = self.frames.pop() {
+            for t in frame.temps.into_iter().rev() {
+                self.push_auto_drop(t, span);
+            }
             for l in frame.locals.into_iter().rev() {
                 self.push_auto_drop(l, span);
                 self.push(InstructionKind::StorageDead(l), span);
@@ -629,14 +645,19 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     /// them (a jump out of nested scopes). When unwinding to depth 0 (function
     /// exit), owning parameters are also dropped in reverse order.
     fn unwind_to(&mut self, depth: usize, span: Span) {
-        let dead: Vec<Local> = self.frames[depth..]
+        let frames: Vec<(Vec<Local>, Vec<Local>)> = self.frames[depth..]
             .iter()
             .rev()
-            .flat_map(|f| f.locals.iter().rev().copied())
+            .map(|f| (f.temps.clone(), f.locals.clone()))
             .collect();
-        for l in dead {
-            self.push_auto_drop(l, span);
-            self.push(InstructionKind::StorageDead(l), span);
+        for (temps, locals) in frames {
+            for t in temps.into_iter().rev() {
+                self.push_auto_drop(t, span);
+            }
+            for l in locals.into_iter().rev() {
+                self.push_auto_drop(l, span);
+                self.push(InstructionKind::StorageDead(l), span);
+            }
         }
         if depth == 0 {
             let params: Vec<Local> = self.param_locals.iter().rev().copied().collect();
@@ -668,7 +689,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         }
         let unit = self.tys().lookup(&TyKind::Unit);
         if Some(self.sig.result) != unit {
-            let r = self.temp(self.sig.result);
+            let r = Local::from_index(self.locals.len());
+            self.locals.push(LocalDecl {
+                ty: self.sig.result,
+                name: None,
+            });
             self.ret = Some(r);
         }
         self.locals_info = thir.locals.clone();
@@ -1249,6 +1274,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 self.cur = target;
             }
             ExprKind::Try(inner) => {
+                let is_temp = !is_place(&inner.kind);
                 let src = self.place(inner);
                 let inner_ty = self.ty(inner.ty, inner.span);
                 let TyKind::ErrorUnion {
@@ -1272,7 +1298,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     },
                     span,
                 );
-                // Error arm: extract error payload, wrap into enclosing error union, unwind and return.
+                // Error arm: extract error payload, settle temp, wrap into enclosing error union, unwind and return.
                 self.cur = err_bb;
                 let err_place = src.clone().project(Projection::ErrorArm(false));
                 let err_val = self.use_place(err_place, err_ty);
@@ -1287,17 +1313,23 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                         span,
                     );
                 }
+                if is_temp && let Some(tl) = src.as_local() {
+                    self.push(InstructionKind::StorageDead(tl), span);
+                }
                 self.unwind_to(0, span);
                 let ret_op = match self.ret {
                     Some(r) => self.use_place(Place::local(r), self.sig.result),
                     None => Operand::Const(ConstValue::Unit),
                 };
                 self.terminate(Terminator::Return { value: ret_op }, span);
-                // Success arm: extract ok payload into `dest`.
+                // Success arm: extract ok payload into `dest` and settle the temp immediately.
                 self.cur = ok_bb;
-                let ok_place = src.project(Projection::ErrorArm(true));
+                let ok_place = src.clone().project(Projection::ErrorArm(true));
                 let ok_val = self.use_place(ok_place, ok_ty);
                 self.assign(dest, Rvalue::Use(ok_val), span);
+                if is_temp && let Some(tl) = src.as_local() {
+                    self.push(InstructionKind::StorageDead(tl), span);
+                }
             }
             ExprKind::CtEval(inner) => {
                 let ty = self.ty(e.ty, span);

@@ -556,6 +556,9 @@ fn type_generics(
                             copy = true;
                         } else if args.is_empty() && path == &["StoreElement"] {
                             store_element = true;
+                        } else if args.is_empty() && path == &["SyncDrop"] {
+                            // SyncDrop bound accepted; checked against async/non-sync types when those arrive.
+                            continue;
                         } else if let Some(ItemRef::Trait(tr)) =
                             lookup_item_in(modules, mod_by_path, mid, path)
                         {

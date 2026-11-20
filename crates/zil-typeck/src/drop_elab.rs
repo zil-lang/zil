@@ -42,10 +42,15 @@ impl Init {
     }
 }
 
-fn step_instruction(state: &mut [Init], kind: &InstructionKind) {
+fn step_instruction(
+    state: &mut [Init],
+    uninit_fields: &mut HashSet<Place>,
+    kind: &InstructionKind,
+) {
     match kind {
         InstructionKind::StorageLive(l) | InstructionKind::StorageDead(l) => {
             state[l.index()] = Init::UNINIT;
+            uninit_fields.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(*l));
             return;
         }
         InstructionKind::ScopeEnter(_) | InstructionKind::ScopeExit { .. } => return,
@@ -55,27 +60,69 @@ fn step_instruction(state: &mut [Init], kind: &InstructionKind) {
         | InstructionKind::RegisterDefer { .. } => {}
     }
     for a in kind.accesses() {
-        let Some(l) = a.place.as_local() else {
-            continue;
-        };
-        match a.access {
-            PlaceAccess::Move | PlaceAccess::Drop => state[l.index()] = Init::UNINIT,
-            PlaceAccess::Init => state[l.index()] = Init::INIT,
-            PlaceAccess::Copy
-            | PlaceAccess::Borrow(_)
-            | PlaceAccess::Describe
-            | PlaceAccess::ReplaceInstance
-            | PlaceAccess::InspectTag
-            | PlaceAccess::InspectLen
-            | PlaceAccess::CallClosure(_) => {}
+        if let Some(l) = a.place.as_local() {
+            match a.access {
+                PlaceAccess::Move | PlaceAccess::Drop => {
+                    state[l.index()] = Init::UNINIT;
+                    uninit_fields.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
+                }
+                PlaceAccess::Init => {
+                    state[l.index()] = Init::INIT;
+                    uninit_fields.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
+                }
+                PlaceAccess::Copy
+                | PlaceAccess::Borrow(_)
+                | PlaceAccess::Describe
+                | PlaceAccess::ReplaceInstance
+                | PlaceAccess::InspectTag
+                | PlaceAccess::InspectLen
+                | PlaceAccess::CallClosure(_) => {}
+            }
+        } else {
+            match a.access {
+                PlaceAccess::Move
+                | PlaceAccess::Drop
+                | PlaceAccess::CallClosure(zil_ir::body::ClosureCallMode::Once) => {
+                    if let (
+                        zil_ir::body::PlaceRoot::Local(l),
+                        [zil_ir::body::Projection::ErrorArm(_)],
+                    ) = (a.place.root, a.place.projections.as_slice())
+                    {
+                        state[l.index()] = Init::UNINIT;
+                    }
+                    uninit_fields.insert(a.place.as_ref().clone());
+                }
+                PlaceAccess::Init | PlaceAccess::ReplaceInstance => {
+                    uninit_fields.remove(a.place.as_ref());
+                }
+                PlaceAccess::Copy
+                | PlaceAccess::Borrow(_)
+                | PlaceAccess::Describe
+                | PlaceAccess::InspectTag
+                | PlaceAccess::InspectLen
+                | PlaceAccess::CallClosure(
+                    zil_ir::body::ClosureCallMode::Shared | zil_ir::body::ClosureCallMode::Mut,
+                ) => {}
+            }
         }
     }
 }
 
-fn step_terminator(state: &mut [Init], term: &Terminator) {
+fn step_terminator(state: &mut [Init], uninit_fields: &mut HashSet<Place>, term: &Terminator) {
     for a in term.accesses() {
-        if let (PlaceAccess::Move, Some(l)) = (a.access, a.place.as_local()) {
-            state[l.index()] = Init::UNINIT;
+        if let Some(l) = a.place.as_local() {
+            if matches!(
+                a.access,
+                PlaceAccess::Move | PlaceAccess::CallClosure(zil_ir::body::ClosureCallMode::Once)
+            ) {
+                state[l.index()] = Init::UNINIT;
+                uninit_fields.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
+            }
+        } else if matches!(
+            a.access,
+            PlaceAccess::Move | PlaceAccess::CallClosure(zil_ir::body::ClosureCallMode::Once)
+        ) {
+            uninit_fields.insert(a.place.as_ref().clone());
         }
     }
 }
@@ -98,40 +145,42 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
     let n_locals = body.locals.len();
     let n_blocks = body.blocks.len();
 
-    // 1. Forward dataflow: maybe_init / maybe_uninit per local.
-    let mut entry: Vec<Option<Vec<Init>>> = vec![None; n_blocks];
+    // 1. Forward dataflow: maybe_init / maybe_uninit per local + must-uninit fields.
+    let mut entry: Vec<Option<(Vec<Init>, HashSet<Place>)>> = vec![None; n_blocks];
     let mut init0 = vec![Init::UNINIT; n_locals];
     for slot in init0.iter_mut().take(body.param_count as usize) {
         *slot = Init::INIT;
     }
-    entry[0] = Some(init0);
+    entry[0] = Some((init0, HashSet::new()));
     let mut queue = VecDeque::from([BlockId(0)]);
     let mut queued = vec![false; n_blocks];
     queued[0] = true;
 
     while let Some(b) = queue.pop_front() {
         queued[b.index()] = false;
-        let Some(mut state) = entry[b.index()].clone() else {
+        let Some((mut state, mut ufields)) = entry[b.index()].clone() else {
             continue;
         };
         let block = &body.blocks[b.index()];
         for inst in &block.instructions {
-            step_instruction(&mut state, &inst.kind);
+            step_instruction(&mut state, &mut ufields, &inst.kind);
         }
-        step_terminator(&mut state, &block.terminator);
+        step_terminator(&mut state, &mut ufields, &block.terminator);
         for (edge_kind, target) in block.terminator.edges() {
             let mut s = state.clone();
+            let mut uf = ufields.clone();
             for a in block.terminator.edge_accesses(edge_kind) {
                 if let (PlaceAccess::Init, Some(l)) = (a.access, a.place.as_local()) {
                     s[l.index()] = Init::INIT;
+                    uf.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
                 }
             }
             let changed = match &mut entry[target.index()] {
                 None => {
-                    entry[target.index()] = Some(s);
+                    entry[target.index()] = Some((s, uf));
                     true
                 }
-                Some(old) => {
+                Some((old, old_uf)) => {
                     let mut diff = false;
                     for (o, n) in old.iter_mut().zip(&s) {
                         let j = o.join(*n);
@@ -139,6 +188,11 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                             *o = j;
                             diff = true;
                         }
+                    }
+                    let before_len = old_uf.len();
+                    old_uf.retain(|p| uf.contains(p));
+                    if old_uf.len() != before_len {
+                        diff = true;
                     }
                     diff
                 }
@@ -154,12 +208,18 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
     //    at some reachable auto-drop point).
     let mut flagged: HashMap<Local, Local> = HashMap::new();
     let mut per_point: HashMap<(BlockId, usize), Init> = HashMap::new();
+    let mut replace_to_assign: HashSet<(BlockId, usize)> = HashSet::new();
     for (b_idx, block) in body.blocks.iter().enumerate() {
-        let Some(mut state) = entry[b_idx].clone() else {
+        let Some((mut state, mut ufields)) = entry[b_idx].clone() else {
             continue;
         };
         let bid = BlockId::from_index(b_idx);
         for (i, inst) in block.instructions.iter().enumerate() {
+            if let InstructionKind::Replace { place, .. } = &inst.kind
+                && ufields.contains(place)
+            {
+                replace_to_assign.insert((bid, i));
+            }
             if auto_drops.contains(&(bid, i))
                 && let InstructionKind::Drop { place } = &inst.kind
                 && let Some(l) = place.as_local()
@@ -180,7 +240,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     flagged.insert(l, flag);
                 }
             }
-            step_instruction(&mut state, &inst.kind);
+            step_instruction(&mut state, &mut ufields, &inst.kind);
         }
     }
 
@@ -239,8 +299,27 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
             }
         };
 
+        let mut skip_drop_old: Option<Local> = None;
         for (i, inst) in orig.instructions.into_iter().enumerate() {
             let span = inst.span;
+            if let Some(old_l) = skip_drop_old.take()
+                && matches!(&inst.kind, InstructionKind::Drop { place } if place.as_local() == Some(old_l))
+            {
+                continue;
+            }
+            if replace_to_assign.contains(&(bid, i))
+                && let InstructionKind::Replace { place, value, old } = inst.kind
+            {
+                skip_drop_old = Some(old);
+                cur_insts.push(Instruction {
+                    kind: InstructionKind::Assign {
+                        dest: place,
+                        value: Rvalue::Use(value),
+                    },
+                    span,
+                });
+                continue;
+            }
             if let Some(&st) = per_point.get(&(bid, i)) {
                 let InstructionKind::Drop { place } = &inst.kind else {
                     cur_insts.push(inst);

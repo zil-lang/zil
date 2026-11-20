@@ -890,3 +890,36 @@ fn full_mainline_generic_callbacks_example_is_admitted_end_to_end() {
         }
     );
 }
+
+// ---- state-replacement (generic packages, partial move + refill, ? unwind) -
+
+#[test]
+fn full_mainline_state_replacement_example_is_admitted_end_to_end() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            (
+                "portable",
+                include_str!("../../../examples/mainline/state-replacement/portable.zil"),
+            ),
+            (
+                "store_helpers",
+                include_str!("../../../examples/mainline/state-replacement/store_helpers.zil"),
+            ),
+            (
+                "factory",
+                include_str!("../../../examples/mainline/state-replacement/factory.zil"),
+            ),
+            (
+                "state",
+                include_str!("../../../examples/mainline/state-replacement/state.zil"),
+            ),
+            (
+                "main",
+                include_str!("../../../examples/mainline/state-replacement/main.zil"),
+            ),
+        ],
+        None,
+    )
+    .expect("state-replacement lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}
