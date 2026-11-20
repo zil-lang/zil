@@ -192,6 +192,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zil-interp"
+version = "0.1.0"
+dependencies = [
+ "zil-base",
+ "zil-check",
+ "zil-ir",
+ "zil-solve",
+]
+
+[[package]]
 name = "zil-ir"
 version = "0.1.0"
 dependencies = [

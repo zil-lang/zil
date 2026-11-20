@@ -61,6 +61,12 @@
       "zil-verify",
       "zil-check"
     ],
+    "zil-interp": [
+      "zil-base",
+      "zil-ir",
+      "zil-check",
+      "zil-solve"
+    ],
     "zil-lower": [
       "zil-base",
       "zil-ir",

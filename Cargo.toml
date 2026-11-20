@@ -18,6 +18,7 @@ members = [
   "crates/zil-llvm-api",
   "crates/zil-db",
   "crates/zil-ct",
+  "crates/zil-interp",
   "crates/zil-driver",
   "crates/zil-cli",
   "crates/zil-ide",
@@ -47,6 +48,7 @@ zil-backend-llvm = { path = "crates/zil-backend-llvm" }
 zil-llvm-api = { path = "crates/zil-llvm-api" }
 zil-db = { path = "crates/zil-db" }
 zil-ct = { path = "crates/zil-ct" }
+zil-interp = { path = "crates/zil-interp" }
 zil-driver = { path = "crates/zil-driver" }
 zil-cli = { path = "crates/zil-cli" }
 zil-ide = { path = "crates/zil-ide" }
