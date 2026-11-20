@@ -386,6 +386,16 @@ pub struct LocalDecl {
     pub name: Option<String>,
 }
 
+/// A declared drop flag: the `Bool` local `flag` may be proved to equal
+/// "`place` is fully initialized" (`spec/semantic-kernel.md` §5). The
+/// declaration grants nothing; the kernel establishes and checks the
+/// correlation. `place` is inline (no `Deref`/`Index`) local storage.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct DropFlag {
+    pub flag: Local,
+    pub place: Place,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Body {
     /// Parameters are locals `0..param_count`, initialized on entry.
@@ -396,6 +406,8 @@ pub struct Body {
     pub closure: Option<ClosureId>,
     pub result: TyId,
     pub param_env: ParamEnv,
+    /// Each flag local appears at most once.
+    pub drop_flags: Vec<DropFlag>,
     /// `blocks[0]` is the entry.
     pub blocks: Vec<Block>,
 }

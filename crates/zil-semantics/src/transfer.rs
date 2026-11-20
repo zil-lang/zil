@@ -10,8 +10,8 @@ use crate::state::{Carries, InitState, MustFacts, State};
 use zil_ir::body::{
     Access, AdtKind, AggregateKind, BlockId, Body, ClosureKind, ConstraintCx, ConstraintError,
     EdgeKind, FieldIdx, FieldRef, FnSig, InitClaim, InstructionKind, Local, OpLocation, Operand,
-    Place, PlaceAccess, PlaceRelation, PlaceRoot, Projection, Rvalue, Terminator, TyKind, TyTable,
-    check_instruction, check_terminator, type_place,
+    Place, PlaceAccess, PlaceRelation, PlaceRoot, PlaceTypes, Projection, Rvalue, Terminator,
+    TyKind, TyTable, check_instruction, check_terminator, type_place,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -61,6 +61,11 @@ pub enum ViolationKind {
     },
     /// The operation has no transition rule yet; rejected explicitly.
     Unspecified(&'static str),
+    /// A malformed drop-flag declaration.
+    DropFlagDecl {
+        flag: Local,
+        reason: &'static str,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -161,7 +166,56 @@ impl<'a> Kernel<'a> {
                 kind: ViolationKind::Constraint(e),
             })?;
         }
+        self.check_drop_flags().map_err(|kind| Violation {
+            at: OpLocation {
+                block: BlockId(0),
+                instruction: None,
+            },
+            kind,
+        })
+    }
+
+    fn check_drop_flags(&self) -> Result<(), ViolationKind> {
+        let cx = self.body.cx(self.tys);
+        for (i, decl) in self.body.drop_flags.iter().enumerate() {
+            let bad = |reason| ViolationKind::DropFlagDecl {
+                flag: decl.flag,
+                reason,
+            };
+            let ty = cx.local_ty(decl.flag).ok_or(bad("unknown flag local"))?;
+            if !matches!(self.tys.get(ty), Some(TyKind::Bool)) {
+                return Err(bad("flag is not Bool"));
+            }
+            if self.body.is_param(decl.flag) {
+                return Err(bad("flag is a parameter"));
+            }
+            if self.body.drop_flags[..i]
+                .iter()
+                .any(|d| d.flag == decl.flag)
+            {
+                return Err(bad("flag declared twice"));
+            }
+            let PlaceRoot::Local(root) = decl.place.root else {
+                return Err(bad("flagged place is not local storage"));
+            };
+            if root == decl.flag {
+                return Err(bad("flag guards itself"));
+            }
+            if tracked_len(&decl.place) != decl.place.projections.len() {
+                return Err(bad("flagged place is not inline"));
+            }
+            type_place(&decl.place, &cx).map_err(|_| bad("flagged place is ill-typed"))?;
+        }
         Ok(())
+    }
+
+    /// The flag declared for `flag`, if any.
+    fn declared_flag(&self, flag: Local) -> Option<&Place> {
+        self.body
+            .drop_flags
+            .iter()
+            .find(|d| d.flag == flag)
+            .map(|d| &d.place)
     }
 
     /// State on function entry: parameters and captures initialized.
@@ -187,6 +241,7 @@ impl<'a> Kernel<'a> {
             init,
             variants: MustFacts::default(),
             tags: MustFacts::default(),
+            flags: MustFacts::default(),
             carries,
         };
         self.prune(&mut state, &self.live.entry(BlockId(0)).clone());
@@ -258,6 +313,9 @@ impl<'a> Kernel<'a> {
                         state.tags.insert(d, q.clone());
                     }
                 }
+                Rvalue::Use(Operand::Const(zil_ir::body::ConstValue::Bool(set))) => {
+                    self.establish_flag(state, dest, *set);
+                }
                 Rvalue::Use(_)
                 | Rvalue::Ref { .. }
                 | Rvalue::Describe { .. }
@@ -289,6 +347,19 @@ impl<'a> Kernel<'a> {
                 discr: Operand::Copy(p) | Operand::Move(p),
                 ..
             } => p.as_local().and_then(|d| state.tags.get(&d).cloned()),
+            Terminator::Switch { .. }
+            | Terminator::Goto { .. }
+            | Terminator::Return { .. }
+            | Terminator::Call { .. }
+            | Terminator::Assert { .. }
+            | Terminator::Unreachable
+            | Terminator::Trap(_) => None,
+        };
+        let discr_flag = match term {
+            Terminator::Switch {
+                discr: Operand::Copy(p) | Operand::Move(p),
+                ..
+            } => p.as_local().and_then(|d| state.flags.get(&d).cloned()),
             Terminator::Switch { .. }
             | Terminator::Goto { .. }
             | Terminator::Return { .. }
@@ -351,6 +422,9 @@ impl<'a> Kernel<'a> {
             self.apply_edge_flows(&mut s, term, kind, &flows)
                 .map_err(fail)?;
             self.prune(&mut s, &self.live.entry(target).clone());
+            if let (Some(q), Terminator::Switch { arms, .. }) = (&discr_flag, term) {
+                self.refine_by_flag(&mut s, q, arms, kind);
+            }
             let feasible = match (&discr_tag, kind) {
                 (Some(q), EdgeKind::SwitchArm(v)) => {
                     let v = u32::try_from(v).ok();
@@ -521,9 +595,10 @@ impl<'a> Kernel<'a> {
         Ok(())
     }
 
-    /// Removes facts a write/move of `written` may falsify. Facts about a
-    /// strict sub-place's container survive: writing a payload field does
-    /// not change its container's tag.
+    /// Removes facts a write/move of `written` (or a writing loan of it) may
+    /// falsify. Facts about a strict sub-place's container survive: writing
+    /// a payload field does not change its container's tag. Facts keyed by a
+    /// local (tags, flags) die with any write into that local.
     pub(crate) fn invalidate(&self, state: &mut State, written: &Place) {
         let stale = |p: &Place| {
             !matches!(
@@ -531,8 +606,13 @@ impl<'a> Kernel<'a> {
                 PlaceRelation::Disjoint | PlaceRelation::ContainedBy
             )
         };
+        let key_written = |l: &Local| written.root == PlaceRoot::Local(*l);
         state.variants.retain(|p, _| !stale(p));
-        state.tags.retain(|_, p| !stale(p));
+        state.tags.retain(|l, p| !stale(p) && !key_written(l));
+        // Any change inside a flagged place changes its initialization.
+        state
+            .flags
+            .retain(|l, p| written.relation(p) == PlaceRelation::Disjoint && !key_written(l));
     }
 
     fn invalidate_root(&self, state: &mut State, root: PlaceRoot) {
@@ -540,6 +620,62 @@ impl<'a> Kernel<'a> {
         state
             .tags
             .retain(|l, p| p.root != root && PlaceRoot::Local(*l) != root);
+        state
+            .flags
+            .retain(|l, p| p.root != root && PlaceRoot::Local(*l) != root);
+    }
+
+    /// After `flag = set`: if `flag` is declared for a place whose whole
+    /// subtree is definitely in the state `set` names, the two are equal.
+    fn establish_flag(&self, state: &mut State, dest: &Place, set: bool) {
+        let Some(flag) = dest.as_local() else { return };
+        let Some(place) = self.declared_flag(flag) else {
+            return;
+        };
+        let Some(path) = self.paths.lookup(place) else {
+            return;
+        };
+        let holds = if set {
+            state.init.subtree_definitely_init(&self.paths, path)
+        } else {
+            state.init.subtree_definitely_uninit(&self.paths, path)
+        };
+        if holds {
+            state.flags.insert(flag, place.clone());
+        }
+    }
+
+    /// On a switch over a flag known to equal "`place` is initialized", each
+    /// edge whose flag value is fixed fixes the initialization of `place`.
+    fn refine_by_flag(
+        &self,
+        state: &mut State,
+        place: &Place,
+        arms: &[(u128, BlockId)],
+        kind: EdgeKind,
+    ) {
+        let value = match kind {
+            EdgeKind::SwitchArm(v) => Some(v),
+            EdgeKind::SwitchOtherwise => {
+                let covered = |v: u128| arms.iter().any(|(a, _)| *a == v);
+                match (covered(0), covered(1)) {
+                    (true, false) => Some(1),
+                    (false, true) => Some(0),
+                    (true, true) | (false, false) => None,
+                }
+            }
+            EdgeKind::Goto | EdgeKind::CallReturn | EdgeKind::CallCancel | EdgeKind::AssertOk => {
+                None
+            }
+        };
+        let Some(path) = self.paths.lookup(place) else {
+            return;
+        };
+        match value {
+            Some(0) => state.init.set_subtree(&self.paths, path, InitClaim::Uninit),
+            Some(1) => state.init.set_subtree(&self.paths, path, InitClaim::Init),
+            Some(_) | None => {}
+        }
     }
 
     fn root_path(&self, local: Local) -> Result<PathId, ViolationKind> {

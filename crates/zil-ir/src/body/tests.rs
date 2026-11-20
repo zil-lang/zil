@@ -131,6 +131,7 @@ fn body(locals: &[TyId], params: u32, result: TyId, blocks: Vec<Block>) -> Body 
         closure: None,
         result,
         param_env: ParamEnv::default(),
+        drop_flags: Vec::new(),
         blocks,
     }
 }

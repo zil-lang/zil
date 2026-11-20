@@ -55,6 +55,9 @@ impl MovePaths {
         for i in 0..body.captures.len() {
             add(&Place::capture(i as u32));
         }
+        for decl in &body.drop_flags {
+            add(&decl.place);
+        }
         for block in &body.blocks {
             for inst in &block.instructions {
                 for a in inst.kind.accesses() {

@@ -57,6 +57,14 @@ pub struct TagClaim {
     pub place: Place,
 }
 
+/// The declared drop flag `flag` equals "`place` is fully initialized" on
+/// every path. Must name a declaration of the body.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FlagClaim {
+    pub flag: Local,
+    pub place: Place,
+}
+
 /// Entry invariant of one block.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockInvariant {
@@ -64,6 +72,7 @@ pub struct BlockInvariant {
     pub init: Vec<PlaceInit>,
     pub variants: Vec<VariantClaim>,
     pub tags: Vec<TagClaim>,
+    pub flags: Vec<FlagClaim>,
     pub loans: Vec<LoanClaim>,
 }
 

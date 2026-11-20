@@ -109,6 +109,7 @@ impl<'c, 'a> Mono<'c, 'a> {
                 closure: None,
                 result,
                 param_env: ParamEnv::default(),
+                drop_flags: Vec::new(),
                 blocks: Vec::new(),
             },
         });
@@ -497,6 +498,7 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             closure: None,
             result: self.sig.result,
             param_env: ParamEnv::default(),
+            drop_flags: Vec::new(),
             blocks,
         }
     }

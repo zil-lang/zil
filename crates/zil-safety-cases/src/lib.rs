@@ -129,6 +129,7 @@ pub struct FnBuilder {
     result: TyId,
     blocks: Vec<Option<Block>>,
     pending: Vec<Vec<Instruction>>,
+    drop_flags: Vec<DropFlag>,
 }
 
 impl FnBuilder {
@@ -143,10 +144,15 @@ impl FnBuilder {
             result,
             blocks: Vec::new(),
             pending: Vec::new(),
+            drop_flags: Vec::new(),
         }
     }
     pub fn param(&self, i: u32) -> Local {
         Local(i)
+    }
+    /// Declares `flag` as the drop flag of `place`.
+    pub fn drop_flag(&mut self, flag: Local, place: Place) {
+        self.drop_flags.push(DropFlag { flag, place });
     }
     pub fn local(&mut self, ty: TyId) -> Local {
         self.locals.push(LocalDecl { ty, name: None });
@@ -195,6 +201,7 @@ impl FnBuilder {
                 closure: None,
                 result: self.result,
                 param_env: ParamEnv::default(),
+                drop_flags: self.drop_flags,
                 blocks,
             },
         }

@@ -230,6 +230,8 @@ pub struct State {
     pub variants: MustFacts<Place, u32>,
     /// `local` holds the unchanged tag of `place`.
     pub tags: MustFacts<Local, Place>,
+    /// The declared drop flag `local` equals "`place` is fully initialized".
+    pub flags: MustFacts<Local, Place>,
     /// Loans each local may keep alive.
     pub carries: Carries,
 }
@@ -242,6 +244,7 @@ impl State {
             init: InitState::top(paths),
             variants: MustFacts::default(),
             tags: MustFacts::default(),
+            flags: MustFacts::default(),
             carries: Carries::empty(locals, loans),
         }
     }
@@ -250,6 +253,7 @@ impl State {
         self.init.maybe_uninit.union_with(&other.init.maybe_uninit);
         self.variants.meet_with(&other.variants);
         self.tags.meet_with(&other.tags);
+        self.flags.meet_with(&other.flags);
         self.carries.join_with(&other.carries);
     }
     /// `self ⊑ other`.
@@ -258,6 +262,7 @@ impl State {
             && self.init.maybe_uninit.is_subset(&other.init.maybe_uninit)
             && self.variants.covers(&other.variants)
             && self.tags.covers(&other.tags)
+            && self.flags.covers(&other.flags)
             && self.carries.leq(&other.carries)
     }
 }

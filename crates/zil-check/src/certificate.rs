@@ -83,7 +83,13 @@ pub fn check_function(
         if invariant[inv.block.index()].is_some() {
             return Err(err(CheckErrorKind::DuplicateInvariant(inv.block)));
         }
-        charge((inv.init.len() + inv.variants.len() + inv.tags.len() + inv.loans.len()) as u64)?;
+        charge(
+            (inv.init.len()
+                + inv.variants.len()
+                + inv.tags.len()
+                + inv.flags.len()
+                + inv.loans.len()) as u64,
+        )?;
         let mut state = State::claims_base(&kernel.paths, body.locals.len(), kernel.loans.len());
         for claim in &inv.loans {
             if claim.holder.index() >= body.locals.len() {
@@ -119,6 +125,18 @@ pub fn check_function(
                 .ok_or(err(CheckErrorKind::UnknownPlace))?;
             type_place(&t.place, &cx).map_err(|_| err(CheckErrorKind::UnknownPlace))?;
             state.tags.insert(t.local, t.place.clone());
+        }
+        for f in &inv.flags {
+            // A flag claim must restate a declaration; the declaration is
+            // validated by the structure check, the claim by the edges.
+            if !body
+                .drop_flags
+                .iter()
+                .any(|d| d.flag == f.flag && d.place == f.place)
+            {
+                return Err(err(CheckErrorKind::UnknownPlace));
+            }
+            state.flags.insert(f.flag, f.place.clone());
         }
         invariant[inv.block.index()] = Some(state);
     }
