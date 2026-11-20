@@ -6,10 +6,11 @@
     "spec/grammar.ebnf": "baa5f366344cb0301cbe7137b9aab2ad6873580edb5ab47bbdb0384024be016a",
     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
     "spec/diagnostics.json": "954750fbc370f710e4c8a8ef428838181b32558c8b7db3d4aaa57c873674dc38",
-    "spec/interfaces.json": "1737c5a58d3b22851c03f5ecda58d21a5264c0beb42f6fc7dd2a9ebc43958cd7",
+    "spec/interfaces.json": "710b936a7af6910fd746b8adaed573788eb684e7c8f20b71ffa7906c7ea8ae40",
     "policy/dependencies.json": "96e4cc79c0313665f9f6dc8d62939b7ab1717c6796d1e9db3bf5e69a1f0bf375",
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
-    "spec/semantic-kernel.md": "22d7a401da7c485f641a1078cc238746185836778e3cfb2ed57a34cb802c3385"
+    "spec/semantic-kernel.md": "22d7a401da7c485f641a1078cc238746185836778e3cfb2ed57a34cb802c3385",
+    "spec/source-lowering.md": "acccb3801fdae5fa53ff5f38220bddfc27f5a70f76a48586a8cd0c0ac124008c"
   },
-  "normative_hash": "3c5bb1f6a30068aade2f7e29d010dd2c05f00dc731cb766f4b20f19190348d61"
+  "normative_hash": "4b05a69d9bf8cf826f30e518516f63790be1ef74803b43fc1fcdebe79c5d2eb9"
 }

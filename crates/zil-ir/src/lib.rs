@@ -1,4 +1,11 @@
 #![forbid(unsafe_code)]
+// Legacy schema modules predate Rust 1.100 lints; `body` re-enables them.
+#![allow(
+    clippy::result_large_err,
+    clippy::deref_addrof,
+    clippy::large_enum_variant,
+    clippy::manual_is_multiple_of
+)]
 
 //! Public, untrusted compiler schemas. Constructing these records never grants
 //! safety authority. Only `zil-verify` can produce an immutable verified wrapper.

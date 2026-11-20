@@ -10,6 +10,12 @@
 //! wildcard arms so that adding a variant is a compile error at every
 //! consumer inside `zil-ir`; downstream crates carry the same lint.
 #![deny(clippy::wildcard_enum_match_arm)]
+#![warn(
+    clippy::result_large_err,
+    clippy::deref_addrof,
+    clippy::large_enum_variant,
+    clippy::manual_is_multiple_of
+)]
 
 mod cert;
 mod ids;

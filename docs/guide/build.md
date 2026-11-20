@@ -111,6 +111,8 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
   --clang "$ZIL_CLANG" --out out/api-consumer-new --source-commit <交付提交>
 ```
 
+lint 与格式范围：新管线 crate（`zil-semantics`、`zil-solve`、`zil-check`、`zil-typeck`、`zil-safety-cases` 及 `zil-ir::body`）执行工作区 lint 与 `cargo fmt` 全量检查。待删除的冻结 crate（`zil-types`、`zil-expand`、`zil-analyze`、`zil-verify`、`zil-ct`）和待移植的 `zil-driver`、`zil-backend-llvm` 在各自 `Cargo.toml` 中显式放行 Rust 1.100 新增 lint，只保留 `unsafe_code = "forbid"`；这些 crate 的格式不做整体重排，`fmt --check` 只对新管线 crate 执行：`cargo fmt -p zil-semantics -p zil-solve -p zil-check -p zil-safety-cases -- --check` 加 `rustfmt --edition 2024 --check crates/zil-ir/src/body/*.rs`。移植完成后恢复 `[lints] workspace = true`。
+
 `--out`必须不存在；无Git源码快照用交付清单提供的提交身份，该身份不冒充现场Git查询。消费者探针包装的是API生成的对象，不把旁置`.ll`重新用Clang编译。
 
 `tools/research/compiler-differential/differential.py` 对登记的编译入口做 O0/O2、单/多 CGU 原生差分；`no-parser.c` 是旧文本解析路径的失败正控制。测完整构建时冻结二进制和工作负载，分别保留首次失败和修正后结果。

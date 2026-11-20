@@ -1,4 +1,7 @@
 #![forbid(unsafe_code)]
+// `Diagnostic` is the shared error record; boxing it per query would change the
+// cross-crate error contract, so the size lint is accepted here.
+#![allow(clippy::result_large_err)]
 //! Query metadata and untrusted disk artifacts. Neither content hashes nor
 //! cached bytes can manufacture a verifier capability.
 

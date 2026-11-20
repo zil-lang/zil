@@ -25,7 +25,7 @@ for c in cases:
         d['phases']=sorted(set(d['phases']+[c['phase']]))
         d['requirements']=sorted(set(d['requirements']+c['requirements']))
 dump('spec/diagnostics.json',{'schema_version':1,'purpose':'Explicit stable diagnostic registry enriched by conformance mappings; safety meaning is defined only by normative rule IDs','entries':sorted(diagnostics.values(),key=lambda d:d['code'])})
-inputs=['_zil_design.md','spec/grammar.ebnf','spec/attributes.json','spec/diagnostics.json','spec/interfaces.json','policy/dependencies.json','validation/product-gates.json','spec/semantic-kernel.md']
+inputs=['_zil_design.md','spec/grammar.ebnf','spec/attributes.json','spec/diagnostics.json','spec/interfaces.json','policy/dependencies.json','validation/product-gates.json','spec/semantic-kernel.md','spec/source-lowering.md']
 files={p:sha(p) for p in inputs}
 canonical=''.join(p+'\0'+h+'\n' for p,h in sorted(files.items()))
 bundle=hashlib.sha256(canonical.encode()).hexdigest()

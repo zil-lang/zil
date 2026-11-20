@@ -5,8 +5,20 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
-[lints]
-workspace = true
+# Legacy crate pending port to the body IR / VerifiedModule pipeline. Lints
+# introduced by Rust 1.100 are not retrofitted to the legacy code; the port
+# restores the workspace lint set (docs/guide/build.md lint scope).
+[lints.rust]
+unsafe_code = "forbid"
+unused = { level = "allow", priority = -1 }
+dead_code = "allow"
+unreachable_patterns = "allow"
+private_interfaces = "allow"
+non_shorthand_field_patterns = "allow"
+deprecated = "allow"
+
+[lints.clippy]
+all = { level = "allow", priority = -1 }
 
 [dependencies]
 zil-base.workspace = true

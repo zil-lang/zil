@@ -11,7 +11,8 @@
     "spec/interfaces.json",
     "spec/diagnostics.json",
     "spec/semantic-scopes.md",
-    "spec/semantic-kernel.md"
+    "spec/semantic-kernel.md",
+    "spec/source-lowering.md"
   ],
   "independence_interpretation": "Per-record independence text means Verify does not trust candidate conclusions and checks every certificate obligation (spec/semantic-kernel.md section 6) using the single OpSpec and semantic kernel; it does not require a second implementation of the same rule.",
   "normative_hash_algorithm": "SHA256 of concatenated sorted path + NUL + SHA256(file bytes) + LF, UTF-8. spec_hash separately hashes _zil_design.md bytes.",

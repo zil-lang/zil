@@ -159,6 +159,8 @@ pub struct DynBinding {
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq)]
+// Variants are parser output consumed once; boxing would ripple through the parser.
+#[allow(clippy::large_enum_variant)]
 pub enum DynBindingKind {
     Type {
         member: Vec<String>,
