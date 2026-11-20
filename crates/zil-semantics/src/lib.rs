@@ -8,12 +8,15 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::wildcard_enum_match_arm)]
 
+mod borrow;
+mod loans;
 mod paths;
 mod state;
 mod transfer;
 
+pub use loans::{EXTERNAL, Liveness, Loan, LoanKind, LoanTable};
 pub use paths::{MovePaths, PathId, tracked_len};
-pub use state::{BitSet, InitState, MustFacts, State};
+pub use state::{BitSet, Carries, InitState, MustFacts, State};
 pub use transfer::{Kernel, Successor, Violation, ViolationKind};
 
 /// Reference to the base crate keeps spans available to violation

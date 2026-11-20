@@ -7,7 +7,7 @@
 
 use super::ids::{BlockId, FnId, Local};
 use super::place::Place;
-use super::ty::{Mutability, Region};
+use super::source_map::OpLocation;
 
 /// Initialization claim of one place at a block entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -24,12 +24,22 @@ pub struct PlaceInit {
     pub state: InitClaim,
 }
 
-/// A live address window claimed at a block entry.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// The creation site of a loan. Loan places and kinds are derived by the
+/// checker from the IR at the site; a claim cannot restate them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LoanOrigin {
+    /// Storage outside this body (parameters, captures, their pointees).
+    External,
+    /// The `Ref`/`Describe` assignment at this location.
+    At(OpLocation),
+}
+
+/// `holder` may carry the loan created at `origin` (a may-fact: the checker
+/// requires every carried loan to be claimed).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LoanClaim {
-    pub place: Place,
-    pub mutability: Mutability,
-    pub region: Region,
+    pub holder: Local,
+    pub origin: LoanOrigin,
 }
 
 /// The active variant (Enum) or arm (error union: 1 = success) of a place

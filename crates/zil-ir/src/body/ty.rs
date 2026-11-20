@@ -559,6 +559,134 @@ impl TyTable {
             ),
         }
     }
+
+    /// Whether a value of `ty` may contain an address or descriptor, i.e.
+    /// may keep a loan alive. Unknown structure (parameters, opaque and
+    /// erased types, uninterned substitutions) answers `true`.
+    pub fn holds_address(&self, ty: TyId) -> bool {
+        let mut visiting = Vec::new();
+        self.holds_address_in(ty, &mut visiting)
+    }
+
+    fn holds_address_in(&self, ty: TyId, visiting: &mut Vec<TyId>) -> bool {
+        if visiting.contains(&ty) {
+            // A recursive occurrence adds nothing beyond its other fields.
+            return false;
+        }
+        let Some(kind) = self.get(ty) else {
+            return true;
+        };
+        visiting.push(ty);
+        let result = match kind {
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. } => false,
+            TyKind::Ref { .. } | TyKind::Desc(_) => true,
+            TyKind::Dyn(_)
+            | TyKind::OwnedDyn(_)
+            | TyKind::Param(_)
+            | TyKind::Opaque(_)
+            | TyKind::Closure { .. } => true,
+            TyKind::Tuple(items) => items.iter().any(|t| self.holds_address_in(*t, visiting)),
+            TyKind::Array { element, .. } | TyKind::Slice(element) | TyKind::Managed(element) => {
+                self.holds_address_in(*element, visiting)
+            }
+            TyKind::ErrorUnion { ok, err } => {
+                self.holds_address_in(*ok, visiting) || self.holds_address_in(*err, visiting)
+            }
+            TyKind::Adt { adt, args } => match self.get_adt(*adt) {
+                None => true,
+                Some(def) => def.variants.iter().enumerate().any(|(v, variant)| {
+                    (0..variant.fields.len()).any(|f| {
+                        match self.field_ty(
+                            *adt,
+                            VariantIdx::from_index(v),
+                            FieldIdx::from_index(f),
+                            *args,
+                        ) {
+                            Some(t) => self.holds_address_in(t, visiting),
+                            None => true,
+                        }
+                    })
+                }),
+            },
+        };
+        visiting.pop();
+        result
+    }
+
+    /// Whether a value of `ty` grants write access to storage that may hold
+    /// addresses (so a callee receiving it can store a loan there).
+    /// Unknown structure answers `true`.
+    pub fn may_store_address(&self, ty: TyId) -> bool {
+        let mut visiting = Vec::new();
+        self.may_store_address_in(ty, &mut visiting)
+    }
+
+    fn may_store_address_in(&self, ty: TyId, visiting: &mut Vec<TyId>) -> bool {
+        if visiting.contains(&ty) {
+            return false;
+        }
+        let Some(kind) = self.get(ty) else {
+            return true;
+        };
+        visiting.push(ty);
+        let result = match kind {
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. } => false,
+            TyKind::Dyn(_)
+            | TyKind::OwnedDyn(_)
+            | TyKind::Param(_)
+            | TyKind::Opaque(_)
+            | TyKind::Closure { .. } => true,
+            TyKind::Ref {
+                mutability: Mutability::Exclusive,
+                pointee,
+                ..
+            } => self.holds_address(*pointee) || self.may_store_address_in(*pointee, visiting),
+            TyKind::Ref {
+                mutability: Mutability::Shared,
+                pointee,
+                ..
+            } => self.may_store_address_in(*pointee, visiting),
+            TyKind::Desc(payload) => self.holds_address(*payload),
+            TyKind::Tuple(items) => items
+                .iter()
+                .any(|t| self.may_store_address_in(*t, visiting)),
+            TyKind::Array { element, .. } | TyKind::Slice(element) | TyKind::Managed(element) => {
+                self.may_store_address_in(*element, visiting)
+            }
+            TyKind::ErrorUnion { ok, err } => {
+                self.may_store_address_in(*ok, visiting)
+                    || self.may_store_address_in(*err, visiting)
+            }
+            TyKind::Adt { adt, args } => match self.get_adt(*adt) {
+                None => true,
+                Some(def) => def.variants.iter().enumerate().any(|(v, variant)| {
+                    (0..variant.fields.len()).any(|f| {
+                        match self.field_ty(
+                            *adt,
+                            VariantIdx::from_index(v),
+                            FieldIdx::from_index(f),
+                            *args,
+                        ) {
+                            Some(t) => self.may_store_address_in(t, visiting),
+                            None => true,
+                        }
+                    })
+                }),
+            },
+        };
+        visiting.pop();
+        result
+    }
 }
 
 fn subst_region(region: Region, args: &GenericArgs) -> Region {

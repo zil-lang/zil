@@ -4,8 +4,9 @@
 //! to a fixpoint; the checker applies them once per instruction and edge
 //! starting from certified invariants. Neither re-implements a rule.
 
+use crate::loans::{Liveness, LoanTable};
 use crate::paths::{MovePaths, PathId, tracked_len};
-use crate::state::{InitState, MustFacts, State};
+use crate::state::{Carries, InitState, MustFacts, State};
 use zil_ir::body::{
     Access, AdtKind, AggregateKind, BlockId, Body, ClosureKind, ConstraintCx, ConstraintError,
     EdgeKind, FieldIdx, FieldRef, FnSig, InitClaim, InstructionKind, Local, OpLocation, Operand,
@@ -45,6 +46,19 @@ pub enum ViolationKind {
     },
     /// `Unreachable` is reachable under the semantics.
     ReachableUnreachable,
+    /// The access conflicts with a live loan created at `loan`.
+    LoanConflict {
+        place: Place,
+        loan: OpLocation,
+    },
+    /// The returned value may keep a loan of this frame's storage alive.
+    ReturnsLocalBorrow {
+        loan: OpLocation,
+    },
+    /// A loan of this frame's storage may be stored where it outlives the frame.
+    EscapingLocalBorrow {
+        loan: OpLocation,
+    },
     /// The operation has no transition rule yet; rejected explicitly.
     Unspecified(&'static str),
 }
@@ -63,6 +77,8 @@ pub struct Kernel<'a> {
     pub tys: &'a TyTable,
     pub functions: &'a [FnSig],
     pub paths: MovePaths,
+    pub loans: LoanTable,
+    pub live: Liveness,
 }
 
 impl<'a> Kernel<'a> {
@@ -72,6 +88,8 @@ impl<'a> Kernel<'a> {
             tys,
             functions,
             paths: MovePaths::build(body),
+            loans: LoanTable::build(body, tys),
+            live: Liveness::compute(body),
         }
     }
 
@@ -129,11 +147,20 @@ impl<'a> Kernel<'a> {
                 init.set_subtree(&self.paths, path, InitClaim::Init);
             }
         }
-        State {
+        let mut carries = Carries::empty(self.body.locals.len(), self.loans.len());
+        for p in self.body.params() {
+            if self.local_holds_address(p) {
+                carries.set(p, self.external());
+            }
+        }
+        let mut state = State {
             init,
             variants: MustFacts::default(),
             tags: MustFacts::default(),
-        }
+            carries,
+        };
+        self.prune(&mut state, &self.live.entry(BlockId(0)).clone());
+        state
     }
 
     pub fn instruction(
@@ -146,19 +173,28 @@ impl<'a> Kernel<'a> {
         match kind {
             InstructionKind::StorageLive(l) => {
                 let path = self.root_path(*l).map_err(fail)?;
+                self.storage_conflict(state, *l).map_err(fail)?;
                 self.obligation(state, path).map_err(fail)?;
                 state.init.set_subtree(&self.paths, path, InitClaim::Uninit);
                 self.invalidate_root(state, PlaceRoot::Local(*l));
+                state.carries.clear(*l);
+                self.prune(state, &self.live.after(at).clone());
                 return Ok(());
             }
             InstructionKind::StorageDead(l) => {
                 let path = self.root_path(*l).map_err(fail)?;
+                self.storage_conflict(state, *l).map_err(fail)?;
                 self.obligation(state, path).map_err(fail)?;
                 state.init.set_subtree(&self.paths, path, InitClaim::Uninit);
                 self.invalidate_root(state, PlaceRoot::Local(*l));
+                state.carries.clear(*l);
+                self.prune(state, &self.live.after(at).clone());
                 return Ok(());
             }
-            InstructionKind::ScopeEnter(_) | InstructionKind::ScopeExit { .. } => return Ok(()),
+            InstructionKind::ScopeEnter(_) | InstructionKind::ScopeExit { .. } => {
+                self.prune(state, &self.live.after(at).clone());
+                return Ok(());
+            }
             InstructionKind::RegisterDefer { .. } => {
                 return Err(fail(ViolationKind::Unspecified(
                     "deferred cleanup registration",
@@ -168,9 +204,13 @@ impl<'a> Kernel<'a> {
             | InstructionKind::Drop { .. }
             | InstructionKind::Replace { .. } => {}
         }
+        // Loans flowing into written places are read from the state before
+        // the operation consumes its operands.
+        let flows = self.instruction_flows(state, kind, at);
         for access in kind.accesses() {
             self.access(state, &access).map_err(fail)?;
         }
+        self.apply_flows(state, flows).map_err(fail)?;
         // Facts established by the completed operation.
         if let InstructionKind::Assign { dest, value } = kind {
             match value {
@@ -201,6 +241,7 @@ impl<'a> Kernel<'a> {
                 | Rvalue::StaticUtf(_) => {}
             }
         }
+        self.prune(state, &self.live.after(at).clone());
         Ok(())
     }
 
@@ -255,9 +296,12 @@ impl<'a> Kernel<'a> {
             | Terminator::Call { .. }
             | Terminator::Assert { .. } => {}
         }
+        let flows = self.terminator_flows(&state, term);
         for access in term.accesses() {
             self.access(&mut state, &access).map_err(fail)?;
         }
+        self.apply_terminator_flows(&mut state, term, &flows)
+            .map_err(fail)?;
         if let Terminator::Call { .. } = term {
             // A callee may write through any address or descriptor it can
             // reach; facts about storage behind an indirection end here.
@@ -274,6 +318,9 @@ impl<'a> Kernel<'a> {
             for access in term.edge_accesses(kind) {
                 self.access(&mut s, &access).map_err(fail)?;
             }
+            self.apply_edge_flows(&mut s, term, kind, &flows)
+                .map_err(fail)?;
+            self.prune(&mut s, &self.live.entry(target).clone());
             let feasible = match (&discr_tag, kind) {
                 (Some(q), EdgeKind::SwitchArm(v)) => {
                     let v = u32::try_from(v).ok();
@@ -311,6 +358,7 @@ impl<'a> Kernel<'a> {
 
     fn access(&self, state: &mut State, access: &Access<'_>) -> Result<(), ViolationKind> {
         let place: &Place = &access.place;
+        self.loan_conflict(state, place, access.access)?;
         self.check_variant_steps(state, place)?;
         let path = self
             .paths
@@ -429,7 +477,7 @@ impl<'a> Kernel<'a> {
     /// Removes facts a write/move of `written` may falsify. Facts about a
     /// strict sub-place's container survive: writing a payload field does
     /// not change its container's tag.
-    fn invalidate(&self, state: &mut State, written: &Place) {
+    pub(crate) fn invalidate(&self, state: &mut State, written: &Place) {
         let stale = |p: &Place| {
             !matches!(
                 written.relation(p),

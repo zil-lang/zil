@@ -1,0 +1,270 @@
+//! Loan table and local liveness of one body.
+//!
+//! Both are pure functions of the IR, built deterministically, so a solver
+//! and a checker obtain identical numbering without trusting each other.
+//! Certificates name loans by [`LoanOrigin`] and the checker resolves them
+//! here; the place and kind of a loan are never taken from a claim.
+//!
+//! Liveness is not a certificate claim: it is derived from the body alone by
+//! a monotone backward fixpoint bounded by `blocks × (locals + 1)` rounds.
+
+use crate::state::BitSet;
+use zil_ir::body::{
+    Body, InstructionKind, LoanOrigin, Local, Mutability, OpLocation, Place, PlaceAccess,
+    PlaceRoot, Rvalue, Terminator, TyTable, type_place,
+};
+
+/// Loan id 0 is the pseudo-loan standing for storage outside the body.
+pub const EXTERNAL: usize = 0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LoanKind {
+    Shared,
+    Exclusive,
+    /// A resource descriptor: copies share identity and may write the target.
+    Desc,
+}
+
+impl LoanKind {
+    /// Whether the holder may write the borrowed storage.
+    pub fn writes(self) -> bool {
+        match self {
+            LoanKind::Shared => false,
+            LoanKind::Exclusive | LoanKind::Desc => true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Loan {
+    pub origin: OpLocation,
+    pub place: Place,
+    pub kind: LoanKind,
+    /// The borrowed storage itself belongs to this body's frame (no `Deref`
+    /// on the path): letting the loan outlive the body is always dangling.
+    pub anchored: bool,
+    /// The borrowed storage may itself hold addresses, so writes through the
+    /// loan can store further loans into it.
+    pub stores_addresses: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct LoanTable {
+    /// Index 0 is unused (`EXTERNAL`).
+    loans: Vec<Option<Loan>>,
+}
+
+impl LoanTable {
+    pub fn build(body: &Body, tys: &TyTable) -> Self {
+        let mut loans = vec![None];
+        let cx = body.cx(tys);
+        for (b, block) in body.blocks.iter().enumerate() {
+            for (i, inst) in block.instructions.iter().enumerate() {
+                let value = match &inst.kind {
+                    InstructionKind::Assign { value, .. } => value,
+                    InstructionKind::Drop { .. }
+                    | InstructionKind::Replace { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::ScopeEnter(_)
+                    | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::RegisterDefer { .. } => continue,
+                };
+                let (place, kind) = match value {
+                    Rvalue::Ref {
+                        place, mutability, ..
+                    } => (
+                        place,
+                        match mutability {
+                            Mutability::Shared => LoanKind::Shared,
+                            Mutability::Exclusive => LoanKind::Exclusive,
+                        },
+                    ),
+                    Rvalue::Describe { place } => (place, LoanKind::Desc),
+                    Rvalue::Use(_)
+                    | Rvalue::Aggregate { .. }
+                    | Rvalue::ErrorUnion { .. }
+                    | Rvalue::Unary { .. }
+                    | Rvalue::Binary { .. }
+                    | Rvalue::Convert { .. }
+                    | Rvalue::Discriminant(_)
+                    | Rvalue::ErrorArm(_)
+                    | Rvalue::Len(_)
+                    | Rvalue::FnRef(_)
+                    | Rvalue::ForeignFnRef(_)
+                    | Rvalue::StaticUtf(_) => continue,
+                };
+                let stores_addresses = type_place(place, &cx)
+                    .map(|t| tys.holds_address(t.ty()))
+                    .unwrap_or(true);
+                loans.push(Some(Loan {
+                    origin: OpLocation {
+                        block: zil_ir::body::BlockId::from_index(b),
+                        instruction: Some(i as u32),
+                    },
+                    place: place.clone(),
+                    kind,
+                    anchored: place.first_deref().is_none(),
+                    stores_addresses,
+                }));
+            }
+        }
+        LoanTable { loans }
+    }
+
+    /// Number of loan ids including `EXTERNAL`.
+    pub fn len(&self) -> usize {
+        self.loans.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.loans.len() <= 1
+    }
+    pub fn get(&self, id: usize) -> Option<&Loan> {
+        self.loans.get(id).and_then(Option::as_ref)
+    }
+    pub fn resolve(&self, origin: LoanOrigin) -> Option<usize> {
+        match origin {
+            LoanOrigin::External => Some(EXTERNAL),
+            LoanOrigin::At(at) => self
+                .loans
+                .iter()
+                .position(|l| l.as_ref().is_some_and(|l| l.origin == at)),
+        }
+    }
+    pub fn origin(&self, id: usize) -> LoanOrigin {
+        match self.get(id) {
+            Some(l) => LoanOrigin::At(l.origin),
+            None => LoanOrigin::External,
+        }
+    }
+    /// The loan created by the instruction at `at`, if any.
+    pub fn created_at(&self, at: OpLocation) -> Option<usize> {
+        self.resolve(LoanOrigin::At(at))
+    }
+}
+
+/// Live locals before every instruction and before every terminator.
+#[derive(Clone, Debug)]
+pub struct Liveness {
+    /// `before[b][i]` for `i < len`; `before[b][len]` precedes the terminator.
+    before: Vec<Vec<BitSet>>,
+}
+
+fn root_local(place: &Place) -> Option<Local> {
+    match place.root {
+        PlaceRoot::Local(l) => Some(l),
+        PlaceRoot::Capture(_) => None,
+    }
+}
+
+/// Applies one access backwards: whole-local initialization kills, every
+/// other access of a local-rooted place is a use.
+fn step_back(live: &mut BitSet, place: &Place, access: PlaceAccess) {
+    let Some(l) = root_local(place) else { return };
+    match access {
+        PlaceAccess::Init if place.projections.is_empty() => live.remove(l.index()),
+        PlaceAccess::Init
+        | PlaceAccess::Copy
+        | PlaceAccess::Move
+        | PlaceAccess::Borrow(_)
+        | PlaceAccess::Describe
+        | PlaceAccess::Drop
+        | PlaceAccess::ReplaceInstance
+        | PlaceAccess::InspectTag
+        | PlaceAccess::InspectLen
+        | PlaceAccess::CallClosure(_) => live.insert(l.index()),
+    }
+}
+
+fn instruction_back(live: &mut BitSet, kind: &InstructionKind) {
+    match kind {
+        InstructionKind::StorageLive(l) | InstructionKind::StorageDead(l) => {
+            live.remove(l.index());
+            return;
+        }
+        InstructionKind::Assign { .. }
+        | InstructionKind::Drop { .. }
+        | InstructionKind::Replace { .. }
+        | InstructionKind::ScopeEnter(_)
+        | InstructionKind::ScopeExit { .. }
+        | InstructionKind::RegisterDefer { .. } => {}
+    }
+    for a in kind.accesses().iter().rev() {
+        step_back(live, &a.place, a.access);
+    }
+}
+
+fn terminator_back(live: &mut BitSet, term: &Terminator) {
+    for a in term.accesses().iter().rev() {
+        step_back(live, &a.place, a.access);
+    }
+}
+
+impl Liveness {
+    pub fn compute(body: &Body) -> Self {
+        let n = body.blocks.len();
+        let locals = body.locals.len();
+        let mut entry: Vec<BitSet> = vec![BitSet::new(locals); n];
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for b in (0..n).rev() {
+                let block = &body.blocks[b];
+                let mut live = BitSet::new(locals);
+                for (kind, target) in block.terminator.edges() {
+                    let mut edge = entry[target.index()].clone();
+                    for a in block.terminator.edge_accesses(kind).iter().rev() {
+                        step_back(&mut edge, &a.place, a.access);
+                    }
+                    live.union_with(&edge);
+                }
+                terminator_back(&mut live, &block.terminator);
+                for inst in block.instructions.iter().rev() {
+                    instruction_back(&mut live, &inst.kind);
+                }
+                if live != entry[b] {
+                    entry[b] = live;
+                    changed = true;
+                }
+            }
+        }
+        let mut before = Vec::with_capacity(n);
+        for block in &body.blocks {
+            let mut live = BitSet::new(locals);
+            for (kind, target) in block.terminator.edges() {
+                let mut edge = entry[target.index()].clone();
+                for a in block.terminator.edge_accesses(kind).iter().rev() {
+                    step_back(&mut edge, &a.place, a.access);
+                }
+                live.union_with(&edge);
+            }
+            terminator_back(&mut live, &block.terminator);
+            let mut rows = vec![live.clone(); block.instructions.len() + 1];
+            for (i, inst) in block.instructions.iter().enumerate().rev() {
+                instruction_back(&mut live, &inst.kind);
+                rows[i] = live.clone();
+            }
+            before.push(rows);
+        }
+        Liveness { before }
+    }
+
+    /// Locals live before the operation at `at` (`None` = terminator).
+    pub fn before(&self, at: OpLocation) -> &BitSet {
+        let rows = &self.before[at.block.index()];
+        let i = at.instruction.map_or(rows.len() - 1, |i| i as usize);
+        &rows[i]
+    }
+
+    /// Locals live after instruction `at` (before the next operation).
+    pub fn after(&self, at: OpLocation) -> &BitSet {
+        let rows = &self.before[at.block.index()];
+        let i = at.instruction.map_or(rows.len() - 1, |i| i as usize + 1);
+        &rows[i.min(rows.len() - 1)]
+    }
+
+    /// Locals live on entry to `block`.
+    pub fn entry(&self, block: zil_ir::body::BlockId) -> &BitSet {
+        &self.before[block.index()][0]
+    }
+}

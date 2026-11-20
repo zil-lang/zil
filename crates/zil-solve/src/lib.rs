@@ -6,8 +6,8 @@
 
 use std::collections::VecDeque;
 use zil_ir::body::{
-    BlockId, BlockInvariant, Certificate, FnId, FunctionCertificate, InitClaim, Module, OpLocation,
-    PlaceInit, TagClaim, VariantClaim,
+    BlockId, BlockInvariant, Certificate, FnId, FunctionCertificate, InitClaim, LoanClaim, Local,
+    Module, OpLocation, PlaceInit, TagClaim, VariantClaim,
 };
 use zil_semantics::{Kernel, State, Violation};
 
@@ -188,6 +188,14 @@ pub fn invariant(kernel: &Kernel<'_>, block: BlockId, state: &State) -> BlockInv
                 place: p.clone(),
             })
             .collect(),
-        loans: Vec::new(),
+        loans: (0..state.carries.locals())
+            .flat_map(|l| {
+                let holder = Local::from_index(l);
+                state.carries.of(holder).iter().map(move |id| LoanClaim {
+                    holder,
+                    origin: kernel.loans.origin(id),
+                })
+            })
+            .collect(),
     }
 }

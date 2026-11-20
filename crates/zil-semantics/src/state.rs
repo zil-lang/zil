@@ -35,6 +35,16 @@ impl BitSet {
             *a |= b;
         }
     }
+    pub fn is_empty(&self) -> bool {
+        self.words.iter().all(|w| *w == 0)
+    }
+    pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
+        self.words.iter().enumerate().flat_map(|(i, w)| {
+            (0..64)
+                .filter(move |b| w & (1u64 << b) != 0)
+                .map(move |b| i * 64 + b)
+        })
+    }
     pub fn is_subset(&self, other: &BitSet) -> bool {
         self.words
             .iter()
@@ -155,6 +165,64 @@ impl<K: Eq + Clone, V: Eq + Clone> MustFacts<K, V> {
     }
 }
 
+/// Loans each local may carry (a may-fact; index 0 is `EXTERNAL`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Carries {
+    sets: Vec<BitSet>,
+    loans: usize,
+}
+
+impl Carries {
+    pub fn empty(locals: usize, loans: usize) -> Self {
+        Carries {
+            sets: vec![BitSet::new(loans); locals],
+            loans,
+        }
+    }
+    pub fn loans(&self) -> usize {
+        self.loans
+    }
+    pub fn of(&self, local: Local) -> &BitSet {
+        &self.sets[local.index()]
+    }
+    pub fn get(&self, local: Local) -> Option<&BitSet> {
+        self.sets.get(local.index())
+    }
+    pub fn set(&mut self, local: Local, loans: BitSet) {
+        self.sets[local.index()] = loans;
+    }
+    pub fn add(&mut self, local: Local, loans: &BitSet) {
+        self.sets[local.index()].union_with(loans);
+    }
+    pub fn clear(&mut self, local: Local) {
+        self.sets[local.index()] = BitSet::new(self.loans);
+    }
+    pub fn locals(&self) -> usize {
+        self.sets.len()
+    }
+    /// Every loan carried by any local.
+    pub fn all(&self) -> BitSet {
+        let mut out = BitSet::new(self.loans);
+        for s in &self.sets {
+            out.union_with(s);
+        }
+        out
+    }
+    fn join_with(&mut self, other: &Carries) {
+        for (a, b) in self.sets.iter_mut().zip(&other.sets) {
+            a.union_with(b);
+        }
+    }
+    fn leq(&self, other: &Carries) -> bool {
+        self.sets.len() == other.sets.len()
+            && self
+                .sets
+                .iter()
+                .zip(&other.sets)
+                .all(|(a, b)| a.is_subset(b))
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct State {
     pub init: InitState,
@@ -162,14 +230,19 @@ pub struct State {
     pub variants: MustFacts<Place, u32>,
     /// `local` holds the unchanged tag of `place`.
     pub tags: MustFacts<Local, Place>,
+    /// Loans each local may keep alive.
+    pub carries: Carries,
 }
 
 impl State {
-    pub fn top(paths: &MovePaths) -> Self {
+    /// Base for decoding claims: every init claim weakest, no must-facts,
+    /// no carried loans (claims add them; edges must be covered by them).
+    pub fn claims_base(paths: &MovePaths, locals: usize, loans: usize) -> Self {
         State {
             init: InitState::top(paths),
             variants: MustFacts::default(),
             tags: MustFacts::default(),
+            carries: Carries::empty(locals, loans),
         }
     }
     pub fn join_with(&mut self, other: &State) {
@@ -177,6 +250,7 @@ impl State {
         self.init.maybe_uninit.union_with(&other.init.maybe_uninit);
         self.variants.meet_with(&other.variants);
         self.tags.meet_with(&other.tags);
+        self.carries.join_with(&other.carries);
     }
     /// `self ⊑ other`.
     pub fn leq(&self, other: &State) -> bool {
@@ -184,5 +258,6 @@ impl State {
             && self.init.maybe_uninit.is_subset(&other.init.maybe_uninit)
             && self.variants.covers(&other.variants)
             && self.tags.covers(&other.tags)
+            && self.carries.leq(&other.carries)
     }
 }

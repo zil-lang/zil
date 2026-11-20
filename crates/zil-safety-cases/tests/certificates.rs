@@ -168,14 +168,32 @@ fn a_truncated_certificate_is_rejected() {
 }
 
 #[test]
-fn loan_claims_are_not_accepted_before_their_family_exists() {
+fn a_loan_claim_must_name_a_loan_creating_location() {
+    // The diamond creates no loan; a claim cannot invent one.
     let (module, x) = diamond();
     let mut cert = solve(&module);
     join_invariant(&mut cert).loans.push(LoanClaim {
-        place: l(x),
-        mutability: Mutability::Shared,
-        region: Region::Static,
+        holder: x,
+        origin: LoanOrigin::At(OpLocation {
+            block: BlockId(0),
+            instruction: None,
+        }),
     });
+    assert_eq!(
+        check_with(module, &cert).unwrap_err().kind,
+        CheckErrorKind::UnknownLoan
+    );
+}
+
+#[test]
+fn duplicate_loan_claims_are_rejected() {
+    let (module, x) = diamond();
+    let mut cert = solve(&module);
+    let claim = LoanClaim {
+        holder: x,
+        origin: LoanOrigin::External,
+    };
+    join_invariant(&mut cert).loans.extend([claim, claim]);
     assert!(matches!(
         check_with(module, &cert).unwrap_err().kind,
         CheckErrorKind::CertificateShape(_)

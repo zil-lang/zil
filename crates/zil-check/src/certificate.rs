@@ -9,8 +9,9 @@
 //! 5. unreachable — only infeasible edges (kernel semantics) skip a block;
 //!    a reached `Unreachable` is a kernel violation;
 //! 6. calls — callee signatures via OpSpec; summaries arrive with P4;
-//! 7. regions — no region claims are accepted until P4 (loan claims must be
-//!    empty).
+//! 7. regions — loan carriage is checked like every other fact (claims are
+//!    resolved against the checker's own loan table); region contracts of
+//!    calls arrive with P4.
 
 use zil_ir::body::{
     BlockId, Body, FnId, FnSig, FunctionCertificate, OpLocation, PlaceTypes, TyTable, type_place,
@@ -27,6 +28,8 @@ pub enum CheckErrorKind {
     CertificateShape(&'static str),
     /// A claim names a place the body does not track.
     UnknownPlace,
+    /// A loan claim names a location that creates no loan.
+    UnknownLoan,
     DuplicateInvariant(BlockId),
     UnknownBlock(BlockId),
     /// A join point or re-entered block carries no invariant.
@@ -80,13 +83,25 @@ pub fn check_function(
         if invariant[inv.block.index()].is_some() {
             return Err(err(CheckErrorKind::DuplicateInvariant(inv.block)));
         }
-        if !inv.loans.is_empty() {
-            return Err(err(CheckErrorKind::CertificateShape(
-                "loan claims are not accepted yet",
-            )));
+        charge((inv.init.len() + inv.variants.len() + inv.tags.len() + inv.loans.len()) as u64)?;
+        let mut state = State::claims_base(&kernel.paths, body.locals.len(), kernel.loans.len());
+        for claim in &inv.loans {
+            if claim.holder.index() >= body.locals.len() {
+                return Err(err(CheckErrorKind::UnknownPlace));
+            }
+            let id = kernel
+                .loans
+                .resolve(claim.origin)
+                .ok_or(err(CheckErrorKind::UnknownLoan))?;
+            if state.carries.of(claim.holder).contains(id) {
+                return Err(err(CheckErrorKind::CertificateShape(
+                    "duplicate loan claim",
+                )));
+            }
+            let mut one = zil_semantics::BitSet::new(kernel.loans.len());
+            one.insert(id);
+            state.carries.add(claim.holder, &one);
         }
-        charge((inv.init.len() + inv.variants.len() + inv.tags.len()) as u64)?;
-        let mut state = State::top(&kernel.paths);
         for claim in &inv.init {
             let path = kernel
                 .paths
