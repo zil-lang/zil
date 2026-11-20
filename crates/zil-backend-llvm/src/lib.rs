@@ -21,6 +21,8 @@
 //! No closure allocation, shared box, indirect dispatch table, or source-body
 //! substitution participates in this ABI.
 
+mod body_build;
+mod body_emit;
 mod build;
 #[cfg(test)]
 mod cgu;
@@ -35,6 +37,8 @@ mod machine_stable_identity;
 #[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
 mod object_cache;
 mod task_abi;
+pub use body_build::{BodyBuildError, BodyBuildOptions, build_verified_body, default_clang_path};
+pub use body_emit::{BodyEmitError, emit_verified_body};
 pub use object_cache::{ObjectCacheSummary, PendingObjectCache, installed_compiler_identity};
 pub use task_abi::{TASK_DATA_LAYOUT, TaskAbiArtifact, TaskAbiEntry, TaskFrameField};
 pub use zil_llvm_api::FunctionMerging;

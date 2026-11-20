@@ -25,6 +25,7 @@ zil-llvm-api.workspace = true
 zil-base.workspace = true
 zil-ir.workspace = true
 zil-verify.workspace = true
+zil-check.workspace = true
 
 [features]
 default = []

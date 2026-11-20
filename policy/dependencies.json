@@ -115,6 +115,7 @@
       "zil-verify",
       "zil-check",
       "zil-ct",
+      "zil-interp",
       "zil-lower",
       "zil-db",
       "zil-backend-c",

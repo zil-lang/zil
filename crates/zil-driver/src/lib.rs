@@ -3,6 +3,8 @@
 //! each complete compilation obtains a fresh independent verifier capability.
 
 mod artifacts;
+pub mod body_pipeline;
+pub use body_pipeline::{BodyCompileError, build_body_source_native, verify_body_program};
 mod contracts;
 mod ct_artifact;
 pub use ct_artifact::SyntaxLock;
