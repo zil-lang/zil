@@ -174,9 +174,17 @@ pub fn build_verified_body(
                 }
 
                 let target_flag = format!("--target={triple}");
+                let opt_flag = match options.optimization {
+                    Optimization::O0 => "-O0",
+                    Optimization::O2 => "-O2",
+                };
                 let mut cmd = Command::new(&clang);
-                let mut argv = vec![clang.display().to_string(), target_flag.clone()];
-                cmd.arg(&target_flag);
+                let mut argv = vec![
+                    clang.display().to_string(),
+                    target_flag.clone(),
+                    opt_flag.into(),
+                ];
+                cmd.arg(&target_flag).arg(opt_flag);
                 for obj_path in &obj_paths {
                     cmd.arg(obj_path);
                     argv.push(obj_path.display().to_string());
@@ -232,16 +240,20 @@ pub fn build_verified_body(
             let mut argv = vec![
                 clang.display().to_string(),
                 target_flag.into(),
+                "-x".into(),
+                "ir".into(),
                 opt_flag.into(),
-                "-Wno-override-module".into(),
                 ir_path.display().to_string(),
             ];
             cmd.arg(target_flag)
+                .arg("-x")
+                .arg("ir")
                 .arg(opt_flag)
-                .arg("-Wno-override-module")
                 .arg(&ir_path);
             for c_src in &options.extra_c_sources {
-                cmd.arg(c_src);
+                cmd.arg("-x").arg("c").arg(c_src);
+                argv.push("-x".into());
+                argv.push("c".into());
                 argv.push(c_src.display().to_string());
             }
             cmd.arg("-o").arg(&options.output);
