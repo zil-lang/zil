@@ -134,6 +134,8 @@ pub enum ExprKind {
     },
     /// `expr?`: unwrap success or return error early.
     Try(Box<Expr>),
+    /// `#(expr)`: compile-time evaluation.
+    CtEval(Box<Expr>),
     Tuple(Vec<Expr>),
     Array(Vec<Expr>),
     If {
@@ -186,6 +188,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Adt { .. }
         | ExprKind::ErrorInject { .. }
         | ExprKind::Try(_)
+        | ExprKind::CtEval(_)
         | ExprKind::Tuple(_)
         | ExprKind::Array(_)
         | ExprKind::If { .. }

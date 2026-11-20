@@ -19,9 +19,43 @@ mod ty;
 
 pub use build::Limits;
 
-use zil_base::{Diagnostic, FileId, ModuleId, SourceUnit};
-use zil_ir::body::{FnId, Module, SourceMap};
+use zil_base::{Diagnostic, FileId, ModuleId, SourceUnit, Span};
+use zil_ir::body::{FloatTy, FnId, IntTy, Module, SourceMap};
 use zil_syntax::ast;
+
+/// A compile-time value returned by a host [`ConstEvaluator`].
+/// Types are carried by the receiving expression in the caller's module,
+/// so `CtValue` never mixes `TyId`s across modules.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CtValue {
+    Unit,
+    Bool(bool),
+    Int {
+        ty: IntTy,
+        bits: u128,
+    },
+    Float {
+        ty: FloatTy,
+        bits: u64,
+    },
+    Aggregate {
+        variant: Option<u32>,
+        fields: Vec<CtValue>,
+    },
+    ErrorUnion {
+        ok: bool,
+        payload: Box<CtValue>,
+    },
+}
+
+/// Host-injected compile-time evaluator (`spec/source-lowering.md` §1, A2).
+/// `zil-typeck` lowers `#(expr)` to a self-contained closed body IR module
+/// and delegates verification + execution (`zil-solve` -> `zil-check` ->
+/// `zil-interp`) to the host.
+pub trait ConstEvaluator {
+    #[allow(clippy::result_large_err)]
+    fn eval(&mut self, module: Module, entry: FnId, span: Span) -> Result<CtValue, Diagnostic>;
+}
 
 /// The lowered program: candidate IR plus its source evidence.
 #[derive(Debug)]
@@ -32,8 +66,17 @@ pub struct Lowered {
     pub roots: Vec<(String, FnId)>,
 }
 
-/// Lowers one parsed module.
+/// Lowers one parsed module without a compile-time evaluator.
 pub fn lower_module(module: &ast::Module, limits: Limits) -> Result<Lowered, Vec<Diagnostic>> {
+    lower_module_with_ct(module, limits, None)
+}
+
+/// Lowers one parsed module, delegating `#(...)` expressions to `ct`.
+pub fn lower_module_with_ct(
+    module: &ast::Module,
+    limits: Limits,
+    ct: Option<&mut dyn ConstEvaluator>,
+) -> Result<Lowered, Vec<Diagnostic>> {
     let mut types = ty::Types::default();
     let mut diags = Vec::new();
     let items = items::collect(module, &mut types, &mut diags);
@@ -52,7 +95,7 @@ pub fn lower_module(module: &ast::Module, limits: Limits) -> Result<Lowered, Vec
     if !diags.is_empty() {
         return Err(diags);
     }
-    let mut mono = build::Mono::new(&items, &mut types, &thir, &mut diags, limits);
+    let mut mono = build::Mono::new(&items, &mut types, &thir, &mut diags, limits, ct);
     mono.lower_foreigns();
     let mut roots = Vec::new();
     for (i, f) in items.fns.iter().enumerate() {
@@ -78,6 +121,15 @@ pub fn lower_module(module: &ast::Module, limits: Limits) -> Result<Lowered, Vec
 
 /// Parses and lowers a single source text (tests and tools).
 pub fn lower_source(path: &str, text: &str) -> Result<Lowered, Vec<Diagnostic>> {
+    lower_source_with_ct(path, text, None)
+}
+
+/// Parses and lowers a single source text with a compile-time evaluator.
+pub fn lower_source_with_ct(
+    path: &str,
+    text: &str,
+    ct: Option<&mut dyn ConstEvaluator>,
+) -> Result<Lowered, Vec<Diagnostic>> {
     let unit = SourceUnit {
         file_id: FileId(0),
         module_id: ModuleId(0),
@@ -85,5 +137,5 @@ pub fn lower_source(path: &str, text: &str) -> Result<Lowered, Vec<Diagnostic>> 
         text: text.to_string(),
     };
     let parsed = zil_syntax::parse(&unit).into_result()?;
-    lower_module(&parsed, Limits::default())
+    lower_module_with_ct(&parsed, Limits::default(), ct)
 }

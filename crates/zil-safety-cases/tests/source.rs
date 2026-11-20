@@ -442,3 +442,142 @@ fn try_outside_error_union_return_is_rejected() {
         "E-TRY-RETURN-TYPE",
     );
 }
+
+// ---- compile-time evaluation (decision A2: verified body IR + zil-interp) --
+
+struct InterpCt;
+
+fn value_to_ct(v: zil_interp::Value) -> Result<zil_typeck::CtValue, &'static str> {
+    use zil_interp::Value;
+    use zil_typeck::CtValue;
+    Ok(match v {
+        Value::Unit => CtValue::Unit,
+        Value::Bool(b) => CtValue::Bool(b),
+        Value::Int { ty, bits } => CtValue::Int { ty, bits },
+        Value::Float { ty, bits } => CtValue::Float { ty, bits },
+        Value::Aggregate {
+            variant, fields, ..
+        } => CtValue::Aggregate {
+            variant,
+            fields: fields
+                .into_iter()
+                .map(value_to_ct)
+                .collect::<Result<Vec<_>, _>>()?,
+        },
+        Value::ErrorUnion { ok, payload, .. } => CtValue::ErrorUnion {
+            ok,
+            payload: Box::new(value_to_ct(*payload)?),
+        },
+        Value::FnRef(_) => return Err("function value cannot cross CT boundary"),
+    })
+}
+
+impl zil_typeck::ConstEvaluator for InterpCt {
+    fn eval(
+        &mut self,
+        module: zil_ir::body::Module,
+        entry: zil_ir::body::FnId,
+        span: zil_base::Span,
+    ) -> Result<zil_typeck::CtValue, zil_base::Diagnostic> {
+        let cert = zil_solve::solve_module(&module, Budget { steps: STEPS }).map_err(|e| {
+            zil_base::Diagnostic::error(
+                zil_base::Phase::Ct,
+                "E-CT-SAFETY",
+                Some(span),
+                format!("compile-time expression failed safety check: {e:?}"),
+            )
+        })?;
+        let verified = zil_check::check_module(module, &cert, CheckBudget { steps: STEPS })
+            .map_err(|e| {
+                zil_base::Diagnostic::error(
+                    zil_base::Phase::Ct,
+                    "E-CT-SAFETY",
+                    Some(span),
+                    format!("compile-time expression failed certificate check: {e:?}"),
+                )
+            })?;
+        let budget = zil_interp::EvalBudget {
+            steps: 100_000,
+            call_depth: 64,
+        };
+        let val =
+            zil_interp::evaluate(&verified, entry, Vec::new(), budget).map_err(|e| match e {
+                zil_interp::EvalError::ResourceLimit { .. } => {
+                    zil_base::Diagnostic::limit(zil_base::Phase::Ct, "CT budget", Some(span))
+                }
+                other => zil_base::Diagnostic::error(
+                    zil_base::Phase::Ct,
+                    "E-CT-EVAL",
+                    Some(span),
+                    format!("compile-time evaluation failed: {other:?}"),
+                ),
+            })?;
+        value_to_ct(val).map_err(|msg| {
+            zil_base::Diagnostic::error(zil_base::Phase::Ct, "E-CT-EVAL", Some(span), msg)
+        })
+    }
+}
+
+#[test]
+fn complete_domains_full_with_ct_evaluates_to_zero() {
+    let text = include_str!("../../../tests/integers/complete-domains.zil");
+    let mut ct = InterpCt;
+    let lowered = zil_typeck::lower_source_with_ct("complete-domains.zil", text, Some(&mut ct))
+        .expect("full complete-domains.zil should lower with CT");
+    let result_id = lowered
+        .roots
+        .iter()
+        .find(|(n, _)| n == "result")
+        .map(|(_, id)| *id)
+        .expect("result function");
+    let cert = solve(&lowered.module);
+    let verified = zil_check::check_module(lowered.module, &cert, CheckBudget { steps: STEPS })
+        .expect("complete-domains.zil must pass checker");
+    let out = zil_interp::evaluate(
+        &verified,
+        result_id,
+        Vec::new(),
+        zil_interp::EvalBudget {
+            steps: 100_000,
+            call_depth: 64,
+        },
+    )
+    .expect("complete-domains.zil result() must execute cleanly");
+    assert_eq!(
+        out,
+        zil_interp::Value::Int {
+            ty: zil_ir::body::IntTy::I32,
+            bits: 0,
+        }
+    );
+}
+
+#[test]
+fn ct_eval_cannot_capture_runtime_local() {
+    let mut ct = InterpCt;
+    let err = zil_typeck::lower_source_with_ct(
+        "ct_local.zil",
+        "fn f(x: i32) -> i32 { return #(x + 1) }",
+        Some(&mut ct),
+    )
+    .unwrap_err();
+    assert!(
+        err.iter().any(|d| d.code == "E-NAME-UNRESOLVED"),
+        "expected E-NAME-UNRESOLVED, got {err:?}"
+    );
+}
+
+#[test]
+fn ct_eval_trap_is_rejected_at_compile_time() {
+    let mut ct = InterpCt;
+    let err = zil_typeck::lower_source_with_ct(
+        "ct_trap.zil",
+        "fn f() -> i8 { return #(127i8 + 1i8) }",
+        Some(&mut ct),
+    )
+    .unwrap_err();
+    assert!(
+        err.iter().any(|d| d.code == "E-CT-EVAL"),
+        "expected E-CT-EVAL, got {err:?}"
+    );
+}

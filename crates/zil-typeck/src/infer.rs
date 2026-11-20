@@ -821,6 +821,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Intrinsic { .. }
                 | ExprKind::ErrorInject { .. }
                 | ExprKind::Try(_)
+                | ExprKind::CtEval(_)
                 | ExprKind::Lit(_)
                 | ExprKind::Unary { .. }
                 | ExprKind::Binary { .. }
@@ -1276,8 +1277,16 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("closures", span);
                 self.err_expr(span)
             }
-            ast::ExprKind::MetaEval(_)
-            | ast::ExprKind::MetaSplice(_)
+            ast::ExprKind::MetaEval(inner) => {
+                // Compile-time expressions cannot observe enclosing runtime locals.
+                let saved_scopes = std::mem::take(&mut self.scopes);
+                self.scopes.push(Vec::new());
+                let expr = self.infer(inner);
+                self.scopes = saved_scopes;
+                let ty = expr.ty;
+                mk(ExprKind::CtEval(Box::new(expr)), ty)
+            }
+            ast::ExprKind::MetaSplice(_)
             | ast::ExprKind::Quote { .. }
             | ast::ExprKind::MetaBlock(_)
             | ast::ExprKind::SyntaxIsland { .. } => {
@@ -2059,7 +2068,8 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Give(inner)
             | ExprKind::Describe(inner)
             | ExprKind::ErrorInject { value: inner, .. }
-            | ExprKind::Try(inner) => walk(inner),
+            | ExprKind::Try(inner)
+            | ExprKind::CtEval(inner) => walk(inner),
             ExprKind::Lit(_)
             | ExprKind::Local(_)
             | ExprKind::Continue
@@ -2287,7 +2297,8 @@ impl Finalizer<'_, '_> {
             | ExprKind::Give(inner)
             | ExprKind::Describe(inner)
             | ExprKind::ErrorInject { value: inner, .. }
-            | ExprKind::Try(inner) => self.expr(inner),
+            | ExprKind::Try(inner)
+            | ExprKind::CtEval(inner) => self.expr(inner),
             ExprKind::Index { base, index } => {
                 self.expr(base);
                 self.expr(index);

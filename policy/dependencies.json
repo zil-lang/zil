@@ -53,7 +53,8 @@
       "zil-ir",
       "zil-typeck",
       "zil-solve",
-      "zil-check"
+      "zil-check",
+      "zil-interp"
     ],
     "zil-ct": [
       "zil-base",

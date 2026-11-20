@@ -15,3 +15,4 @@ zil-ir.workspace = true
 zil-typeck.workspace = true
 zil-solve.workspace = true
 zil-check.workspace = true
+zil-interp.workspace = true

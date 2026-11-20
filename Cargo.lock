@@ -227,6 +227,7 @@ version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-check",
+ "zil-interp",
  "zil-ir",
  "zil-solve",
  "zil-typeck",

@@ -9,12 +9,12 @@
 //! exhaustive tag switches send the remaining edge to `Unreachable`; the
 //! kernel proves that edge infeasible.
 
-use crate::diag;
 use crate::infer::POINTER_BITS;
 use crate::items::{FnRoleSpec, Items};
 use crate::literal;
 use crate::thir::*;
 use crate::ty::{AdtRef, OpaqueKind, Ty, TyData, Types};
+use crate::{ConstEvaluator, CtValue, diag};
 use std::collections::{HashMap, HashSet, VecDeque};
 use zil_base::{Diagnostic, Span};
 use zil_ir::body::{
@@ -37,12 +37,13 @@ impl Default for Limits {
     }
 }
 
-pub struct Mono<'c, 'a> {
+pub struct Mono<'c, 'a, 'e> {
     items: &'c Items<'a>,
     types: &'c mut Types,
     thir: &'c [Option<ThirFn>],
     diags: &'c mut Vec<Diagnostic>,
     limits: Limits,
+    ct: Option<&'e mut dyn ConstEvaluator>,
     pub module: Module,
     instances: HashMap<(FnRef, Vec<Ty>), FnId>,
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
@@ -50,13 +51,14 @@ pub struct Mono<'c, 'a> {
     ensured: HashSet<TyId>,
 }
 
-impl<'c, 'a> Mono<'c, 'a> {
+impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
     pub fn new(
         items: &'c Items<'a>,
         types: &'c mut Types,
         thir: &'c [Option<ThirFn>],
         diags: &'c mut Vec<Diagnostic>,
         limits: Limits,
+        ct: Option<&'e mut dyn ConstEvaluator>,
     ) -> Self {
         Mono {
             items,
@@ -64,6 +66,7 @@ impl<'c, 'a> Mono<'c, 'a> {
             thir,
             diags,
             limits,
+            ct,
             module: Module::default(),
             instances: HashMap::new(),
             queue: VecDeque::new(),
@@ -347,8 +350,8 @@ struct Row<'t> {
     arm: usize,
 }
 
-struct Builder<'m, 'c, 'a> {
-    mono: &'m mut Mono<'c, 'a>,
+struct Builder<'m, 'c, 'a, 'e> {
+    mono: &'m mut Mono<'c, 'a, 'e>,
     subst: Vec<Ty>,
     locals: Vec<LocalDecl>,
     blocks: Vec<Block>,
@@ -365,8 +368,8 @@ struct Builder<'m, 'c, 'a> {
     reported_exhaustive: bool,
 }
 
-impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
-    fn new(mono: &'m mut Mono<'c, 'a>, thir: &ThirFn, subst: Vec<Ty>, sig: FnSig) -> Self {
+impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
+    fn new(mono: &'m mut Mono<'c, 'a, 'e>, thir: &ThirFn, subst: Vec<Ty>, sig: FnSig) -> Self {
         let mut b = Builder {
             mono,
             subst,
@@ -675,6 +678,7 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             | ExprKind::Intrinsic { .. }
             | ExprKind::ErrorInject { .. }
             | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
             | ExprKind::Lit(_)
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
@@ -830,6 +834,7 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
             | ExprKind::Local(_)
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
@@ -1013,6 +1018,12 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
                 let ok_val = self.use_place(ok_place, ok_ty);
                 self.assign(dest, Rvalue::Use(ok_val), span);
             }
+            ExprKind::CtEval(inner) => {
+                let ty = self.ty(e.ty, span);
+                if let Some(val) = self.eval_ct(inner, span) {
+                    self.emit_ct_value(dest, &val, ty, span);
+                }
+            }
             ExprKind::Match { .. }
             | ExprKind::Block(_)
             | ExprKind::Loop(_)
@@ -1045,6 +1056,227 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             | ExprKind::Array(_) => {
                 let rv = self.rvalue(e);
                 self.assign(dest, rv, span);
+            }
+        }
+    }
+
+    fn eval_ct(&mut self, inner: &Expr, span: Span) -> Option<CtValue> {
+        if self.mono.ct.is_none() {
+            self.mono
+                .diags
+                .push(diag::unsupported("compile-time evaluation", span));
+            self.failed = true;
+            return None;
+        }
+        let closed_ty = self.closed(inner.ty);
+        let subst = self.subst.clone();
+        let ct_handle = self.mono.ct.take();
+        let mut ct_mono = Mono::new(
+            self.mono.items,
+            self.mono.types,
+            self.mono.thir,
+            self.mono.diags,
+            self.mono.limits,
+            ct_handle,
+        );
+        ct_mono.lower_foreigns();
+        let Some(result) = ct_mono.lower_ty(closed_ty, span) else {
+            self.mono.ct = ct_mono.ct.take();
+            self.failed = true;
+            return None;
+        };
+        let sig = FnSig {
+            params: Vec::new(),
+            result,
+            type_params: 0,
+            region_params: 0,
+            role: FnRole::Normal,
+        };
+        let synthetic_thir = ThirFn {
+            locals: self.locals_info.clone(),
+            params: Vec::new(),
+            body: Expr {
+                kind: ExprKind::Return(Some(Box::new(inner.clone()))),
+                ty: inner.ty,
+                span,
+            },
+        };
+        let mut b = Builder::new(&mut ct_mono, &synthetic_thir, subst, sig.clone());
+        b.function(&synthetic_thir);
+        let failed = b.failed;
+        let body = b.finish();
+        if failed {
+            self.mono.ct = ct_mono.ct.take();
+            self.failed = true;
+            return None;
+        }
+        let entry = FnId::from_index(ct_mono.module.functions.len());
+        ct_mono.module.functions.push(Function {
+            name: "$ct_eval".to_string(),
+            sig,
+            body,
+        });
+        ct_mono.run();
+        let ct_module = std::mem::take(&mut ct_mono.module);
+        self.mono.ct = ct_mono.ct.take();
+        drop(ct_mono);
+        let evaluator = self.mono.ct.as_deref_mut()?;
+        match evaluator.eval(ct_module, entry, span) {
+            Ok(v) => Some(v),
+            Err(d) => {
+                self.mono.diags.push(d);
+                self.failed = true;
+                None
+            }
+        }
+    }
+
+    fn emit_ct_value(&mut self, dest: Place, val: &CtValue, ty: TyId, span: Span) {
+        match val {
+            CtValue::Unit => {
+                self.assign(dest, Rvalue::Use(Operand::Const(ConstValue::Unit)), span);
+            }
+            CtValue::Bool(b) => {
+                self.assign(
+                    dest,
+                    Rvalue::Use(Operand::Const(ConstValue::Bool(*b))),
+                    span,
+                );
+            }
+            CtValue::Int { ty: ity, bits } => {
+                self.assign(
+                    dest,
+                    Rvalue::Use(Operand::Const(ConstValue::Int {
+                        ty: *ity,
+                        bits: *bits,
+                    })),
+                    span,
+                );
+            }
+            CtValue::Float { ty: fty, bits } => {
+                self.assign(
+                    dest,
+                    Rvalue::Use(Operand::Const(ConstValue::Float {
+                        ty: *fty,
+                        bits: *bits,
+                    })),
+                    span,
+                );
+            }
+            CtValue::Aggregate { variant, fields } => {
+                let kind_ty = self.tys().kind(ty).clone();
+                match kind_ty {
+                    TyKind::Tuple(elem_tys) => {
+                        let mut ops = Vec::with_capacity(fields.len());
+                        for (f, ft) in fields.iter().zip(elem_tys) {
+                            ops.push(self.emit_ct_operand(f, ft, span));
+                        }
+                        self.assign(
+                            dest,
+                            Rvalue::Aggregate {
+                                kind: AggregateKind::Tuple,
+                                operands: ops,
+                            },
+                            span,
+                        );
+                    }
+                    TyKind::Array { element, .. } => {
+                        let mut ops = Vec::with_capacity(fields.len());
+                        for f in fields {
+                            ops.push(self.emit_ct_operand(f, element, span));
+                        }
+                        self.assign(
+                            dest,
+                            Rvalue::Aggregate {
+                                kind: AggregateKind::Array { element },
+                                operands: ops,
+                            },
+                            span,
+                        );
+                    }
+                    TyKind::Adt { adt, args } => {
+                        let v_idx = VariantIdx(variant.unwrap_or(0));
+                        let mut ops = Vec::with_capacity(fields.len());
+                        for (i, f) in fields.iter().enumerate() {
+                            let ft = self
+                                .tys()
+                                .field_ty(adt, v_idx, FieldIdx::from_index(i), args)
+                                .unwrap_or_else(|| self.mono.module.tys.intern(TyKind::Unit));
+                            ops.push(self.emit_ct_operand(f, ft, span));
+                        }
+                        self.assign(
+                            dest,
+                            Rvalue::Aggregate {
+                                kind: AggregateKind::Adt {
+                                    adt,
+                                    variant: v_idx,
+                                    args,
+                                },
+                                operands: ops,
+                            },
+                            span,
+                        );
+                    }
+                    TyKind::Unit
+                    | TyKind::Bool
+                    | TyKind::Never
+                    | TyKind::Int(_)
+                    | TyKind::Float(_)
+                    | TyKind::Slice(_)
+                    | TyKind::Ref { .. }
+                    | TyKind::Managed(_)
+                    | TyKind::Desc(_)
+                    | TyKind::ErrorUnion { .. }
+                    | TyKind::FnPtr { .. }
+                    | TyKind::Closure { .. }
+                    | TyKind::Dyn(_)
+                    | TyKind::OwnedDyn(_)
+                    | TyKind::Param(_)
+                    | TyKind::Opaque(_) => {
+                        self.failed = true;
+                    }
+                }
+            }
+            CtValue::ErrorUnion { ok, payload } => {
+                let TyKind::ErrorUnion {
+                    ok: ok_ty,
+                    err: err_ty,
+                } = self.tys().kind(ty).clone()
+                else {
+                    self.failed = true;
+                    return;
+                };
+                let arm_ty = if *ok { ok_ty } else { err_ty };
+                let op = self.emit_ct_operand(payload, arm_ty, span);
+                self.assign(
+                    dest,
+                    Rvalue::ErrorUnion {
+                        ok: *ok,
+                        value: op,
+                        ty,
+                    },
+                    span,
+                );
+            }
+        }
+    }
+
+    fn emit_ct_operand(&mut self, val: &CtValue, ty: TyId, span: Span) -> Operand {
+        match val {
+            CtValue::Unit => Operand::Const(ConstValue::Unit),
+            CtValue::Bool(b) => Operand::Const(ConstValue::Bool(*b)),
+            CtValue::Int { ty: ity, bits } => Operand::Const(ConstValue::Int {
+                ty: *ity,
+                bits: *bits,
+            }),
+            CtValue::Float { ty: fty, bits } => Operand::Const(ConstValue::Float {
+                ty: *fty,
+                bits: *bits,
+            }),
+            CtValue::Aggregate { .. } | CtValue::ErrorUnion { .. } => {
+                let t = self.temp(ty);
+                self.emit_ct_value(Place::local(t), val, ty, span);
+                self.use_place(Place::local(t), ty)
             }
         }
     }
@@ -1201,6 +1433,7 @@ impl<'m, 'c, 'a> Builder<'m, 'c, 'a> {
             | ExprKind::Intrinsic { .. }
             | ExprKind::ManagedCreate { .. }
             | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
             | ExprKind::Logical { .. }
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
