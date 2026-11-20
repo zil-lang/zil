@@ -44,6 +44,24 @@
       ]
     },
     {
+      "code": "E-ASSIGN-IMMUTABLE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-ACCESS"
+      ]
+    },
+    {
+      "code": "E-ASSIGN-TARGET",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-ACCESS"
+      ]
+    },
+    {
       "code": "E-BORROW-CONFLICT",
       "phases": [
         "analyze",
@@ -589,6 +607,16 @@
       ]
     },
     {
+      "code": "E-LITERAL-RANGE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
       "code": "E-LLVM-API-CANCELLED",
       "phases": [
         "link"
@@ -670,6 +698,15 @@
       ]
     },
     {
+      "code": "E-LOOP-CONTROL",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG"
+      ]
+    },
+    {
       "code": "E-MATCH-ARITY",
       "phases": [
         "types"
@@ -720,6 +757,15 @@
       ]
     },
     {
+      "code": "E-MISSING-RETURN",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG"
+      ]
+    },
+    {
       "code": "E-NAME-DUPLICATE",
       "phases": [
         "expand",
@@ -727,6 +773,15 @@
       ],
       "requirements": [
         "ZIL-SCRIPT"
+      ]
+    },
+    {
+      "code": "E-NAME-UNRESOLVED",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-MODULE"
       ]
     },
     {
@@ -749,6 +804,15 @@
       "requirements": [
         "ZIL-CAPTURE",
         "ZIL-TRAIT"
+      ]
+    },
+    {
+      "code": "E-OPERATOR-TYPE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CORE"
       ]
     },
     {
@@ -833,6 +897,15 @@
       ],
       "requirements": [
         "ZIL-RECEIVER"
+      ]
+    },
+    {
+      "code": "E-PATTERN-REFUTABLE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CFG"
       ]
     },
     {
@@ -1058,6 +1131,24 @@
       ],
       "requirements": [
         "ZIL-PIPE"
+      ]
+    },
+    {
+      "code": "E-TYPE-INFERENCE",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CORE"
+      ]
+    },
+    {
+      "code": "E-TYPE-MISMATCH",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-CORE"
       ]
     },
     {

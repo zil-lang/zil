@@ -51,6 +51,7 @@
     "zil-safety-cases": [
       "zil-base",
       "zil-ir",
+      "zil-typeck",
       "zil-solve",
       "zil-check"
     ],

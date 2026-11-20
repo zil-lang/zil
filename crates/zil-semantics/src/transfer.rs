@@ -100,6 +100,36 @@ impl<'a> Kernel<'a> {
         }
     }
 
+    /// Number of tags a tagged place can hold: the variants of an Enum, or
+    /// the two arms of an error union. `None` for any other place.
+    fn tag_count(&self, place: &Place) -> Option<u32> {
+        let ty = type_place(place, &self.body.cx(self.tys)).ok()?.ty();
+        match self.tys.get(ty)? {
+            TyKind::Adt { adt, .. } if self.tys.adt(*adt).kind == AdtKind::Enum => {
+                u32::try_from(self.tys.adt(*adt).variants.len()).ok()
+            }
+            TyKind::ErrorUnion { .. } => Some(2),
+            TyKind::Adt { .. }
+            | TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::Tuple(_)
+            | TyKind::Array { .. }
+            | TyKind::Slice(_)
+            | TyKind::Ref { .. }
+            | TyKind::Managed(_)
+            | TyKind::Desc(_)
+            | TyKind::FnPtr { .. }
+            | TyKind::Closure { .. }
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn(_)
+            | TyKind::Param(_)
+            | TyKind::Opaque(_) => None,
+        }
+    }
+
     /// OpSpec constraints of every operation. Part of every verdict.
     pub fn check_structure(&self) -> Result<(), Violation> {
         if self.body.blocks.is_empty() {
@@ -333,12 +363,29 @@ impl<'a> Kernel<'a> {
                         }
                     }
                 }
-                (Some(q), EdgeKind::SwitchOtherwise) => match (s.variants.get(q), term) {
-                    (Some(known), Terminator::Switch { arms, .. }) => {
-                        !arms.iter().any(|(v, _)| *v == u128::from(*known))
+                (Some(q), EdgeKind::SwitchOtherwise) => {
+                    let Terminator::Switch { arms, .. } = term else {
+                        return Err(fail(ViolationKind::Constraint(ConstraintError::Operator {
+                            reason: "otherwise edge outside a switch",
+                        })));
+                    };
+                    let covered = |v: u32| arms.iter().any(|(a, _)| *a == u128::from(v));
+                    match (s.variants.get(q).copied(), self.tag_count(q)) {
+                        (Some(known), _) => !covered(known),
+                        (None, Some(count)) => {
+                            let mut remaining = (0..count).filter(|v| !covered(*v));
+                            match (remaining.next(), remaining.next()) {
+                                (None, _) => false,
+                                (Some(only), None) => {
+                                    s.variants.insert(q.clone(), only);
+                                    true
+                                }
+                                (Some(_), Some(_)) => true,
+                            }
+                        }
+                        (None, None) => true,
                     }
-                    _ => true,
-                },
+                }
                 (
                     _,
                     EdgeKind::Goto

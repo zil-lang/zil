@@ -12,5 +12,6 @@ workspace = true
 [dependencies]
 zil-base.workspace = true
 zil-ir.workspace = true
+zil-typeck.workspace = true
 zil-solve.workspace = true
 zil-check.workspace = true

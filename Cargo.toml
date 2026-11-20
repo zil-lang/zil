@@ -5,6 +5,7 @@ members = [
   "crates/zil-ir",
   "crates/zil-semantics",
   "crates/zil-syntax",
+  "crates/zil-typeck",
   "crates/zil-expand",
   "crates/zil-types",
   "crates/zil-analyze",
@@ -39,6 +40,7 @@ zil-types = { path = "crates/zil-types" }
 zil-analyze = { path = "crates/zil-analyze" }
 zil-verify = { path = "crates/zil-verify" }
 zil-solve = { path = "crates/zil-solve" }
+zil-typeck = { path = "crates/zil-typeck" }
 zil-check = { path = "crates/zil-check" }
 zil-lower = { path = "crates/zil-lower" }
 zil-backend-llvm = { path = "crates/zil-backend-llvm" }

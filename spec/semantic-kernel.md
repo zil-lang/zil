@@ -53,6 +53,8 @@ OpSpec 是 `InstructionKind` 上的一组穷尽静态方法，不在运行时构
 - **出口义务。** 每个函数出口必须结算全部责任、借用与协议状态。
 - **调用。** 用 callee 摘要实例化调用合同；摘要本身是证书的一部分。
 - **区域。** 内核给出约束的生成规则和约束成立的判定，不负责搜索区域解。
+- **检查陷阱归属。** 带检查的算术、移位、转换和 `Index` 投影的越界检查都由操作本身承担，机器降级必须在操作处生成检查；内核与核验器不依赖生产者额外插入的 `Assert`。
+- **tag 分支收窄。** 对 tag 局部（读自某 Place 的 `Discriminant`/`ErrorArm`）做 `Switch` 时，每个 arm 边确立对应 variant；otherwise 边上，若 arm 已覆盖全部 variant 则该边不可行，若只剩一个 variant 则确立该 variant。穷尽 match 因此可以把 otherwise 指向 `Unreachable`，由语义证明其不可达。
 
 ### 5.1 借用（loan）模型
 

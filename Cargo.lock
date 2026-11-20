@@ -219,6 +219,7 @@ dependencies = [
  "zil-check",
  "zil-ir",
  "zil-solve",
+ "zil-typeck",
 ]
 
 [[package]]
@@ -242,6 +243,15 @@ name = "zil-syntax"
 version = "0.1.0"
 dependencies = [
  "zil-base",
+]
+
+[[package]]
+name = "zil-typeck"
+version = "0.1.0"
+dependencies = [
+ "zil-base",
+ "zil-ir",
+ "zil-syntax",
 ]
 
 [[package]]

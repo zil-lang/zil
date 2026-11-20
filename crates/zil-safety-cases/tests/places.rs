@@ -514,6 +514,61 @@ fn payload_read_of_another_variant_in_an_arm_is_rejected() {
     assert_eq!(violation(&verdict(m.finish())), "UnknownVariant");
 }
 
+/// `match v { 0 => .., 1 => .., otherwise => read field of `read` }` on a
+/// three-variant enum, or with only arm 0 when `two_arms` is false.
+fn three_way(two_arms: bool, read: u32) -> Module {
+    let mut m = ModuleBuilder::new();
+    let i32 = m.t.i32;
+    let (e, e_ty) = m.adt(
+        "m.C",
+        AdtKind::Enum,
+        false,
+        &[("A", &[i32]), ("B", &[i32]), ("C", &[i32])],
+    );
+    let field = m.field(e, read, 0);
+    let mut f = FnBuilder::new("f", &[e_ty], i32);
+    let (b0, arm, other) = (f.block(), f.block(), f.block());
+    let d = f.local(i32);
+    f.assign(b0, l(d), Rvalue::Discriminant(l(f.param(0))));
+    let arms = if two_arms {
+        vec![(0, arm), (1, arm)]
+    } else {
+        vec![(0, arm)]
+    };
+    f.terminate(
+        b0,
+        Terminator::Switch {
+            discr: copy(l(d)),
+            arms,
+            otherwise: other,
+        },
+    );
+    f.terminate(arm, Terminator::Return { value: int(0) });
+    f.terminate(
+        other,
+        Terminator::Return {
+            value: copy(l(f.param(0)).field(field)),
+        },
+    );
+    m.function(f);
+    m.finish()
+}
+
+#[test]
+fn otherwise_with_one_remaining_variant_establishes_it() {
+    assert_eq!(violation(&verdict(three_way(true, 2))), "Accepted");
+}
+
+#[test]
+fn otherwise_never_establishes_a_covered_variant() {
+    assert_eq!(violation(&verdict(three_way(true, 1))), "UnknownVariant");
+}
+
+#[test]
+fn otherwise_with_two_remaining_variants_establishes_neither() {
+    assert_eq!(violation(&verdict(three_way(false, 2))), "UnknownVariant");
+}
+
 #[test]
 fn unreachable_after_an_exhaustive_tag_test_is_proved() {
     // `otherwise` is infeasible only once the tag is known; build a value
@@ -558,12 +613,31 @@ fn unreachable_after_an_exhaustive_tag_test_is_proved() {
 }
 
 #[test]
-fn reachable_unreachable_is_rejected() {
+fn otherwise_of_an_exhaustive_tag_switch_is_proved_dead() {
+    // Every variant has an arm, so no tag remains for `otherwise`.
     let mut o = opt();
-    assert_eq!(
-        violation(&verdict(match_opt(&mut o, 1, true))),
-        "ReachableUnreachable"
+    assert_eq!(violation(&verdict(match_opt(&mut o, 1, true))), "Accepted");
+}
+
+#[test]
+fn reachable_unreachable_is_rejected() {
+    // An integer switch leaves every other value to `otherwise`.
+    let mut m = ModuleBuilder::new();
+    let i32 = m.t.i32;
+    let mut f = FnBuilder::new("f", &[i32], i32);
+    let (b0, arm, other) = (f.block(), f.block(), f.block());
+    f.terminate(
+        b0,
+        Terminator::Switch {
+            discr: copy(l(f.param(0))),
+            arms: vec![(0, arm)],
+            otherwise: other,
+        },
     );
+    f.terminate(arm, Terminator::Return { value: int(0) });
+    f.terminate(other, Terminator::Unreachable);
+    m.function(f);
+    assert_eq!(violation(&verdict(m.finish())), "ReachableUnreachable");
 }
 
 #[test]
