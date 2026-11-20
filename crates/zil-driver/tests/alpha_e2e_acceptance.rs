@@ -301,12 +301,23 @@ fn build_and_run_raw(
     backend: NativeBackend,
     opt: Optimization,
 ) -> std::process::Output {
+    build_and_run_raw_with_c(entry, exe, backend, opt, &[])
+}
+
+fn build_and_run_raw_with_c(
+    entry: &Path,
+    exe: &Path,
+    backend: NativeBackend,
+    opt: Optimization,
+    extra_c_sources: &[PathBuf],
+) -> std::process::Output {
     let mut session = CompilationSession::new();
     let opts = CompileOptions {
         stop_after: Stage::Build,
         optimization: opt,
         backend,
         output: Some(exe.to_path_buf()),
+        extra_c_sources: extra_c_sources.to_vec(),
         codegen: CodegenOptions { units: 1, jobs: 1 },
         ..CompileOptions::default()
     };
@@ -592,13 +603,84 @@ fn main() -> i32 {
 #[cfg(unix)]
 #[test]
 fn task_stack_overflow_hits_guard_page_safely() {
-    use std::os::unix::process::ExitStatusExt;
-
     let dir = temp_dir("task-guard-page");
-    let src = dir.join("main.zil");
+    let probe_c = dir.join("guard_probe.c");
     std::fs::write(
-        &src,
+        &probe_c,
         r#"
+#define _GNU_SOURCE
+#include <errno.h>
+#include <signal.h>
+#include <stdint.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+static volatile uintptr_t g_guard_addr = 0;
+static volatile size_t g_guard_len = 0;
+static volatile int g_fail_next_guard = 0;
+static unsigned char g_altstack[65536];
+
+void probe_fail_next_mprotect(void) {
+    g_fail_next_guard = 1;
+}
+
+int mprotect(void *addr, size_t len, int prot) {
+    if (prot == PROT_NONE) {
+        if (g_fail_next_guard) {
+            g_fail_next_guard = 0;
+            errno = ENOMEM;
+            return -1;
+        }
+        g_guard_addr = (uintptr_t)addr;
+        g_guard_len = len;
+    }
+    return (int)syscall(SYS_mprotect, addr, len, prot);
+}
+
+static void segv_handler(int sig, siginfo_t *si, void *ucontext) {
+    (void)ucontext;
+    uintptr_t fault = (uintptr_t)si->si_addr;
+    uintptr_t base = g_guard_addr;
+    size_t len = g_guard_len;
+    if (sig == SIGSEGV &&
+        si->si_code == SEGV_ACCERR &&
+        base != 0 &&
+        fault >= base &&
+        fault < base + len) {
+        _exit(77);
+    }
+    _exit(99);
+}
+
+void probe_install_segv_handler(void) {
+    stack_t ss;
+    ss.ss_sp = g_altstack;
+    ss.ss_size = sizeof(g_altstack);
+    ss.ss_flags = 0;
+    if (sigaltstack(&ss, NULL) != 0) {
+        _exit(91);
+    }
+    struct sigaction sa;
+    sa.sa_sigaction = segv_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (sigaction(SIGSEGV, &sa, NULL) != 0) {
+        _exit(92);
+    }
+}
+"#,
+    )
+    .expect("write guard_probe.c");
+
+    // Subtest A: Deep recursion overflows into the exact 4 KiB PROT_NONE guard page
+    // and triggers SIGSEGV with si_code == SEGV_ACCERR and fault address in [guard, guard+4096).
+    let overflow_src = dir.join("overflow.zil");
+    std::fs::write(
+        &overflow_src,
+        r#"
+extern "C" fn probe_install_segv_handler() -> ();
+
 fn burn_stack(depth: i32) -> i32 {
     if depth <= 0 {
         return 1
@@ -613,6 +695,7 @@ fn worker(depth: i32) -> i32 {
 }
 
 fn main() -> i32 {
+    unsafe { probe_install_segv_handler() }
     let created = task_create(worker, 5000)
     match created {
         .ok(t) => {
@@ -627,17 +710,77 @@ fn main() -> i32 {
 }
 "#,
     )
-    .expect("write source");
+    .expect("write overflow.zil");
 
+    // Subtest B: If mprotect fails when installing the guard page, task_poll MUST refuse
+    // to start the worker, return err(TaskPollState.Invalid), and allow clean close + destroy.
+    let fail_src = dir.join("mprotect_fail.zil");
+    std::fs::write(
+        &fail_src,
+        r#"
+extern "C" fn probe_fail_next_mprotect() -> ();
+extern "C" fn putchar(value: i32) -> i32;
+
+fn worker(x: i32) -> i32 {
+    // Must NEVER execute when guard page mprotect fails!
+    unsafe { putchar(88) }
+    return x + 1
+}
+
+fn main() -> i32 {
+    let created = task_create(worker, 5)
+    match created {
+        .ok(t) => {
+            var task = give t
+            unsafe { probe_fail_next_mprotect() }
+            match task_poll(&mut task) {
+                .ok(_) => { return 21 },
+                .err(st) => {
+                    match st {
+                        TaskPollState.Invalid() => {},
+                        _ => { return 22 }
+                    }
+                }
+            }
+            match task_poll_close(&mut task) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => { return 23 }
+            }
+            task_finish_destroy(give task)
+            return 0
+        },
+        .err(_) => { return 20 }
+    }
+}
+"#,
+    )
+    .expect("write mprotect_fail.zil");
+
+    let extra = vec![probe_c];
     for backend in dual_backends() {
         for opt in [Optimization::O0, Optimization::O2] {
-            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
-            let out = build_and_run_raw(&src, &exe, backend, opt);
+            let exe_ov = dir.join(format!("overflow-{}-{opt:?}", backend.name()));
+            let out_ov = build_and_run_raw_with_c(&overflow_src, &exe_ov, backend, opt, &extra);
             assert_eq!(
-                out.status.signal(),
-                Some(11), // SIGSEGV on PROT_NONE guard page
-                "({backend:?}, {opt:?}) expected SIGSEGV(11) from guard page, got status={:?}",
-                out.status
+                out_ov.status.code(),
+                Some(77),
+                "overflow ({backend:?}, {opt:?}) expected exit 77 (SEGV_ACCERR inside guard page), got status={:?}",
+                out_ov.status
+            );
+
+            let exe_mf = dir.join(format!("mprotect-fail-{}-{opt:?}", backend.name()));
+            let out_mf = build_and_run_raw_with_c(&fail_src, &exe_mf, backend, opt, &extra);
+            assert_eq!(
+                out_mf.status.code(),
+                Some(0),
+                "mprotect_fail ({backend:?}, {opt:?}) expected exit 0, got status={:?}, stderr={}",
+                out_mf.status,
+                String::from_utf8_lossy(&out_mf.stderr)
+            );
+            assert!(
+                out_mf.stdout.is_empty(),
+                "mprotect_fail ({backend:?}, {opt:?}) worker must not execute: stdout={:?}",
+                String::from_utf8_lossy(&out_mf.stdout)
             );
         }
     }
@@ -645,17 +788,70 @@ fn main() -> i32 {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+#[cfg(unix)]
 #[test]
 fn task_concurrent_polling_on_two_os_threads_isolated_tls() {
     let dir = temp_dir("task-tls-threads");
+    let probe_c = dir.join("barrier_probe.c");
+    std::fs::write(
+        &probe_c,
+        r#"
+#define _POSIX_C_SOURCE 200809L
+#include <pthread.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+static pthread_barrier_t g_bar;
+static volatile unsigned long g_tid0 = 0;
+static volatile unsigned long g_tid1 = 0;
+
+void probe_barrier_init(void) {
+    if (pthread_barrier_init(&g_bar, NULL, 2) != 0) {
+        abort();
+    }
+    g_tid0 = 0;
+    g_tid1 = 0;
+}
+
+void probe_barrier_wait(void) {
+    int rc = pthread_barrier_wait(&g_bar);
+    if (rc != 0 && rc != PTHREAD_BARRIER_SERIAL_THREAD) {
+        abort();
+    }
+}
+
+void probe_record_tid(int slot) {
+    unsigned long self = (unsigned long)pthread_self();
+    if (slot == 0) {
+        g_tid0 = self;
+    } else {
+        g_tid1 = self;
+    }
+}
+
+int probe_tids_distinct(void) {
+    return (g_tid0 != 0 && g_tid1 != 0 && g_tid0 != g_tid1) ? 1 : 0;
+}
+"#,
+    )
+    .expect("write barrier_probe.c");
+
     let src = dir.join("main.zil");
     std::fs::write(
         &src,
         r#"
+extern "C" fn probe_barrier_init() -> ();
+extern "C" fn probe_barrier_wait() -> ();
+extern "C" fn probe_record_tid(slot: i32) -> ();
+extern "C" fn probe_tids_distinct() -> i32;
+
 fn step_worker(seed: i32) -> i32 {
     var acc = 0
     var i = 0
     while i < 40 {
+        // Real 2-thread pthread_barrier_wait inside active Task frames:
+        // guarantees both OS threads are simultaneously alive and executing Tasks.
+        unsafe { probe_barrier_wait() }
         acc += seed + i
         task_yield()
         i += 1
@@ -664,6 +860,11 @@ fn step_worker(seed: i32) -> i32 {
 }
 
 fn run_task(seed: i32) -> i32 {
+    if seed == 100 {
+        unsafe { probe_record_tid(0) }
+    } else {
+        unsafe { probe_record_tid(1) }
+    }
     let created = task_create(step_worker, seed)
     match created {
         .ok(t) => {
@@ -696,8 +897,12 @@ fn run_task(seed: i32) -> i32 {
 }
 
 fn main() -> i32 {
+    unsafe { probe_barrier_init() }
     let (created, child_res, main_res) = thread_scope(run_task, 100, () -> i32 => run_task(200))
     if !created { return 1 }
+    var distinct = 0
+    unsafe { distinct = probe_tids_distinct() }
+    if distinct != 1 { return 4 }
     // sum_{i=0..39} (100 + i) = 4000 + 780 = 4780
     if child_res != 4780 { return 2 }
     // sum_{i=0..39} (200 + i) = 8000 + 780 = 8780
@@ -708,16 +913,28 @@ fn main() -> i32 {
     )
     .expect("write source");
 
+    let mutex_fixture = repo_root().join("tests/fixtures/threading/mutex-worker-helpers.zil");
+    let extra = vec![probe_c];
     for backend in dual_backends() {
         for opt in [Optimization::O0, Optimization::O2] {
             let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
-            let out = build_and_run_raw(&src, &exe, backend, opt);
+            let out = build_and_run_raw_with_c(&src, &exe, backend, opt, &extra);
             assert_eq!(
                 out.status.code(),
                 Some(0),
-                "({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                "tls-threads ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
                 out.status,
                 String::from_utf8_lossy(&out.stderr)
+            );
+
+            let exe_m = dir.join(format!("mutex-{}-{opt:?}", backend.name()));
+            let out_m = build_and_run_raw(&mutex_fixture, &exe_m, backend, opt);
+            assert_eq!(
+                out_m.status.code(),
+                Some(0),
+                "mutex-worker-helpers ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out_m.status,
+                String::from_utf8_lossy(&out_m.stderr)
             );
         }
     }

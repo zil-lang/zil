@@ -202,7 +202,8 @@ pub fn build_verified_body(
                     cmd.arg(c_src);
                     argv.push(c_src.display().to_string());
                 }
-                cmd.arg("-o").arg(&options.output);
+                cmd.arg("-pthread").arg("-o").arg(&options.output);
+                argv.push("-pthread".into());
                 argv.push("-o".into());
                 argv.push(options.output.display().to_string());
 
@@ -265,7 +266,8 @@ pub fn build_verified_body(
                 argv.push("c".into());
                 argv.push(c_src.display().to_string());
             }
-            cmd.arg("-o").arg(&options.output);
+            cmd.arg("-pthread").arg("-o").arg(&options.output);
+            argv.push("-pthread".into());
             argv.push("-o".into());
             argv.push(options.output.display().to_string());
 
