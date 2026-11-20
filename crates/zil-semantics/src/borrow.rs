@@ -520,7 +520,56 @@ impl Kernel<'_> {
                 }
                 Ok(())
             }
-            Terminator::Call { .. } => {
+            Terminator::Call { callee, .. } => {
+                // Region-contract invariance check: if a direct callee binds
+                // multiple Task<_, &'r mut _> parameters to the same region
+                // parameter `r`, their carried local loan sets cannot be
+                // disjoint (they belong to distinct local borrow classes).
+                if let zil_ir::body::Callee::Direct(f) = callee
+                    && let Some(sig) = self.sigs.functions.get(f.index())
+                    && sig.region_params > 0
+                {
+                    let accesses = term.accesses();
+                    for r in 0..sig.region_params {
+                        let mut prev_local_loans: Option<Vec<_>> = None;
+                        for (idx, pt) in sig.params.iter().enumerate() {
+                            if !self.tys.regions_in(*pt).contains(&r) {
+                                continue;
+                            }
+                            let is_task = matches!(
+                                self.tys.get(*pt),
+                                Some(zil_ir::body::TyKind::Managed(inner))
+                                    if matches!(self.tys.get(*inner), Some(zil_ir::body::TyKind::Opaque(zil_ir::body::OpaqueTy::Task { context: Some(_), .. })))
+                            );
+                            if !is_task {
+                                continue;
+                            }
+                            let arg_loans = self.operand_loans(
+                                state,
+                                accesses
+                                    .iter()
+                                    .filter(|a| a.role == OperandRole::Arg(idx as u32))
+                                    .map(|a| (a.role, a.access, a.place.as_ref())),
+                            );
+                            let closed = self.close(state, &arg_loans);
+                            let local_only: Vec<_> = closed
+                                .iter()
+                                .filter(|id| self.loans.get(*id).is_some())
+                                .collect();
+                            if local_only.is_empty() {
+                                continue;
+                            }
+                            if let Some(prev) = &prev_local_loans {
+                                let overlaps = prev.iter().any(|id| local_only.contains(id));
+                                if !overlaps {
+                                    return Err(ViolationKind::RegionEscape { region: r });
+                                }
+                            } else {
+                                prev_local_loans = Some(local_only);
+                            }
+                        }
+                    }
+                }
                 // The callee may store any argument loan into any writable,
                 // address-holding storage it receives.
                 let mut writable = Vec::new();

@@ -270,9 +270,10 @@ impl<'a> Items<'a> {
                 let elem = self.normalize_ty_depth(elem, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)))
             }
-            TyData::Opaque(OpaqueKind::Task(elem)) => {
-                let elem = self.normalize_ty_depth(elem, types, depth + 1);
-                types.intern(TyData::Opaque(OpaqueKind::Task(elem)))
+            TyData::Opaque(OpaqueKind::Task { result, context }) => {
+                let result = self.normalize_ty_depth(result, types, depth + 1);
+                let context = context.map(|c| self.normalize_ty_depth(c, types, depth + 1));
+                types.intern(TyData::Opaque(OpaqueKind::Task { result, context }))
             }
             TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
                 let elem = self.normalize_ty_depth(elem, types, depth + 1);
@@ -2139,15 +2140,33 @@ fn resolve_type_with_lifetimes(
                     name.as_str(),
                     "Task" | "Mutex" | "MutexGuard" | "AsyncRegistration"
                 ) {
-                    let [ast::GenericArg::Type(elem)] = args.as_slice() else {
-                        return Err(diag::error(
-                            diag::TYPE_ARGUMENT,
-                            t.span,
-                            format!("`{name}<T>` takes one type argument"),
-                        ));
+                    let (elem_ast, ctx_ty) = match (name.as_str(), args.as_slice()) {
+                        ("Task", [ast::GenericArg::Type(r), ast::GenericArg::Type(ctx)]) => {
+                            let c = resolve_type_with_lifetimes(
+                                ctx,
+                                from,
+                                generics,
+                                lifetimes,
+                                modules,
+                                mod_by_path,
+                                adt_kinds,
+                                self_ty,
+                                None,
+                                types,
+                            )?;
+                            (r, Some(c))
+                        }
+                        (_, [ast::GenericArg::Type(elem)]) => (elem, None),
+                        _ => {
+                            return Err(diag::error(
+                                diag::TYPE_ARGUMENT,
+                                t.span,
+                                format!("`{name}<T>` takes one type argument"),
+                            ));
+                        }
                     };
                     let elem = resolve_type_with_lifetimes(
-                        elem,
+                        elem_ast,
                         from,
                         generics,
                         lifetimes,
@@ -2160,7 +2179,10 @@ fn resolve_type_with_lifetimes(
                     )?;
                     return match name.as_str() {
                         "Task" => {
-                            let inner = types.intern(TyData::Opaque(OpaqueKind::Task(elem)));
+                            let inner = types.intern(TyData::Opaque(OpaqueKind::Task {
+                                result: elem,
+                                context: ctx_ty,
+                            }));
                             Ok(types.intern(TyData::Desc(inner)))
                         }
                         "Mutex" => {
@@ -2338,7 +2360,7 @@ fn resolve_type_with_lifetimes(
                 && let TyData::Desc(inner_ty) = *types.data(pointee)
                 && matches!(
                     types.data(inner_ty),
-                    TyData::Opaque(OpaqueKind::Task(_) | OpaqueKind::AsyncRegistration(_))
+                    TyData::Opaque(OpaqueKind::Task { .. } | OpaqueKind::AsyncRegistration(_))
                 )
             {
                 pointee = types.intern(TyData::Managed(inner_ty));

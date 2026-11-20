@@ -3016,25 +3016,44 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             IntrinsicOp::TaskCreate => {
                 let res = self.types.fresh(VarKind::General);
-                let worker = self.types.intern(TyData::FnPtr {
-                    params: Vec::new(),
-                    result: res,
-                });
-                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
-                let ok = self.types.intern(TyData::Managed(inner));
                 let err = self.types.intern(TyData::Adt {
                     adt: AdtRef(3),
                     args: Vec::new(),
                 });
-                (
-                    vec![worker],
-                    self.types.intern(TyData::ErrorUnion { ok, err }),
-                )
+                if arguments.len() == 2 {
+                    let ctx = self.types.fresh(VarKind::General);
+                    let worker = self.types.intern(TyData::FnPtr {
+                        params: vec![ctx],
+                        result: res,
+                    });
+                    let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                        result: res,
+                        context: Some(ctx),
+                    }));
+                    let ok = self.types.intern(TyData::Managed(inner));
+                    let ret = self.types.intern(TyData::ErrorUnion { ok, err });
+                    (vec![worker, ctx], ret)
+                } else {
+                    let worker = self.types.intern(TyData::FnPtr {
+                        params: Vec::new(),
+                        result: res,
+                    });
+                    let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                        result: res,
+                        context: None,
+                    }));
+                    let ok = self.types.intern(TyData::Managed(inner));
+                    let ret = self.types.intern(TyData::ErrorUnion { ok, err });
+                    (vec![worker], ret)
+                }
             }
             IntrinsicOp::TaskYield => (Vec::new(), unit_ty),
             IntrinsicOp::TaskPoll => {
                 let res = self.types.fresh(VarKind::General);
-                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                    result: res,
+                    context: None,
+                }));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let task_ref = self.types.intern(TyData::Ref {
                     region: None,
@@ -3056,7 +3075,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             IntrinsicOp::TaskRequestCancel => {
                 let res = self.types.fresh(VarKind::General);
-                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                    result: res,
+                    context: None,
+                }));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let task_ref = self.types.intern(TyData::Ref {
                     region: None,
@@ -3067,7 +3089,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             IntrinsicOp::TaskPollClose => {
                 let res = self.types.fresh(VarKind::General);
-                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                    result: res,
+                    context: None,
+                }));
                 let managed = self.types.intern(TyData::Managed(inner));
                 let task_ref = self.types.intern(TyData::Ref {
                     region: None,
@@ -3082,7 +3107,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             IntrinsicOp::TaskFinishDestroy => {
                 let res = self.types.fresh(VarKind::General);
-                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task(res)));
+                let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {
+                    result: res,
+                    context: None,
+                }));
                 let managed = self.types.intern(TyData::Managed(inner));
                 (vec![managed], unit_ty)
             }
@@ -3367,6 +3395,24 @@ impl Finalizer<'_, '_> {
             }
             self.expr(&mut c.body);
         }
+        for &p in &f.params {
+            let l = &f.locals[p.0 as usize];
+            if let TyData::Param(i) = self.data(l.ty)
+                && let Some(g) = self.generics.get(i as usize)
+                && !g.copy
+                && !g.sync_drop
+                && !expr_mentions_local(&f.body, p)
+            {
+                self.diags.push(diag::error(
+                    diag::GENERIC_BOUND,
+                    l.span,
+                    format!(
+                        "dropping unconsumed parameter of generic type `{}` requires `Copy` or `SyncDrop`",
+                        g.name
+                    ),
+                ));
+            }
+        }
     }
 
     fn data(&self, ty: Ty) -> TyData {
@@ -3406,7 +3452,7 @@ impl Finalizer<'_, '_> {
                 | OpaqueKind::OwnedStore(_)
                 | OpaqueKind::Mutex(_)
                 | OpaqueKind::MutexGuard(_)
-                | OpaqueKind::Task(_)
+                | OpaqueKind::Task { .. }
                 | OpaqueKind::AsyncRegistration(_),
             ) => false,
             TyData::ErrorUnion { ok, err } => {
@@ -3795,5 +3841,105 @@ impl Finalizer<'_, '_> {
                 }
             }
         }
+    }
+}
+
+fn expr_mentions_local(e: &Expr, target: LocalId) -> bool {
+    match &e.kind {
+        ExprKind::Local(l) => *l == target,
+        ExprKind::Lit(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Capture(_)
+        | ExprKind::FnRef(_)
+        | ExprKind::ForeignRef(_)
+        | ExprKind::Break
+        | ExprKind::Continue => false,
+        ExprKind::Field { base, .. }
+        | ExprKind::TupleField { base, .. }
+        | ExprKind::Deref(base)
+        | ExprKind::Give(base)
+        | ExprKind::Borrow { place: base, .. }
+        | ExprKind::Describe(base)
+        | ExprKind::Unary { operand: base, .. }
+        | ExprKind::Convert { operand: base }
+        | ExprKind::Len(base)
+        | ExprKind::Try(base)
+        | ExprKind::ErrorInject { value: base, .. } => expr_mentions_local(base, target),
+        ExprKind::SliceBorrow {
+            place, start, end, ..
+        } => {
+            expr_mentions_local(place, target)
+                || start
+                    .as_deref()
+                    .is_some_and(|s| expr_mentions_local(s, target))
+                || end
+                    .as_deref()
+                    .is_some_and(|s| expr_mentions_local(s, target))
+        }
+        ExprKind::Index { base, index }
+        | ExprKind::Binary {
+            lhs: base,
+            rhs: index,
+            ..
+        }
+        | ExprKind::Logical {
+            lhs: base,
+            rhs: index,
+            ..
+        }
+        | ExprKind::Assign {
+            place: base,
+            value: index,
+            ..
+        } => expr_mentions_local(base, target) || expr_mentions_local(index, target),
+        ExprKind::Tuple(xs)
+        | ExprKind::Array(xs)
+        | ExprKind::Call { args: xs, .. }
+        | ExprKind::TraitCall { args: xs, .. }
+        | ExprKind::ForeignCall { args: xs, .. }
+        | ExprKind::Intrinsic { args: xs, .. }
+        | ExprKind::ManagedCreate { fields: xs, .. }
+        | ExprKind::Adt { fields: xs, .. }
+        | ExprKind::Closure { captures: xs, .. } => {
+            xs.iter().any(|x| expr_mentions_local(x, target))
+        }
+        ExprKind::IndirectCall { callee, args }
+        | ExprKind::ClosureCall {
+            closure: callee,
+            args,
+            ..
+        }
+        | ExprKind::DynCall {
+            object: callee,
+            args,
+            ..
+        } => {
+            expr_mentions_local(callee, target)
+                || args.iter().any(|a| expr_mentions_local(a, target))
+        }
+        ExprKind::Return(v) => v.as_deref().is_some_and(|x| expr_mentions_local(x, target)),
+        ExprKind::CtEval(inner) | ExprKind::Loop(inner) => expr_mentions_local(inner, target),
+        ExprKind::If {
+            cond,
+            then,
+            otherwise,
+        } => {
+            expr_mentions_local(cond, target)
+                || expr_mentions_local(then, target)
+                || otherwise
+                    .as_deref()
+                    .is_some_and(|x| expr_mentions_local(x, target))
+        }
+        ExprKind::While { cond, body } => {
+            expr_mentions_local(cond, target) || expr_mentions_local(body, target)
+        }
+        ExprKind::Match { scrutinee, arms } => {
+            expr_mentions_local(scrutinee, target)
+                || arms.iter().any(|a| expr_mentions_local(&a.body, target))
+        }
+        ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
+            Stmt::Let { init, .. } => expr_mentions_local(init, target),
+            Stmt::Expr(x) => expr_mentions_local(x, target),
+        }),
     }
 }

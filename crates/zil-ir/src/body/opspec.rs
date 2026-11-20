@@ -1476,14 +1476,25 @@ fn intrinsic_sig(
             Ok((vec![*worker_ty, *cell_ty, *parent_ty], out_ty))
         }
         IntrinsicOp::TaskCreate => {
-            let [worker_ty] = found else {
-                return Err(bad("task.create takes one worker function"));
+            let (worker_ty, ctx_ty) = match found {
+                [w] => (*w, None),
+                [w, c] => (*w, Some(*c)),
+                _ => return Err(bad("task.create takes worker or (worker, context)")),
             };
-            let Some(TyKind::FnPtr { params, result }) = tys.get(*worker_ty) else {
-                return Err(bad("task.create worker must be fn() -> T"));
+            let Some(TyKind::FnPtr { params, result }) = tys.get(worker_ty) else {
+                return Err(bad("task.create worker must be a function pointer"));
             };
-            if !params.is_empty() {
-                return Err(bad("task.create worker takes no parameters"));
+            match ctx_ty {
+                None => {
+                    if !params.is_empty() {
+                        return Err(bad("task.create worker takes no parameters"));
+                    }
+                }
+                Some(c) => {
+                    if params.len() != 1 || !tys.same_erased_region(params[0], c) {
+                        return Err(bad("task.create worker parameter must match context type"));
+                    }
+                }
             }
             let Some(TyKind::ErrorUnion { ok, err }) = tys.get(dest_ty) else {
                 return Err(bad("task.create requires an error union destination"));
@@ -1491,7 +1502,16 @@ fn intrinsic_sig(
             let ok_matches = matches!(
                 tys.get(*ok),
                 Some(TyKind::Managed(inner))
-                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Task { result: tr })) if *tr == *result)
+                    if matches!(
+                        tys.get(*inner),
+                        Some(TyKind::Opaque(OpaqueTy::Task { result: tr, context: tc }))
+                            if tys.same_erased_region(*tr, *result)
+                                && match (tc, ctx_ty) {
+                                    (None, None) => true,
+                                    (Some(a), Some(b)) => tys.same_erased_region(*a, b),
+                                    (None, Some(_)) | (Some(_), None) => false,
+                                }
+                    )
             );
             let err_is_enum = matches!(
                 tys.get(*err),
@@ -1503,7 +1523,11 @@ fn intrinsic_sig(
                     "task.create destination must be Error!Managed<Task<T>>",
                 ));
             }
-            Ok((vec![*worker_ty], dest_ty))
+            let mut expected = vec![worker_ty];
+            if let Some(c) = ctx_ty {
+                expected.push(c);
+            }
+            Ok((expected, dest_ty))
         }
         IntrinsicOp::TaskYield => Ok((Vec::new(), cx.lookup(TyKind::Unit)?)),
         IntrinsicOp::TaskPoll => {

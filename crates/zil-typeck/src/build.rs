@@ -412,9 +412,14 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     region: Region::Static,
                 })
             }
-            TyData::Opaque(OpaqueKind::Task(result)) => TyKind::Opaque(OpaqueTy::Task {
-                result: self.lower_ty(result, span)?,
-            }),
+            TyData::Opaque(OpaqueKind::Task { result, context }) => {
+                let result = self.lower_ty(result, span)?;
+                let context = match context {
+                    Some(c) => Some(self.lower_ty(c, span)?),
+                    None => None,
+                };
+                TyKind::Opaque(OpaqueTy::Task { result, context })
+            }
             TyData::Opaque(OpaqueKind::AsyncRegistration(environment)) => {
                 TyKind::Opaque(OpaqueTy::AsyncRegistration {
                     environment: self.lower_ty(environment, span)?,

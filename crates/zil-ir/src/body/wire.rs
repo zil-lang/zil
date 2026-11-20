@@ -372,9 +372,10 @@ fn encode_opaque(w: &mut Writer, o: &OpaqueTy) {
             w.u8(5);
             w.u32(environment.0);
         }
-        OpaqueTy::Task { result } => {
+        OpaqueTy::Task { result, context } => {
             w.u8(6);
             w.u32(result.0);
+            w.opt(context.as_ref(), |w, t| w.u32(t.0));
         }
         OpaqueTy::ForeignHandle => w.u8(7),
         OpaqueTy::CWideString => w.u8(8),
@@ -410,6 +411,7 @@ fn decode_opaque(r: &mut Reader<'_>) -> Result<OpaqueTy, WireError> {
         }),
         6 => Ok(OpaqueTy::Task {
             result: TyId(r.u32()?),
+            context: r.opt(|r| Ok(TyId(r.u32()?)))?,
         }),
         7 => Ok(OpaqueTy::ForeignHandle),
         8 => Ok(OpaqueTy::CWideString),

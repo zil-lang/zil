@@ -81,7 +81,7 @@ pub enum OpaqueTy {
     MutexGuard { payload: TyId, region: Region },
     Registration { environment: TyId },
     AsyncRegistration { environment: TyId },
-    Task { result: TyId },
+    Task { result: TyId, context: Option<TyId> },
     ForeignHandle,
     CWideString,
     ForeignCallback { params: Vec<TyId>, result: TyId },
@@ -1033,6 +1033,23 @@ impl TyTable {
                 TyKind::Opaque(OpaqueTy::MutexGuard { payload: pa, .. }),
                 TyKind::Opaque(OpaqueTy::MutexGuard { payload: pb, .. }),
             ) => self.same_erased_region(*pa, *pb),
+            (
+                TyKind::Opaque(OpaqueTy::Task {
+                    result: ra,
+                    context: ca,
+                }),
+                TyKind::Opaque(OpaqueTy::Task {
+                    result: rb,
+                    context: cb,
+                }),
+            ) => {
+                self.same_erased_region(*ra, *rb)
+                    && match (ca, cb) {
+                        (None, None) => true,
+                        (Some(a), Some(b)) => self.same_erased_region(*a, *b),
+                        (None, Some(_)) | (Some(_), None) => false,
+                    }
+            }
             _ => false,
         }
     }
@@ -1192,7 +1209,10 @@ pub fn map_kind(
             OpaqueTy::AsyncRegistration { environment } => OpaqueTy::AsyncRegistration {
                 environment: ty(environment),
             },
-            OpaqueTy::Task { result } => OpaqueTy::Task { result: ty(result) },
+            OpaqueTy::Task { result, context } => OpaqueTy::Task {
+                result: ty(result),
+                context: context.map(ty),
+            },
             OpaqueTy::ForeignCallback { params, result } => OpaqueTy::ForeignCallback {
                 params: params.into_iter().map(&mut *ty).collect(),
                 result: ty(result),
@@ -1216,7 +1236,13 @@ fn opaque_contents(o: &OpaqueTy) -> Option<Vec<TyId>> {
         OpaqueTy::Registration { environment } | OpaqueTy::AsyncRegistration { environment } => {
             Some(vec![*environment])
         }
-        OpaqueTy::Task { result } => Some(vec![*result]),
+        OpaqueTy::Task { result, context } => {
+            let mut v = vec![*result];
+            if let Some(c) = context {
+                v.push(*c);
+            }
+            Some(v)
+        }
         OpaqueTy::CWideString => None,
     }
 }
