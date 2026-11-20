@@ -16,14 +16,14 @@ use crate::thir::*;
 use crate::ty::{AdtRef, ClosureRef, OpaqueKind, TraitRef, Ty, TyData, Types};
 use crate::{ConstEvaluator, CtValue, diag};
 use std::collections::{HashMap, HashSet, VecDeque};
-use zil_base::{Diagnostic, Span};
+use zil_base::{Diagnostic, NodeId, Span};
 use zil_ir::body::{
     AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ClosureDef,
     ClosureId, ConstValue, DynDef, DynId, DynSlotSig, FieldDef, FieldIdx, FieldRef, FloatTy, FnId,
-    FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId, Function, GenericArgs, Instruction,
-    InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module, Mutability, OpaqueTy, Operand,
-    ParamEnv, Place, Projection, Region, Rvalue, StaticId, Terminator, TyId, TyKind, ValueClass,
-    VariantDef, VariantIdx,
+    FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId, Function, FunctionSourceMap, GenericArgs,
+    Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module, Mutability,
+    OpLocation, OpaqueTy, Operand, ParamEnv, Place, Projection, Region, Rvalue, SourceMap,
+    SourceRelation, StaticId, Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
 };
 
 /// Work limits of one lowering request.
@@ -46,6 +46,7 @@ pub struct Mono<'c, 'a, 'e> {
     limits: Limits,
     ct: Option<&'e mut dyn ConstEvaluator>,
     pub module: Module,
+    pub source_map: SourceMap,
     instances: HashMap<(FnRef, Vec<Ty>), FnId>,
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
     adts: HashMap<AdtRef, AdtId>,
@@ -72,6 +73,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             limits,
             ct,
             module: Module::default(),
+            source_map: SourceMap::default(),
             instances: HashMap::new(),
             queue: VecDeque::new(),
             adts: HashMap::new(),
@@ -206,6 +208,10 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 let mut b = Builder::new(self, f, thir, args, sig);
                 b.function(thir);
                 let body = b.finish();
+                let decl_span = self.items.func(f).ast.span;
+                self.source_map
+                    .functions
+                    .push(build_fn_source_map(id, decl_span, &body));
                 self.module.functions[id.index()].body = body;
             }
             while let Some((owner, args, cid, def_id)) = self.closure_queue.pop_front() {
@@ -240,7 +246,14 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 cb.closure_id = Some(def_id);
                 cb.function(&cthir);
                 let cbody = cb.finish();
-                let owner_name = self.items.func(owner).name.clone();
+                let owner_decl = self.items.func(owner);
+                let owner_name = owner_decl.name.clone();
+                let closure_fn_id = FnId::from_index(self.module.functions.len());
+                self.source_map.functions.push(build_fn_source_map(
+                    closure_fn_id,
+                    owner_decl.ast.span,
+                    &cbody,
+                ));
                 self.module.functions.push(Function {
                     name: format!("{owner_name}::$closure#{}", cid.0),
                     sig: csig,
@@ -2357,4 +2370,81 @@ fn prune(blocks: Vec<Block>) -> Vec<Block> {
             block
         })
         .collect()
+}
+
+fn build_fn_source_map(function: FnId, decl_span: Span, body: &Body) -> FunctionSourceMap {
+    let mut relations = Vec::new();
+    let mut spans = Vec::new();
+    let decl_start = u32::try_from(decl_span.start).unwrap_or(u32::MAX);
+    for (idx, decl) in body.locals.iter().enumerate() {
+        if decl.name.is_some() {
+            relations.push(SourceRelation::Binding {
+                node: NodeId(decl_start.saturating_add(idx as u32)),
+                local: Local::from_index(idx),
+            });
+        }
+    }
+    for (bi, block) in body.blocks.iter().enumerate() {
+        let block_id = BlockId::from_index(bi);
+        for (ii, inst) in block.instructions.iter().enumerate() {
+            let at = OpLocation {
+                block: block_id,
+                instruction: Some(ii as u32),
+            };
+            spans.push((at, inst.span));
+            let inst_start = u32::try_from(inst.span.start).unwrap_or(u32::MAX);
+            for access in inst.kind.accesses() {
+                for proj in &access.place.projections {
+                    if let Projection::Field(field) = *proj {
+                        relations.push(SourceRelation::FieldSelect {
+                            node: NodeId(inst_start),
+                            field,
+                            at,
+                        });
+                    }
+                }
+            }
+            if matches!(inst.kind, InstructionKind::Drop { .. }) {
+                relations.push(SourceRelation::ResourceOp {
+                    node: NodeId(inst_start),
+                    at,
+                });
+            }
+        }
+        let term_at = OpLocation {
+            block: block_id,
+            instruction: None,
+        };
+        spans.push((term_at, block.terminator_span));
+        let term_start = u32::try_from(block.terminator_span.start).unwrap_or(u32::MAX);
+        for access in block.terminator.accesses() {
+            for proj in &access.place.projections {
+                if let Projection::Field(field) = *proj {
+                    relations.push(SourceRelation::FieldSelect {
+                        node: NodeId(term_start),
+                        field,
+                        at: term_at,
+                    });
+                }
+            }
+        }
+        if matches!(
+            block.terminator,
+            Terminator::Call {
+                callee: Callee::Intrinsic(_),
+                ..
+            }
+        ) {
+            relations.push(SourceRelation::ResourceOp {
+                node: NodeId(term_start),
+                at: term_at,
+            });
+        }
+    }
+    FunctionSourceMap {
+        function,
+        declaration: NodeId(decl_start),
+        relations,
+        spans,
+    }
 }

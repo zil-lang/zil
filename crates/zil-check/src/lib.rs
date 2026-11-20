@@ -6,8 +6,10 @@
 #![deny(clippy::wildcard_enum_match_arm)]
 
 mod certificate;
+pub mod fidelity;
 
 pub use certificate::{CheckBudget, CheckError, CheckErrorKind, check_function};
+pub use fidelity::{FidelityError, check_fidelity};
 
 use zil_ir::body::{AdtId, AdtKind, Certificate, FnId, FnRole, Module, Sigs, TyKind};
 

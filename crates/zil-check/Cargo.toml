@@ -9,5 +9,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+zil-base.workspace = true
 zil-ir.workspace = true
 zil-semantics.workspace = true
+zil-syntax.workspace = true

@@ -252,9 +252,53 @@ pub struct TyTable {
     dyns: Vec<DynDef>,
 }
 
+pub struct TyTableParts<'a> {
+    pub kinds: &'a [TyKind],
+    pub args: &'a [GenericArgs],
+    pub adts: &'a [AdtDef],
+    pub closures: &'a [ClosureDef],
+    pub dyns: &'a [DynDef],
+}
+
 impl TyTable {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn raw_parts(&self) -> TyTableParts<'_> {
+        TyTableParts {
+            kinds: &self.kinds,
+            args: &self.args,
+            adts: &self.adts,
+            closures: &self.closures,
+            dyns: &self.dyns,
+        }
+    }
+
+    pub fn from_raw_parts(
+        kinds: Vec<TyKind>,
+        args: Vec<GenericArgs>,
+        adts: Vec<AdtDef>,
+        closures: Vec<ClosureDef>,
+        dyns: Vec<DynDef>,
+    ) -> Self {
+        let mut by_kind = HashMap::with_capacity(kinds.len());
+        for (i, k) in kinds.iter().enumerate() {
+            by_kind.insert(k.clone(), TyId::from_index(i));
+        }
+        let mut by_args = HashMap::with_capacity(args.len());
+        for (i, a) in args.iter().enumerate() {
+            by_args.insert(a.clone(), ArgsId::from_index(i));
+        }
+        Self {
+            kinds,
+            by_kind,
+            args,
+            by_args,
+            adts,
+            closures,
+            dyns,
+        }
     }
 
     // ---- producer interface -------------------------------------------------

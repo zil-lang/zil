@@ -132,13 +132,14 @@ pub fn lower_program(
     }
     mono.run();
     let module = std::mem::take(&mut mono.module);
+    let source_map = std::mem::take(&mut mono.source_map);
     drop(mono);
     if !diags.is_empty() {
         return Err(diags);
     }
     Ok(Lowered {
         module,
-        source_map: SourceMap::default(),
+        source_map,
         roots,
     })
 }

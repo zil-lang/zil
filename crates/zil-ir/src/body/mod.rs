@@ -24,6 +24,7 @@ mod opspec;
 mod place;
 mod source_map;
 mod ty;
+mod wire;
 
 pub use cert::*;
 pub use ids::*;
@@ -32,6 +33,7 @@ pub use opspec::*;
 pub use place::*;
 pub use source_map::*;
 pub use ty::*;
+pub use wire::*;
 
 #[cfg(test)]
 mod tests;
