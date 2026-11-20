@@ -1864,8 +1864,13 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             .collect();
         let mut arm_bindings: Vec<Vec<Local>> = vec![Vec::new(); arms.len()];
         self.decide(rows, &arm_blocks, &mut arm_bindings, span);
+        self.frames.pop();
         for (i, arm) in arms.iter().enumerate() {
             self.cur = arm_blocks[i];
+            for t in match_temps.iter().rev().copied() {
+                self.push_auto_drop(t, arm.span);
+                self.push(InstructionKind::StorageDead(t), arm.span);
+            }
             self.enter_frame();
             if let Some(f) = self.frames.last_mut() {
                 f.locals = arm_bindings[i].clone();
@@ -1875,13 +1880,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 None => self.effect(&arm.body),
             }
             self.exit_frame(arm.span);
-            for t in match_temps.iter().rev().copied() {
-                self.push_auto_drop(t, arm.span);
-                self.push(InstructionKind::StorageDead(t), arm.span);
-            }
             self.goto(join, arm.span);
         }
-        self.frames.pop();
         self.cur = join;
     }
 

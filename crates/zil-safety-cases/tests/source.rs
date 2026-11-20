@@ -1023,3 +1023,39 @@ fn state_replacement_missing_sync_drop_unused_is_rejected() {
         "expected E-GENERIC-ARGUMENT, got {err:?}"
     );
 }
+
+// ---- owning-hash-collections (lifetimes, method-syntax trait calls) --------
+
+#[test]
+fn owning_hash_collections_replacement_recovery_is_admitted_end_to_end() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            ("std.store", include_str!("../../../lib/std/store.zil")),
+            (
+                "std.owning_entries",
+                include_str!("../../../lib/std/owning_entries.zil"),
+            ),
+            (
+                "std.owning_map",
+                include_str!("../../../lib/std/owning_map.zil"),
+            ),
+            (
+                "std.owning_hash_map",
+                include_str!("../../../lib/std/owning_hash_map.zil"),
+            ),
+            (
+                "std.owning_hash_set",
+                include_str!("../../../lib/std/owning_hash_set.zil"),
+            ),
+            (
+                "main",
+                include_str!(
+                    "../../../tests/fixtures/owning-hash-collections/replacement-recovery.zil"
+                ),
+            ),
+        ],
+        None,
+    )
+    .expect("owning-hash-collections replacement-recovery lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}

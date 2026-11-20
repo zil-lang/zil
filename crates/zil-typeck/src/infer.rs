@@ -2393,26 +2393,124 @@ impl<'c, 'a> FnCx<'c, 'a> {
             return self.err_expr(span);
         }
 
-        // Built-in `.len()` method on arrays and slices (`-> i64`).
+        // Built-in `.len()` method and method-syntax trait calls (`receiver.method(args...)`).
+        let mut fallback_callee: Option<Expr> = None;
         if explicit.is_none()
-            && arguments.is_empty()
             && let ast::ExprKind::Member {
                 object,
                 member: ast::MemberName::Name(mname),
             } = &callee.kind
-            && mname == "len"
         {
-            let base = self.infer(object);
-            let base = self.auto_deref(base);
-            let bt = self.types.shallow(base.ty);
-            if matches!(self.types.data(bt), TyData::Array { .. } | TyData::Slice(_)) {
-                let i64_ty = self.types.int(IntTy::I64);
+            let receiver = self.infer(object);
+            let rec_ty = self.types.shallow(receiver.ty);
+            if mname == "len" && arguments.is_empty() {
+                let derefed = self.auto_deref(receiver.clone());
+                let bt = self.types.shallow(derefed.ty);
+                if matches!(self.types.data(bt), TyData::Array { .. } | TyData::Slice(_)) {
+                    let i64_ty = self.types.int(IntTy::I64);
+                    return Expr {
+                        kind: ExprKind::Len(Box::new(derefed)),
+                        ty: i64_ty,
+                        span,
+                    };
+                }
+            }
+            let self_ty = if let TyData::Ref { pointee, .. } = *self.types.data(rec_ty) {
+                self.types.shallow(pointee)
+            } else {
+                rec_ty
+            };
+            let found_trait = if let TyData::Param(param_idx) = *self.types.data(self_ty) {
+                self.decl
+                    .generics
+                    .get(param_idx as usize)
+                    .into_iter()
+                    .flat_map(|g| g.traits.iter())
+                    .find_map(|(tr_ref, tr_args)| {
+                        let tr = self.items.trait_decl(*tr_ref);
+                        tr.methods
+                            .iter()
+                            .find(|m| m.name == *mname && !m.params.is_empty())
+                            .map(|m| (*tr_ref, tr_args.clone(), m.params.clone(), m.result))
+                    })
+            } else {
+                self.items.trait_impls.iter().find_map(|imp| {
+                    if imp.target != self_ty {
+                        return None;
+                    }
+                    let tr = self.items.trait_decl(imp.trait_ref);
+                    tr.methods
+                        .iter()
+                        .find(|m| m.name == *mname && !m.params.is_empty())
+                        .map(|m| {
+                            (
+                                imp.trait_ref,
+                                imp.trait_args.clone(),
+                                m.params.clone(),
+                                m.result,
+                            )
+                        })
+                })
+            };
+            if let Some((tr_ref, tr_args, m_params, m_result)) = found_trait {
+                if arguments.len() + 1 != m_params.len() {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        format!(
+                            "method `{mname}` expects {} argument(s), found {}",
+                            m_params.len().saturating_sub(1),
+                            arguments.len()
+                        ),
+                    );
+                    return self.err_expr(span);
+                }
+                let expected_self = self.types.subst_with_self(m_params[0], &tr_args, self_ty);
+                let expected_self_shallow = self.types.shallow(expected_self);
+                let rec_expr = if let TyData::Ref { mutable, .. } =
+                    *self.types.data(expected_self_shallow)
+                    && !matches!(self.types.data(rec_ty), TyData::Ref { .. })
+                {
+                    let borrow_ty = self.types.intern(TyData::Ref {
+                        mutable,
+                        pointee: rec_ty,
+                    });
+                    Expr {
+                        kind: ExprKind::Borrow {
+                            mutable,
+                            place: Box::new(receiver),
+                        },
+                        ty: borrow_ty,
+                        span: object.span,
+                    }
+                } else {
+                    receiver
+                };
+                let mut args = Vec::with_capacity(m_params.len());
+                args.push(self.coerce_arg(rec_expr, expected_self, object.span));
+                for (a, pt) in arguments.iter().zip(&m_params[1..]) {
+                    let expected = self.types.subst_with_self(*pt, &tr_args, self_ty);
+                    let v = self.infer(&a.value);
+                    args.push(self.coerce_arg(v, expected, a.span));
+                }
+                let ret = self.types.subst_with_self(m_result, &tr_args, self_ty);
                 return Expr {
-                    kind: ExprKind::Len(Box::new(base)),
-                    ty: i64_ty,
+                    kind: ExprKind::TraitCall {
+                        trait_ref: tr_ref,
+                        trait_args: tr_args,
+                        self_ty,
+                        method: mname.clone(),
+                        args,
+                    },
+                    ty: ret,
                     span,
                 };
             }
+            fallback_callee = Some(self.member_on_kind(
+                receiver,
+                &ast::MemberName::Name(mname.clone()),
+                callee.span,
+            ));
         }
 
         // Value call: function pointer, closure, `impl` callable or generic `F: Fn*`.
@@ -2423,7 +2521,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 "indirect calls take no explicit type arguments",
             );
         }
-        let callee_expr = self.infer(callee);
+        let callee_expr = fallback_callee.unwrap_or_else(|| self.infer(callee));
         let callee_expr = self.auto_deref(callee_expr);
         let ct = self.types.shallow(callee_expr.ty);
         if let TyData::FnPtr { params, result } = self.types.data(ct).clone() {

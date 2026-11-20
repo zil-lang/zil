@@ -207,13 +207,31 @@ impl Kernel<'_> {
         Ok(())
     }
 
-    /// Storage of `local` begins or ends: no loan of it may be live.
+    /// Storage of `local` begins or ends: no loan anchored to `local`'s own
+    /// frame storage may be live. Loans behind a `Deref` of a reference local
+    /// are carried by the reborrow itself and do not borrow the pointer slot.
     pub(crate) fn storage_conflict(
         &self,
         state: &State,
         local: Local,
     ) -> Result<(), ViolationKind> {
-        self.loan_conflict(state, &Place::local(local), PlaceAccess::Drop)
+        let place = Place::local(local);
+        for id in state.carries.all().iter() {
+            let Some(loan) = self.loans.get(id) else {
+                continue;
+            };
+            if !loan.anchored || loan.place.root != place.root {
+                continue;
+            }
+            if place.relation(&loan.place) == PlaceRelation::Disjoint {
+                continue;
+            }
+            return Err(ViolationKind::LoanConflict {
+                place,
+                loan: loan.origin,
+            });
+        }
+        Ok(())
     }
 
     // ---- flows ---------------------------------------------------------------

@@ -87,6 +87,8 @@ pub struct FnDecl<'a> {
     /// Canonical qualified name (or bare name for an unnamed root module).
     pub name: String,
     pub generics: Vec<GenericInfo>,
+    #[allow(dead_code)]
+    pub region_params: Vec<String>,
     pub params: Vec<ParamInfo>,
     pub result: Ty,
     pub role: FnRoleSpec,
@@ -566,9 +568,14 @@ fn type_generics(
     adt_kinds: &[AdtKind],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
-) -> Vec<GenericInfo> {
-    let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
+) -> (Vec<GenericInfo>, Vec<String>) {
+    let scope: Vec<String> = generics
+        .iter()
+        .filter(|g| matches!(g.kind, ast::GenericParamKind::Type(_)))
+        .map(|g| g.name.clone())
+        .collect();
     let mut out = Vec::new();
+    let mut regions = Vec::new();
     for g in generics {
         match &g.kind {
             ast::GenericParamKind::Type(bounds) => {
@@ -598,6 +605,9 @@ fn type_generics(
                             store_element = true;
                         } else if args.is_empty() && path == &["SyncDrop"] {
                             sync_drop = true;
+                        } else if args.is_empty() && path == &["Value"] {
+                            // `Value` is the default value-type bound.
+                            continue;
                         } else if let Some(ItemRef::Trait(tr)) =
                             lookup_item_in(modules, mod_by_path, mid, path)
                         {
@@ -648,14 +658,14 @@ fn type_generics(
                 });
             }
             ast::GenericParamKind::Lifetime => {
-                diags.push(diag::unsupported("lifetime parameters", g.span));
+                regions.push(g.name.clone());
             }
             ast::GenericParamKind::Const(_) => {
                 diags.push(diag::unsupported("const parameters", g.span));
             }
         }
     }
-    out
+    (out, regions)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -669,7 +679,7 @@ fn collect_trait(
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> TraitDecl {
-    let generics = type_generics(
+    let (generics, _) = type_generics(
         mid,
         &tr.generics,
         modules,
@@ -801,7 +811,8 @@ fn collect_adt(
         }
         AdtAst::Enum(e, span) => (&e.name, AdtKind::Enum, &e.generics, span),
     };
-    let generic_info = type_generics(mid, generics, modules, mod_by_path, adt_kinds, types, diags);
+    let (generic_info, _) =
+        type_generics(mid, generics, modules, mod_by_path, adt_kinds, types, diags);
     let scope: Vec<String> = generic_info.iter().map(|g| g.name.clone()).collect();
     let mut resolve = |t: &ast::TypeRef, diags: &mut Vec<Diagnostic>, types: &mut Types| {
         resolve_type_in(
@@ -973,7 +984,7 @@ fn collect_fn<'a>(
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> FnDecl<'a> {
-    let generics = type_generics(
+    let (generics, region_params) = type_generics(
         mid,
         &f.generics,
         modules,
@@ -1061,6 +1072,7 @@ fn collect_fn<'a>(
         module: mid,
         name: qualify(&modules[mid.0 as usize].path, &f.name),
         generics,
+        region_params,
         params,
         result,
         role: FnRoleSpec::Normal,
@@ -1377,6 +1389,7 @@ fn collect_impl<'a>(
         module: mid,
         name: drop_name,
         generics: Vec::new(),
+        region_params: Vec::new(),
         params: vec![ParamInfo {
             name: p.name.clone(),
             ty: self_desc,
@@ -1510,6 +1523,7 @@ fn collect_trait_impl<'a>(
             module: mid,
             name: format!("{trait_name}::{}", f.name),
             generics: Vec::new(),
+            region_params: Vec::new(),
             params,
             result,
             role: FnRoleSpec::Normal,
@@ -1763,14 +1777,10 @@ fn resolve_type_in(
             Ok(types.intern(TyData::Array { element, length }))
         }
         ast::TypeKind::Reference {
-            lifetime,
+            lifetime: _,
             mutable,
             inner,
         } => {
-            if lifetime.is_some() {
-                // Written regions arrive with region contracts (P4).
-                return Err(diag::unsupported("explicit lifetimes", t.span));
-            }
             let pointee = resolve_type_in(
                 inner,
                 from,
