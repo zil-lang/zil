@@ -99,6 +99,11 @@ pub enum TyData {
     Param(u32),
     /// `Self` inside a trait method signature.
     SelfParam,
+    /// Associated type projection (`I.Item`, `M.Output`, `Self.Item`).
+    Assoc {
+        base: Ty,
+        name: String,
+    },
     Var(VarId),
     /// Already diagnosed; unifies with everything to avoid cascades.
     Error,
@@ -188,6 +193,7 @@ impl Types {
             | TyData::ImplCallable { params, result, .. } => {
                 params.iter().any(|t| self.occurs(v, *t)) || self.occurs(v, *result)
             }
+            TyData::Assoc { base, .. } => self.occurs(v, *base),
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -272,6 +278,11 @@ impl Types {
             (TyData::ErrorUnion { ok: o1, err: e1 }, TyData::ErrorUnion { ok: o2, err: e2 }) => {
                 self.unify(o1, o2)?;
                 self.unify(e1, e2)
+            }
+            (TyData::Assoc { base: b1, name: n1 }, TyData::Assoc { base: b2, name: n2 })
+                if n1 == n2 =>
+            {
+                self.unify(b1, b2)
             }
             _ => Err(Mismatch),
         }
@@ -405,6 +416,10 @@ impl Types {
                     result,
                 })
             }
+            TyData::Assoc { base, name } => {
+                let base = self.zonk(base)?;
+                self.intern(TyData::Assoc { base, name })
+            }
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -512,6 +527,10 @@ impl Types {
                     result,
                 })
             }
+            TyData::Assoc { base, name } => {
+                let base = self.subst_with_self(base, args, self_ty);
+                self.intern(TyData::Assoc { base, name })
+            }
             TyData::Unit
             | TyData::Bool
             | TyData::Never
@@ -601,6 +620,10 @@ impl Types {
                     params,
                     result,
                 })
+            }
+            TyData::Assoc { base, name } => {
+                let base = self.subst(base, args);
+                self.intern(TyData::Assoc { base, name })
             }
             TyData::Unit
             | TyData::Bool

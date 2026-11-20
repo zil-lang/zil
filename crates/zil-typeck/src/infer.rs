@@ -213,8 +213,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
         if self.types.is_never(value.ty) {
             return value;
         }
-        let et = self.types.shallow(expected);
-        let vt = self.types.shallow(value.ty);
+        let et = self.items.normalize_ty(expected, self.types);
+        let vt = self.items.normalize_ty(value.ty, self.types);
         let ed = self.types.data(et).clone();
         let vd = self.types.data(vt).clone();
 
@@ -416,6 +416,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
     }
 
     fn unify(&mut self, a: Ty, b: Ty, span: Span) {
+        let a = self.items.normalize_ty(a, self.types);
+        let b = self.items.normalize_ty(b, self.types);
         if self.types.unify(a, b).is_err() {
             self.error(diag::TYPE_MISMATCH, span, "mismatched types");
         }
@@ -1355,6 +1357,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::ImplCallable { .. }
                     | TyData::Param(_)
                     | TyData::SelfParam
+                    | TyData::Assoc { .. }
                     | TyData::Var(_) => {
                         self.error(diag::OPERATOR_TYPE, span, "only arrays can be indexed");
                         self.types.error()
@@ -1775,7 +1778,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
                     | TyData::Param(_)
-                    | TyData::SelfParam => {
+                    | TyData::SelfParam
+                    | TyData::Assoc { .. } => {
                         self.error(
                             diag::OPERATOR_TYPE,
                             span,
@@ -2435,20 +2439,18 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     })
             } else {
                 self.items.trait_impls.iter().find_map(|imp| {
-                    if imp.target != self_ty {
-                        return None;
-                    }
+                    let impl_args = self.items.match_impl(imp, self_ty, self.types)?;
                     let tr = self.items.trait_decl(imp.trait_ref);
                     tr.methods
                         .iter()
                         .find(|m| m.name == *mname && !m.params.is_empty())
                         .map(|m| {
-                            (
-                                imp.trait_ref,
-                                imp.trait_args.clone(),
-                                m.params.clone(),
-                                m.result,
-                            )
+                            let resolved_targs: Vec<Ty> = imp
+                                .trait_args
+                                .iter()
+                                .map(|t| self.types.subst(*t, &impl_args))
+                                .collect();
+                            (imp.trait_ref, resolved_targs, m.params.clone(), m.result)
                         })
                 })
             };
@@ -2466,6 +2468,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     return self.err_expr(span);
                 }
                 let expected_self = self.types.subst_with_self(m_params[0], &tr_args, self_ty);
+                let expected_self = self.items.normalize_ty(expected_self, self.types);
                 let expected_self_shallow = self.types.shallow(expected_self);
                 let rec_expr = if let TyData::Ref { mutable, .. } =
                     *self.types.data(expected_self_shallow)
@@ -2490,10 +2493,12 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 args.push(self.coerce_arg(rec_expr, expected_self, object.span));
                 for (a, pt) in arguments.iter().zip(&m_params[1..]) {
                     let expected = self.types.subst_with_self(*pt, &tr_args, self_ty);
+                    let expected = self.items.normalize_ty(expected, self.types);
                     let v = self.infer(&a.value);
                     args.push(self.coerce_arg(v, expected, a.span));
                 }
                 let ret = self.types.subst_with_self(m_result, &tr_args, self_ty);
+                let ret = self.items.normalize_ty(ret, self.types);
                 return Expr {
                     kind: ExprKind::TraitCall {
                         trait_ref: tr_ref,
@@ -3060,7 +3065,7 @@ impl Finalizer<'_, '_> {
                     AdtKind::Package | AdtKind::Resource => false,
                 }
             }
-            TyData::Var(_) => false,
+            TyData::Assoc { .. } | TyData::Var(_) => false,
         }
     }
 
@@ -3265,12 +3270,28 @@ impl Finalizer<'_, '_> {
                         if !matches!(self.data(*a), TyData::Param(_) | TyData::Error) {
                             let resolved_args: Vec<Ty> = tr_args
                                 .iter()
-                                .map(|t| self.types.subst(*t, type_args))
+                                .map(|t| {
+                                    let s = self.types.subst(*t, type_args);
+                                    self.items.normalize_ty(s, self.types)
+                                })
                                 .collect();
                             let found = self.items.trait_impls.iter().any(|imp| {
-                                imp.trait_ref == *tr_ref
-                                    && imp.target == *a
-                                    && imp.trait_args == resolved_args
+                                if imp.trait_ref != *tr_ref {
+                                    return false;
+                                }
+                                let Some(impl_args) = self.items.match_impl(imp, *a, self.types)
+                                else {
+                                    return false;
+                                };
+                                let imp_targs: Vec<Ty> = imp
+                                    .trait_args
+                                    .iter()
+                                    .map(|t| {
+                                        let s = self.types.subst(*t, &impl_args);
+                                        self.items.normalize_ty(s, self.types)
+                                    })
+                                    .collect();
+                                imp_targs == resolved_args
                             });
                             if !found {
                                 let tname = &self.items.trait_decl(*tr_ref).name;

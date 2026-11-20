@@ -1059,3 +1059,24 @@ fn owning_hash_collections_replacement_recovery_is_admitted_end_to_end() {
     .expect("owning-hash-collections replacement-recovery lowers");
     assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
 }
+
+// ---- iterator-adapters (associated types, generic trait impls, Optional) ---
+
+#[test]
+fn iterator_adapters_owning_pipeline_is_admitted_end_to_end() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            ("std.store", include_str!("../../../lib/std/store.zil")),
+            ("std.iter", include_str!("../../../lib/std/iter.zil")),
+            (
+                "main",
+                include_str!(
+                    "../../../tests/language-readiness/iterator-adapters/owning-pipeline.zil"
+                ),
+            ),
+        ],
+        None,
+    )
+    .expect("iterator-adapters owning-pipeline lowers");
+    assert_eq!(format!("{:?}", verdict(lowered.module)), "Accepted");
+}

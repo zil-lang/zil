@@ -69,8 +69,10 @@ pub struct TraitDecl {
 #[derive(Clone, Debug)]
 pub struct TraitImplDecl {
     pub trait_ref: TraitRef,
+    pub generics: Vec<GenericInfo>,
     pub trait_args: Vec<Ty>,
     pub target: Ty,
+    pub assoc_types: Vec<(String, Ty)>,
     pub methods: Vec<(String, FnRef)>,
 }
 
@@ -179,6 +181,199 @@ impl<'a> Items<'a> {
     /// Resolves a bare or module-qualified item path from module `from`.
     pub fn lookup_item(&self, from: ModIdx, path: &[String]) -> Option<ItemRef> {
         lookup_item_in(&self.modules, &self.mod_by_path, from, path)
+    }
+
+    /// Matches a (possibly generic) trait impl's target pattern against `self_ty`.
+    /// Returns the substituted impl generic arguments if matched.
+    pub fn match_impl(&self, imp: &TraitImplDecl, self_ty: Ty, types: &Types) -> Option<Vec<Ty>> {
+        let mut bindings: Vec<Option<Ty>> = vec![None; imp.generics.len()];
+        if !match_template(imp.target, self_ty, types, &mut bindings) {
+            return None;
+        }
+        bindings.into_iter().collect()
+    }
+
+    /// Normalizes associated type projections (`Drain<Item>.Item -> Item`, etc.)
+    /// wherever the base type matches a declared trait impl.
+    pub fn normalize_ty(&self, ty: Ty, types: &mut Types) -> Ty {
+        self.normalize_ty_depth(ty, types, 0)
+    }
+
+    fn normalize_ty_depth(&self, ty: Ty, types: &mut Types, depth: u32) -> Ty {
+        if depth > 32 {
+            return ty;
+        }
+        let ty = types.shallow(ty);
+        match types.data(ty).clone() {
+            TyData::Assoc { base, name } => {
+                let base = self.normalize_ty_depth(base, types, depth + 1);
+                for imp in &self.trait_impls {
+                    if let Some((_, rhs)) = imp.assoc_types.iter().find(|(n, _)| *n == name)
+                        && let Some(impl_args) = self.match_impl(imp, base, types)
+                    {
+                        let subst = types.subst(*rhs, &impl_args);
+                        return self.normalize_ty_depth(subst, types, depth + 1);
+                    }
+                }
+                types.intern(TyData::Assoc { base, name })
+            }
+            TyData::Adt { adt, args } => {
+                let args = args
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
+                types.intern(TyData::Adt { adt, args })
+            }
+            TyData::Tuple(items) => {
+                let items = items
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
+                types.intern(TyData::Tuple(items))
+            }
+            TyData::Array { element, length } => {
+                let element = self.normalize_ty_depth(element, types, depth + 1);
+                types.intern(TyData::Array { element, length })
+            }
+            TyData::Slice(element) => {
+                let element = self.normalize_ty_depth(element, types, depth + 1);
+                types.intern(TyData::Slice(element))
+            }
+            TyData::Ref { mutable, pointee } => {
+                let pointee = self.normalize_ty_depth(pointee, types, depth + 1);
+                types.intern(TyData::Ref { mutable, pointee })
+            }
+            TyData::Managed(inner) => {
+                let inner = self.normalize_ty_depth(inner, types, depth + 1);
+                types.intern(TyData::Managed(inner))
+            }
+            TyData::Desc(inner) => {
+                let inner = self.normalize_ty_depth(inner, types, depth + 1);
+                types.intern(TyData::Desc(inner))
+            }
+            TyData::Opaque(OpaqueKind::OwnedStore(elem)) => {
+                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                types.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
+            }
+            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::ErrorUnion { ok, err } => {
+                let ok = self.normalize_ty_depth(ok, types, depth + 1);
+                let err = self.normalize_ty_depth(err, types, depth + 1);
+                types.intern(TyData::ErrorUnion { ok, err })
+            }
+            TyData::FnPtr { params, result } => {
+                let params = params
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
+                let result = self.normalize_ty_depth(result, types, depth + 1);
+                types.intern(TyData::FnPtr { params, result })
+            }
+            TyData::Closure {
+                owner,
+                id,
+                kind,
+                params,
+                result,
+            } => {
+                let params = params
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
+                let result = self.normalize_ty_depth(result, types, depth + 1);
+                types.intern(TyData::Closure {
+                    owner,
+                    id,
+                    kind,
+                    params,
+                    result,
+                })
+            }
+            TyData::ImplCallable {
+                owner,
+                kind,
+                params,
+                result,
+            } => {
+                let params = params
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
+                let result = self.normalize_ty_depth(result, types, depth + 1);
+                types.intern(TyData::ImplCallable {
+                    owner,
+                    kind,
+                    params,
+                    result,
+                })
+            }
+            TyData::Unit
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Param(_)
+            | TyData::SelfParam
+            | TyData::Var(_)
+            | TyData::Error => ty,
+        }
+    }
+}
+
+fn match_template(template: Ty, concrete: Ty, types: &Types, bindings: &mut [Option<Ty>]) -> bool {
+    let concrete = types.shallow(concrete);
+    if let TyData::Param(i) = *types.data(template) {
+        let Some(slot) = bindings.get_mut(i as usize) else {
+            return false;
+        };
+        return match *slot {
+            None => {
+                *slot = Some(concrete);
+                true
+            }
+            Some(prev) => prev == concrete,
+        };
+    }
+    match (types.data(template), types.data(concrete)) {
+        (TyData::Adt { adt: a1, args: xs }, TyData::Adt { adt: a2, args: ys }) => {
+            a1 == a2
+                && xs.len() == ys.len()
+                && xs
+                    .iter()
+                    .zip(ys)
+                    .all(|(x, y)| match_template(*x, *y, types, bindings))
+        }
+        (
+            TyData::Ref {
+                mutable: m1,
+                pointee: p1,
+            },
+            TyData::Ref {
+                mutable: m2,
+                pointee: p2,
+            },
+        ) => m1 == m2 && match_template(*p1, *p2, types, bindings),
+        (TyData::Tuple(xs), TyData::Tuple(ys)) => {
+            xs.len() == ys.len()
+                && xs
+                    .iter()
+                    .zip(ys)
+                    .all(|(x, y)| match_template(*x, *y, types, bindings))
+        }
+        (
+            TyData::Array {
+                element: e1,
+                length: l1,
+            },
+            TyData::Array {
+                element: e2,
+                length: l2,
+            },
+        ) => l1 == l2 && match_template(*e1, *e2, types, bindings),
+        (TyData::Slice(e1), TyData::Slice(e2))
+        | (TyData::Managed(e1), TyData::Managed(e2))
+        | (TyData::Desc(e1), TyData::Desc(e2)) => match_template(*e1, *e2, types, bindings),
+        _ => template == concrete,
     }
 }
 
@@ -477,6 +672,11 @@ fn resolve_callable_bound(
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> Option<(ClosureKind, Vec<Ty>, Ty)> {
+    let b = if let ast::TypeKind::ForLifetime { inner, .. } = &b.kind {
+        inner.as_ref()
+    } else {
+        b
+    };
     let ast::TypeKind::Named { path, args } = &b.kind else {
         return None;
     };
@@ -692,52 +892,63 @@ fn collect_trait(
     let self_param = types.intern(TyData::SelfParam);
     let mut methods = Vec::new();
     for m in &tr.members {
-        let ast::ItemKind::Function(f) = &m.kind else {
-            diags.push(diag::unsupported("non-function trait member", m.span));
-            continue;
-        };
-        let mut params = Vec::new();
-        for p in &f.params {
-            let ty = resolve_type_in(
-                &p.ty,
-                mid,
-                &scope,
-                modules,
-                mod_by_path,
-                adt_kinds,
-                Some(self_param),
-                None,
-                types,
-            )
-            .unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            });
-            params.push(ty);
+        match &m.kind {
+            ast::ItemKind::TypeAlias(_) => continue,
+            ast::ItemKind::Function(f) => {
+                let mut params = Vec::new();
+                for p in &f.params {
+                    let ty = resolve_type_in(
+                        &p.ty,
+                        mid,
+                        &scope,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        Some(self_param),
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    params.push(ty);
+                }
+                let result = match &f.return_type {
+                    Some(t) => resolve_type_in(
+                        t,
+                        mid,
+                        &scope,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        Some(self_param),
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    }),
+                    None => types.unit(),
+                };
+                methods.push(TraitMethodDecl {
+                    name: f.name.clone(),
+                    params,
+                    result,
+                });
+            }
+            ast::ItemKind::Import(_)
+            | ast::ItemKind::Aggregate(_)
+            | ast::ItemKind::Enum(_)
+            | ast::ItemKind::Extern { .. }
+            | ast::ItemKind::Impl(_)
+            | ast::ItemKind::Trait(_)
+            | ast::ItemKind::Const(_)
+            | ast::ItemKind::Meta(_) => {
+                diags.push(diag::unsupported("non-function trait member", m.span));
+            }
         }
-        let result = match &f.return_type {
-            Some(t) => resolve_type_in(
-                t,
-                mid,
-                &scope,
-                modules,
-                mod_by_path,
-                adt_kinds,
-                Some(self_param),
-                None,
-                types,
-            )
-            .unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            }),
-            None => types.unit(),
-        };
-        methods.push(TraitMethodDecl {
-            name: f.name.clone(),
-            params,
-            result,
-        });
     }
     TraitDecl {
         name: qualify(&modules[mid.0 as usize].path, &tr.name),
@@ -772,6 +983,7 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::ImplCallable { .. }
         | TyData::Param(_)
         | TyData::SelfParam
+        | TyData::Assoc { .. }
         | TyData::Var(_) => None,
     }
 }
@@ -994,9 +1206,6 @@ fn collect_fn<'a>(
         diags,
     );
     let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
-    if !f.where_clause.is_empty() {
-        diags.push(diag::unsupported("where clauses", f.span));
-    }
     let result_mode = parse_result_mode(&f.contract, diags);
     let mut params = Vec::new();
     for p in &f.params {
@@ -1427,10 +1636,16 @@ fn collect_trait_impl<'a>(
         ));
         return;
     };
-    if !imp.generics.is_empty() || !imp.where_clause.is_empty() {
-        diags.push(diag::unsupported("generic trait impls", span));
-        return;
-    }
+    let (impl_generics, _) = type_generics(
+        mid,
+        &imp.generics,
+        &items.modules,
+        &items.mod_by_path,
+        &items.adt_kinds,
+        types,
+        diags,
+    );
+    let scope: Vec<String> = impl_generics.iter().map(|g| g.name.clone()).collect();
     let mut trait_args = Vec::new();
     for a in args {
         if let ast::GenericArg::Type(t) = a {
@@ -1438,7 +1653,7 @@ fn collect_trait_impl<'a>(
                 resolve_type_in(
                     t,
                     mid,
-                    &[],
+                    &scope,
                     &items.modules,
                     &items.mod_by_path,
                     &items.adt_kinds,
@@ -1458,7 +1673,7 @@ fn collect_trait_impl<'a>(
     let target = resolve_type_in(
         &imp.target,
         mid,
-        &[],
+        &scope,
         &items.modules,
         &items.mod_by_path,
         &items.adt_kinds,
@@ -1471,70 +1686,103 @@ fn collect_trait_impl<'a>(
         types.error()
     });
     let trait_name = items.traits[trait_ref.0 as usize].name.clone();
+    let mut assoc_types = Vec::new();
     let mut methods = Vec::new();
     for m in &imp.members {
-        let ast::ItemKind::Function(f) = &m.kind else {
-            diags.push(diag::unsupported("non-function impl member", m.span));
-            continue;
-        };
-        let mut params = Vec::new();
-        for p in &f.params {
-            let ty = resolve_type_in(
-                &p.ty,
-                mid,
-                &[],
-                &items.modules,
-                &items.mod_by_path,
-                &items.adt_kinds,
-                Some(target),
-                None,
-                types,
-            )
-            .unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            });
-            params.push(ParamInfo {
-                name: p.name.clone(),
-                ty,
-                span: p.span,
-            });
+        match &m.kind {
+            ast::ItemKind::TypeAlias(ta) => {
+                if let Some(val) = &ta.value {
+                    let ty = resolve_type_in(
+                        val,
+                        mid,
+                        &scope,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(target),
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    assoc_types.push((ta.name.clone(), ty));
+                }
+            }
+            ast::ItemKind::Function(f) => {
+                let mut params = Vec::new();
+                for p in &f.params {
+                    let ty = resolve_type_in(
+                        &p.ty,
+                        mid,
+                        &scope,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(target),
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    params.push(ParamInfo {
+                        name: p.name.clone(),
+                        ty,
+                        span: p.span,
+                    });
+                }
+                let result = match &f.return_type {
+                    Some(t) => resolve_type_in(
+                        t,
+                        mid,
+                        &scope,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(target),
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    }),
+                    None => types.unit(),
+                };
+                let fn_ref = FnRef(items.fns.len() as u32);
+                items.fns.push(FnDecl {
+                    module: mid,
+                    name: format!("{trait_name}::{}", f.name),
+                    generics: impl_generics.clone(),
+                    region_params: Vec::new(),
+                    params,
+                    result,
+                    role: FnRoleSpec::Normal,
+                    ast: f,
+                });
+                methods.push((f.name.clone(), fn_ref));
+            }
+            ast::ItemKind::Import(_)
+            | ast::ItemKind::Aggregate(_)
+            | ast::ItemKind::Enum(_)
+            | ast::ItemKind::Extern { .. }
+            | ast::ItemKind::Impl(_)
+            | ast::ItemKind::Trait(_)
+            | ast::ItemKind::Const(_)
+            | ast::ItemKind::Meta(_) => {
+                diags.push(diag::unsupported("non-function impl member", m.span));
+            }
         }
-        let result = match &f.return_type {
-            Some(t) => resolve_type_in(
-                t,
-                mid,
-                &[],
-                &items.modules,
-                &items.mod_by_path,
-                &items.adt_kinds,
-                Some(target),
-                None,
-                types,
-            )
-            .unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            }),
-            None => types.unit(),
-        };
-        let fn_ref = FnRef(items.fns.len() as u32);
-        items.fns.push(FnDecl {
-            module: mid,
-            name: format!("{trait_name}::{}", f.name),
-            generics: Vec::new(),
-            region_params: Vec::new(),
-            params,
-            result,
-            role: FnRoleSpec::Normal,
-            ast: f,
-        });
-        methods.push((f.name.clone(), fn_ref));
     }
     items.trait_impls.push(TraitImplDecl {
         trait_ref,
+        generics: impl_generics,
         trait_args,
         target,
+        assoc_types,
         methods,
     });
 }
@@ -1575,6 +1823,25 @@ fn resolve_type_in(
 ) -> Result<Ty, Diagnostic> {
     match &t.kind {
         ast::TypeKind::Named { path, args } => {
+            if let [base, assoc] = path.as_slice()
+                && args.is_empty()
+            {
+                if base == "Self"
+                    && let Some(st) = self_ty
+                {
+                    return Ok(types.intern(TyData::Assoc {
+                        base: st,
+                        name: assoc.clone(),
+                    }));
+                }
+                if let Some(i) = generics.iter().position(|g| g == base) {
+                    let base_ty = types.intern(TyData::Param(i as u32));
+                    return Ok(types.intern(TyData::Assoc {
+                        base: base_ty,
+                        name: assoc.clone(),
+                    }));
+                }
+            }
             if let [name] = path.as_slice() {
                 if name == "Self"
                     && let Some(st) = self_ty
@@ -1856,7 +2123,23 @@ fn resolve_type_in(
         ast::TypeKind::ForeignFunction { .. } => {
             Err(diag::unsupported("foreign function types", t.span))
         }
-        ast::TypeKind::Optional(_) => Err(diag::unsupported("optional types", t.span)),
+        ast::TypeKind::Optional(inner) => {
+            let elem = resolve_type_in(
+                inner,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                self_ty,
+                None,
+                types,
+            )?;
+            Ok(types.intern(TyData::Adt {
+                adt: AdtRef(0),
+                args: vec![elem],
+            }))
+        }
         ast::TypeKind::Union(_) => Err(diag::unsupported("anonymous sum types", t.span)),
         ast::TypeKind::Dyn { .. } => Err(diag::unsupported("dyn types", t.span)),
         ast::TypeKind::ForLifetime { .. } => {

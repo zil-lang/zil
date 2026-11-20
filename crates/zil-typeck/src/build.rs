@@ -306,6 +306,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
     /// Interns a typeck type. Declaration parameters map to `TyKind::Param`;
     /// instance bodies only ever pass closed types.
     pub fn lower_ty(&mut self, ty: Ty, span: Span) -> Option<TyId> {
+        let ty = self.items.normalize_ty(ty, self.types);
         let kind = match self.types.data(ty).clone() {
             TyData::Unit => TyKind::Unit,
             TyData::Bool => TyKind::Bool,
@@ -377,7 +378,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 let args = self.args_id(&[], span)?;
                 TyKind::Closure { def, args }
             }
-            TyData::SelfParam | TyData::Var(_) | TyData::Error => {
+            TyData::SelfParam | TyData::Assoc { .. } | TyData::Var(_) | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
                     span,
@@ -535,7 +536,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     }
 
     fn closed(&mut self, ty: Ty) -> Ty {
-        self.mono.types.subst(ty, &self.subst)
+        let t = self.mono.types.subst(ty, &self.subst);
+        self.mono.items.normalize_ty(t, self.mono.types)
     }
 
     fn new_block(&mut self, span: Span) -> BlockId {
@@ -1167,28 +1169,41 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             } => {
                 let closed_self = self.closed(*self_ty);
                 let closed_args: Vec<Ty> = trait_args.iter().map(|a| self.closed(*a)).collect();
-                let impl_fn = self
-                    .mono
-                    .items
-                    .trait_impls
-                    .iter()
-                    .find(|imp| {
-                        imp.trait_ref == *trait_ref
-                            && imp.target == closed_self
-                            && imp.trait_args == closed_args
-                    })
-                    .and_then(|imp| {
-                        imp.methods
-                            .iter()
-                            .find(|(n, _)| n == method)
-                            .map(|(_, f)| *f)
-                    });
-                let Some(fn_ref) = impl_fn else {
+                let mut found: Option<(FnRef, Vec<Ty>)> = None;
+                let impls = self.mono.items.trait_impls.clone();
+                for imp in &impls {
+                    if imp.trait_ref != *trait_ref {
+                        continue;
+                    }
+                    let Some(impl_args) =
+                        self.mono
+                            .items
+                            .match_impl(imp, closed_self, self.mono.types)
+                    else {
+                        continue;
+                    };
+                    let imp_targs: Vec<Ty> = imp
+                        .trait_args
+                        .iter()
+                        .map(|t| {
+                            let s = self.mono.types.subst(*t, &impl_args);
+                            self.mono.items.normalize_ty(s, self.mono.types)
+                        })
+                        .collect();
+                    if imp_targs != closed_args {
+                        continue;
+                    }
+                    if let Some((_, fn_ref)) = imp.methods.iter().find(|(n, _)| n == method) {
+                        found = Some((*fn_ref, impl_args));
+                        break;
+                    }
+                }
+                let Some((fn_ref, impl_args)) = found else {
                     self.failed = true;
                     return;
                 };
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
-                let Some(f) = self.mono.instance(fn_ref, Vec::new(), span) else {
+                let Some(f) = self.mono.instance(fn_ref, impl_args, span) else {
                     self.failed = true;
                     return;
                 };
