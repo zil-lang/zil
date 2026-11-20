@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "purpose": "Semantic capability coverage map replacing legacy internal unit tests with Body IR safety, source, Roam, and native execution evidence.",
+  "legacy_baseline": {
+    "commit": "9170bb4210554392e36eb7528596612596ebef80",
+    "legacy_driver_test_files": 339,
+    "policy": "Preserve language semantics, safety counterexamples, and observable native behavior; retire legacy internal IR/planner/work-count tests."
+  },
+  "capabilities": [
+    {
+      "id": "ownership_and_borrowing",
+      "contract": "spec/semantic-kernel.md, spec/semantic-scopes.md",
+      "legacy_sources": [
+        "crates/zil-driver/tests/aggregates.rs",
+        "crates/zil-driver/tests/borrows*.rs",
+        "tests/fixtures/ownership/",
+        "tests/fixtures/call-regions/",
+        "tests/fixtures/borrowed-enums/"
+      ],
+      "current_tests": [
+        "crates/zil-safety-cases/tests/places.rs",
+        "crates/zil-safety-cases/tests/loans.rs",
+        "crates/zil-safety-cases/tests/source.rs",
+        "crates/zil-safety-cases/tests/scc_and_adversarial_cert.rs",
+        "crates/zil-safety-cases/tests/readiness_census.rs",
+        "crates/zil-driver/tests/alpha_e2e_acceptance.rs"
+      ],
+      "status": "covered_with_tracked_gaps",
+      "verified_properties": [
+        "move, partial move, refill, drop flags, and reverse-scope cleanup",
+        "shared vs exclusive borrows, reborrows, and NLL loan conflicts",
+        "rigid closure lifetime mismatch rejection (negative-closure-rigid-life.zil -> E-TYPE-MISMATCH)",
+        "mutual recursion SCC region-escape rejection even under forged certificates"
+      ],
+      "open_gaps": [
+        "multi-parameter borrowed-enum region propagation (tests/fixtures/borrowed-enums/choice.zil, same-life.zil, mixed-classes.zil)",
+        "verify cross-function region preservation under Types::erase_regions for nested generic region wrappers"
+      ]
+    },
+    {
+      "id": "resources_and_cleanup",
+      "contract": "spec/semantic-kernel.md, validation/language-alpha-resource-profile.json",
+      "legacy_sources": [
+        "crates/zil-driver/tests/resources*.rs",
+        "examples/mainline/zui-language-store-fields/",
+        "tests/fixtures/state-store-without-sync-drop/",
+        "tests/fixtures/nested-store/",
+        "tests/fixtures/optional-store-address/"
+      ],
+      "current_tests": [
+        "crates/zil-safety-cases/tests/resources.rs",
+        "crates/zil-safety-cases/tests/readiness_census.rs",
+        "crates/zil-driver/tests/alpha_e2e_acceptance.rs",
+        "tools/research/native-api-validation/validate.py"
+      ],
+      "status": "covered",
+      "verified_properties": [
+        "inline zero-allocation Managed<Resource>, Managed<OwnedStore<T>>, and Managed<ByteBuffer> ABI",
+        "exact Package declaration-order cleanup and OwnedStore 0..len element cleanup",
+        "State/Store 16 builds (1/8 units x O0/O2 x ordinary/probe), 128 executions, 56 injected allocation failures with 0 leaks",
+        "SyncDrop missing proof rejected at Phase::Types with E-ORIGINAL-CLEANUP on state-store-without-sync-drop",
+        "100% admission on nested-store (8/8), optional-store-address (7/7), store-allocation (4/4), store-lending (4/4), store-mutation (2/2)"
+      ],
+      "open_gaps": []
+    },
+    {
+      "id": "generics_traits_closures",
+      "contract": "spec/semantic-scopes.md, _zil_design.md §8.1.2.2",
+      "legacy_sources": [
+        "crates/zil-driver/tests/closures*.rs",
+        "crates/zil-driver/tests/traits*.rs",
+        "tools/roam-rs/src/callable_composition.rs"
+      ],
+      "current_tests": [
+        "crates/zil-safety-cases/tests/source.rs",
+        "crates/zil-driver/tests/alpha_e2e_acceptance.rs",
+        "tools/roam-rs callable-combinations (28 positive x 4 native configs + 14 negative = 42/42 PASS)"
+      ],
+      "status": "covered_with_tracked_gaps",
+      "verified_properties": [
+        "bidirectional expected callable signature propagation into returned impl Fn/FnMut/FnOnce closures",
+        "all 7 helper/projection composition shapes (direct, h, p, hh, hp, ph, pp) x 4 exits x 4 native configs (Clang/LLVM-API x O0/O2)",
+        "all 14 paired exclusive-receiver and nominal-error safety negatives rejected with exact semantic diagnostics",
+        "static trait impl dispatch, inherited self receivers, and Managed<R> -> Desc<R> method calls",
+        "range for-loops (for pat in start..end), aggregate field defaults, and bytes_view_mut"
+      ],
+      "open_gaps": [
+        "type aliases (generic-alias-loop, generic-module-enums)",
+        "generic function returning impl FnOnce capturing generic type parameter (ImplCallable monomorphization args)"
+      ]
+    },
+    {
+      "id": "compile_time_programming",
+      "contract": "validation/language-alpha-profile.json#compile_time_programming",
+      "legacy_sources": [
+        "crates/zil-driver/tests/ct_*.rs",
+        "tests/language-readiness/controls/ct-*.zil"
+      ],
+      "current_tests": [
+        "crates/zil-driver/src/body_pipeline.rs",
+        "crates/zil-safety-cases/tests/source.rs",
+        "crates/zil-driver/tests/alpha_e2e_acceptance.rs"
+      ],
+      "status": "covered_with_tracked_gaps",
+      "verified_properties": [
+        "multi-module recursive import discovery (local + lib/std) and CtOriginalImport verification",
+        "unused invalid CT declarations rejected before lowering",
+        "CT evaluation through verified zil-interp (ct-enum-match.zil, ct-generic.zil executed natively on both backends)"
+      ],
+      "open_gaps": [
+        "compile-time Type reflection queries (ct-type-control.zil)"
+      ]
+    },
+    {
+      "id": "tasks_and_async_ownership",
+      "contract": "validation/language-alpha-profile.json#rule_coverage.task_results",
+      "legacy_sources": [
+        "tests/language-readiness/task-owner-transport/",
+        "tools/roam-rs/src/task_results.rs"
+      ],
+      "current_tests": [
+        "crates/zil-safety-cases/tests/readiness_census.rs",
+        "crates/zil-driver/tests/alpha_e2e_acceptance.rs"
+      ],
+      "status": "partial",
+      "verified_properties": [
+        "21/24 positive task-owner-transport static ownership/cleanup programs admitted",
+        "9/9 negative task-owner-transport safety contracts rejected at exact phase and diagnostic (0 false admits)"
+      ],
+      "open_gaps": [
+        "native LLVM coroutine frame state machine for TaskCreate/TaskPoll/TaskRequestCancel/TaskPollClose/TaskFinishDestroy (blocks roam task-result-combinations 24-case native execution)",
+        "TaskPollState builtin enum (Cancelled/Complete/Invalid)",
+        "3 higher-order task-owner-transport static cases: nested-once-callable-child-cleanup, returned-second-task-fnonce, returned-shared-task-classes"
+      ]
+    },
+    {
+      "id": "independent_verify_raw_wire",
+      "contract": "spec/semantic-kernel.md, _zil_design.md §19",
+      "legacy_sources": [
+        "crates/zil-driver/tests/callback_runtime_roles_raw.rs",
+        "crates/zil-driver/tests/wire*.rs"
+      ],
+      "current_tests": [
+        "crates/zil-safety-cases/tests/certificates.rs",
+        "crates/zil-safety-cases/tests/wire.rs",
+        "crates/zil-safety-cases/tests/scc_and_adversarial_cert.rs",
+        "crates/zil-check/src/fidelity/mod.rs"
+      ],
+      "status": "covered",
+      "verified_properties": [
+        "sealed VerifiedModule capability: backend and interpreter accept only zil-check::check_module output",
+        "forged/truncated/mutated certificates and wire payloads rejected without consulting solver",
+        "AST fidelity cross-checks field ordinals, field selection names across instruction spans, evaluation order, and complete Drop/Intrinsic coverage"
+      ],
+      "open_gaps": []
+    },
+    {
+      "id": "native_execution_and_abi",
+      "contract": "validation/language-alpha-profile.json#required_chain",
+      "legacy_sources": [
+        "crates/zil-driver/tests/codegen_work_budget.rs",
+        "validation/inputs/fixed-projects/manifest.json"
+      ],
+      "current_tests": [
+        "crates/zil-driver/tests/alpha_e2e_acceptance.rs",
+        "crates/zil-driver/src/body_pipeline.rs",
+        "tools/research/native-api-validation/validate.py",
+        "tools/language/check-fixed-projects.py"
+      ],
+      "status": "partial",
+      "verified_properties": [
+        "dual native backends (Clang and in-process LLVM 23 C API) at O0 and O2",
+        "real multi-codegen-unit parallel object emission (1-unit and 8-unit) with multi-object clang linking",
+        "fixed-projects runner adapted and operational: 7/17 positive original projects verified, 52/152 original comparisons + 44/56 additional comparisons + 16/60 control comparisons + 8/8 cleanup witness comparisons passing"
+      ],
+      "open_gaps": [
+        "remaining fixed-projects gaps: type aliases (2), fidelity/solver on UI/byte_buffer/resources (8), function-pointer/app/mixed-captures (3), expected_rejection diagnostic mapping (4)",
+        "direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser under llvm-api feature)"
+      ]
+    },
+    {
+      "id": "retired_legacy_internal_tests",
+      "contract": "validation/language-alpha-profile.json#compatibility",
+      "legacy_sources": [
+        "old CandidatePlan / TypedModule / LIR unit tests",
+        "old solver exact work-budget step-count calibration tests",
+        "old dual-track schema compatibility tests"
+      ],
+      "current_tests": [],
+      "status": "retired",
+      "verified_properties": [
+        "legacy crates (zil-expand, zil-types, zil-analyze, zil-verify, zil-ct, zil-lower) deleted from workspace",
+        "architecture policy enforced via tools/check-architecture.mjs (15 crates, 41 edges)"
+      ],
+      "open_gaps": []
+    }
+  ]
+}

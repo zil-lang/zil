@@ -648,17 +648,20 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             ..
                         } = &v.kind
                         {
-                            let exp = match self.types.data(result).clone() {
-                                TyData::ImplCallable {
-                                    params: ep,
-                                    result: er,
-                                    ..
-                                }
-                                | TyData::FnPtr {
-                                    params: ep,
-                                    result: er,
-                                } if ep.len() == params.len() => Some((ep, er)),
-                                _ => None,
+                            let exp = if let TyData::ImplCallable {
+                                params: ep,
+                                result: er,
+                                ..
+                            }
+                            | TyData::FnPtr {
+                                params: ep,
+                                result: er,
+                            } = self.types.data(result).clone()
+                                && ep.len() == params.len()
+                            {
+                                Some((ep, er))
+                            } else {
+                                None
                             };
                             self.infer_closure(
                                 *move_capture,
@@ -841,9 +844,134 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("defer", span);
                 None
             }
-            ast::StmtKind::For { .. } => {
-                self.unsupported("for loops", span);
-                None
+            ast::StmtKind::For {
+                pattern,
+                iterable,
+                body,
+            } => {
+                if let ast::ExprKind::Binary {
+                    op: ast::BinaryOp::Range,
+                    left,
+                    right,
+                } = &iterable.kind
+                {
+                    let start_expr = self.infer(left);
+                    let end_expr = self.infer(right);
+                    let iter_ty = start_expr.ty;
+                    let end_expr = self.coerce_value(end_expr, iter_ty, right.span);
+
+                    self.scopes.push(Vec::new());
+                    let cur_local = self.declare("__for_cur", iter_ty, true, left.span);
+                    let end_local = self.declare("__for_end", iter_ty, false, right.span);
+
+                    let cur_place = Expr {
+                        kind: ExprKind::Local(cur_local),
+                        ty: iter_ty,
+                        span: left.span,
+                    };
+                    let end_place = Expr {
+                        kind: ExprKind::Local(end_local),
+                        ty: iter_ty,
+                        span: right.span,
+                    };
+                    let cond = Expr {
+                        kind: ExprKind::Binary {
+                            op: BinOp::Ge,
+                            lhs: Box::new(cur_place.clone()),
+                            rhs: Box::new(end_place),
+                        },
+                        ty: self.types.bool(),
+                        span: iterable.span,
+                    };
+                    let break_stmt = Stmt::Expr(Expr {
+                        kind: ExprKind::If {
+                            cond: Box::new(cond),
+                            then: Box::new(Expr {
+                                kind: ExprKind::Block(vec![Stmt::Expr(Expr {
+                                    kind: ExprKind::Break,
+                                    ty: never,
+                                    span: iterable.span,
+                                })]),
+                                ty: unit,
+                                span: iterable.span,
+                            }),
+                            otherwise: None,
+                        },
+                        ty: unit,
+                        span: iterable.span,
+                    });
+
+                    self.scopes.push(Vec::new());
+                    let pat = self.pattern(pattern, iter_ty, false);
+                    let bind_stmt = Stmt::Let {
+                        pattern: pat,
+                        init: cur_place.clone(),
+                    };
+                    let one_ty = self.types.fresh(VarKind::Int);
+                    let _ = self.types.unify(one_ty, iter_ty);
+                    let inc_stmt = Stmt::Expr(Expr {
+                        kind: ExprKind::Assign {
+                            place: Box::new(cur_place),
+                            op: Some(BinOp::Add),
+                            value: Box::new(Expr {
+                                kind: ExprKind::Lit(Lit::Int(1)),
+                                ty: iter_ty,
+                                span: iterable.span,
+                            }),
+                        },
+                        ty: unit,
+                        span: iterable.span,
+                    });
+
+                    self.loop_depth += 1;
+                    let body_expr = self.block(body);
+                    self.loop_depth -= 1;
+                    self.scopes.pop();
+
+                    let loop_expr = Expr {
+                        kind: ExprKind::Loop(Box::new(Expr {
+                            kind: ExprKind::Block(vec![
+                                break_stmt,
+                                bind_stmt,
+                                inc_stmt,
+                                Stmt::Expr(body_expr),
+                            ]),
+                            ty: unit,
+                            span: body.span,
+                        })),
+                        ty: unit,
+                        span,
+                    };
+                    self.scopes.pop();
+
+                    let outer_block = Expr {
+                        kind: ExprKind::Block(vec![
+                            Stmt::Let {
+                                pattern: Pat {
+                                    kind: PatKind::Binding(cur_local),
+                                    ty: iter_ty,
+                                    span: left.span,
+                                },
+                                init: start_expr,
+                            },
+                            Stmt::Let {
+                                pattern: Pat {
+                                    kind: PatKind::Binding(end_local),
+                                    ty: iter_ty,
+                                    span: right.span,
+                                },
+                                init: end_expr,
+                            },
+                            Stmt::Expr(loop_expr),
+                        ]),
+                        ty: unit,
+                        span,
+                    };
+                    Some(Stmt::Expr(outer_block))
+                } else {
+                    self.unsupported("for loops", span);
+                    None
+                }
             }
             ast::StmtKind::With { .. } => {
                 self.unsupported("with statements", span);
@@ -2256,12 +2384,21 @@ impl<'c, 'a> FnCx<'c, 'a> {
             match s {
                 Some(v) => out.push(v),
                 None => {
-                    self.error(
-                        diag::RECORD_MISSING_FIELD,
-                        span,
-                        format!("field `{}` is missing", decl_fields[i]),
-                    );
-                    out.push(self.err_expr(span));
+                    let default_expr = self.items.adt(adt).variants[variant as usize].fields[i]
+                        .default
+                        .clone();
+                    if let Some(def_expr) = default_expr {
+                        let v = self.infer(&def_expr);
+                        let ft = self.field_ty(adt, variant, i as u32, &args);
+                        out.push(self.coerce_value(v, ft, span));
+                    } else {
+                        self.error(
+                            diag::RECORD_MISSING_FIELD,
+                            span,
+                            format!("field `{}` is missing", decl_fields[i]),
+                        );
+                        out.push(self.err_expr(span));
+                    }
                 }
             }
         }
@@ -2933,7 +3070,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             "store_at_mut" => IntrinsicOp::StoreBorrow {
                 mutability: Mutability::Exclusive,
             },
-            "bytes_view" => IntrinsicOp::ByteBufferBorrow,
+            "bytes_view" | "bytes_view_mut" => IntrinsicOp::ByteBufferBorrow,
             "mutex_create" => IntrinsicOp::MutexCreate,
             "mutex_lock" => IntrinsicOp::MutexLock,
             "mutex_value" => IntrinsicOp::MutexValue,
@@ -3143,7 +3280,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let slice_u8 = self.types.intern(TyData::Slice(u8_ty));
                 let res = self.types.intern(TyData::Ref {
                     region: None,
-                    mutable: false,
+                    mutable: name == "bytes_view_mut",
                     pointee: slice_u8,
                 });
                 (vec![bytes_desc], res)

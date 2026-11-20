@@ -117,6 +117,7 @@ pub enum VariantShape {
 pub struct FieldDecl {
     pub name: String,
     pub ty: Ty,
+    pub default: Option<ast::Expr>,
 }
 
 #[derive(Clone, Debug)]
@@ -534,6 +535,7 @@ pub fn collect_program<'a>(
                 fields: vec![FieldDecl {
                     name: "0".to_string(),
                     ty: option_t,
+                    default: None,
                 }],
             },
         ],
@@ -570,6 +572,7 @@ pub fn collect_program<'a>(
                 fields: vec![FieldDecl {
                     name: "0".to_string(),
                     ty: option_t,
+                    default: None,
                 }],
             },
         ],
@@ -638,10 +641,12 @@ pub fn collect_program<'a>(
                 FieldDecl {
                     name: "reason".to_string(),
                     ty: task_create_error_ty,
+                    default: None,
                 },
                 FieldDecl {
                     name: "inputs".to_string(),
                     ty: option_t,
+                    default: None,
                 },
             ],
         }],
@@ -1240,9 +1245,6 @@ fn collect_adt(
                         format!("field `{}` is declared more than once", f.name),
                     ));
                 }
-                if f.default.is_some() {
-                    diags.push(diag::unsupported("field defaults", f.span));
-                }
                 let raw_ty = resolve(&f.ty, diags, types);
                 let ty = if f.manages {
                     if owner_kind != AdtKind::Package {
@@ -1280,6 +1282,7 @@ fn collect_adt(
                 out.push(FieldDecl {
                     name: f.name.clone(),
                     ty,
+                    default: f.default.clone(),
                 });
             }
             out
@@ -1311,6 +1314,7 @@ fn collect_adt(
                             fs.push(FieldDecl {
                                 name: i.to_string(),
                                 ty: resolve(&f.ty, diags, types),
+                                default: None,
                             });
                         }
                         (VariantShape::Tuple, fs)
