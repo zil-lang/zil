@@ -632,11 +632,6 @@ pub fn collect_program<'a>(
                 shape: VariantShape::Unit,
                 fields: Vec::new(),
             },
-            VariantDecl {
-                name: "Closed".to_string(),
-                shape: VariantShape::Unit,
-                fields: Vec::new(),
-            },
         ],
         user_drop: false,
     });

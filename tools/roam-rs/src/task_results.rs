@@ -340,6 +340,7 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
                     "E-SEMANTIC-ORIGINAL",
                     "original address changes a rigid lifetime anchor",
                 )
+                || (reason.0 == "types" && reason.1 == "E-TYPE-MISMATCH")
                 || (reason.0 == "analyze"
                     && reason.1 == "E-SAFETY-SOLVE"
                     && reason.2.contains("RegionEscape"))

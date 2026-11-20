@@ -438,6 +438,15 @@ impl<'a> Kernel<'a> {
                         (_, None) => false,
                         (_, Some(v)) => {
                             s.variants.insert(q.clone(), v);
+                            if let Some(ql) = q.as_local()
+                                && let Some(decl) = self.body.locals.get(ql.index())
+                                && let Some(TyKind::ErrorUnion { ok, err }) = self.tys.get(decl.ty)
+                            {
+                                let arm_ty = if v == 1 { *ok } else { *err };
+                                if !self.tys.holds_address(arm_ty) {
+                                    s.carries.clear(ql);
+                                }
+                            }
                             true
                         }
                     }
@@ -457,6 +466,16 @@ impl<'a> Kernel<'a> {
                                 (None, _) => false,
                                 (Some(only), None) => {
                                     s.variants.insert(q.clone(), only);
+                                    if let Some(ql) = q.as_local()
+                                        && let Some(decl) = self.body.locals.get(ql.index())
+                                        && let Some(TyKind::ErrorUnion { ok, err }) =
+                                            self.tys.get(decl.ty)
+                                    {
+                                        let arm_ty = if only == 1 { *ok } else { *err };
+                                        if !self.tys.holds_address(arm_ty) {
+                                            s.carries.clear(ql);
+                                        }
+                                    }
                                     true
                                 }
                                 (Some(_), Some(_)) => true,
