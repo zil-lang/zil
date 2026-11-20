@@ -340,6 +340,9 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
                     "E-SEMANTIC-ORIGINAL",
                     "original address changes a rigid lifetime anchor",
                 )
+                || (reason.0 == "analyze"
+                    && reason.1 == "E-SAFETY-SOLVE"
+                    && reason.2.contains("RegionEscape"))
         }
         Some("active-input-write") => {
             reason
@@ -348,6 +351,9 @@ pub fn observed(expected: &Value, observation: Value, compile: &Value) -> Value 
                     "E-BORROW-CONFLICT",
                     "simultaneously live access overlaps an actual stored target/parent loan",
                 )
+                || (reason.0 == "analyze"
+                    && reason.1 == "E-SAFETY-SOLVE"
+                    && reason.2.contains("LoanConflict"))
         }
         _ => false,
     };

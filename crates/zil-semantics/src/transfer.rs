@@ -605,13 +605,40 @@ impl<'a> Kernel<'a> {
     /// a payload field does not change its container's tag. Facts keyed by a
     /// local (tags, flags) die with any write into that local.
     pub(crate) fn invalidate(&self, state: &mut State, written: &Place) {
-        let stale = |p: &Place| {
-            !matches!(
-                written.relation(p),
-                PlaceRelation::Disjoint | PlaceRelation::ContainedBy
-            )
+        let deref_write = written.first_deref().is_some();
+        let deref_targets: Vec<Place> = if deref_write {
+            self.reach(state, written.root)
+                .iter()
+                .filter_map(|id| self.loans.get(id))
+                .filter(|loan| loan.kind.writes() && loan.anchored)
+                .map(|loan| loan.place.clone())
+                .collect()
+        } else {
+            Vec::new()
         };
-        let key_written = |l: &Local| written.root == PlaceRoot::Local(*l);
+        let stale = |p: &Place| {
+            if deref_write {
+                p.first_deref().is_some()
+                    || deref_targets
+                        .iter()
+                        .any(|t| !matches!(t.relation(p), PlaceRelation::Disjoint | PlaceRelation::ContainedBy))
+            } else {
+                !matches!(
+                    written.relation(p),
+                    PlaceRelation::Disjoint | PlaceRelation::ContainedBy
+                )
+            }
+        };
+        let key_written = |l: &Local| {
+            if deref_write {
+                let lp = Place::local(*l);
+                deref_targets
+                    .iter()
+                    .any(|t| t.relation(&lp) != PlaceRelation::Disjoint)
+            } else {
+                written.root == PlaceRoot::Local(*l)
+            }
+        };
         state.variants.retain(|p, _| !stale(p));
         state.tags.retain(|l, p| !stale(p) && !key_written(l));
         // Any change inside a flagged place changes its initialization,
@@ -619,8 +646,7 @@ impl<'a> Kernel<'a> {
         // an inline flagged place (OpSpec forbids moves/drops behind Deref).
         state.flags.retain(|l, p| {
             !key_written(l)
-                && (written.first_deref().is_some()
-                    || written.relation(p) == PlaceRelation::Disjoint)
+                && (deref_write || written.relation(p) == PlaceRelation::Disjoint)
         });
     }
 

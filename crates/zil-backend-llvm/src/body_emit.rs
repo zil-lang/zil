@@ -70,11 +70,16 @@ pub fn emit_verified_body_units_with_entry(
     let mut header = String::with_capacity(2048);
     header.push_str("; ZIL Verified Body IR -> LLVM 23 IR\n");
     header.push_str("target triple = \"x86_64-unknown-linux-gnu\"\n\n");
-    header.push_str("declare ptr @calloc(i64, i64)\n");
+    header.push_str("declare ptr @calloc(i64, i64) nobuiltin\n");
     header.push_str("declare ptr @realloc(ptr, i64) nobuiltin\n");
     header.push_str("declare void @free(ptr) nobuiltin\n");
     header.push_str("declare void @abort() noreturn\n");
     header.push_str("declare i32 @printf(ptr, ...)\n");
+    header.push_str("declare i32 @getcontext(ptr)\n");
+    header.push_str("declare void @makecontext(ptr, ptr, i32, ...)\n");
+    header.push_str("declare i32 @swapcontext(ptr, ptr)\n");
+    header.push_str("@__zil_current_task = linkonce_odr global ptr null\n");
+    header.push_str("%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [8192 x i64] }\n");
     header.push_str(
         "@__zil_fmt_i64 = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\", align 1\n\n",
     );
@@ -391,8 +396,10 @@ fn llvm_storage_ty(tys: &TyTable, id: TyId) -> Result<String, BodyEmitError> {
 
 struct FnEmitter<'a> {
     module: &'a Module,
+    fn_id: FnId,
     body: &'a Body,
     out: &'a mut String,
+    extra_defs: String,
     tmp: u32,
 }
 
@@ -2229,14 +2236,483 @@ impl<'a> FnEmitter<'a> {
                 }
                 Ok(())
             }
-            IntrinsicOp::TaskYield => Ok(()),
+            IntrinsicOp::TaskYield => {
+                let f = self.fresh();
+                let st = self.fresh();
+                let cctx = self.fresh();
+                let wctx = self.fresh();
+                let _ = writeln!(self.out, "  {f} = load ptr, ptr @__zil_current_task");
+                let _ = writeln!(
+                    self.out,
+                    "  {st} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i32 1, ptr {st}");
+                let _ = writeln!(
+                    self.out,
+                    "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 2"
+                );
+                let _ = writeln!(
+                    self.out,
+                    "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 3"
+                );
+                let _ = writeln!(self.out, "  call i32 @swapcontext(ptr {wctx}, ptr {cctx})");
+                Ok(())
+            }
+            IntrinsicOp::TaskCreate => {
+                if args.is_empty() {
+                    return Err(BodyEmitError::new("TaskCreate missing worker argument"));
+                }
+                let (wfn_v, _, _) = self.emit_operand(&args[0])?;
+                let mut arg_vals: Vec<(String, String, String)> =
+                    Vec::with_capacity(args.len() - 1);
+                for a in &args[1..] {
+                    let (v, lt, aty) = self.emit_operand(a)?;
+                    let st = if let Some(tid) = aty {
+                        llvm_storage_ty(self.tys(), tid)?
+                    } else if lt == "void" {
+                        "i8".to_string()
+                    } else {
+                        lt.clone()
+                    };
+                    arg_vals.push((v, lt, st));
+                }
+                let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
+                let task_res_ty = match self.tys().get(d_ty) {
+                    Some(TyKind::ErrorUnion { ok, .. }) => match self.tys().get(*ok) {
+                        Some(TyKind::Managed(inner)) => match self.tys().get(*inner) {
+                            Some(TyKind::Opaque(OpaqueTy::Task { result, .. })) => *result,
+                            _ => {
+                                return Err(BodyEmitError::new(
+                                    "TaskCreate ok inner is not Task",
+                                ));
+                            }
+                        },
+                        _ => return Err(BodyEmitError::new("TaskCreate ok is not Managed")),
+                    },
+                    _ => return Err(BodyEmitError::new("TaskCreate dest is not ErrorUnion")),
+                };
+                let res_llvm = llvm_ty(self.tys(), task_res_ty)?;
+                let res_stor = llvm_storage_ty(self.tys(), task_res_ty)?;
+
+                let mut frame_fields = vec![
+                    "%__zil_task_hdr".to_string(),
+                    res_stor.clone(),
+                    "ptr".to_string(),
+                ];
+                for (_, _, st) in &arg_vals {
+                    frame_fields.push(st.clone());
+                }
+                let frame_ty = format!("{{ {} }}", frame_fields.join(", "));
+                let tid = self.tmp;
+                self.tmp += 1;
+                let tramp_sym = format!("__zil_task_entry_f{}_{tid}", self.fn_id.0);
+
+                // Emit worker trampoline into extra_defs.
+                let _ = writeln!(
+                    self.extra_defs,
+                    "\ndefine internal void @{tramp_sym}(i32 %lo, i32 %hi) {{"
+                );
+                self.extra_defs.push_str("entry:\n");
+                self.extra_defs.push_str("  %lo64 = zext i32 %lo to i64\n");
+                self.extra_defs.push_str("  %hi64 = zext i32 %hi to i64\n");
+                self.extra_defs.push_str("  %hi_sh = shl i64 %hi64, 32\n");
+                self.extra_defs.push_str("  %addr = or i64 %hi_sh, %lo64\n");
+                self.extra_defs.push_str("  %frame = inttoptr i64 %addr to ptr\n");
+                let _ = writeln!(
+                    self.extra_defs,
+                    "  %fn_slot = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 2"
+                );
+                self.extra_defs.push_str("  %wfn = load ptr, ptr %fn_slot\n");
+                let mut call_args = Vec::new();
+                for (i, (_, lt, _)) in arg_vals.iter().enumerate() {
+                    if lt != "void" {
+                        let slot_idx = 3 + i;
+                        let _ = writeln!(
+                            self.extra_defs,
+                            "  %ap{i} = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 {slot_idx}"
+                        );
+                        let _ = writeln!(self.extra_defs, "  %av{i} = load {lt}, ptr %ap{i}");
+                        call_args.push(format!("{lt} %av{i}"));
+                    }
+                }
+                if res_llvm == "void" {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  call void %wfn({})",
+                        call_args.join(", ")
+                    );
+                } else {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  %rv = call {res_llvm} %wfn({})",
+                        call_args.join(", ")
+                    );
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  %rslot = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 1"
+                    );
+                    let _ = writeln!(self.extra_defs, "  store {res_llvm} %rv, ptr %rslot");
+                }
+                self.extra_defs.push_str(
+                    "  %st_slot = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 0\n",
+                );
+                self.extra_defs.push_str("  store i32 2, ptr %st_slot\n");
+                self.extra_defs.push_str(
+                    "  %cctx = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 2\n",
+                );
+                self.extra_defs.push_str(
+                    "  %wctx = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 3\n",
+                );
+                self.extra_defs
+                    .push_str("  call i32 @swapcontext(ptr %wctx, ptr %cctx)\n");
+                self.extra_defs.push_str("  ret void\n}\n");
+
+                // Allocate single frame via calloc(1, sizeof(frame_ty)).
+                let sz_ptr = self.fresh();
+                let sz_i64 = self.fresh();
+                let frame = self.fresh();
+                let is_null = self.fresh();
+                let fail_lbl = format!("tc_fail_{tid}");
+                let ok_lbl = format!("tc_ok_{tid}");
+                let done_lbl = format!("tc_done_{tid}");
+                let _ = writeln!(
+                    self.out,
+                    "  {sz_ptr} = getelementptr {frame_ty}, ptr null, i32 1"
+                );
+                let _ = writeln!(self.out, "  {sz_i64} = ptrtoint ptr {sz_ptr} to i64");
+                let _ = writeln!(
+                    self.out,
+                    "  {frame} = call ptr @calloc(i64 1, i64 {sz_i64})"
+                );
+                let _ = writeln!(self.out, "  {is_null} = icmp eq ptr {frame}, null");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {is_null}, label %{fail_lbl}, label %{ok_lbl}"
+                );
+
+                let _ = writeln!(self.out, "{fail_lbl}:");
+                let e_tag = self.fresh();
+                let e_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {e_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 0, ptr {e_tag}");
+                let _ = writeln!(
+                    self.out,
+                    "  {e_slot} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
+                );
+                let _ = writeln!(self.out, "  store i32 0, ptr {e_slot}");
+                let _ = writeln!(self.out, "  br label %{done_lbl}");
+
+                let _ = writeln!(self.out, "{ok_lbl}:");
+                let st_p = self.fresh();
+                let tr_p = self.fresh();
+                let fn_p = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {st_p} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i32 0, ptr {st_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {tr_p} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store ptr @{tramp_sym}, ptr {tr_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {fn_p} = getelementptr inbounds {frame_ty}, ptr {frame}, i32 0, i32 2"
+                );
+                let _ = writeln!(self.out, "  store ptr {wfn_v}, ptr {fn_p}");
+                for (i, (v, lt, _)) in arg_vals.iter().enumerate() {
+                    if lt != "void" {
+                        let slot_idx = 3 + i;
+                        let ap = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {ap} = getelementptr inbounds {frame_ty}, ptr {frame}, i32 0, i32 {slot_idx}"
+                        );
+                        let _ = writeln!(self.out, "  store {lt} {v}, ptr {ap}");
+                    }
+                }
+                let ok_tag = self.fresh();
+                let ok_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 1, ptr {ok_tag}");
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_slot} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store ptr {frame}, ptr {ok_slot}");
+                let _ = writeln!(self.out, "  br label %{done_lbl}");
+
+                let _ = writeln!(self.out, "{done_lbl}:");
+                Ok(())
+            }
+            IntrinsicOp::TaskValid => {
+                let (ref_v, _, _) = self.emit_operand(&args[0])?;
+                let frame = self.fresh();
+                let ok = self.fresh();
+                let _ = writeln!(self.out, "  {frame} = load ptr, ptr {ref_v}");
+                let _ = writeln!(self.out, "  {ok} = icmp ne ptr {frame}, null");
+                let _ = writeln!(self.out, "  store i1 {ok}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::TaskPoll => {
+                let (ref_v, _, _) = self.emit_operand(&args[0])?;
+                let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
+                let (poll_ty, poll_res_ty) = match self.tys().get(d_ty) {
+                    Some(TyKind::ErrorUnion { ok, .. }) => match self.tys().get(*ok) {
+                        Some(TyKind::Adt { adt, args: pargs }) => {
+                            let rty = self
+                                .tys()
+                                .field_ty(
+                                    *adt,
+                                    zil_ir::body::VariantIdx(1),
+                                    zil_ir::body::FieldIdx(0),
+                                    *pargs,
+                                )
+                                .ok_or_else(|| BodyEmitError::new("Poll.Ready field missing"))?;
+                            (*ok, rty)
+                        }
+                        _ => return Err(BodyEmitError::new("TaskPoll ok is not Poll")),
+                    },
+                    _ => return Err(BodyEmitError::new("TaskPoll dest is not ErrorUnion")),
+                };
+                let poll_llvm = llvm_storage_ty(self.tys(), poll_ty)?;
+                let res_llvm = llvm_ty(self.tys(), poll_res_ty)?;
+                let res_stor = llvm_storage_ty(self.tys(), poll_res_ty)?;
+                let res_frame_ty = format!("{{ %__zil_task_hdr, {res_stor} }}");
+
+                let tid = self.tmp;
+                self.tmp += 1;
+                let frame = self.fresh();
+                let st_p = self.fresh();
+                let st = self.fresh();
+                let _ = writeln!(self.out, "  {frame} = load ptr, ptr {ref_v}");
+                let _ = writeln!(
+                    self.out,
+                    "  {st_p} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  {st} = load i32, ptr {st_p}");
+                let l_start = format!("tp_start_{tid}");
+                let l_resume = format!("tp_resume_{tid}");
+                let l_comp = format!("tp_comp_{tid}");
+                let l_canc = format!("tp_canc_{tid}");
+                let l_inv = format!("tp_inv_{tid}");
+                let l_pend = format!("tp_pend_{tid}");
+                let l_ready = format!("tp_ready_{tid}");
+                let l_done = format!("tp_done_{tid}");
+                let _ = writeln!(
+                    self.out,
+                    "  switch i32 {st}, label %{l_inv} [ i32 0, label %{l_start} i32 1, label %{l_resume} i32 2, label %{l_comp} i32 3, label %{l_canc} ]"
+                );
+
+                // Cancelled -> err(0)
+                let _ = writeln!(self.out, "{l_canc}:");
+                let c_tag = self.fresh();
+                let c_err = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {c_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 0, ptr {c_tag}");
+                let _ = writeln!(
+                    self.out,
+                    "  {c_err} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
+                );
+                let _ = writeln!(self.out, "  store i32 0, ptr {c_err}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Complete -> err(1)
+                let _ = writeln!(self.out, "{l_comp}:");
+                let k_tag = self.fresh();
+                let k_err = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {k_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 0, ptr {k_tag}");
+                let _ = writeln!(
+                    self.out,
+                    "  {k_err} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
+                );
+                let _ = writeln!(self.out, "  store i32 1, ptr {k_err}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Invalid -> err(2)
+                let _ = writeln!(self.out, "{l_inv}:");
+                let i_tag = self.fresh();
+                let i_err = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {i_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 0, ptr {i_tag}");
+                let _ = writeln!(
+                    self.out,
+                    "  {i_err} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
+                );
+                let _ = writeln!(self.out, "  store i32 2, ptr {i_err}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Start: initialize worker_ctx via getcontext + makecontext.
+                let _ = writeln!(self.out, "{l_start}:");
+                let wctx0 = self.fresh();
+                let link_p = self.fresh();
+                let sp_p = self.fresh();
+                let flg_p = self.fresh();
+                let sz_p = self.fresh();
+                let stk_p = self.fresh();
+                let tr_slot = self.fresh();
+                let tr_fn = self.fresh();
+                let addr = self.fresh();
+                let lo = self.fresh();
+                let hi64 = self.fresh();
+                let hi = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {wctx0} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                );
+                let _ = writeln!(self.out, "  call i32 @getcontext(ptr {wctx0})");
+                let _ = writeln!(self.out, "  {link_p} = getelementptr inbounds i8, ptr {wctx0}, i64 8");
+                let _ = writeln!(self.out, "  store ptr null, ptr {link_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {stk_p} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 4"
+                );
+                let _ = writeln!(self.out, "  {sp_p} = getelementptr inbounds i8, ptr {wctx0}, i64 16");
+                let _ = writeln!(self.out, "  store ptr {stk_p}, ptr {sp_p}");
+                let _ = writeln!(self.out, "  {flg_p} = getelementptr inbounds i8, ptr {wctx0}, i64 24");
+                let _ = writeln!(self.out, "  store i32 0, ptr {flg_p}");
+                let _ = writeln!(self.out, "  {sz_p} = getelementptr inbounds i8, ptr {wctx0}, i64 32");
+                let _ = writeln!(self.out, "  store i64 65536, ptr {sz_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {tr_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  {tr_fn} = load ptr, ptr {tr_slot}");
+                let _ = writeln!(self.out, "  {addr} = ptrtoint ptr {frame} to i64");
+                let _ = writeln!(self.out, "  {lo} = trunc i64 {addr} to i32");
+                let _ = writeln!(self.out, "  {hi64} = lshr i64 {addr}, 32");
+                let _ = writeln!(self.out, "  {hi} = trunc i64 {hi64} to i32");
+                let _ = writeln!(
+                    self.out,
+                    "  call void (ptr, ptr, i32, ...) @makecontext(ptr {wctx0}, ptr {tr_fn}, i32 2, i32 {lo}, i32 {hi})"
+                );
+                let _ = writeln!(self.out, "  br label %{l_resume}");
+
+                // Resume: swapcontext into worker, then check state.
+                let _ = writeln!(self.out, "{l_resume}:");
+                let prev = self.fresh();
+                let cctx = self.fresh();
+                let wctx = self.fresh();
+                let st2 = self.fresh();
+                let is_ready = self.fresh();
+                let _ = writeln!(self.out, "  {prev} = load ptr, ptr @__zil_current_task");
+                let _ = writeln!(self.out, "  store ptr {frame}, ptr @__zil_current_task");
+                let _ = writeln!(
+                    self.out,
+                    "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 2"
+                );
+                let _ = writeln!(
+                    self.out,
+                    "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                );
+                let _ = writeln!(self.out, "  call i32 @swapcontext(ptr {cctx}, ptr {wctx})");
+                let _ = writeln!(self.out, "  store ptr {prev}, ptr @__zil_current_task");
+                let _ = writeln!(self.out, "  {st2} = load i32, ptr {st_p}");
+                let _ = writeln!(self.out, "  {is_ready} = icmp eq i32 {st2}, 2");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {is_ready}, label %{l_ready}, label %{l_pend}"
+                );
+
+                // Pending -> ok(Poll.Pending)
+                let _ = writeln!(self.out, "{l_pend}:");
+                let p_tag = self.fresh();
+                let p_ok = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {p_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 1, ptr {p_tag}");
+                let _ = writeln!(
+                    self.out,
+                    "  {p_ok} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store i32 0, ptr {p_ok}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Ready -> ok(Poll.Ready(result))
+                let _ = writeln!(self.out, "{l_ready}:");
+                let r_tag = self.fresh();
+                let r_ok = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {r_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 1, ptr {r_tag}");
+                let _ = writeln!(
+                    self.out,
+                    "  {r_ok} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store i32 1, ptr {r_ok}");
+                if res_llvm != "void" {
+                    let rsrc = self.fresh();
+                    let rval = self.fresh();
+                    let rdst = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {rsrc} = getelementptr inbounds {res_frame_ty}, ptr {frame}, i32 0, i32 1"
+                    );
+                    let _ = writeln!(self.out, "  {rval} = load {res_llvm}, ptr {rsrc}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {rdst} = getelementptr inbounds {poll_llvm}, ptr {r_ok}, i32 0, i32 2, i32 0"
+                    );
+                    let _ = writeln!(self.out, "  store {res_llvm} {rval}, ptr {rdst}");
+                }
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                let _ = writeln!(self.out, "{l_done}:");
+                Ok(())
+            }
+            IntrinsicOp::TaskRequestCancel => {
+                let (ref_v, _, _) = self.emit_operand(&args[0])?;
+                let frame = self.fresh();
+                let st_p = self.fresh();
+                let _ = writeln!(self.out, "  {frame} = load ptr, ptr {ref_v}");
+                let _ = writeln!(
+                    self.out,
+                    "  {st_p} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i32 3, ptr {st_p}");
+                Ok(())
+            }
+            IntrinsicOp::TaskPollClose => {
+                let (ref_v, _, _) = self.emit_operand(&args[0])?;
+                let frame = self.fresh();
+                let st_p = self.fresh();
+                let _ = writeln!(self.out, "  {frame} = load ptr, ptr {ref_v}");
+                let _ = writeln!(
+                    self.out,
+                    "  {st_p} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i32 4, ptr {st_p}");
+                // Return Poll.Ready(()) -> enum tag 1
+                let _ = writeln!(self.out, "  store i32 1, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::TaskFinishDestroy => {
+                let (frame, _, _) = self.emit_operand(&args[0])?;
+                let _ = writeln!(self.out, "  call void @free(ptr {frame})");
+                Ok(())
+            }
             IntrinsicOp::TaskStart
-            | IntrinsicOp::TaskCreate
-            | IntrinsicOp::TaskValid
-            | IntrinsicOp::TaskPoll
-            | IntrinsicOp::TaskRequestCancel
-            | IntrinsicOp::TaskPollClose
-            | IntrinsicOp::TaskFinishDestroy
             | IntrinsicOp::RegistrationStart
             | IntrinsicOp::RegistrationValid
             | IntrinsicOp::RegistrationClose
@@ -2289,7 +2765,7 @@ fn emit_function_decl(
 
 fn emit_function(
     module: &Module,
-    _id: FnId,
+    fn_id: FnId,
     func: &Function,
     sym: &str,
     out: &mut String,
@@ -2322,14 +2798,18 @@ fn emit_function(
 
     let mut emitter = FnEmitter {
         module,
+        fn_id,
         body: &func.body,
         out,
+        extra_defs: String::new(),
         tmp: 0,
     };
     for (bi, block) in func.body.blocks.iter().enumerate() {
         emit_block(&mut emitter, bi, block)?;
     }
+    let extra = emitter.extra_defs;
     out.push_str("}\n");
+    out.push_str(&extra);
     Ok(())
 }
 

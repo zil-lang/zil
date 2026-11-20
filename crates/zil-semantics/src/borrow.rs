@@ -170,7 +170,7 @@ impl Kernel<'_> {
         out
     }
 
-    fn reach(&self, state: &State, root: PlaceRoot) -> BitSet {
+    pub(crate) fn reach(&self, state: &State, root: PlaceRoot) -> BitSet {
         self.close(state, &self.direct(state, root))
     }
 
@@ -468,6 +468,13 @@ impl Kernel<'_> {
                     loans.clone()
                 }
             }
+            Terminator::Call {
+                callee: zil_ir::body::Callee::Intrinsic(zil_ir::body::IntrinsicOp::TaskPoll),
+                args,
+                ..
+            } => self
+                .task_poll_ret_loans(state, args, &loans)
+                .unwrap_or_else(|| loans.clone()),
             Terminator::Call { .. }
             | Terminator::Goto { .. }
             | Terminator::Switch { .. }
@@ -702,5 +709,192 @@ impl Kernel<'_> {
                 state.carries.clear(Local::from_index(l));
             }
         }
+    }
+
+    fn extract_task_result_ty(&self, mut ty: zil_ir::body::TyId) -> Option<zil_ir::body::TyId> {
+        for _ in 0..8 {
+            match self.tys.get(ty)? {
+                zil_ir::body::TyKind::Opaque(zil_ir::body::OpaqueTy::Task { result, .. }) => {
+                    return Some(*result);
+                }
+                zil_ir::body::TyKind::Managed(inner)
+                | zil_ir::body::TyKind::Desc(inner)
+                | zil_ir::body::TyKind::Ref { pointee: inner, .. } => ty = *inner,
+                zil_ir::body::TyKind::ErrorUnion { ok, .. } => ty = *ok,
+                _ => return None,
+            }
+        }
+        None
+    }
+
+    fn collect_local_origin_loans(&self, root: Local, out: &mut BitSet) {
+        let mut work = vec![root];
+        let mut seen = Vec::new();
+        while let Some(l) = work.pop() {
+            if seen.contains(&l) {
+                continue;
+            }
+            seen.push(l);
+            if self.body.is_param(l) {
+                if let Some(decl) = self.body.locals.get(l.index()) {
+                    let regs = self.tys.regions_in(decl.ty);
+                    if regs.is_empty() {
+                        out.insert(EXTERNAL);
+                    } else {
+                        for r in regs {
+                            if let Some(id) = self.loans.region_loan(r) {
+                                out.insert(id);
+                            }
+                        }
+                    }
+                }
+            }
+            for (b, block) in self.body.blocks.iter().enumerate() {
+                for (i, inst) in block.instructions.iter().enumerate() {
+                    if let InstructionKind::Assign { dest, value } = &inst.kind
+                        && dest.as_local() == Some(l)
+                    {
+                        match value {
+                            Rvalue::Ref { place, .. }
+                            | Rvalue::SliceRef { place, .. }
+                            | Rvalue::Describe { place } => {
+                                if let Some(id) = self.loans.created_at(OpLocation {
+                                    block: zil_ir::body::BlockId::from_index(b),
+                                    instruction: Some(i as u32),
+                                }) {
+                                    out.insert(id);
+                                }
+                                if let PlaceRoot::Local(src) = place.root {
+                                    work.push(src);
+                                }
+                            }
+                            Rvalue::Use(
+                                zil_ir::body::Operand::Move(p) | zil_ir::body::Operand::Copy(p),
+                            ) => {
+                                if let PlaceRoot::Local(src) = p.root {
+                                    work.push(src);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn task_poll_ret_loans(
+        &self,
+        state: &State,
+        args: &[zil_ir::body::Operand],
+        carried: &BitSet,
+    ) -> Option<BitSet> {
+        let arg0 = match args.first()? {
+            zil_ir::body::Operand::Copy(p) | zil_ir::body::Operand::Move(p) => p.as_local()?,
+            _ => return None,
+        };
+        let mut work: Vec<Local> = Vec::new();
+        for id in self.direct(state, PlaceRoot::Local(arg0)).iter() {
+            if let Some(loan) = self.loans.get(id)
+                && let Some(owner) = loan.place.as_local()
+            {
+                work.push(owner);
+            }
+        }
+        if work.is_empty() {
+            return None;
+        }
+        let mut seen: Vec<Local> = Vec::new();
+        let mut allowed = self.empty_loans();
+        let mut found_source = false;
+        while let Some(cur) = work.pop() {
+            if seen.contains(&cur) {
+                continue;
+            }
+            seen.push(cur);
+            if self.body.is_param(cur) {
+                return None;
+            }
+            for block in &self.body.blocks {
+                for inst in &block.instructions {
+                    if let InstructionKind::Assign { dest, value } = &inst.kind
+                        && dest.as_local() == Some(cur)
+                    {
+                        if let Rvalue::Use(
+                            zil_ir::body::Operand::Move(p) | zil_ir::body::Operand::Copy(p),
+                        ) = value
+                            && let PlaceRoot::Local(src) = p.root
+                        {
+                            work.push(src);
+                        }
+                    }
+                }
+                if let Terminator::Call {
+                    callee,
+                    args: call_args,
+                    dest,
+                    ..
+                } = &block.terminator
+                    && dest.as_local() == Some(cur)
+                {
+                    match callee {
+                        zil_ir::body::Callee::Direct(f) => {
+                            let sig = self.sigs.functions.get(f.index())?;
+                            let task_res = self.extract_task_result_ty(sig.result)?;
+                            if sig.region_params == 0 {
+                                return None;
+                            }
+                            if call_args.len() == 1
+                                && sig
+                                    .params
+                                    .first()
+                                    .and_then(|pt| self.extract_task_result_ty(*pt))
+                                    .is_some()
+                            {
+                                if let zil_ir::body::Operand::Move(p)
+                                | zil_ir::body::Operand::Copy(p) = &call_args[0]
+                                    && let PlaceRoot::Local(src) = p.root
+                                {
+                                    work.push(src);
+                                    continue;
+                                }
+                                return None;
+                            }
+                            let ret_regions = self.tys.regions_in(task_res);
+                            found_source = true;
+                            for (idx, a) in call_args.iter().enumerate() {
+                                let matches_ret = sig.params.get(idx).is_some_and(|pt| {
+                                    self.tys
+                                        .regions_in(*pt)
+                                        .iter()
+                                        .any(|r| ret_regions.contains(r))
+                                });
+                                if matches_ret {
+                                    if let zil_ir::body::Operand::Move(p)
+                                    | zil_ir::body::Operand::Copy(p) = a
+                                        && let PlaceRoot::Local(al) = p.root
+                                    {
+                                        self.collect_local_origin_loans(al, &mut allowed);
+                                    } else {
+                                        return None;
+                                    }
+                                }
+                            }
+                        }
+                        _ => return None,
+                    }
+                }
+            }
+        }
+        if !found_source {
+            return None;
+        }
+        let mut out = self.empty_loans();
+        for id in carried.iter() {
+            if allowed.contains(id) {
+                out.insert(id);
+            }
+        }
+        Some(out)
     }
 }

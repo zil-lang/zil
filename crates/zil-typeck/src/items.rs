@@ -613,10 +613,20 @@ pub fn collect_program<'a>(
     let task_poll_error_adt = AdtRef(4);
     items.adt_kinds.push(AdtKind::Enum);
     items.adts.push(AdtDecl {
-        name: "TaskPollError".to_string(),
+        name: "TaskPollState".to_string(),
         kind: AdtKind::Enum,
         generics: Vec::new(),
         variants: vec![
+            VariantDecl {
+                name: "Cancelled".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "Complete".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
             VariantDecl {
                 name: "Invalid".to_string(),
                 shape: VariantShape::Unit,
@@ -801,6 +811,10 @@ pub fn collect_program<'a>(
         items.modules[m_i]
             .names
             .entry("TaskPollError".to_string())
+            .or_insert(ItemRef::Adt(task_poll_error_adt));
+        items.modules[m_i]
+            .names
+            .entry("TaskPollState".to_string())
             .or_insert(ItemRef::Adt(task_poll_error_adt));
         items.modules[m_i]
             .names
