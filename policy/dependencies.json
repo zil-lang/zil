@@ -48,6 +48,12 @@
       "zil-ir",
       "zil-semantics"
     ],
+    "zil-safety-cases": [
+      "zil-base",
+      "zil-ir",
+      "zil-solve",
+      "zil-check"
+    ],
     "zil-ct": [
       "zil-base",
       "zil-ir",

@@ -126,6 +126,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "zil-check"
+version = "0.1.0"
+dependencies = [
+ "zil-ir",
+ "zil-semantics",
+]
+
+[[package]]
 name = "zil-cli"
 version = "0.1.0"
 dependencies = [
@@ -201,6 +209,32 @@ dependencies = [
  "zil-base",
  "zil-ir",
  "zil-verify",
+]
+
+[[package]]
+name = "zil-safety-cases"
+version = "0.1.0"
+dependencies = [
+ "zil-base",
+ "zil-check",
+ "zil-ir",
+ "zil-solve",
+]
+
+[[package]]
+name = "zil-semantics"
+version = "0.1.0"
+dependencies = [
+ "zil-base",
+ "zil-ir",
+]
+
+[[package]]
+name = "zil-solve"
+version = "0.1.0"
+dependencies = [
+ "zil-ir",
+ "zil-semantics",
 ]
 
 [[package]]

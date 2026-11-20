@@ -1,0 +1,16 @@
+[package]
+name = "zil-safety-cases"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Independent hand-written safety cases and IR mutations for the solver/checker pipeline. Expectations never call the semantic kernel."
+
+[lints]
+workspace = true
+
+[dependencies]
+zil-base.workspace = true
+zil-ir.workspace = true
+zil-solve.workspace = true
+zil-check.workspace = true

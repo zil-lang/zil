@@ -38,6 +38,7 @@ mod pod_extent;
 pub use pod_extent::PodExtent;
 mod program;
 pub mod source_projection;
+pub mod body;
 pub mod wire;
 pub use program::*;
 

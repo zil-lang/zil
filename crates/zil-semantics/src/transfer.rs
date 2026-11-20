@@ -1,0 +1,582 @@
+//! The single transfer rules of the place/initialization/variant family.
+//!
+//! Solver and checker call exactly these functions. The solver iterates them
+//! to a fixpoint; the checker applies them once per instruction and edge
+//! starting from certified invariants. Neither re-implements a rule.
+
+use crate::paths::{MovePaths, PathId, tracked_len};
+use crate::state::{InitState, MustFacts, State};
+use zil_ir::body::{
+    Access, AdtKind, AggregateKind, BlockId, Body, ClosureKind, ConstraintCx, ConstraintError,
+    EdgeKind, FieldIdx, FieldRef, FnSig, InitClaim, InstructionKind, Local, OpLocation, Operand,
+    Place, PlaceAccess, PlaceRelation, PlaceRoot, Projection, Rvalue, Terminator, TyKind, TyTable,
+    check_instruction, check_terminator, type_place,
+};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ViolationKind {
+    Constraint(ConstraintError),
+    /// A place the move-path table does not track (malformed candidate).
+    Untracked {
+        place: Place,
+    },
+    UseOfUninit {
+        place: Place,
+    },
+    UseOfMaybeUninit {
+        place: Place,
+    },
+    /// Writing a field of an aggregate that is not itself initialized.
+    WriteIntoUninitParent {
+        place: Place,
+    },
+    /// Initializing storage that still holds a cleanup obligation.
+    OverwriteLive {
+        place: Place,
+    },
+    /// Projecting into a variant or arm that is not known to be active.
+    UnknownVariant {
+        place: Place,
+        expected: u32,
+    },
+    /// A cleanup obligation reaches a function exit or storage end.
+    LeakedObligation {
+        place: Place,
+    },
+    /// `Unreachable` is reachable under the semantics.
+    ReachableUnreachable,
+    /// The operation has no transition rule yet; rejected explicitly.
+    Unspecified(&'static str),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Violation {
+    pub at: OpLocation,
+    pub kind: ViolationKind,
+}
+
+/// One successor of a block: `None` state means the edge is infeasible.
+pub type Successor = (EdgeKind, BlockId, Option<State>);
+
+pub struct Kernel<'a> {
+    pub body: &'a Body,
+    pub tys: &'a TyTable,
+    pub functions: &'a [FnSig],
+    pub paths: MovePaths,
+}
+
+impl<'a> Kernel<'a> {
+    pub fn new(body: &'a Body, tys: &'a TyTable, functions: &'a [FnSig]) -> Self {
+        Kernel {
+            body,
+            tys,
+            functions,
+            paths: MovePaths::build(body),
+        }
+    }
+
+    fn cx(&self) -> ConstraintCx<'a> {
+        ConstraintCx {
+            body: self.body.cx(self.tys),
+            functions: self.functions,
+        }
+    }
+
+    /// OpSpec constraints of every operation. Part of every verdict.
+    pub fn check_structure(&self) -> Result<(), Violation> {
+        if self.body.blocks.is_empty() {
+            return Err(Violation {
+                at: OpLocation {
+                    block: BlockId(0),
+                    instruction: None,
+                },
+                kind: ViolationKind::Constraint(ConstraintError::UnknownBlock(BlockId(0))),
+            });
+        }
+        let cx = self.cx();
+        for (b, block) in self.body.blocks.iter().enumerate() {
+            let block_id = BlockId::from_index(b);
+            for (i, inst) in block.instructions.iter().enumerate() {
+                check_instruction(&inst.kind, &cx).map_err(|e| Violation {
+                    at: OpLocation {
+                        block: block_id,
+                        instruction: Some(i as u32),
+                    },
+                    kind: ViolationKind::Constraint(e),
+                })?;
+            }
+            check_terminator(&block.terminator, &cx).map_err(|e| Violation {
+                at: OpLocation {
+                    block: block_id,
+                    instruction: None,
+                },
+                kind: ViolationKind::Constraint(e),
+            })?;
+        }
+        Ok(())
+    }
+
+    /// State on function entry: parameters and captures initialized.
+    pub fn entry_state(&self) -> State {
+        let mut init = InitState::all_uninit(&self.paths);
+        for p in self.body.params() {
+            if let Some(path) = self.paths.root(PlaceRoot::Local(p)) {
+                init.set_subtree(&self.paths, path, InitClaim::Init);
+            }
+        }
+        for c in 0..self.body.captures.len() {
+            if let Some(path) = self.paths.root(PlaceRoot::Capture(c as u32)) {
+                init.set_subtree(&self.paths, path, InitClaim::Init);
+            }
+        }
+        State {
+            init,
+            variants: MustFacts::default(),
+            tags: MustFacts::default(),
+        }
+    }
+
+    pub fn instruction(
+        &self,
+        state: &mut State,
+        kind: &InstructionKind,
+        at: OpLocation,
+    ) -> Result<(), Violation> {
+        let fail = |kind| Violation { at, kind };
+        match kind {
+            InstructionKind::StorageLive(l) => {
+                let path = self.root_path(*l).map_err(fail)?;
+                self.obligation(state, path).map_err(fail)?;
+                state.init.set_subtree(&self.paths, path, InitClaim::Uninit);
+                self.invalidate_root(state, PlaceRoot::Local(*l));
+                return Ok(());
+            }
+            InstructionKind::StorageDead(l) => {
+                let path = self.root_path(*l).map_err(fail)?;
+                self.obligation(state, path).map_err(fail)?;
+                state.init.set_subtree(&self.paths, path, InitClaim::Uninit);
+                self.invalidate_root(state, PlaceRoot::Local(*l));
+                return Ok(());
+            }
+            InstructionKind::ScopeEnter(_) | InstructionKind::ScopeExit { .. } => return Ok(()),
+            InstructionKind::RegisterDefer { .. } => {
+                return Err(fail(ViolationKind::Unspecified(
+                    "deferred cleanup registration",
+                )));
+            }
+            InstructionKind::Assign { .. }
+            | InstructionKind::Drop { .. }
+            | InstructionKind::Replace { .. } => {}
+        }
+        for access in kind.accesses() {
+            self.access(state, &access).map_err(fail)?;
+        }
+        // Facts established by the completed operation.
+        if let InstructionKind::Assign { dest, value } = kind {
+            match value {
+                Rvalue::Aggregate {
+                    kind: AggregateKind::Adt { adt, variant, .. },
+                    ..
+                } if self.tys.adt(*adt).kind == AdtKind::Enum => {
+                    state.variants.insert(dest.clone(), variant.0);
+                }
+                Rvalue::ErrorUnion { ok, .. } => {
+                    state.variants.insert(dest.clone(), u32::from(*ok))
+                }
+                Rvalue::Discriminant(q) | Rvalue::ErrorArm(q) => {
+                    if let Some(d) = dest.as_local() {
+                        state.tags.insert(d, q.clone());
+                    }
+                }
+                Rvalue::Use(_)
+                | Rvalue::Ref { .. }
+                | Rvalue::Describe { .. }
+                | Rvalue::Aggregate { .. }
+                | Rvalue::Unary { .. }
+                | Rvalue::Binary { .. }
+                | Rvalue::Convert { .. }
+                | Rvalue::Len(_)
+                | Rvalue::FnRef(_)
+                | Rvalue::ForeignFnRef(_)
+                | Rvalue::StaticUtf(_) => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Applies the terminator and returns every successor with its state.
+    pub fn terminator(
+        &self,
+        mut state: State,
+        term: &Terminator,
+        at: OpLocation,
+    ) -> Result<Vec<Successor>, Violation> {
+        let fail = |kind| Violation { at, kind };
+        // Facts read by edge conditions are taken before operands are used.
+        let discr_tag = match term {
+            Terminator::Switch {
+                discr: Operand::Copy(p) | Operand::Move(p),
+                ..
+            } => p.as_local().and_then(|d| state.tags.get(&d).cloned()),
+            Terminator::Switch { .. }
+            | Terminator::Goto { .. }
+            | Terminator::Return { .. }
+            | Terminator::Call { .. }
+            | Terminator::Assert { .. }
+            | Terminator::Unreachable
+            | Terminator::Trap(_) => None,
+        };
+        match term {
+            Terminator::Unreachable => return Err(fail(ViolationKind::ReachableUnreachable)),
+            Terminator::Trap(_) => return Ok(Vec::new()),
+            Terminator::Call {
+                callee: zil_ir::body::Callee::Intrinsic(op),
+                ..
+            } => {
+                return Err(fail(ViolationKind::Unspecified(
+                    zil_ir::body::intrinsic_name(*op),
+                )));
+            }
+            Terminator::Call {
+                callee: zil_ir::body::Callee::DynSlot { .. },
+                ..
+            } => {
+                return Err(fail(ViolationKind::Unspecified("dynamic interface calls")));
+            }
+            Terminator::Call {
+                callee: zil_ir::body::Callee::Foreign(_),
+                ..
+            } => {
+                return Err(fail(ViolationKind::Unspecified("foreign calls")));
+            }
+            Terminator::Goto { .. }
+            | Terminator::Switch { .. }
+            | Terminator::Return { .. }
+            | Terminator::Call { .. }
+            | Terminator::Assert { .. } => {}
+        }
+        for access in term.accesses() {
+            self.access(&mut state, &access).map_err(fail)?;
+        }
+        if let Terminator::Call { .. } = term {
+            // A callee may write through any address or descriptor it can
+            // reach; facts about storage behind an indirection end here.
+            state.variants.retain(|p, _| p.first_deref().is_none());
+            state.tags.retain(|_, p| p.first_deref().is_none());
+        }
+        if let Terminator::Return { .. } = term {
+            self.exit_obligations(&state).map_err(fail)?;
+            return Ok(Vec::new());
+        }
+        let mut out = Vec::new();
+        for (kind, target) in term.edges() {
+            let mut s = state.clone();
+            for access in term.edge_accesses(kind) {
+                self.access(&mut s, &access).map_err(fail)?;
+            }
+            let feasible = match (&discr_tag, kind) {
+                (Some(q), EdgeKind::SwitchArm(v)) => {
+                    let v = u32::try_from(v).ok();
+                    match (s.variants.get(q).copied(), v) {
+                        (Some(known), Some(v)) if known != v => false,
+                        (_, None) => false,
+                        (_, Some(v)) => {
+                            s.variants.insert(q.clone(), v);
+                            true
+                        }
+                    }
+                }
+                (Some(q), EdgeKind::SwitchOtherwise) => match (s.variants.get(q), term) {
+                    (Some(known), Terminator::Switch { arms, .. }) => {
+                        !arms.iter().any(|(v, _)| *v == u128::from(*known))
+                    }
+                    _ => true,
+                },
+                (
+                    _,
+                    EdgeKind::Goto
+                    | EdgeKind::SwitchArm(_)
+                    | EdgeKind::SwitchOtherwise
+                    | EdgeKind::CallReturn
+                    | EdgeKind::CallCancel
+                    | EdgeKind::AssertOk,
+                ) => true,
+            };
+            out.push((kind, target, feasible.then_some(s)));
+        }
+        Ok(out)
+    }
+
+    // ---- access rule ---------------------------------------------------------
+
+    fn access(&self, state: &mut State, access: &Access<'_>) -> Result<(), ViolationKind> {
+        let place: &Place = &access.place;
+        self.check_variant_steps(state, place)?;
+        let path = self
+            .paths
+            .tracked(place)
+            .ok_or_else(|| ViolationKind::Untracked {
+                place: place.clone(),
+            })?;
+        let through = tracked_len(place) < place.projections.len();
+        match access.access {
+            PlaceAccess::Copy
+            | PlaceAccess::Describe
+            | PlaceAccess::Borrow(_)
+            | PlaceAccess::CallClosure(
+                zil_ir::body::ClosureCallMode::Shared | zil_ir::body::ClosureCallMode::Mut,
+            ) => self.require_full(state, path),
+            PlaceAccess::InspectTag | PlaceAccess::InspectLen => {
+                if through {
+                    self.require_full(state, path)
+                } else {
+                    self.require_own(state, path)
+                }
+            }
+            PlaceAccess::Move
+            | PlaceAccess::CallClosure(zil_ir::body::ClosureCallMode::Once)
+            | PlaceAccess::Drop => {
+                // OpSpec has excluded indirect and borrowed storage.
+                self.require_full(state, path)?;
+                state.init.set_subtree(&self.paths, path, InitClaim::Uninit);
+                self.invalidate(state, place);
+                Ok(())
+            }
+            PlaceAccess::ReplaceInstance => {
+                self.require_full(state, path)?;
+                self.invalidate(state, place);
+                Ok(())
+            }
+            PlaceAccess::Init => {
+                if through {
+                    // Writing behind an indirection: the base must be usable;
+                    // OpSpec guarantees the old value carries no obligation.
+                    self.require_full(state, path)?;
+                } else {
+                    for ancestor in self.paths.ancestors(path) {
+                        if !state.init.is_definitely_init(ancestor) {
+                            return Err(ViolationKind::WriteIntoUninitParent {
+                                place: place.clone(),
+                            });
+                        }
+                    }
+                    self.obligation(state, path).map_err(|e| {
+                        if let ViolationKind::LeakedObligation { place } = e {
+                            ViolationKind::OverwriteLive { place }
+                        } else {
+                            e
+                        }
+                    })?;
+                    state.init.set_subtree(&self.paths, path, InitClaim::Init);
+                }
+                self.invalidate(state, place);
+                if let PlaceRoot::Local(d) = place.root {
+                    state.tags.retain(|l, _| *l != d);
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn require_own(&self, state: &State, path: PathId) -> Result<(), ViolationKind> {
+        match state.init.claim(path) {
+            InitClaim::Init => Ok(()),
+            InitClaim::Uninit => Err(ViolationKind::UseOfUninit {
+                place: self.paths.place(path).clone(),
+            }),
+            InitClaim::Maybe => Err(ViolationKind::UseOfMaybeUninit {
+                place: self.paths.place(path).clone(),
+            }),
+        }
+    }
+
+    fn require_full(&self, state: &State, path: PathId) -> Result<(), ViolationKind> {
+        for p in self.paths.subtree(path) {
+            self.require_own(state, p)?;
+        }
+        Ok(())
+    }
+
+    fn check_variant_steps(&self, state: &State, place: &Place) -> Result<(), ViolationKind> {
+        for (i, step) in place.projections.iter().enumerate() {
+            let expected = match step {
+                Projection::Field(FieldRef { adt, variant, .. })
+                    if self
+                        .tys
+                        .get_adt(*adt)
+                        .is_some_and(|d| d.kind == AdtKind::Enum) =>
+                {
+                    variant.0
+                }
+                Projection::ErrorArm(ok) => u32::from(*ok),
+                Projection::Field(_)
+                | Projection::TupleField(_)
+                | Projection::Index(_)
+                | Projection::ConstIndex(_)
+                | Projection::Deref => continue,
+            };
+            let base = place.prefix(i);
+            if state.variants.get(&base) != Some(&expected) {
+                return Err(ViolationKind::UnknownVariant {
+                    place: base,
+                    expected,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// Removes facts a write/move of `written` may falsify. Facts about a
+    /// strict sub-place's container survive: writing a payload field does
+    /// not change its container's tag.
+    fn invalidate(&self, state: &mut State, written: &Place) {
+        let stale = |p: &Place| {
+            !matches!(
+                written.relation(p),
+                PlaceRelation::Disjoint | PlaceRelation::ContainedBy
+            )
+        };
+        state.variants.retain(|p, _| !stale(p));
+        state.tags.retain(|_, p| !stale(p));
+    }
+
+    fn invalidate_root(&self, state: &mut State, root: PlaceRoot) {
+        state.variants.retain(|p, _| p.root != root);
+        state
+            .tags
+            .retain(|l, p| p.root != root && PlaceRoot::Local(*l) != root);
+    }
+
+    fn root_path(&self, local: Local) -> Result<PathId, ViolationKind> {
+        self.paths
+            .root(PlaceRoot::Local(local))
+            .ok_or_else(|| ViolationKind::Untracked {
+                place: Place::local(local),
+            })
+    }
+
+    // ---- obligations ---------------------------------------------------------
+
+    /// Fails if the value at `path` may still carry a cleanup obligation.
+    pub fn obligation(&self, state: &State, path: PathId) -> Result<(), ViolationKind> {
+        let place = self.paths.place(path).clone();
+        let leak = || ViolationKind::LeakedObligation {
+            place: place.clone(),
+        };
+        let env = &self.body.param_env;
+        let ty = type_place(&place, &self.body.cx(self.tys))
+            .map_err(|e| ViolationKind::Constraint(ConstraintError::Place(e)))?
+            .ty();
+        if state.init.claim(path) == InitClaim::Uninit {
+            // Descendants of an uninitialized path must be uninitialized too;
+            // a forged state that says otherwise is checked, not trusted.
+            return match self
+                .paths
+                .subtree(path)
+                .skip(1)
+                .find(|c| state.init.claim(*c) != InitClaim::Uninit)
+            {
+                Some(c) => self.obligation(state, c),
+                None => Ok(()),
+            };
+        }
+        if !self.tys.needs_cleanup(ty, env) {
+            return Ok(());
+        }
+        if self.paths.children(path).next().is_none() {
+            return Err(leak());
+        }
+        // Partially moved: the obligation is that of each remaining part.
+        let components: Vec<(Place, zil_ir::body::TyId)> = match self.tys.kind(ty) {
+            TyKind::Adt { adt, args } => {
+                let def = self.tys.adt(*adt);
+                if def.user_drop {
+                    return Err(leak());
+                }
+                let variant = match def.kind {
+                    AdtKind::Enum => match state.variants.get(&place) {
+                        Some(v) => zil_ir::body::VariantIdx(*v),
+                        None => return Err(leak()),
+                    },
+                    AdtKind::Record | AdtKind::Package | AdtKind::Resource => {
+                        zil_ir::body::VariantIdx(0)
+                    }
+                };
+                let fields = def.variant(variant).map(|v| v.fields.len()).unwrap_or(0);
+                let mut out = Vec::with_capacity(fields);
+                for f in 0..fields {
+                    let field = FieldRef {
+                        adt: *adt,
+                        variant,
+                        field: FieldIdx::from_index(f),
+                        args: *args,
+                    };
+                    let fty = self
+                        .tys
+                        .field_ty(*adt, variant, field.field, *args)
+                        .ok_or_else(leak)?;
+                    out.push((place.clone().field(field), fty));
+                }
+                out
+            }
+            TyKind::Tuple(items) => items
+                .iter()
+                .enumerate()
+                .map(|(i, t)| (place.clone().project(Projection::TupleField(i as u32)), *t))
+                .collect(),
+            TyKind::ErrorUnion { ok, err } => match state.variants.get(&place) {
+                Some(1) => vec![(place.clone().project(Projection::ErrorArm(true)), *ok)],
+                Some(0) => vec![(place.clone().project(Projection::ErrorArm(false)), *err)],
+                _ => return Err(leak()),
+            },
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::Array { .. }
+            | TyKind::Slice(_)
+            | TyKind::Ref { .. }
+            | TyKind::Managed(_)
+            | TyKind::Desc(_)
+            | TyKind::FnPtr { .. }
+            | TyKind::Closure { .. }
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn(_)
+            | TyKind::Param(_)
+            | TyKind::Opaque(_) => return Err(leak()),
+        };
+        for (component, cty) in components {
+            match self.paths.lookup(&component) {
+                Some(child) => self.obligation(state, child)?,
+                // Never moved separately: it shares the parent's state, which
+                // is live or maybe-live here.
+                None if self.tys.needs_cleanup(cty, env) => {
+                    return Err(ViolationKind::LeakedObligation { place: component });
+                }
+                None => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Every owned root must be settled when the function returns.
+    pub fn exit_obligations(&self, state: &State) -> Result<(), ViolationKind> {
+        for i in 0..self.body.locals.len() {
+            self.obligation(state, self.root_path(Local::from_index(i))?)?;
+        }
+        let owns_captures = self
+            .body
+            .closure
+            .and_then(|c| self.tys.closure(c))
+            .is_some_and(|c| c.kind == ClosureKind::FnOnce);
+        if owns_captures {
+            for c in 0..self.body.captures.len() {
+                if let Some(path) = self.paths.root(PlaceRoot::Capture(c as u32)) {
+                    self.obligation(state, path)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
