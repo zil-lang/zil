@@ -10,8 +10,10 @@
     "policy/dependencies.json",
     "spec/interfaces.json",
     "spec/diagnostics.json",
-    "spec/semantic-scopes.md"
+    "spec/semantic-scopes.md",
+    "spec/semantic-kernel.md"
   ],
+  "independence_interpretation": "Per-record independence text means Verify does not trust candidate conclusions and checks every certificate obligation (spec/semantic-kernel.md section 6) using the single OpSpec and semantic kernel; it does not require a second implementation of the same rule.",
   "normative_hash_algorithm": "SHA256 of concatenated sorted path + NUL + SHA256(file bytes) + LF, UTF-8. spec_hash separately hashes _zil_design.md bytes.",
   "shared_change_owner": "integrator; consumers submit an interface-change request with affected producers/consumers and nearest counterexample; root Cargo, shared schema and registry files are single-writer",
   "implementation_profiles": {

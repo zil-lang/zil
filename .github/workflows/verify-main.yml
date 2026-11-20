@@ -73,7 +73,7 @@ jobs:
           test -z "$(git status --porcelain)"
           git rev-parse HEAD > "$RUNNER_TEMP/receipts/commit.txt"
           git rev-parse 'HEAD^{tree}' > "$RUNNER_TEMP/receipts/source-tree.txt"
-          rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+          rustup toolchain install 1.100.0 --profile minimal --component rustfmt --component clippy
           rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
           "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
           python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"

@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
   "profile_id": "x86_64-llvm23-builder",
-  "rust_version": "1.99.1",
+  "rust_version": "1.100.0",
   "edition": "2024",
   "llvm_version": "23.1.4",
-  "rustc_bundled_llvm": "23.1.1",
+  "rustc_bundled_llvm": "23.1.5",
   "target": "x86_64-unknown-linux-gnu",
   "pointer_bits": 64,
   "endian": "little",

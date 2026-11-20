@@ -6,7 +6,7 @@
 
 原适配器每条路径经过 Node supervisor → Node worker → Rust TSV bridge。原生版本只启动同一 Rust 可执行文件的一个 worker，worker 直接持有长驻会话，并为每次检查创建独立冷会话。模型状态转换与真实驱动分别实现；热、冷语义比较及独立源码 oracle 的责任保持原样。
 
-`tools/roam-rs` 是独立 Cargo workspace，包名 `roam`，不再增加编译器生产 crate。锁定 `serde_json = 1.0.154` 和独立 `Cargo.lock`，使用成熟 JSON 库；摘要复用 `zil-base::Fingerprint`。根 Cargo 和生产依赖不改变。Rust 1.99.1 / edition 2024 实测；Windows 尚未执行平台验收。
+`tools/roam-rs` 是独立 Cargo workspace，包名 `roam`，不再增加编译器生产 crate。锁定 `serde_json = 1.0.154` 和独立 `Cargo.lock`，使用成熟 JSON 库；摘要复用 `zil-base::Fingerprint`。根 Cargo 和生产依赖不改变。Rust 1.100.0 / edition 2024 实测；Windows 尚未执行平台验收。
 
 ## 开始运行
 
@@ -118,7 +118,7 @@ claim 使用原子记录与 token，只用于合作进程协调，不是权限�
 
 claim 不自动超时，长期修复不会被另一个进程抢走；持 token 者可显式 release。进程异常终止释放的是短期操作锁，未完成的业务 claim 和 incoming 暂存件仍保留，不自动声称修复完成。旧试验版本的目录锁须在全部旧进程停止后显式清理或换用新通道；两种锁实现不能混用活跃队列。当前锁文件不需要清理，恢复/复制队列也应先停止所有持有者，避免替换仍被锁定的 inode。平台或文件系统不支持文件锁时明确失败，不回退到无锁。本片没有跨机器租约、自动杀死修复者、自动恢复分布式服务或整个 OS 的密封快照。队列是受信工作区中的可执行复现材料，不应直接执行来历不明的外部队列。
 
-标准库合同见 [`File::try_lock`](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock) 和 [`TryLockError`](https://doc.rust-lang.org/std/fs/enum.TryLockError.html)。文件锁 API 自 Rust 1.89 稳定；本项目按 1.99.1 实测，不引入额外锁依赖。
+标准库合同见 [`File::try_lock`](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock) 和 [`TryLockError`](https://doc.rust-lang.org/std/fs/enum.TryLockError.html)。文件锁 API 自 Rust 1.89 稳定；本项目按 1.100.0 实测，不引入额外锁依赖。
 
 ## 独立 scalar-native 语义探索
 

@@ -1,6 +1,6 @@
 # ZIL 语言初稿开发预览
 
-状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.99.1、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](../../validation/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
+状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.100.0、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](../../validation/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
 
 数值文本、拥有哈希集合、缓冲 I/O 与资源图的冻结源码、独立复核和完整 CI 范围见[标准库验收](../../validation/library-foundations.json)。
 

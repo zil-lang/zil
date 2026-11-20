@@ -9,6 +9,10 @@
     "zil-ir": [
       "zil-base"
     ],
+    "zil-semantics": [
+      "zil-base",
+      "zil-ir"
+    ],
     "zil-expand": [
       "zil-base",
       "zil-syntax",
@@ -19,44 +23,67 @@
       "zil-syntax",
       "zil-ir"
     ],
+    "zil-typeck": [
+      "zil-base",
+      "zil-syntax",
+      "zil-ir"
+    ],
     "zil-analyze": [
       "zil-base",
       "zil-ir"
     ],
     "zil-verify": [
       "zil-base",
+      "zil-syntax",
       "zil-ir"
+    ],
+    "zil-solve": [
+      "zil-base",
+      "zil-ir",
+      "zil-semantics"
+    ],
+    "zil-check": [
+      "zil-base",
+      "zil-syntax",
+      "zil-ir",
+      "zil-semantics"
     ],
     "zil-ct": [
       "zil-base",
       "zil-ir",
-      "zil-verify"
+      "zil-verify",
+      "zil-check"
     ],
     "zil-lower": [
       "zil-base",
       "zil-ir",
-      "zil-verify"
+      "zil-verify",
+      "zil-check"
     ],
     "zil-backend-c": [
       "zil-base",
       "zil-ir",
-      "zil-verify"
+      "zil-verify",
+      "zil-check"
     ],
     "zil-backend-llvm": [
       "zil-base",
       "zil-ir",
       "zil-verify",
+      "zil-check",
       "zil-llvm-api"
     ],
     "zil-backend-cranelift": [
       "zil-base",
       "zil-ir",
-      "zil-verify"
+      "zil-verify",
+      "zil-check"
     ],
     "zil-backend-wasm": [
       "zil-base",
       "zil-ir",
-      "zil-verify"
+      "zil-verify",
+      "zil-check"
     ],
     "zil-db": [
       "zil-base"
@@ -68,8 +95,11 @@
       "zil-ir",
       "zil-expand",
       "zil-types",
+      "zil-typeck",
       "zil-analyze",
+      "zil-solve",
       "zil-verify",
+      "zil-check",
       "zil-ct",
       "zil-lower",
       "zil-db",
@@ -102,6 +132,20 @@
       "feature": "native",
       "upstream": "LLVM 23.1.4 C API",
       "scope": "owned context/module/builder/target machine/pass options/object buffer; native.rs and its private native/builder.rs; no frontend/verify dependency; machine preflight before LLVMBuilder"
+    }
+  },
+  "module_scoped_dependencies": {
+    "description": "A listed internal dependency may be referenced only from the listed source paths (file or directory, relative to the crate root). Any other `zil_<name>` path in that crate fails.",
+    "zil-check": {
+      "zil-syntax": [
+        "src/fidelity",
+        "src/ct_original"
+      ]
+    },
+    "zil-verify": {
+      "zil-syntax": [
+        "src/ct_original.rs"
+      ]
     }
   }
 }
