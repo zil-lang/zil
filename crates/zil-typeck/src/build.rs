@@ -48,7 +48,8 @@ pub struct Mono<'c, 'a, 'e> {
     instances: HashMap<(FnRef, Vec<Ty>), FnId>,
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
     adts: HashMap<AdtRef, AdtId>,
-    active_closures: HashMap<ClosureRef, ClosureId>,
+    closures: HashMap<(FnRef, Vec<Ty>, ClosureRef), ClosureId>,
+    closure_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, ClosureId)>,
     ensured: HashSet<TyId>,
 }
 
@@ -72,7 +73,8 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             instances: HashMap::new(),
             queue: VecDeque::new(),
             adts: HashMap::new(),
-            active_closures: HashMap::new(),
+            closures: HashMap::new(),
+            closure_queue: VecDeque::new(),
             ensured: HashSet::new(),
         }
     }
@@ -151,73 +153,92 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         Some(id)
     }
 
-    /// Builds every requested instance (including any closures it declares).
+    /// Registers a closure `(owner, args, cid)` on demand and queues its body.
+    fn ensure_closure(
+        &mut self,
+        owner: FnRef,
+        args: Vec<Ty>,
+        cid: ClosureRef,
+        span: Span,
+    ) -> Option<ClosureId> {
+        let key = (owner, args.clone(), cid);
+        if let Some(&id) = self.closures.get(&key) {
+            return Some(id);
+        }
+        let thir = self.thir.get(owner.0 as usize).and_then(Option::as_ref)?;
+        let c = thir.closures.get(cid.0 as usize)?;
+        let mut capture_tys = Vec::with_capacity(c.capture_tys.len());
+        for t in &c.capture_tys {
+            let t = self.types.subst(*t, &args);
+            capture_tys.push(self.lower_ty(t, span)?);
+        }
+        let mut param_tys = Vec::with_capacity(c.param_tys.len());
+        for t in &c.param_tys {
+            let t = self.types.subst(*t, &args);
+            param_tys.push(self.lower_ty(t, span)?);
+        }
+        let r = self.types.subst(c.result, &args);
+        let result = self.lower_ty(r, span)?;
+        let def_id = self.module.tys.add_closure(ClosureDef {
+            kind: c.kind,
+            type_params: 0,
+            captures: capture_tys,
+            params: param_tys,
+            result,
+        });
+        self.closures.insert(key, def_id);
+        self.closure_queue.push_back((owner, args, cid, def_id));
+        Some(def_id)
+    }
+
+    /// Builds every requested function and closure instance.
     pub fn run(&mut self) {
-        while let Some((f, args, id)) = self.queue.pop_front() {
-            let Some(thir) = self.thir.get(f.0 as usize).and_then(Option::as_ref) else {
-                continue;
-            };
-            let fn_name = self.module.functions[id.index()].name.clone();
-            self.active_closures.clear();
-            let mut closure_jobs: Vec<(usize, ClosureId, Vec<TyId>, FnSig)> = Vec::new();
-            for (ci, c) in thir.closures.iter().enumerate() {
-                let span = c.body.span;
-                let mut capture_tys = Vec::with_capacity(c.capture_tys.len());
-                for t in &c.capture_tys {
-                    let t = self.types.subst(*t, &args);
-                    if let Some(id) = self.lower_ty(t, span) {
-                        capture_tys.push(id);
-                    }
-                }
-                let mut param_tys = Vec::with_capacity(c.param_tys.len());
-                for t in &c.param_tys {
-                    let t = self.types.subst(*t, &args);
-                    if let Some(id) = self.lower_ty(t, span) {
-                        param_tys.push(id);
-                    }
-                }
-                let r = self.types.subst(c.result, &args);
-                let result = self
-                    .lower_ty(r, span)
-                    .unwrap_or_else(|| self.module.tys.intern(TyKind::Unit));
-                let def_id = self.module.tys.add_closure(ClosureDef {
-                    kind: c.kind,
-                    type_params: 0,
-                    captures: capture_tys.clone(),
-                    params: param_tys.clone(),
-                    result,
-                });
-                self.active_closures.insert(c.id, def_id);
+        while !self.queue.is_empty() || !self.closure_queue.is_empty() {
+            while let Some((f, args, id)) = self.queue.pop_front() {
+                let Some(thir) = self.thir.get(f.0 as usize).and_then(Option::as_ref) else {
+                    continue;
+                };
+                let sig = self.module.functions[id.index()].sig.clone();
+                let mut b = Builder::new(self, f, thir, args, sig);
+                b.function(thir);
+                let body = b.finish();
+                self.module.functions[id.index()].body = body;
+            }
+            while let Some((owner, args, cid, def_id)) = self.closure_queue.pop_front() {
+                let Some(thir) = self.thir.get(owner.0 as usize).and_then(Option::as_ref) else {
+                    continue;
+                };
+                let Some(c) = thir.closures.get(cid.0 as usize) else {
+                    continue;
+                };
+                let def = self
+                    .module
+                    .tys
+                    .closure(def_id)
+                    .cloned()
+                    .expect("registered");
                 let csig = FnSig {
-                    params: param_tys,
-                    result,
+                    params: def.params.clone(),
+                    result: def.result,
                     type_params: 0,
                     region_params: 0,
                     role: FnRole::Normal,
                 };
-                closure_jobs.push((ci, def_id, capture_tys, csig));
-            }
-            let sig = self.module.functions[id.index()].sig.clone();
-            let mut b = Builder::new(self, thir, args.clone(), sig);
-            b.function(thir);
-            let body = b.finish();
-            self.module.functions[id.index()].body = body;
-
-            for (ci, def_id, capture_tys, csig) in closure_jobs {
-                let c = &thir.closures[ci];
                 let cthir = ThirFn {
                     locals: c.locals.clone(),
                     params: c.params.clone(),
                     body: c.body.clone(),
                     closures: Vec::new(),
+                    opaque_return: None,
                 };
-                let mut cb = Builder::new(self, &cthir, args.clone(), csig.clone());
-                cb.captures = capture_tys;
+                let mut cb = Builder::new(self, owner, &cthir, args, csig.clone());
+                cb.captures = def.captures;
                 cb.closure_id = Some(def_id);
                 cb.function(&cthir);
                 let cbody = cb.finish();
+                let owner_name = self.items.func(owner).name.clone();
                 self.module.functions.push(Function {
-                    name: format!("{fn_name}::$closure#{ci}"),
+                    name: format!("{owner_name}::$closure#{}", cid.0),
                     sig: csig,
                     body: cbody,
                 });
@@ -339,15 +360,18 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     result: self.lower_ty(result, span)?,
                 }
             }
-            TyData::Closure { id, .. } => {
-                let Some(&def) = self.active_closures.get(&id) else {
-                    self.diags.push(diag::error(
-                        diag::TYPE_INFERENCE,
-                        span,
-                        "internal: closure definition missing during lowering",
-                    ));
-                    return None;
-                };
+            TyData::Closure { owner, id, .. } => {
+                let def = self.ensure_closure(owner, Vec::new(), id, span)?;
+                let args = self.args_id(&[], span)?;
+                TyKind::Closure { def, args }
+            }
+            TyData::ImplCallable { owner, .. } => {
+                let cid = self
+                    .thir
+                    .get(owner.0 as usize)
+                    .and_then(Option::as_ref)
+                    .and_then(|t| t.opaque_return)?;
+                let def = self.ensure_closure(owner, Vec::new(), cid, span)?;
                 let args = self.args_id(&[], span)?;
                 TyKind::Closure { def, args }
             }
@@ -437,6 +461,7 @@ struct Row<'t> {
 
 struct Builder<'m, 'c, 'a, 'e> {
     mono: &'m mut Mono<'c, 'a, 'e>,
+    owner_fn: FnRef,
     subst: Vec<Ty>,
     locals: Vec<LocalDecl>,
     blocks: Vec<Block>,
@@ -456,9 +481,16 @@ struct Builder<'m, 'c, 'a, 'e> {
 }
 
 impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
-    fn new(mono: &'m mut Mono<'c, 'a, 'e>, thir: &ThirFn, subst: Vec<Ty>, sig: FnSig) -> Self {
+    fn new(
+        mono: &'m mut Mono<'c, 'a, 'e>,
+        owner_fn: FnRef,
+        thir: &ThirFn,
+        subst: Vec<Ty>,
+        sig: FnSig,
+    ) -> Self {
         let mut b = Builder {
             mono,
+            owner_fn,
             subst,
             locals: Vec::new(),
             blocks: Vec::new(),
@@ -761,6 +793,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             // projection, not a use of the address value.
             ExprKind::Deref(base) => self.place(base).deref(),
             ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Len(_)
             | ExprKind::Give(_)
             | ExprKind::Describe(_)
             | ExprKind::ManagedCreate { .. }
@@ -912,12 +946,36 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     place,
                 }
             }
+            ExprKind::SliceBorrow {
+                mutable,
+                place,
+                start,
+                end,
+            } => {
+                let place = self.place(place);
+                let start = start.as_ref().map(|s| self.operand(s));
+                let end = end.as_ref().map(|e| self.operand(e));
+                Rvalue::SliceRef {
+                    region: Region::Static,
+                    mutability: if *mutable {
+                        Mutability::Exclusive
+                    } else {
+                        Mutability::Shared
+                    },
+                    place,
+                    start,
+                    end,
+                }
+            }
             ExprKind::Describe(inner) => Rvalue::Describe {
                 place: self.place(inner),
             },
             ExprKind::Closure { id, captures } => {
                 let operands = captures.iter().map(|c| self.operand(c)).collect();
-                let Some(&def) = self.mono.active_closures.get(id) else {
+                let Some(def) =
+                    self.mono
+                        .ensure_closure(self.owner_fn, self.subst.clone(), *id, e.span)
+                else {
                     self.failed = true;
                     return Rvalue::Use(Operand::Const(ConstValue::Unit));
                 };
@@ -946,6 +1004,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 }
             }
             ExprKind::Lit(_)
+            | ExprKind::Len(_)
             | ExprKind::Give(_)
             | ExprKind::ManagedCreate { .. }
             | ExprKind::ForeignCall { .. }
@@ -1129,6 +1188,21 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 );
                 self.cur = target;
             }
+            ExprKind::Len(inner) => {
+                let place = self.place(inner);
+                let usize_ty = self.mono.module.tys.intern(TyKind::Int(IntTy::Usize));
+                let i64_ty = self.mono.module.tys.intern(TyKind::Int(IntTy::I64));
+                let raw = self.temp(usize_ty);
+                self.assign(Place::local(raw), Rvalue::Len(place), span);
+                self.assign(
+                    dest,
+                    Rvalue::Convert {
+                        operand: Operand::Copy(Place::local(raw)),
+                        to: i64_ty,
+                    },
+                    span,
+                );
+            }
             ExprKind::ForeignCall { callee, args } => {
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
                 let target = self.new_block(span);
@@ -1253,6 +1327,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Index { .. }
             | ExprKind::Deref(_)
             | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
             | ExprKind::Give(_)
             | ExprKind::FnRef(_)
             | ExprKind::Closure { .. }
@@ -1311,8 +1386,15 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 span,
             },
             closures: Vec::new(),
+            opaque_return: None,
         };
-        let mut b = Builder::new(&mut ct_mono, &synthetic_thir, subst, sig.clone());
+        let mut b = Builder::new(
+            &mut ct_mono,
+            self.owner_fn,
+            &synthetic_thir,
+            subst,
+            sig.clone(),
+        );
         b.function(&synthetic_thir);
         let failed = b.failed;
         let body = b.finish();
@@ -1656,6 +1738,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Index { .. }
             | ExprKind::Deref(_)
             | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Len(_)
             | ExprKind::Give(_)
             | ExprKind::Describe(_)
             | ExprKind::ErrorInject { .. }

@@ -836,3 +836,57 @@ fn missing_trait_impl_for_generic_bound_is_rejected() {
         "E-GENERIC-ARGUMENT",
     );
 }
+
+// ---- generic Fn/FnMut bounds, impl FnMut return, slices & generic-callbacks -
+
+#[test]
+fn full_mainline_generic_callbacks_example_is_admitted_end_to_end() {
+    let lowered = zil_typeck::lower_sources(
+        &[
+            (
+                "helpers",
+                include_str!("../../../examples/mainline/generic-callbacks/helpers.zil"),
+            ),
+            (
+                "factory",
+                include_str!("../../../examples/mainline/generic-callbacks/factory.zil"),
+            ),
+            (
+                "portable",
+                include_str!("../../../examples/mainline/generic-callbacks/portable.zil"),
+            ),
+            (
+                "main",
+                include_str!("../../../examples/mainline/generic-callbacks/main.zil"),
+            ),
+        ],
+        None,
+    )
+    .expect("generic-callbacks lowers");
+    let check_id = lowered
+        .roots
+        .iter()
+        .find(|(n, _)| n == "portable.check")
+        .map(|(_, id)| *id)
+        .expect("portable.check");
+    let cert = solve(&lowered.module);
+    let verified = zil_check::check_module(lowered.module, &cert, CheckBudget { steps: STEPS })
+        .expect("generic-callbacks must pass checker");
+    let out = zil_interp::evaluate(
+        &verified,
+        check_id,
+        Vec::new(),
+        zil_interp::EvalBudget {
+            steps: 100_000,
+            call_depth: 64,
+        },
+    )
+    .expect("portable.check() executes cleanly");
+    assert_eq!(
+        out,
+        zil_interp::Value::Int {
+            ty: zil_ir::body::IntTy::I32,
+            bits: 0,
+        }
+    );
+}

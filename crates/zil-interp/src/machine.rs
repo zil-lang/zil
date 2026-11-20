@@ -566,6 +566,7 @@ impl<'m> Machine<'m> {
         Ok(match rvalue {
             Rvalue::Use(o) => self.operand(o)?,
             Rvalue::Ref { place, .. } => Cell::Ref(self.resolve(place)?.ptr),
+            Rvalue::SliceRef { .. } => return Err(self.unsupported("slice reference")),
             Rvalue::Describe { .. } => return Err(self.unsupported("resource descriptor")),
             Rvalue::Aggregate { kind, operands } => {
                 let variant = match kind {

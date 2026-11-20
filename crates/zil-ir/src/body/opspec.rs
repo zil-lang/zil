@@ -212,6 +212,26 @@ fn push_rvalue<'a>(out: &mut Vec<Access<'a>>, rvalue: &'a Rvalue) {
             PlaceAccess::Borrow(*mutability),
             OperandRole::Target,
         ),
+        Rvalue::SliceRef {
+            mutability,
+            place,
+            start,
+            end,
+            ..
+        } => {
+            if let Some(s) = start {
+                push_operand(out, s, OperandRole::Index);
+            }
+            if let Some(e) = end {
+                push_operand(out, e, OperandRole::Index);
+            }
+            push_place(
+                out,
+                place,
+                PlaceAccess::Borrow(*mutability),
+                OperandRole::Target,
+            );
+        }
         Rvalue::Describe { place } => {
             push_place(out, place, PlaceAccess::Describe, OperandRole::Target)
         }
@@ -296,8 +316,12 @@ fn rvalue_effects(rvalue: &Rvalue) -> EffectSet {
     match rvalue {
         Rvalue::Binary { op, .. } if op.may_trap() => e.with(Effect::MayTrap),
         Rvalue::Unary { op: UnOp::Neg, .. } | Rvalue::Convert { .. } => e.with(Effect::MayTrap),
+        Rvalue::SliceRef { start, end, .. } if start.is_some() || end.is_some() => {
+            e.with(Effect::MayTrap)
+        }
         Rvalue::Use(_)
         | Rvalue::Ref { .. }
+        | Rvalue::SliceRef { .. }
         | Rvalue::Describe { .. }
         | Rvalue::Aggregate { .. }
         | Rvalue::ErrorUnion { .. }
@@ -535,6 +559,37 @@ pub fn rvalue_ty(rvalue: &Rvalue, cx: &ConstraintCx<'_>) -> Result<TyId, Constra
                 region: *region,
                 mutability: *mutability,
                 pointee,
+            })
+        }
+        Rvalue::SliceRef {
+            region,
+            mutability,
+            place,
+            start,
+            end,
+        } => {
+            for bound in [start.as_ref(), end.as_ref()].into_iter().flatten() {
+                let bty = operand_ty(bound, cx)?;
+                if !matches!(tys.kind(bty), TyKind::Int(_)) {
+                    return Err(ConstraintError::Operator {
+                        reason: "slice bound must be an integer",
+                    });
+                }
+            }
+            let base_ty = cx.place_ty(place)?;
+            let element =
+                if let TyKind::Array { element, .. } | TyKind::Slice(element) = tys.kind(base_ty) {
+                    *element
+                } else {
+                    return Err(ConstraintError::Operator {
+                        reason: "slice of a non-sequence",
+                    });
+                };
+            let slice_ty = cx.lookup(TyKind::Slice(element))?;
+            cx.lookup(TyKind::Ref {
+                region: *region,
+                mutability: *mutability,
+                pointee: slice_ty,
             })
         }
         Rvalue::Describe { place } => {

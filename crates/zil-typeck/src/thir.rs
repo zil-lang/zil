@@ -29,7 +29,6 @@ pub struct LocalInfo {
 
 #[derive(Clone, Debug)]
 pub struct ThirClosure {
-    pub id: ClosureRef,
     pub kind: ClosureKind,
     /// Types of the captured environment fields (in capture order).
     pub capture_tys: Vec<Ty>,
@@ -46,6 +45,8 @@ pub struct ThirFn {
     pub params: Vec<LocalId>,
     pub body: Expr,
     pub closures: Vec<ThirClosure>,
+    /// If this function returns `impl Fn/FnMut/FnOnce`, the concrete closure it returns.
+    pub opaque_return: Option<ClosureRef>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -95,6 +96,15 @@ pub enum ExprKind {
         mutable: bool,
         place: Box<Expr>,
     },
+    /// `&place[start..end]` / `&mut place[start..end]`.
+    SliceBorrow {
+        mutable: bool,
+        place: Box<Expr>,
+        start: Option<Box<Expr>>,
+        end: Option<Box<Expr>>,
+    },
+    /// `seq.len() -> i64`.
+    Len(Box<Expr>),
     /// `give place`: explicit responsibility transfer out of a `Managed` place.
     Give(Box<Expr>),
     /// Produce a `Desc<R>` of a `Managed<R>` or `Desc<R>` place.
@@ -213,6 +223,8 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Deref(_) => true,
         ExprKind::Lit(_)
         | ExprKind::Borrow { .. }
+        | ExprKind::SliceBorrow { .. }
+        | ExprKind::Len(_)
         | ExprKind::Give(_)
         | ExprKind::Describe(_)
         | ExprKind::ManagedCreate { .. }

@@ -243,7 +243,9 @@ impl Kernel<'_> {
         match kind {
             InstructionKind::Assign { dest, value } => {
                 let loans = match value {
-                    Rvalue::Ref { place, .. } | Rvalue::Describe { place } => {
+                    Rvalue::Ref { place, .. }
+                    | Rvalue::SliceRef { place, .. }
+                    | Rvalue::Describe { place } => {
                         let mut b = self.empty_loans();
                         if let Some(id) = self.loans.created_at(at) {
                             b.insert(id);

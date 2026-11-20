@@ -318,6 +318,7 @@ impl<'a> Kernel<'a> {
                 }
                 Rvalue::Use(_)
                 | Rvalue::Ref { .. }
+                | Rvalue::SliceRef { .. }
                 | Rvalue::Describe { .. }
                 | Rvalue::Aggregate { .. }
                 | Rvalue::Unary { .. }

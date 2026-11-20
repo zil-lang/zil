@@ -653,9 +653,17 @@ impl TyTable {
                 Some(parts) => parts.iter().any(|t| self.holds_address_in(*t, visiting)),
                 None => true,
             },
-            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) | TyKind::Closure { .. } => {
-                true
-            }
+            TyKind::Closure { def, args } => match self.closure(*def) {
+                None => true,
+                Some(c) => c
+                    .captures
+                    .iter()
+                    .any(|cap| match self.subst_lookup(*cap, *args) {
+                        Some(t) => self.holds_address_in(t, visiting),
+                        None => true,
+                    }),
+            },
+            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) => true,
             TyKind::Tuple(items) => items.iter().any(|t| self.holds_address_in(*t, visiting)),
             TyKind::Array { element, .. } | TyKind::Slice(element) | TyKind::Managed(element) => {
                 self.holds_address_in(*element, visiting)
@@ -713,9 +721,17 @@ impl TyTable {
                     .any(|t| self.may_store_address_in(*t, visiting)),
                 None => true,
             },
-            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) | TyKind::Closure { .. } => {
-                true
-            }
+            TyKind::Closure { def, args } => match self.closure(*def) {
+                None => true,
+                Some(c) => c
+                    .captures
+                    .iter()
+                    .any(|cap| match self.subst_lookup(*cap, *args) {
+                        Some(t) => self.may_store_address_in(t, visiting),
+                        None => true,
+                    }),
+            },
+            TyKind::Dyn(_) | TyKind::OwnedDyn(_) | TyKind::Param(_) => true,
             TyKind::Ref {
                 mutability: Mutability::Exclusive,
                 pointee,

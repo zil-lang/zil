@@ -127,6 +127,15 @@ pub enum Rvalue {
         mutability: Mutability,
         place: Place,
     },
+    /// Borrow a slice (`&place[start..end]` / `&mut place[start..end]`) of an
+    /// array or slice place.
+    SliceRef {
+        region: Region,
+        mutability: Mutability,
+        place: Place,
+        start: Option<Operand>,
+        end: Option<Operand>,
+    },
     /// Describe the resource reached by `place` (a `Managed` carrier, a
     /// descriptor, or its payload). Copies no responsibility.
     Describe {

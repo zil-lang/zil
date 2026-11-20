@@ -73,6 +73,9 @@ impl LoanTable {
                 let (place, kind) = match value {
                     Rvalue::Ref {
                         place, mutability, ..
+                    }
+                    | Rvalue::SliceRef {
+                        place, mutability, ..
                     } => (
                         place,
                         match mutability {

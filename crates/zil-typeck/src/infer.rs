@@ -38,7 +38,9 @@ pub struct FnCx<'c, 'a> {
     items: &'c Items<'a>,
     types: &'c mut Types,
     diags: &'c mut Vec<Diagnostic>,
+    fn_ref: FnRef,
     decl: &'c FnDecl<'a>,
+    opaque_return: Option<ClosureRef>,
     generic_names: Vec<String>,
     ret_ty: Ty,
     locals: Vec<LocalInfo>,
@@ -62,7 +64,9 @@ pub fn infer_fn<'a>(
         items,
         types,
         diags,
+        fn_ref: f,
         decl,
+        opaque_return: None,
         generic_names: decl.generics.iter().map(|g| g.name.clone()).collect(),
         ret_ty: decl.result,
         locals: Vec::new(),
@@ -108,6 +112,7 @@ pub fn infer_fn<'a>(
         params,
         body,
         closures: cx.closures,
+        opaque_return: cx.opaque_return,
     };
     if diags.len() > errors_before {
         return None;
@@ -212,6 +217,46 @@ impl<'c, 'a> FnCx<'c, 'a> {
         let vt = self.types.shallow(value.ty);
         let ed = self.types.data(et).clone();
         let vd = self.types.data(vt).clone();
+
+        // 0. Return-position `impl Fn/FnMut/FnOnce` coercion.
+        if let (
+            TyData::ImplCallable {
+                owner,
+                kind: want_k,
+                params: wp,
+                result: wr,
+            },
+            TyData::Closure {
+                id,
+                kind: got_k,
+                params: gp,
+                result: gr,
+                ..
+            },
+        ) = (&ed, &vd)
+            && *owner == self.fn_ref
+        {
+            let kind_ok = matches!(
+                (got_k, want_k),
+                (ClosureKind::Fn, _)
+                    | (ClosureKind::FnMut, ClosureKind::FnMut | ClosureKind::FnOnce)
+                    | (ClosureKind::FnOnce, ClosureKind::FnOnce)
+            );
+            if !kind_ok || gp.len() != wp.len() {
+                self.error(
+                    diag::TYPE_MISMATCH,
+                    span,
+                    "closure does not satisfy the declared `impl` callable return type",
+                );
+                return value;
+            }
+            for (g, w) in gp.iter().zip(wp) {
+                self.unify(*g, *w, span);
+            }
+            self.unify(*gr, *wr, span);
+            self.opaque_return = Some(*id);
+            return value;
+        }
 
         // 1. Reborrow `&mut T` -> `&mut T` / `&T`.
         if let (
@@ -543,7 +588,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         Some(Box::new(v))
                     }
                     None => {
-                        if result != unit {
+                        if self.types.unify(result, unit).is_err() {
                             self.error(diag::TYPE_MISMATCH, span, "a value must be returned");
                         }
                         None
@@ -865,6 +910,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     return;
                 }
                 ExprKind::Borrow { .. }
+                | ExprKind::SliceBorrow { .. }
+                | ExprKind::Len(_)
                 | ExprKind::Give(_)
                 | ExprKind::Describe(_)
                 | ExprKind::ManagedCreate { .. }
@@ -1222,6 +1269,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::ErrorUnion { .. }
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
+                    | TyData::ImplCallable { .. }
                     | TyData::Param(_)
                     | TyData::SelfParam
                     | TyData::Var(_) => {
@@ -1461,10 +1509,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         }
         let result_ty = match return_type {
             Some(t) => self.resolve_written(t),
-            None => match body {
-                ast::ArrowBody::Block(_) => self.types.unit(),
-                ast::ArrowBody::Expression(_) => self.types.fresh(VarKind::General),
-            },
+            None => self.types.fresh(VarKind::General),
         };
         self.ret_ty = result_ty;
 
@@ -1482,7 +1527,15 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
         };
         let unit = self.types.unit();
-        if !self.types.is_never(body_expr.ty) && result_ty != unit {
+        if !self.types.is_never(body_expr.ty) {
+            // A block closure that can fall through without returning defaults to Unit.
+            let rt = self.types.shallow(result_ty);
+            if matches!(self.types.data(rt), TyData::Var(_)) {
+                let _ = self.types.unify(result_ty, unit);
+            }
+        }
+        let resolved_ret = self.types.shallow(result_ty);
+        if !self.types.is_never(body_expr.ty) && resolved_ret != unit {
             self.error(
                 diag::MISSING_RETURN,
                 span,
@@ -1528,7 +1581,6 @@ impl<'c, 'a> FnCx<'c, 'a> {
             })
             .collect();
         self.closures.push(ThirClosure {
-            id,
             kind,
             capture_tys,
             locals: closure_locals,
@@ -1538,6 +1590,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             body: body_expr,
         });
         let ty = self.types.intern(TyData::Closure {
+            owner: self.fn_ref,
             id,
             kind,
             params: param_tys,
@@ -1631,6 +1684,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::ErrorUnion { .. }
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
+                    | TyData::ImplCallable { .. }
                     | TyData::Param(_)
                     | TyData::SelfParam => {
                         self.error(
@@ -1644,6 +1698,44 @@ impl<'c, 'a> FnCx<'c, 'a> {
             }
             ast::UnaryOp::Borrow | ast::UnaryOp::BorrowMut => {
                 let mutable = op == ast::UnaryOp::BorrowMut;
+                if let ast::ExprKind::Slice { object, start, end } = &operand.kind {
+                    let base = self.infer(object);
+                    let base = self.auto_deref(base);
+                    if mutable && is_place(&base.kind) {
+                        self.check_mutable_place(&base, "borrowed exclusively");
+                    }
+                    let start = start.as_ref().map(|e| Box::new(self.infer(e)));
+                    let end = end.as_ref().map(|e| Box::new(self.infer(e)));
+                    let bt = self.types.shallow(base.ty);
+                    let elem = if let TyData::Array { element, .. } | TyData::Slice(element) =
+                        *self.types.data(bt)
+                    {
+                        element
+                    } else if matches!(self.types.data(bt), TyData::Error) {
+                        self.types.error()
+                    } else {
+                        self.error(
+                            diag::OPERATOR_TYPE,
+                            span,
+                            "only arrays and slices can be sliced",
+                        );
+                        self.types.error()
+                    };
+                    let slice_ty = self.types.intern(TyData::Slice(elem));
+                    let ty = self.types.intern(TyData::Ref {
+                        mutable,
+                        pointee: slice_ty,
+                    });
+                    return mk(
+                        ExprKind::SliceBorrow {
+                            mutable,
+                            place: Box::new(base),
+                            start,
+                            end,
+                        },
+                        ty,
+                    );
+                }
                 let x = self.infer(operand);
                 if mutable && is_place(&x.kind) {
                     self.check_mutable_place(&x, "borrowed exclusively");
@@ -2115,7 +2207,29 @@ impl<'c, 'a> FnCx<'c, 'a> {
             return self.err_expr(span);
         }
 
-        // Value call: function pointer (closures arrive next).
+        // Built-in `.len()` method on arrays and slices (`-> i64`).
+        if explicit.is_none()
+            && arguments.is_empty()
+            && let ast::ExprKind::Member {
+                object,
+                member: ast::MemberName::Name(mname),
+            } = &callee.kind
+            && mname == "len"
+        {
+            let base = self.infer(object);
+            let base = self.auto_deref(base);
+            let bt = self.types.shallow(base.ty);
+            if matches!(self.types.data(bt), TyData::Array { .. } | TyData::Slice(_)) {
+                let i64_ty = self.types.int(IntTy::I64);
+                return Expr {
+                    kind: ExprKind::Len(Box::new(base)),
+                    ty: i64_ty,
+                    span,
+                };
+            }
+        }
+
+        // Value call: function pointer, closure, `impl` callable or generic `F: Fn*`.
         if explicit.is_some() {
             self.error(
                 diag::TYPE_ARGUMENT,
@@ -2124,6 +2238,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             );
         }
         let callee_expr = self.infer(callee);
+        let callee_expr = self.auto_deref(callee_expr);
         let ct = self.types.shallow(callee_expr.ty);
         if let TyData::FnPtr { params, result } = self.types.data(ct).clone() {
             if arguments.len() != params.len() {
@@ -2151,52 +2266,71 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 ty: result,
                 span,
             }
-        } else if let TyData::Closure {
-            kind,
-            params,
-            result,
-            ..
-        } = self.types.data(ct).clone()
-        {
-            let mode = match kind {
-                ClosureKind::Fn => ClosureCallMode::Shared,
-                ClosureKind::FnMut => ClosureCallMode::Mut,
-                ClosureKind::FnOnce => ClosureCallMode::Once,
-            };
-            if mode == ClosureCallMode::Mut && is_place(&callee_expr.kind) {
-                self.check_mutable_place(&callee_expr, "called as a mutable closure");
-            }
-            if arguments.len() != params.len() {
-                self.error(
-                    diag::CALL_ARITY,
-                    span,
-                    format!(
-                        "closure expects {} argument(s), found {}",
-                        params.len(),
-                        arguments.len()
-                    ),
-                );
-                return self.err_expr(span);
-            }
-            let mut args = Vec::new();
-            for (a, p) in arguments.iter().zip(&params) {
-                let v = self.infer(&a.value);
-                args.push(self.coerce_arg(v, *p, a.span));
-            }
-            Expr {
-                kind: ExprKind::ClosureCall {
-                    closure: Box::new(callee_expr),
-                    mode,
-                    args,
-                },
-                ty: result,
-                span,
-            }
-        } else if matches!(self.types.data(ct), TyData::Error) {
-            self.err_expr(span)
         } else {
-            self.unsupported("calls of values and methods", span);
-            self.err_expr(span)
+            let callable_sig: Option<(ClosureKind, Vec<Ty>, Ty)> = if let TyData::Closure {
+                kind,
+                params,
+                result,
+                ..
+            }
+            | TyData::ImplCallable {
+                kind,
+                params,
+                result,
+                ..
+            } =
+                self.types.data(ct).clone()
+            {
+                Some((kind, params, result))
+            } else if let TyData::Param(idx) = self.types.data(ct) {
+                self.decl
+                    .generics
+                    .get(*idx as usize)
+                    .and_then(|g| g.callable.clone())
+            } else {
+                None
+            };
+            if let Some((kind, params, result)) = callable_sig {
+                let mode = match kind {
+                    ClosureKind::Fn => ClosureCallMode::Shared,
+                    ClosureKind::FnMut => ClosureCallMode::Mut,
+                    ClosureKind::FnOnce => ClosureCallMode::Once,
+                };
+                if mode == ClosureCallMode::Mut && is_place(&callee_expr.kind) {
+                    self.check_mutable_place(&callee_expr, "called as a mutable closure");
+                }
+                if arguments.len() != params.len() {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        format!(
+                            "closure expects {} argument(s), found {}",
+                            params.len(),
+                            arguments.len()
+                        ),
+                    );
+                    return self.err_expr(span);
+                }
+                let mut args = Vec::new();
+                for (a, p) in arguments.iter().zip(&params) {
+                    let v = self.infer(&a.value);
+                    args.push(self.coerce_arg(v, *p, a.span));
+                }
+                Expr {
+                    kind: ExprKind::ClosureCall {
+                        closure: Box::new(callee_expr),
+                        mode,
+                        args,
+                    },
+                    ty: result,
+                    span,
+                }
+            } else if matches!(self.types.data(ct), TyData::Error) {
+                self.err_expr(span)
+            } else {
+                self.unsupported("calls of values and methods", span);
+                self.err_expr(span)
+            }
         }
     }
 
@@ -2489,8 +2623,16 @@ fn contains_break(e: &Expr) -> bool {
             ExprKind::Match { scrutinee, arms } => {
                 walk(scrutinee) || arms.iter().any(|a| walk(&a.body))
             }
+            ExprKind::SliceBorrow {
+                place, start, end, ..
+            } => {
+                walk(place)
+                    || start.as_deref().is_some_and(walk)
+                    || end.as_deref().is_some_and(walk)
+            }
             ExprKind::Deref(inner)
             | ExprKind::Borrow { place: inner, .. }
+            | ExprKind::Len(inner)
             | ExprKind::Give(inner)
             | ExprKind::Describe(inner)
             | ExprKind::ErrorInject { value: inner, .. }
@@ -2608,7 +2750,7 @@ impl Finalizer<'_, '_> {
             TyData::Slice(_) | TyData::SelfParam => false,
             TyData::Ref { mutable, .. } => !mutable,
             TyData::Desc(_) | TyData::FnPtr { .. } => true,
-            TyData::Closure { .. } => false,
+            TyData::Closure { .. } | TyData::ImplCallable { .. } => false,
             TyData::Managed(_) => false,
             TyData::Opaque(OpaqueKind::ForeignHandle) => true,
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::OwnedStore(_)) => false,
@@ -2745,8 +2887,20 @@ impl Finalizer<'_, '_> {
                 }
             }
             ExprKind::TupleField { base, .. } => self.expr(base),
+            ExprKind::SliceBorrow {
+                place, start, end, ..
+            } => {
+                self.expr(place);
+                if let Some(st) = start {
+                    self.expr(st);
+                }
+                if let Some(en) = end {
+                    self.expr(en);
+                }
+            }
             ExprKind::Deref(inner)
             | ExprKind::Borrow { place: inner, .. }
+            | ExprKind::Len(inner)
             | ExprKind::Give(inner)
             | ExprKind::Describe(inner)
             | ExprKind::ErrorInject { value: inner, .. }

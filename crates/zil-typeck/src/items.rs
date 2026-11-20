@@ -11,7 +11,7 @@ use crate::thir::{FnRef, ForeignRef};
 use crate::ty::{AdtRef, OpaqueKind, TraitRef, Ty, TyData, Types};
 use std::collections::{HashMap, HashSet};
 use zil_base::{Diagnostic, Span};
-use zil_ir::body::{AdtKind, FloatTy, IntTy};
+use zil_ir::body::{AdtKind, ClosureKind, FloatTy, IntTy};
 use zil_syntax::ast;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -47,6 +47,8 @@ pub struct GenericInfo {
     pub store_element: bool,
     /// Declared user trait bounds: `(trait_ref, trait_args)`.
     pub traits: Vec<(TraitRef, Vec<Ty>)>,
+    /// Declared `Fn`/`FnMut`/`FnOnce` bound: `(kind, params, result)`.
+    pub callable: Option<(ClosureKind, Vec<Ty>, Ty)>,
 }
 
 #[derive(Clone, Debug)]
@@ -390,9 +392,10 @@ pub fn collect_program<'a>(
         );
         items.adts.push(decl);
     }
-    for (mid, f) in fn_asts {
+    for (fi, (mid, f)) in fn_asts.into_iter().enumerate() {
         let decl = collect_fn(
             mid,
+            FnRef(fi as u32),
             f,
             &items.modules,
             &items.mod_by_path,
@@ -423,6 +426,99 @@ pub fn collect_program<'a>(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn resolve_callable_bound(
+    b: &ast::TypeRef,
+    mid: ModIdx,
+    scope: &[String],
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) -> Option<(ClosureKind, Vec<Ty>, Ty)> {
+    let ast::TypeKind::Named { path, args } = &b.kind else {
+        return None;
+    };
+    let [name] = path.as_slice() else {
+        return None;
+    };
+    let kind = match name.as_str() {
+        "Fn" => ClosureKind::Fn,
+        "FnMut" => ClosureKind::FnMut,
+        "FnOnce" => ClosureKind::FnOnce,
+        _ => return None,
+    };
+    let [
+        ast::GenericArg::Type(params_ty),
+        ast::GenericArg::Type(ret_ty),
+    ] = args.as_slice()
+    else {
+        diags.push(diag::error(
+            diag::TYPE_ARGUMENT,
+            b.span,
+            "callable bound requires parameter list and return type",
+        ));
+        return Some((kind, Vec::new(), types.error()));
+    };
+    let mut params = Vec::new();
+    if let ast::TypeKind::Tuple(items) = &params_ty.kind {
+        for p in items {
+            params.push(
+                resolve_type_in(
+                    p,
+                    mid,
+                    scope,
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    None,
+                    None,
+                    types,
+                )
+                .unwrap_or_else(|d| {
+                    diags.push(d);
+                    types.error()
+                }),
+            );
+        }
+    } else {
+        params.push(
+            resolve_type_in(
+                params_ty,
+                mid,
+                scope,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                None,
+                None,
+                types,
+            )
+            .unwrap_or_else(|d| {
+                diags.push(d);
+                types.error()
+            }),
+        );
+    }
+    let result = resolve_type_in(
+        ret_ty,
+        mid,
+        scope,
+        modules,
+        mod_by_path,
+        adt_kinds,
+        None,
+        None,
+        types,
+    )
+    .unwrap_or_else(|d| {
+        diags.push(d);
+        types.error()
+    });
+    Some((kind, params, result))
+}
+
+#[allow(clippy::too_many_arguments)]
 fn type_generics(
     mid: ModIdx,
     generics: &[ast::GenericParam],
@@ -440,7 +536,21 @@ fn type_generics(
                 let mut copy = false;
                 let mut store_element = false;
                 let mut traits = Vec::new();
+                let mut callable = None;
                 for b in bounds {
+                    if let Some(c) = resolve_callable_bound(
+                        b,
+                        mid,
+                        &scope,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        types,
+                        diags,
+                    ) {
+                        callable = Some(c);
+                        continue;
+                    }
                     if let ast::TypeKind::Named { path, args } = &b.kind {
                         if args.is_empty() && path == &["Copy"] {
                             copy = true;
@@ -460,6 +570,7 @@ fn type_generics(
                                             modules,
                                             mod_by_path,
                                             adt_kinds,
+                                            None,
                                             None,
                                             types,
                                         )
@@ -490,6 +601,7 @@ fn type_generics(
                     copy,
                     store_element,
                     traits,
+                    callable,
                 });
             }
             ast::GenericParamKind::Lifetime => {
@@ -541,6 +653,7 @@ fn collect_trait(
                 mod_by_path,
                 adt_kinds,
                 Some(self_param),
+                None,
                 types,
             )
             .unwrap_or_else(|d| {
@@ -558,6 +671,7 @@ fn collect_trait(
                 mod_by_path,
                 adt_kinds,
                 Some(self_param),
+                None,
                 types,
             )
             .unwrap_or_else(|d| {
@@ -602,6 +716,7 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::ErrorUnion { .. }
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
         | TyData::Param(_)
         | TyData::SelfParam
         | TyData::Var(_) => None,
@@ -646,11 +761,21 @@ fn collect_adt(
     let generic_info = type_generics(mid, generics, modules, mod_by_path, adt_kinds, types, diags);
     let scope: Vec<String> = generic_info.iter().map(|g| g.name.clone()).collect();
     let mut resolve = |t: &ast::TypeRef, diags: &mut Vec<Diagnostic>, types: &mut Types| {
-        resolve_type_in(t, mid, &scope, modules, mod_by_path, adt_kinds, None, types)
-            .unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            })
+        resolve_type_in(
+            t,
+            mid,
+            &scope,
+            modules,
+            mod_by_path,
+            adt_kinds,
+            None,
+            None,
+            types,
+        )
+        .unwrap_or_else(|d| {
+            diags.push(d);
+            types.error()
+        })
     };
     let fields_of =
         |fields: &[ast::Field],
@@ -794,8 +919,10 @@ fn parse_result_mode(clauses: &[ast::ContractClause], diags: &mut Vec<Diagnostic
     mode
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_fn<'a>(
     mid: ModIdx,
+    fn_ref: FnRef,
     f: &'a ast::Function,
     modules: &[ModuleScope],
     mod_by_path: &HashMap<String, ModIdx>,
@@ -827,6 +954,7 @@ fn collect_fn<'a>(
             mod_by_path,
             adt_kinds,
             None,
+            None,
             types,
         )
         .unwrap_or_else(|d| {
@@ -854,11 +982,21 @@ fn collect_fn<'a>(
         });
     }
     let raw_result = match &f.return_type {
-        Some(t) => resolve_type_in(t, mid, &scope, modules, mod_by_path, adt_kinds, None, types)
-            .unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            }),
+        Some(t) => resolve_type_in(
+            t,
+            mid,
+            &scope,
+            modules,
+            mod_by_path,
+            adt_kinds,
+            None,
+            Some(fn_ref),
+            types,
+        )
+        .unwrap_or_else(|d| {
+            diags.push(d);
+            types.error()
+        }),
         None => types.unit(),
     };
     let result = match result_mode {
@@ -940,6 +1078,7 @@ fn collect_foreign(
             mod_by_path,
             adt_kinds,
             None,
+            None,
             types,
         )
         .unwrap_or_else(|d| {
@@ -956,11 +1095,21 @@ fn collect_foreign(
         params.push(ty);
     }
     let result = match &f.return_type {
-        Some(t) => resolve_type_in(t, mid, &[], modules, mod_by_path, adt_kinds, None, types)
-            .unwrap_or_else(|d| {
-                diags.push(d);
-                types.error()
-            }),
+        Some(t) => resolve_type_in(
+            t,
+            mid,
+            &[],
+            modules,
+            mod_by_path,
+            adt_kinds,
+            None,
+            None,
+            types,
+        )
+        .unwrap_or_else(|d| {
+            diags.push(d);
+            types.error()
+        }),
         None => types.unit(),
     };
     if !matches!(types.data(result), TyData::Unit) && !is_c_abi_param(result, types) {
@@ -1094,6 +1243,7 @@ fn collect_impl<'a>(
         &items.mod_by_path,
         &items.adt_kinds,
         Some(self_desc),
+        None,
         types,
     )
     .unwrap_or_else(|d| {
@@ -1109,6 +1259,7 @@ fn collect_impl<'a>(
             &items.mod_by_path,
             &items.adt_kinds,
             Some(self_desc),
+            None,
             types,
         )
         .unwrap_or_else(|d| {
@@ -1188,6 +1339,7 @@ fn collect_trait_impl<'a>(
                     &items.mod_by_path,
                     &items.adt_kinds,
                     None,
+                    None,
                     types,
                 )
                 .unwrap_or_else(|d| {
@@ -1206,6 +1358,7 @@ fn collect_trait_impl<'a>(
         &items.modules,
         &items.mod_by_path,
         &items.adt_kinds,
+        None,
         None,
         types,
     )
@@ -1230,6 +1383,7 @@ fn collect_trait_impl<'a>(
                 &items.mod_by_path,
                 &items.adt_kinds,
                 Some(target),
+                None,
                 types,
             )
             .unwrap_or_else(|d| {
@@ -1251,6 +1405,7 @@ fn collect_trait_impl<'a>(
                 &items.mod_by_path,
                 &items.adt_kinds,
                 Some(target),
+                None,
                 types,
             )
             .unwrap_or_else(|d| {
@@ -1296,6 +1451,7 @@ pub fn resolve_type(
         &items.mod_by_path,
         &items.adt_kinds,
         None,
+        None,
         types,
     )
 }
@@ -1309,6 +1465,7 @@ fn resolve_type_in(
     mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
     self_ty: Option<Ty>,
+    owner_fn: Option<FnRef>,
     types: &mut Types,
 ) -> Result<Ty, Diagnostic> {
     match &t.kind {
@@ -1373,6 +1530,7 @@ fn resolve_type_in(
                         mod_by_path,
                         adt_kinds,
                         self_ty,
+                        None,
                         types,
                     )?;
                     let inner = types.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)));
@@ -1394,6 +1552,7 @@ fn resolve_type_in(
                         mod_by_path,
                         adt_kinds,
                         self_ty,
+                        None,
                         types,
                     )?;
                     return if let TyData::Desc(inner) = types.data(resolved).clone() {
@@ -1420,6 +1579,7 @@ fn resolve_type_in(
                                 mod_by_path,
                                 adt_kinds,
                                 self_ty,
+                                None,
                                 types,
                             )?),
                             ast::GenericArg::Lifetime(_)
@@ -1462,6 +1622,7 @@ fn resolve_type_in(
                     mod_by_path,
                     adt_kinds,
                     self_ty,
+                    None,
                     types,
                 )?);
             }
@@ -1475,6 +1636,7 @@ fn resolve_type_in(
             mod_by_path,
             adt_kinds,
             self_ty,
+            None,
             types,
         ),
         ast::TypeKind::Array { element, length } => {
@@ -1486,6 +1648,7 @@ fn resolve_type_in(
                 mod_by_path,
                 adt_kinds,
                 self_ty,
+                None,
                 types,
             )?;
             let Some(length) = length else {
@@ -1525,6 +1688,7 @@ fn resolve_type_in(
                 mod_by_path,
                 adt_kinds,
                 self_ty,
+                None,
                 types,
             )?;
             Ok(types.intern(TyData::Ref {
@@ -1543,6 +1707,7 @@ fn resolve_type_in(
                     mod_by_path,
                     adt_kinds,
                     self_ty,
+                    None,
                     types,
                 )?);
             }
@@ -1554,6 +1719,7 @@ fn resolve_type_in(
                 mod_by_path,
                 adt_kinds,
                 self_ty,
+                None,
                 types,
             )?;
             Ok(types.intern(TyData::FnPtr {
@@ -1570,6 +1736,7 @@ fn resolve_type_in(
                 mod_by_path,
                 adt_kinds,
                 self_ty,
+                None,
                 types,
             )?;
             let ok = resolve_type_in(
@@ -1580,6 +1747,7 @@ fn resolve_type_in(
                 mod_by_path,
                 adt_kinds,
                 self_ty,
+                None,
                 types,
             )?;
             Ok(types.intern(TyData::ErrorUnion { ok, err }))
@@ -1593,7 +1761,39 @@ fn resolve_type_in(
         ast::TypeKind::ForLifetime { .. } => {
             Err(diag::unsupported("higher-ranked lifetimes", t.span))
         }
-        ast::TypeKind::Impl(_) => Err(diag::unsupported("impl types", t.span)),
+        ast::TypeKind::Impl(bounds) => {
+            let Some(owner) = owner_fn else {
+                return Err(diag::unsupported(
+                    "impl types outside return position",
+                    t.span,
+                ));
+            };
+            let [bound] = bounds.as_slice() else {
+                return Err(diag::unsupported("multi-bound impl return types", t.span));
+            };
+            let mut diags = Vec::new();
+            let Some((kind, params, result)) = resolve_callable_bound(
+                bound,
+                from,
+                generics,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                types,
+                &mut diags,
+            ) else {
+                return Err(diag::unsupported("non-callable impl return types", t.span));
+            };
+            if let Some(d) = diags.into_iter().next() {
+                return Err(d);
+            }
+            Ok(types.intern(TyData::ImplCallable {
+                owner,
+                kind,
+                params,
+                result,
+            }))
+        }
         ast::TypeKind::MetaEval(_) | ast::TypeKind::MetaSplice(_) | ast::TypeKind::MetaBlock(_) => {
             Err(diag::unsupported("compile-time types", t.span))
         }
