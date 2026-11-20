@@ -42,6 +42,7 @@ pub fn emit_verified_body(
     out.push_str("; ZIL Verified Body IR -> LLVM 23 IR\n");
     out.push_str("target triple = \"x86_64-unknown-linux-gnu\"\n\n");
     out.push_str("declare ptr @calloc(i64, i64)\n");
+    out.push_str("declare ptr @realloc(ptr, i64)\n");
     out.push_str("declare void @free(ptr)\n");
     out.push_str("declare void @abort() noreturn\n\n");
 
@@ -600,11 +601,101 @@ impl<'a> FnEmitter<'a> {
             TyKind::Managed(inner) => {
                 let handle = self.fresh();
                 let _ = writeln!(self.out, "  {handle} = load ptr, ptr {ptr}");
-                if let Some(TyKind::Adt { adt, .. }) = self.tys().get(inner)
-                    && let Some(drop_fn_id) = self.module.drop_fn(*adt)
-                {
-                    let sym = fn_symbol(drop_fn_id, &self.module.functions[drop_fn_id.index()]);
-                    let _ = writeln!(self.out, "  call void @{sym}(ptr {handle})");
+                match self.tys().get(inner).cloned() {
+                    Some(TyKind::Adt { adt, .. }) => {
+                        if let Some(drop_fn_id) = self.module.drop_fn(adt) {
+                            let sym =
+                                fn_symbol(drop_fn_id, &self.module.functions[drop_fn_id.index()]);
+                            let _ = writeln!(self.out, "  call void @{sym}(ptr {handle})");
+                        }
+                    }
+                    Some(TyKind::Opaque(OpaqueTy::ByteBuffer)) => {
+                        let data_slot = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {handle}, i32 0, i32 0"
+                        );
+                        let data = self.fresh();
+                        let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
+                        let _ = writeln!(self.out, "  call void @free(ptr {data})");
+                    }
+                    Some(TyKind::Opaque(OpaqueTy::OwnedStore { element: elem })) => {
+                        let data_slot = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {handle}, i32 0, i32 0"
+                        );
+                        let data = self.fresh();
+                        let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
+                        let len_slot = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {len_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {handle}, i32 0, i32 1"
+                        );
+                        let len = self.fresh();
+                        let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
+                        let elem_llvm = llvm_storage_ty(self.tys(), elem)?;
+                        let idx_slot = self.fresh();
+                        let _ = writeln!(self.out, "  {idx_slot} = alloca i64");
+                        let _ = writeln!(self.out, "  store i64 {len}, ptr {idx_slot}");
+                        let head = self.fresh();
+                        let body_bb = self.fresh();
+                        let done = self.fresh();
+                        let (hl, bl, dl) = (&head[1..], &body_bb[1..], &done[1..]);
+                        let _ = writeln!(self.out, "  br label %{hl}");
+                        let _ = writeln!(self.out, "{hl}:");
+                        let cur = self.fresh();
+                        let _ = writeln!(self.out, "  {cur} = load i64, ptr {idx_slot}");
+                        let cond = self.fresh();
+                        let _ = writeln!(self.out, "  {cond} = icmp sgt i64 {cur}, 0");
+                        let _ = writeln!(self.out, "  br i1 {cond}, label %{bl}, label %{dl}");
+                        let _ = writeln!(self.out, "{bl}:");
+                        let next = self.fresh();
+                        let _ = writeln!(self.out, "  {next} = sub i64 {cur}, 1");
+                        let _ = writeln!(self.out, "  store i64 {next}, ptr {idx_slot}");
+                        let elem_ptr = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {elem_ptr} = getelementptr inbounds {elem_llvm}, ptr {data}, i64 {next}"
+                        );
+                        self.emit_drop_ptr(&elem_ptr, elem)?;
+                        let _ = writeln!(self.out, "  br label %{hl}");
+                        let _ = writeln!(self.out, "{dl}:");
+                        let _ = writeln!(self.out, "  call void @free(ptr {data})");
+                    }
+                    Some(TyKind::Opaque(OpaqueTy::Mutex { payload: elem })) => {
+                        self.emit_drop_ptr(&handle, elem)?;
+                    }
+                    Some(
+                        TyKind::Unit
+                        | TyKind::Bool
+                        | TyKind::Never
+                        | TyKind::Int(_)
+                        | TyKind::Float(_)
+                        | TyKind::Tuple(_)
+                        | TyKind::Array { .. }
+                        | TyKind::Slice(_)
+                        | TyKind::Ref { .. }
+                        | TyKind::Managed(_)
+                        | TyKind::Desc(_)
+                        | TyKind::ErrorUnion { .. }
+                        | TyKind::FnPtr { .. }
+                        | TyKind::Closure { .. }
+                        | TyKind::Dyn(_)
+                        | TyKind::OwnedDyn(_)
+                        | TyKind::Param(_)
+                        | TyKind::Opaque(
+                            OpaqueTy::MutexGuard { .. }
+                            | OpaqueTy::SyncCell { .. }
+                            | OpaqueTy::Task { .. }
+                            | OpaqueTy::Registration { .. }
+                            | OpaqueTy::AsyncRegistration { .. }
+                            | OpaqueTy::ForeignHandle
+                            | OpaqueTy::CWideString
+                            | OpaqueTy::ForeignCallback { .. },
+                        ),
+                    )
+                    | None => {}
                 }
                 let _ = writeln!(self.out, "  call void @free(ptr {handle})");
                 Ok(())
@@ -617,7 +708,7 @@ impl<'a> FnEmitter<'a> {
                     AdtKind::Package => {
                         let base_llvm = llvm_storage_ty(self.tys(), ty)?;
                         if let Some(v) = def.variants.first() {
-                            for (fi, f) in v.fields.iter().enumerate() {
+                            for (fi, f) in v.fields.iter().enumerate().rev() {
                                 let fty = self.tys().subst_lookup(f.ty, args).unwrap_or(f.ty);
                                 let gep = self.fresh();
                                 let _ = writeln!(
@@ -632,19 +723,77 @@ impl<'a> FnEmitter<'a> {
                     AdtKind::Record | AdtKind::Resource | AdtKind::Enum => Ok(()),
                 }
             }
+            TyKind::Tuple(elems) => {
+                let base_llvm = llvm_storage_ty(self.tys(), ty)?;
+                for (i, ety) in elems.into_iter().enumerate().rev() {
+                    let gep = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {gep} = getelementptr inbounds {base_llvm}, ptr {ptr}, i32 0, i32 {i}"
+                    );
+                    self.emit_drop_ptr(&gep, ety)?;
+                }
+                Ok(())
+            }
+            TyKind::Closure { def, args } => {
+                let Some(cdef) = self.tys().closure(def).cloned() else {
+                    return Ok(());
+                };
+                let base_llvm = llvm_storage_ty(self.tys(), ty)?;
+                for (i, &cty) in cdef.captures.iter().enumerate().rev() {
+                    let fty = self.tys().subst_lookup(cty, args).unwrap_or(cty);
+                    let gep = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {gep} = getelementptr inbounds {base_llvm}, ptr {ptr}, i32 0, i32 {i}"
+                    );
+                    self.emit_drop_ptr(&gep, fty)?;
+                }
+                Ok(())
+            }
+            TyKind::ErrorUnion { ok, err } => {
+                let base_llvm = llvm_storage_ty(self.tys(), ty)?;
+                let tag_ptr = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {tag_ptr} = getelementptr inbounds {base_llvm}, ptr {ptr}, i32 0, i32 0"
+                );
+                let tag = self.fresh();
+                let _ = writeln!(self.out, "  {tag} = load i1, ptr {tag_ptr}");
+                let ok_bb = self.fresh();
+                let err_bb = self.fresh();
+                let done_bb = self.fresh();
+                let (ol, el, dl) = (&ok_bb[1..], &err_bb[1..], &done_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {tag}, label %{ol}, label %{el}");
+                let _ = writeln!(self.out, "{ol}:");
+                let ok_ptr = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_ptr} = getelementptr inbounds {base_llvm}, ptr {ptr}, i32 0, i32 1"
+                );
+                self.emit_drop_ptr(&ok_ptr, ok)?;
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{el}:");
+                let err_ptr = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {err_ptr} = getelementptr inbounds {base_llvm}, ptr {ptr}, i32 0, i32 2"
+                );
+                self.emit_drop_ptr(&err_ptr, err)?;
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{dl}:");
+                Ok(())
+            }
             TyKind::Unit
             | TyKind::Bool
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::Tuple(_)
             | TyKind::Array { .. }
             | TyKind::Slice(_)
             | TyKind::Ref { .. }
             | TyKind::Desc(_)
-            | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
-            | TyKind::Closure { .. }
             | TyKind::Dyn(_)
             | TyKind::OwnedDyn(_)
             | TyKind::Param(_)
@@ -988,10 +1137,20 @@ impl<'a> FnEmitter<'a> {
                     return Ok(());
                 }
                 let res = self.fresh();
+                let from_int = match operand {
+                    Operand::Const(ConstValue::Int { ty, .. }) => Some(*ty),
+                    Operand::Copy(_)
+                    | Operand::Move(_)
+                    | Operand::Const(_)
+                    | Operand::Pooled(_) => from_ty.and_then(|t| match self.tys().get(t) {
+                        Some(TyKind::Int(i)) => Some(*i),
+                        _ => None,
+                    }),
+                };
                 let from_kind = from_ty.and_then(|t| self.tys().get(t));
                 let to_kind = self.tys().get(*to);
-                let cast = match (from_kind, to_kind) {
-                    (Some(TyKind::Int(a)), Some(TyKind::Int(b))) => {
+                let cast = match (from_int, from_kind, to_kind) {
+                    (Some(a), _, Some(TyKind::Int(b))) => {
                         let ab = a.bits(64);
                         let bb = b.bits(64);
                         if ab < bb {
@@ -1000,24 +1159,24 @@ impl<'a> FnEmitter<'a> {
                             "trunc"
                         }
                     }
-                    (Some(TyKind::Int(a)), Some(TyKind::Float(_))) => {
+                    (Some(a), _, Some(TyKind::Float(_))) => {
                         if a.signed() {
                             "sitofp"
                         } else {
                             "uitofp"
                         }
                     }
-                    (Some(TyKind::Float(_)), Some(TyKind::Int(b))) => {
+                    (_, Some(TyKind::Float(_)), Some(TyKind::Int(b))) => {
                         if b.signed() {
                             "fptosi"
                         } else {
                             "fptoui"
                         }
                     }
-                    (Some(TyKind::Float(FloatTy::F32)), Some(TyKind::Float(FloatTy::F64))) => {
+                    (_, Some(TyKind::Float(FloatTy::F32)), Some(TyKind::Float(FloatTy::F64))) => {
                         "fpext"
                     }
-                    (Some(TyKind::Float(FloatTy::F64)), Some(TyKind::Float(FloatTy::F32))) => {
+                    (_, Some(TyKind::Float(FloatTy::F64)), Some(TyKind::Float(FloatTy::F32))) => {
                         "fptrunc"
                     }
                     _ => "bitcast",
@@ -1340,31 +1499,615 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "  store ptr {raw}, ptr {d_ptr}");
                 Ok(())
             }
-            IntrinsicOp::StoreNew
-            | IntrinsicOp::StoreReserve
-            | IntrinsicOp::StorePush
-            | IntrinsicOp::StorePop
-            | IntrinsicOp::StoreLen
-            | IntrinsicOp::StoreCapacity
-            | IntrinsicOp::StoreBorrow { .. }
-            | IntrinsicOp::ByteBufferNew
-            | IntrinsicOp::ByteBufferReserve
-            | IntrinsicOp::ByteBufferPush
-            | IntrinsicOp::ByteBufferTruncate
-            | IntrinsicOp::ByteBufferLen
-            | IntrinsicOp::ByteBufferCapacity
-            | IntrinsicOp::ByteBufferBorrow
-            | IntrinsicOp::MutexCreate
-            | IntrinsicOp::MutexLock
-            | IntrinsicOp::MutexValue
-            | IntrinsicOp::MutexUnlock
-            | IntrinsicOp::SyncLoad
-            | IntrinsicOp::SyncStore
-            | IntrinsicOp::SyncFetchAdd
-            | IntrinsicOp::SyncCompareExchange
-            | IntrinsicOp::TaskStart
+            IntrinsicOp::ByteBufferNew | IntrinsicOp::StoreNew => {
+                // Header layout: { ptr data, i64 len, i64 cap } = 24 bytes, zeroed.
+                let raw = self.fresh();
+                let _ = writeln!(self.out, "  {raw} = call ptr @calloc(i64 1, i64 24)");
+                let _ = writeln!(self.out, "  store ptr {raw}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::ByteBufferLen | IntrinsicOp::StoreLen => {
+                let (h, _, _) = self.emit_operand(&args[0])?;
+                let slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 1"
+                );
+                let val = self.fresh();
+                let _ = writeln!(self.out, "  {val} = load i64, ptr {slot}");
+                let _ = writeln!(self.out, "  store i64 {val}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::ByteBufferCapacity | IntrinsicOp::StoreCapacity => {
+                let (h, _, _) = self.emit_operand(&args[0])?;
+                let slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 2"
+                );
+                let val = self.fresh();
+                let _ = writeln!(self.out, "  {val} = load i64, ptr {slot}");
+                let _ = writeln!(self.out, "  store i64 {val}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::ByteBufferTruncate => {
+                let (h, _, _) = self.emit_operand(&args[0])?;
+                let (new_len, _, _) = self.emit_operand(&args[1])?;
+                let len_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {len_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 1"
+                );
+                let cur_len = self.fresh();
+                let _ = writeln!(self.out, "  {cur_len} = load i64, ptr {len_slot}");
+                let non_neg = self.fresh();
+                let _ = writeln!(self.out, "  {non_neg} = icmp sge i64 {new_len}, 0");
+                let le_cur = self.fresh();
+                let _ = writeln!(self.out, "  {le_cur} = icmp sle i64 {new_len}, {cur_len}");
+                let ok = self.fresh();
+                let _ = writeln!(self.out, "  {ok} = and i1 {non_neg}, {le_cur}");
+                let set_bb = self.fresh();
+                let done_bb = self.fresh();
+                let (sl, dl) = (&set_bb[1..], &done_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {ok}, label %{sl}, label %{dl}");
+                let _ = writeln!(self.out, "{sl}:");
+                let _ = writeln!(self.out, "  store i64 {new_len}, ptr {len_slot}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{dl}:");
+                let _ = writeln!(self.out, "  store i1 {ok}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::ByteBufferBorrow => {
+                let (h, _, _) = self.emit_operand(&args[0])?;
+                let data_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 0"
+                );
+                let data = self.fresh();
+                let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
+                let len_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {len_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 1"
+                );
+                let len = self.fresh();
+                let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
+                let out_p0 = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {out_p0} = getelementptr inbounds {{ ptr, i64 }}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store ptr {data}, ptr {out_p0}");
+                let out_p1 = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {out_p1} = getelementptr inbounds {{ ptr, i64 }}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store i64 {len}, ptr {out_p1}");
+                Ok(())
+            }
+            IntrinsicOp::ByteBufferReserve | IntrinsicOp::StoreReserve => {
+                let (h, _, h_ty) = self.emit_operand(&args[0])?;
+                let (need, _, _) = self.emit_operand(&args[1])?;
+                let elem_llvm = if op == IntrinsicOp::ByteBufferReserve {
+                    "i8".to_string()
+                } else {
+                    let elem = self.store_elem_ty(h_ty)?;
+                    llvm_storage_ty(self.tys(), elem)?
+                };
+                let data_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 0"
+                );
+                let cap_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {cap_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 2"
+                );
+                let cur_cap = self.fresh();
+                let _ = writeln!(self.out, "  {cur_cap} = load i64, ptr {cap_slot}");
+                let need_grow = self.fresh();
+                let _ = writeln!(self.out, "  {need_grow} = icmp sgt i64 {need}, {cur_cap}");
+                let grow_bb = self.fresh();
+                let ok_bb = self.fresh();
+                let done_bb = self.fresh();
+                let (gl, ol, dl) = (&grow_bb[1..], &ok_bb[1..], &done_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {need_grow}, label %{gl}, label %{ol}");
+                let _ = writeln!(self.out, "{gl}:");
+                let sz_ptr = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {sz_ptr} = getelementptr {elem_llvm}, ptr null, i32 1"
+                );
+                let elem_sz = self.fresh();
+                let _ = writeln!(self.out, "  {elem_sz} = ptrtoint ptr {sz_ptr} to i64");
+                let total_bytes = self.fresh();
+                let _ = writeln!(self.out, "  {total_bytes} = mul i64 {need}, {elem_sz}");
+                let old_data = self.fresh();
+                let _ = writeln!(self.out, "  {old_data} = load ptr, ptr {data_slot}");
+                let new_data = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {new_data} = call ptr @realloc(ptr {old_data}, i64 {total_bytes})"
+                );
+                let not_null = self.fresh();
+                let _ = writeln!(self.out, "  {not_null} = icmp ne ptr {new_data}, null");
+                let commit_bb = self.fresh();
+                let fail_bb = self.fresh();
+                let (cl, fl) = (&commit_bb[1..], &fail_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {not_null}, label %{cl}, label %{fl}");
+                let _ = writeln!(self.out, "{cl}:");
+                let _ = writeln!(self.out, "  store ptr {new_data}, ptr {data_slot}");
+                let _ = writeln!(self.out, "  store i64 {need}, ptr {cap_slot}");
+                let _ = writeln!(self.out, "  br label %{ol}");
+                let _ = writeln!(self.out, "{ol}:");
+                let _ = writeln!(self.out, "  store i1 1, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{fl}:");
+                let _ = writeln!(self.out, "  store i1 0, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{dl}:");
+                Ok(())
+            }
+            IntrinsicOp::ByteBufferPush => {
+                let (h, _, _) = self.emit_operand(&args[0])?;
+                let (byte_v, _, _) = self.emit_operand(&args[1])?;
+                let data_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 0"
+                );
+                let len_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {len_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 1"
+                );
+                let cap_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {cap_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 2"
+                );
+                let len = self.fresh();
+                let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
+                let cap = self.fresh();
+                let _ = writeln!(self.out, "  {cap} = load i64, ptr {cap_slot}");
+                let full = self.fresh();
+                let _ = writeln!(self.out, "  {full} = icmp eq i64 {len}, {cap}");
+                let grow_bb = self.fresh();
+                let write_bb = self.fresh();
+                let fail_bb = self.fresh();
+                let done_bb = self.fresh();
+                let (gl, wl, fl, dl) =
+                    (&grow_bb[1..], &write_bb[1..], &fail_bb[1..], &done_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {full}, label %{gl}, label %{wl}");
+                let _ = writeln!(self.out, "{gl}:");
+                let is_zero = self.fresh();
+                let _ = writeln!(self.out, "  {is_zero} = icmp eq i64 {cap}, 0");
+                let doubled = self.fresh();
+                let _ = writeln!(self.out, "  {doubled} = shl i64 {cap}, 1");
+                let new_cap = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {new_cap} = select i1 {is_zero}, i64 8, i64 {doubled}"
+                );
+                let old_data = self.fresh();
+                let _ = writeln!(self.out, "  {old_data} = load ptr, ptr {data_slot}");
+                let new_data = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {new_data} = call ptr @realloc(ptr {old_data}, i64 {new_cap})"
+                );
+                let ok_alloc = self.fresh();
+                let _ = writeln!(self.out, "  {ok_alloc} = icmp ne ptr {new_data}, null");
+                let commit_bb = self.fresh();
+                let cl = &commit_bb[1..];
+                let _ = writeln!(self.out, "  br i1 {ok_alloc}, label %{cl}, label %{fl}");
+                let _ = writeln!(self.out, "{cl}:");
+                let _ = writeln!(self.out, "  store ptr {new_data}, ptr {data_slot}");
+                let _ = writeln!(self.out, "  store i64 {new_cap}, ptr {cap_slot}");
+                let _ = writeln!(self.out, "  br label %{wl}");
+                let _ = writeln!(self.out, "{wl}:");
+                let data = self.fresh();
+                let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
+                let dst = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {dst} = getelementptr inbounds i8, ptr {data}, i64 {len}"
+                );
+                let _ = writeln!(self.out, "  store i8 {byte_v}, ptr {dst}");
+                let next_len = self.fresh();
+                let _ = writeln!(self.out, "  {next_len} = add i64 {len}, 1");
+                let _ = writeln!(self.out, "  store i64 {next_len}, ptr {len_slot}");
+                let _ = writeln!(self.out, "  store i1 1, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{fl}:");
+                let _ = writeln!(self.out, "  store i1 0, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{dl}:");
+                Ok(())
+            }
+            IntrinsicOp::StorePush => {
+                let (h, _, h_ty) = self.emit_operand(&args[0])?;
+                let (val, val_lt, _) = self.emit_operand(&args[1])?;
+                let elem = self.store_elem_ty(h_ty)?;
+                let elem_llvm = llvm_storage_ty(self.tys(), elem)?;
+                let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
+                let data_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 0"
+                );
+                let len_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {len_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 1"
+                );
+                let cap_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {cap_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 2"
+                );
+                let len = self.fresh();
+                let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
+                let cap = self.fresh();
+                let _ = writeln!(self.out, "  {cap} = load i64, ptr {cap_slot}");
+                let full = self.fresh();
+                let _ = writeln!(self.out, "  {full} = icmp eq i64 {len}, {cap}");
+                let grow_bb = self.fresh();
+                let write_bb = self.fresh();
+                let fail_bb = self.fresh();
+                let done_bb = self.fresh();
+                let (gl, wl, fl, dl) =
+                    (&grow_bb[1..], &write_bb[1..], &fail_bb[1..], &done_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {full}, label %{gl}, label %{wl}");
+                let _ = writeln!(self.out, "{gl}:");
+                let is_zero = self.fresh();
+                let _ = writeln!(self.out, "  {is_zero} = icmp eq i64 {cap}, 0");
+                let doubled = self.fresh();
+                let _ = writeln!(self.out, "  {doubled} = shl i64 {cap}, 1");
+                let new_cap = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {new_cap} = select i1 {is_zero}, i64 8, i64 {doubled}"
+                );
+                let sz_ptr = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {sz_ptr} = getelementptr {elem_llvm}, ptr null, i32 1"
+                );
+                let elem_sz = self.fresh();
+                let _ = writeln!(self.out, "  {elem_sz} = ptrtoint ptr {sz_ptr} to i64");
+                let total_bytes = self.fresh();
+                let _ = writeln!(self.out, "  {total_bytes} = mul i64 {new_cap}, {elem_sz}");
+                let old_data = self.fresh();
+                let _ = writeln!(self.out, "  {old_data} = load ptr, ptr {data_slot}");
+                let new_data = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {new_data} = call ptr @realloc(ptr {old_data}, i64 {total_bytes})"
+                );
+                let ok_alloc = self.fresh();
+                let _ = writeln!(self.out, "  {ok_alloc} = icmp ne ptr {new_data}, null");
+                let commit_bb = self.fresh();
+                let cl = &commit_bb[1..];
+                let _ = writeln!(self.out, "  br i1 {ok_alloc}, label %{cl}, label %{fl}");
+                let _ = writeln!(self.out, "{cl}:");
+                let _ = writeln!(self.out, "  store ptr {new_data}, ptr {data_slot}");
+                let _ = writeln!(self.out, "  store i64 {new_cap}, ptr {cap_slot}");
+                let _ = writeln!(self.out, "  br label %{wl}");
+                let _ = writeln!(self.out, "{wl}:");
+                let data = self.fresh();
+                let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
+                let dst = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {dst} = getelementptr inbounds {elem_llvm}, ptr {data}, i64 {len}"
+                );
+                if val_lt == "void" {
+                    let _ = writeln!(self.out, "  store i8 0, ptr {dst}");
+                } else {
+                    let _ = writeln!(self.out, "  store {val_lt} {val}, ptr {dst}");
+                }
+                let next_len = self.fresh();
+                let _ = writeln!(self.out, "  {next_len} = add i64 {len}, 1");
+                let _ = writeln!(self.out, "  store i64 {next_len}, ptr {len_slot}");
+                let ok_tag = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 1, ptr {ok_tag}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{fl}:");
+                let err_tag = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {err_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 0, ptr {err_tag}");
+                let err_val = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {err_val} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
+                );
+                if val_lt == "void" {
+                    let _ = writeln!(self.out, "  store i8 0, ptr {err_val}");
+                } else {
+                    let _ = writeln!(self.out, "  store {val_lt} {val}, ptr {err_val}");
+                }
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{dl}:");
+                Ok(())
+            }
+            IntrinsicOp::StorePop => {
+                let (h, _, h_ty) = self.emit_operand(&args[0])?;
+                let elem = self.store_elem_ty(h_ty)?;
+                let elem_llvm = llvm_storage_ty(self.tys(), elem)?;
+                let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
+                let data_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 0"
+                );
+                let len_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {len_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 1"
+                );
+                let len = self.fresh();
+                let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
+                let has = self.fresh();
+                let _ = writeln!(self.out, "  {has} = icmp sgt i64 {len}, 0");
+                let ok_bb = self.fresh();
+                let empty_bb = self.fresh();
+                let done_bb = self.fresh();
+                let (ol, el, dl) = (&ok_bb[1..], &empty_bb[1..], &done_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {has}, label %{ol}, label %{el}");
+                let _ = writeln!(self.out, "{ol}:");
+                let next_len = self.fresh();
+                let _ = writeln!(self.out, "  {next_len} = sub i64 {len}, 1");
+                let _ = writeln!(self.out, "  store i64 {next_len}, ptr {len_slot}");
+                let data = self.fresh();
+                let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
+                let src = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {src} = getelementptr inbounds {elem_llvm}, ptr {data}, i64 {next_len}"
+                );
+                let loaded = self.fresh();
+                let _ = writeln!(self.out, "  {loaded} = load {elem_llvm}, ptr {src}");
+                let ok_tag = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 1, ptr {ok_tag}");
+                let ok_val = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_val} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store {elem_llvm} {loaded}, ptr {ok_val}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{el}:");
+                let err_tag = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {err_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 0, ptr {err_tag}");
+                let _ = writeln!(self.out, "  br label %{dl}");
+                let _ = writeln!(self.out, "{dl}:");
+                Ok(())
+            }
+            IntrinsicOp::StoreBorrow { .. } => {
+                let (h, _, h_ty) = self.emit_operand(&args[0])?;
+                let (idx, _, _) = self.emit_operand(&args[1])?;
+                let elem = self.store_elem_ty(h_ty)?;
+                let elem_llvm = llvm_storage_ty(self.tys(), elem)?;
+                let data_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {data_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 0"
+                );
+                let len_slot = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {len_slot} = getelementptr inbounds {{ ptr, i64, i64 }}, ptr {h}, i32 0, i32 1"
+                );
+                let len = self.fresh();
+                let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
+                let non_neg = self.fresh();
+                let _ = writeln!(self.out, "  {non_neg} = icmp sge i64 {idx}, 0");
+                let in_len = self.fresh();
+                let _ = writeln!(self.out, "  {in_len} = icmp slt i64 {idx}, {len}");
+                let in_bounds = self.fresh();
+                let _ = writeln!(self.out, "  {in_bounds} = and i1 {non_neg}, {in_len}");
+                let ok_bb = self.fresh();
+                let oob_bb = self.fresh();
+                let (ol, fl) = (&ok_bb[1..], &oob_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {in_bounds}, label %{ol}, label %{fl}");
+                let _ = writeln!(self.out, "{fl}:\n  call void @abort()\n  unreachable");
+                let _ = writeln!(self.out, "{ol}:");
+                let data = self.fresh();
+                let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
+                let gep = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {gep} = getelementptr inbounds {elem_llvm}, ptr {data}, i64 {idx}"
+                );
+                let _ = writeln!(self.out, "  store ptr {gep}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::MutexCreate => {
+                let (val, val_lt, _) = self.emit_operand(&args[0])?;
+                let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
+                let store_lt = if val_lt == "void" { "i8" } else { &val_lt };
+                let sz_ptr = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {sz_ptr} = getelementptr {store_lt}, ptr null, i32 1"
+                );
+                let sz = self.fresh();
+                let _ = writeln!(self.out, "  {sz} = ptrtoint ptr {sz_ptr} to i64");
+                let raw = self.fresh();
+                let _ = writeln!(self.out, "  {raw} = call ptr @calloc(i64 1, i64 {sz})");
+                if val_lt == "void" {
+                    let _ = writeln!(self.out, "  store i8 0, ptr {raw}");
+                } else {
+                    let _ = writeln!(self.out, "  store {val_lt} {val}, ptr {raw}");
+                }
+                let ok_tag = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 1, ptr {ok_tag}");
+                let ok_val = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_val} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store ptr {raw}, ptr {ok_val}");
+                Ok(())
+            }
+            IntrinsicOp::MutexLock => {
+                let (h, _, _) = self.emit_operand(&args[0])?;
+                let _ = writeln!(self.out, "  store ptr {h}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::MutexValue => {
+                let (guard_ptr, _, _) = self.emit_operand(&args[0])?;
+                let handle = self.fresh();
+                let _ = writeln!(self.out, "  {handle} = load ptr, ptr {guard_ptr}");
+                let _ = writeln!(self.out, "  store ptr {handle}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::MutexUnlock => Ok(()),
+            IntrinsicOp::SyncLoad => {
+                let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
+                let lt = llvm_ty(self.tys(), d_ty)?;
+                let val = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {val} = load atomic {lt}, ptr {cell_ptr} seq_cst, align 8"
+                );
+                let _ = writeln!(self.out, "  store {lt} {val}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::SyncStore => {
+                let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
+                let (val, lt, _) = self.emit_operand(&args[1])?;
+                let _ = writeln!(
+                    self.out,
+                    "  store atomic {lt} {val}, ptr {cell_ptr} seq_cst, align 8"
+                );
+                Ok(())
+            }
+            IntrinsicOp::SyncFetchAdd => {
+                let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
+                let (delta, lt, _) = self.emit_operand(&args[1])?;
+                let old = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {old} = atomicrmw add ptr {cell_ptr}, {lt} {delta} seq_cst"
+                );
+                let _ = writeln!(self.out, "  store {lt} {old}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::SyncCompareExchange => {
+                let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
+                let (expected, lt, _) = self.emit_operand(&args[1])?;
+                let (desired, _, _) = self.emit_operand(&args[2])?;
+                let pair = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {pair} = cmpxchg ptr {cell_ptr}, {lt} {expected}, {lt} {desired} seq_cst seq_cst"
+                );
+                let ok = self.fresh();
+                let _ = writeln!(self.out, "  {ok} = extractvalue {{ {lt}, i1 }} {pair}, 1");
+                let _ = writeln!(self.out, "  store i1 {ok}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::ThreadScope => {
+                // Deterministic native execution of scoped worker(cell) + parent().
+                let (worker_fn, _, _) = self.emit_operand(&args[0])?;
+                let (cell_v, cell_lt, _) = self.emit_operand(&args[1])?;
+                let Some(TyKind::Tuple(ret_elems)) = self.tys().get(d_ty).cloned() else {
+                    return Err(BodyEmitError::new("ThreadScope dest must be 3-tuple"));
+                };
+                let r1_ty = llvm_ty(self.tys(), ret_elems[1])?;
+                let r2_ty = llvm_ty(self.tys(), ret_elems[2])?;
+                let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
+                let r1 = if r1_ty == "void" {
+                    let _ = writeln!(self.out, "  call void {worker_fn}({cell_lt} {cell_v})");
+                    "0".to_string()
+                } else {
+                    let r = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {r} = call {r1_ty} {worker_fn}({cell_lt} {cell_v})"
+                    );
+                    r
+                };
+                let (env_ptr, env_ty) = match &args[2] {
+                    Operand::Copy(p) | Operand::Move(p) => self.emit_place_ptr(p)?,
+                    Operand::Const(_) | Operand::Pooled(_) => {
+                        return Err(BodyEmitError::new("ThreadScope parent must be a closure"));
+                    }
+                };
+                let Some(TyKind::Closure { def, .. }) = self.tys().get(env_ty) else {
+                    return Err(BodyEmitError::new("ThreadScope parent is not a closure"));
+                };
+                let c_fn_id = self
+                    .module
+                    .functions
+                    .iter()
+                    .position(|f| f.body.closure == Some(*def))
+                    .map(FnId::from_index)
+                    .ok_or_else(|| BodyEmitError::new("ThreadScope closure body missing"))?;
+                let sym = fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]);
+                let r2 = if r2_ty == "void" {
+                    let _ = writeln!(self.out, "  call void @{sym}(ptr {env_ptr})");
+                    "0".to_string()
+                } else {
+                    let r = self.fresh();
+                    let _ = writeln!(self.out, "  {r} = call {r2_ty} @{sym}(ptr {env_ptr})");
+                    r
+                };
+                let f0 = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {f0} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 1, ptr {f0}");
+                let f1 = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {f1} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                if r1_ty == "void" {
+                    let _ = writeln!(self.out, "  store i8 0, ptr {f1}");
+                } else {
+                    let _ = writeln!(self.out, "  store {r1_ty} {r1}, ptr {f1}");
+                }
+                let f2 = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {f2} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
+                );
+                if r2_ty == "void" {
+                    let _ = writeln!(self.out, "  store i8 0, ptr {f2}");
+                } else {
+                    let _ = writeln!(self.out, "  store {r2_ty} {r2}, ptr {f2}");
+                }
+                Ok(())
+            }
+            IntrinsicOp::TaskYield => Ok(()),
+            IntrinsicOp::TaskStart
             | IntrinsicOp::TaskCreate
-            | IntrinsicOp::TaskYield
             | IntrinsicOp::TaskValid
             | IntrinsicOp::TaskPoll
             | IntrinsicOp::TaskRequestCancel
@@ -1378,10 +2121,22 @@ impl<'a> FnEmitter<'a> {
             | IntrinsicOp::AsyncRegistrationRequestClose
             | IntrinsicOp::AsyncRegistrationPollClose
             | IntrinsicOp::AsyncRegistrationFinishDestroy
-            | IntrinsicOp::OwnedDynCreate
-            | IntrinsicOp::ThreadScope => Err(BodyEmitError::new(format!(
+            | IntrinsicOp::OwnedDynCreate => Err(BodyEmitError::new(format!(
                 "intrinsic {op:?} native emission not yet implemented"
             ))),
+        }
+    }
+
+    fn store_elem_ty(&self, handle_ty: Option<TyId>) -> Result<TyId, BodyEmitError> {
+        let ty = handle_ty.ok_or_else(|| BodyEmitError::new("Store handle missing type"))?;
+        let Some(TyKind::Desc(inner) | TyKind::Managed(inner)) = self.tys().get(ty) else {
+            return Err(BodyEmitError::new("Store handle is not Desc/Managed"));
+        };
+        if let Some(TyKind::Opaque(OpaqueTy::OwnedStore { element: elem })) = self.tys().get(*inner)
+        {
+            Ok(*elem)
+        } else {
+            Err(BodyEmitError::new("Store handle inner is not OwnedStore"))
         }
     }
 }

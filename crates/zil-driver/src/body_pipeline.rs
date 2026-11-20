@@ -316,4 +316,114 @@ fn main() -> i32 {
             .expect_err("unused invalid ct fn must be rejected by ct_original");
         assert_eq!(err.phase, Phase::Ct);
     }
+
+    #[test]
+    fn native_o0_and_o2_execute_store_lifo_drop_bytes_mutex_and_thread_scope() {
+        let dir =
+            std::env::temp_dir().join(format!("zil-body-store-native-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+
+        // C observer recording exact drop order as base-10 digits (e.g., drop 2 then 1 -> 21).
+        let c_path = dir.join("lifo_observer.c");
+        std::fs::write(
+            &c_path,
+            r#"
+#include <stdint.h>
+static int32_t g_seq = 0;
+void lifo_drop(int32_t tag) { g_seq = g_seq * 10 + tag; }
+int32_t lifo_seq(void) { return g_seq; }
+"#,
+        )
+        .expect("write lifo_observer.c");
+
+        let zil_src = r#"
+extern "C" fn lifo_drop(tag: i32);
+extern "C" fn lifo_seq() -> i32;
+
+resource Item {
+    tag: i32;
+}
+
+impl Drop for Item {
+    fn drop(self: Self) {
+        unsafe { lifo_drop(self.tag) }
+    }
+}
+
+fn fill_store_and_drop() -> i32 {
+    let s = store_new();
+    store_reserve(s, 4);
+    store_push(s, Item { tag: 1 });
+    store_push(s, Item { tag: 2 });
+    store_push(s, Item { tag: 3 });
+    let n = i32(store_len(s));
+    store_pop(s);
+    return n;
+}
+
+fn byte_buf_check() -> i32 {
+    let b = bytes_new();
+    bytes_reserve(b, 8);
+    bytes_push(b, u8(10));
+    bytes_push(b, u8(20));
+    bytes_push(b, u8(30));
+    bytes_truncate(b, 2);
+    let view = bytes_view(b);
+    return i32(view[0]) + i32(view[1]);
+}
+
+fn worker(m: Mutex<i32>) -> i32 {
+    var guard = mutex_lock(m);
+    let p = mutex_value(&mut guard);
+    *p = *p + 4;
+    return *p;
+}
+
+fn main() -> i32 {
+    let n = fill_store_and_drop();
+    var seq = 0;
+    unsafe {
+        seq = lifo_seq();
+    }
+    let bsum = byte_buf_check();
+    var msum = 0;
+    match mutex_create(6) {
+        .ok(m) => {
+            let (ok, r1, r2) = thread_scope(worker, m, () -> i32 => 2);
+            if ok {
+                msum = r1 + r2;
+            }
+        },
+        .err(_) => {
+            msum = 0;
+        }
+    }
+    // n=3, seq=321 (Item 3 popped & dropped first, then Store LIFO drops 2 then 1),
+    // bsum=30 (10+20), msum=12 (10+2). Return (seq - 300) + bsum + msum + n = 21 + 30 + 12 + 3 = 66.
+    return (seq - 300) + bsum + msum + n;
+}
+"#;
+
+        for (label, opt) in [("O0", Optimization::O0), ("O2", Optimization::O2)] {
+            let exe = dir.join(format!("store_native_{label}"));
+            build_body_source_native(
+                "store_native.zil",
+                zil_src,
+                exe.clone(),
+                opt,
+                vec![c_path.clone()],
+            )
+            .unwrap_or_else(|e| panic!("build failed at {label}: {e:?}"));
+
+            let status = Command::new(&exe)
+                .status()
+                .unwrap_or_else(|e| panic!("failed to run {label} executable: {e}"));
+            assert_eq!(
+                status.code(),
+                Some(66),
+                "expected exit code 66 (LIFO seq=321, bsum=30, msum=12, n=3) at {label}"
+            );
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
