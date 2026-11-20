@@ -1564,13 +1564,24 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             ExprKind::Intrinsic { op, args } => {
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
                 let target = self.new_block(span);
+                let cancel = if *op == IntrinsicOp::TaskYield {
+                    let cancel_blk = self.new_block(span);
+                    let saved = self.cur;
+                    self.cur = cancel_blk;
+                    self.unwind_to(0, span);
+                    self.terminate(Terminator::Trap(zil_ir::body::TrapKind::Cancel), span);
+                    self.cur = saved;
+                    Some(cancel_blk)
+                } else {
+                    None
+                };
                 self.terminate(
                     Terminator::Call {
                         callee: Callee::Intrinsic(*op),
                         args: operands,
                         dest,
                         target,
-                        cancel: None,
+                        cancel,
                     },
                     span,
                 );

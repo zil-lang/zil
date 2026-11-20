@@ -306,6 +306,7 @@ pub enum TrapKind {
     DivideByZero,
     Conversion,
     Explicit,
+    Cancel,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

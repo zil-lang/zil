@@ -1219,6 +1219,7 @@ fn encode_trap(w: &mut Writer, t: TrapKind) {
         TrapKind::DivideByZero => 2,
         TrapKind::Conversion => 3,
         TrapKind::Explicit => 4,
+        TrapKind::Cancel => 5,
     });
 }
 fn decode_trap(r: &mut Reader<'_>) -> Result<TrapKind, WireError> {
@@ -1228,6 +1229,7 @@ fn decode_trap(r: &mut Reader<'_>) -> Result<TrapKind, WireError> {
         2 => Ok(TrapKind::DivideByZero),
         3 => Ok(TrapKind::Conversion),
         4 => Ok(TrapKind::Explicit),
+        5 => Ok(TrapKind::Cancel),
         t => Err(WireError::InvalidTag("TrapKind", t)),
     }
 }

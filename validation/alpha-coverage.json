@@ -127,6 +127,11 @@
       "status": "covered_with_tracked_gaps",
       "verified_properties": [
         "native single-calloc ucontext_t coroutine runtime for TaskCreate/TaskYield/TaskPoll/TaskRequestCancel/TaskPollClose/TaskFinishDestroy/TaskValid",
+        "cooperative Pending cancellation unwinding: task_poll_close resumes suspended workers onto cancel cleanup blocks (TrapKind::Cancel) dropping live Managed resources, closure captures, and nested Tasks in exact reverse order; unstarted cancelled Tasks drop owned frame arguments before reaching Closed",
+        "multi-step Pending close propagation: yielding Drop handlers and nested Tasks genuinely return Poll.Pending from task_poll_close and preserve cleanup progress until Closed",
+        "runtime Closed enforcement: task_finish_destroy aborts (SIGABRT) if invoked before state == Closed (5)",
+        "stack overflow isolation: page-aligned 4 KiB PROT_NONE guard page inside the single-calloc Task frame catches deep recursion via SIGSEGV and restores PROT_READ|PROT_WRITE before free",
+        "multi-thread isolation: thread_local @__zil_current_task verified under concurrent two-OS-thread polling via thread_scope",
         "TaskPollState builtin enum (Cancelled/Complete/Invalid) and complete/compact Task context tuples",
         "all 16 positive task-result-combinations (compact/complete x direct/relay x ready/cancel-before-start/cancel-after-pending/allocation-error) passing natively at O0/O2 with exact single-frame allocation/free witness",
         "all 8 negative task-result-combinations (worker-result-source, active-input-write) rejected with exact semantic safety diagnostics",
@@ -177,7 +182,8 @@
         "fixed-projects matrix 100% PASS (exit 0): 21/21 projects (17/17 originals verified, 4/4 expected rejections exact), 60/60 original builds & 152/152 required comparisons, 12/12 additional builds & 56/56 comparisons, 4/4 controls & 16/16 builds & 60/60 comparisons, 8/8 cleanup control comparisons"
       ],
       "open_gaps": [
-        "direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser under llvm-api feature)"
+        "direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser under llvm-api feature)",
+        "native codegen for Registration, AsyncRegistration, OwnedDyn, and Callee::DynSlot is explicitly outside the minimal Alpha native scope and fails closed with BodyEmitError"
       ]
     },
     {
