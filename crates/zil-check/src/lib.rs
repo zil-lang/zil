@@ -8,9 +8,11 @@
 mod certificate;
 pub mod ct_original;
 pub mod fidelity;
+pub mod scc;
 
 pub use certificate::{CheckBudget, CheckError, CheckErrorKind, check_function};
 pub use fidelity::{FidelityError, check_fidelity};
+pub use scc::{CallScc, SccContractError, call_graph_sccs, validate_scc_contracts};
 
 use zil_ir::body::{AdtId, AdtKind, Certificate, FnId, FnRole, Module, Sigs, TyKind};
 
@@ -35,6 +37,10 @@ pub fn check_module(
     budget: CheckBudget,
 ) -> Result<VerifiedModule, CheckError> {
     check_drop_bindings(&module)?;
+    let sccs = validate_scc_contracts(&module).map_err(|e| CheckError {
+        function: e.function,
+        kind: CheckErrorKind::CertificateShape(e.reason),
+    })?;
     let fn_sigs = module.fn_sigs();
     let sigs = Sigs {
         functions: &fn_sigs,
@@ -48,16 +54,23 @@ pub fn check_module(
             kind: CheckErrorKind::CertificateShape("one function certificate per function"),
         });
     }
-    for (i, function) in module.functions.iter().enumerate() {
+    for (i, cert) in certificate.functions.iter().enumerate() {
         let id = FnId::from_index(i);
-        let cert = &certificate.functions[i];
         if cert.function != id {
             return Err(CheckError {
                 function: id,
                 kind: CheckErrorKind::CertificateShape("function certificates out of order"),
             });
         }
-        check_function(&function.body, &module.tys, sigs, id, cert, &mut remaining)?;
+    }
+    // Verify in reverse-topological SCC order (callees before callers, and
+    // mutually recursive SCC members inductively against their declared contracts).
+    for scc in &sccs {
+        for &id in &scc.members {
+            let function = &module.functions[id.index()];
+            let cert = &certificate.functions[id.index()];
+            check_function(&function.body, &module.tys, sigs, id, cert, &mut remaining)?;
+        }
     }
     Ok(VerifiedModule { module })
 }
