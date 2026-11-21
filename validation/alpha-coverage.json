@@ -16,11 +16,12 @@
       "First-class compile-time Type evaluation (#(select()), branching Type selection, Type equality) through verified zil-interp (ct-type-control.zil)",
       "Native dynamic dispatch: OwnedDynCreate (calloc + concrete-value Drop on OOM), Callee::DynSlot vtable dispatch, dynamic Managed<OwnedDyn> Drop + free, multi-unit vtable linking, and independent zil-check DynImpl signature/slot verification",
       "Task native runtime (single-calloc ucontext_t, cooperative Pending cancel unwinding, nested Pending close propagation, Closed abort check, 4 KiB PROT_NONE guard page with SEGV_ACCERR fault-address & mprotect-failure refusal checks, 24/24 positive + 9/9 negative task-owner-transport manifest, Roam task-result-combinations 24/24)",
-      "Real OS threads (pthread_create/pthread_join ThreadScope), real pthread_mutex_t with fail-closed lock/unlock/destroy checks, and thread_local @__zil_current_task verified via 2-thread pthread_barrier_wait + distinct TIDs"
+      "Real OS threads (pthread_create/pthread_join ThreadScope), real pthread_mutex_t with fail-closed lock/unlock/destroy checks, and thread_local @__zil_current_task verified via 2-thread pthread_barrier_wait + distinct TIDs",
+      "Stage 1 structured LLVM Builder bridge in llvm-api backend (zil-backend-llvm depends on zil-llvm-api/native only, dropping LLVMParseIRInContext and compiling via compile_module; still bridges through body_emit text -> body_structured.rs until Stage 2 direct lowering)"
     ],
     "deferred_post_alpha": [
-      "Native codegen for cross-thread foreign Registration and AsyncRegistration protocols (currently fail closed with BodyEmitError)",
-      "Direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser)"
+      "Native codegen for cross-thread foreign Registration and AsyncRegistration protocols (tracked in A1 / task/foreign-registration-native)",
+      "Stage 2 direct VerifiedModule -> zil_llvm_api::model::Module lowering (removing body_structured.rs text bridge, verifying A1+A3 combined, and closing G10.5.1.16 performance gate)"
     ]
   },
   "capabilities": [
@@ -189,14 +190,14 @@
       ],
       "status": "covered_with_tracked_gaps",
       "verified_properties": [
-        "dual native backends (Clang and in-process LLVM 23 C API) at O0 and O2",
+        "dual native backends (Clang and in-process LLVM 23 C API via Stage 1 compile_module bridge dropping LLVMParseIRInContext)",
         "native OwnedDynCreate (calloc + concrete Drop on OOM), Callee::DynSlot vtable dispatch, and Managed<OwnedDyn> dynamic Drop + free across single-unit and multi-unit builds",
         "real multi-codegen-unit parallel object emission (1-unit, 4-unit, and 8-unit) with multi-object clang linking",
         "fixed-projects matrix 100% PASS (exit 0): 21/21 projects (17/17 originals verified, 4/4 expected rejections exact), 60/60 original builds & 152/152 required comparisons, 12/12 additional builds & 56/56 comparisons, 4/4 controls & 16/16 builds & 60/60 comparisons, 8/8 cleanup control comparisons"
       ],
       "open_gaps": [
-        "direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser under llvm-api feature)",
-        "native codegen for cross-thread foreign Registration and AsyncRegistration protocols is deferred post-Alpha and fails closed with BodyEmitError"
+        "native codegen for cross-thread foreign Registration and AsyncRegistration protocols is tracked in A1 (task/foreign-registration-native)",
+        "Stage 2 direct VerifiedModule -> zil_llvm_api::model::Module lowering (removing body_structured.rs text bridge and closing G10.5.1.16) remains open"
       ]
     },
     {

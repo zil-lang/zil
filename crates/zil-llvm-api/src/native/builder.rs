@@ -42,6 +42,7 @@ unsafe extern "C" {
     fn LLVMAddGlobal(module: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMSetLinkage(value: Handle, linkage: c_int);
     fn LLVMSetGlobalConstant(global: Handle, constant: c_int);
+    fn LLVMSetThreadLocal(global: Handle, is_thread_local: c_int);
     fn LLVMSetUnnamedAddress(global: Handle, kind: c_int);
     fn LLVMSetInitializer(global: Handle, value: Handle);
     fn LLVMSetAlignment(value: Handle, align: c_uint);
@@ -95,6 +96,7 @@ unsafe extern "C" {
     fn LLVMBuildFSub(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildFMul(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildFDiv(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildFRem(builder: Handle, a: Handle, b: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildFCmp(
         builder: Handle,
         predicate: c_uint,
@@ -133,6 +135,9 @@ unsafe extern "C" {
     fn LLVMBuildTrunc(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildPtrToInt(builder: Handle, value: Handle, ty: Handle, name: *const c_char)
     -> Handle;
+    fn LLVMBuildIntToPtr(builder: Handle, value: Handle, ty: Handle, name: *const c_char)
+    -> Handle;
+    fn LLVMBuildBitCast(builder: Handle, value: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMBuildGEP2(
         builder: Handle,
         ty: Handle,
@@ -163,6 +168,13 @@ unsafe extern "C" {
         name: *const c_char,
     ) -> Handle;
     fn LLVMBuildFreeze(builder: Handle, value: Handle, name: *const c_char) -> Handle;
+    fn LLVMBuildSelect(
+        builder: Handle,
+        if_val: Handle,
+        then_val: Handle,
+        else_val: Handle,
+        name: *const c_char,
+    ) -> Handle;
     fn LLVMBuildPhi(builder: Handle, ty: Handle, name: *const c_char) -> Handle;
     fn LLVMAddIncoming(phi: Handle, values: *mut Handle, blocks: *mut Handle, count: c_uint);
     fn LLVMBuildBr(builder: Handle, block: Handle) -> Handle;
@@ -185,6 +197,7 @@ fn linkage(link: m::Linkage) -> c_int {
     match link {
         m::Linkage::External => 0,
         m::Linkage::AvailableExternally => 1,
+        m::Linkage::LinkOnceOdr => 3,
         m::Linkage::Internal => 8,
         m::Linkage::Private => 9,
     }
@@ -472,6 +485,7 @@ impl<'a> Construction<'a> {
                         "fsub" => LLVMBuildFSub(b, l, r, n),
                         "fmul" => LLVMBuildFMul(b, l, r, n),
                         "fdiv" => LLVMBuildFDiv(b, l, r, n),
+                        "frem" => LLVMBuildFRem(b, l, r, n),
                         "add" => LLVMBuildAdd(b, l, r, n),
                         "sub" => LLVMBuildSub(b, l, r, n),
                         "mul" => LLVMBuildMul(b, l, r, n),
@@ -501,6 +515,7 @@ impl<'a> Construction<'a> {
                             "oge" => 3,
                             "olt" => 4,
                             "ole" => 5,
+                            "one" => 6,
                             "ord" => 7,
                             "uno" => 8,
                             "une" => 14,
@@ -544,6 +559,8 @@ impl<'a> Construction<'a> {
                         "zext" => LLVMBuildZExt(b, value, ty, n),
                         "trunc" => LLVMBuildTrunc(b, value, ty, n),
                         "ptrtoint" => LLVMBuildPtrToInt(b, value, ty, n),
+                        "inttoptr" => LLVMBuildIntToPtr(b, value, ty, n),
+                        "bitcast" => LLVMBuildBitCast(b, value, ty, n),
                         _ => return Err(error(ErrorKind::Verify, "unknown cast")),
                     }
                 }
@@ -565,6 +582,13 @@ impl<'a> Construction<'a> {
                     LLVMBuildInsertValue(b, a, v, *index, n)
                 }
                 m::Op::Freeze(arg) => LLVMBuildFreeze(b, self.value(&arg.value, &arg.ty)?, n),
+                m::Op::Select { condition, yes, no } => LLVMBuildSelect(
+                    b,
+                    self.value(condition, &m::Ty::Int(1))?,
+                    self.value(&yes.value, &yes.ty)?,
+                    self.value(&no.value, &no.ty)?,
+                    n,
+                ),
                 m::Op::Call {
                     result,
                     result_attrs,
@@ -789,6 +813,9 @@ pub(super) fn build(
                 unsafe {
                     LLVMSetLinkage(raw, linkage(g.linkage));
                     LLVMSetGlobalConstant(raw, i32::from(g.constant));
+                    if g.thread_local {
+                        LLVMSetThreadLocal(raw, 1);
+                    }
                     if g.unnamed_addr {
                         LLVMSetUnnamedAddress(raw, 2);
                     }

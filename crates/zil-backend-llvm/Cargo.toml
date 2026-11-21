@@ -16,4 +16,4 @@ zil-check.workspace = true
 
 [features]
 default = []
-llvm-api = ["zil-llvm-api/text-reference"]
+llvm-api = ["zil-llvm-api/native"]

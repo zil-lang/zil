@@ -38,6 +38,7 @@ fn available_body_requires_current_valid_body_and_is_not_local() {
             initializer: Some(Val::Int(42)),
             constant: true,
             unnamed_addr: false,
+            thread_local: false,
             alignment: 4,
         })]))
         .is_err()

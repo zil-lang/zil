@@ -289,6 +289,7 @@ fn bad_global_initializers_rejected() {
                     initializer: Some(value),
                     constant: true,
                     unnamed_addr: false,
+                    thread_local: false,
                     alignment: 0,
                 }))
             },

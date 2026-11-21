@@ -146,11 +146,21 @@ pub fn build_verified_body(
                                 if idx >= actual_units {
                                     break;
                                 }
-                                let compiled =
-                                    zil_llvm_api::compile(&unit_irs[idx], &config, &|| false)
-                                        .map_err(|e| {
-                                            format!("zil-llvm-api unit {idx} failed: {e}")
-                                        });
+                                let compiled = crate::body_structured::build_structured_module(
+                                    &unit_irs[idx],
+                                    triple,
+                                    &format!("unit-{idx}"),
+                                )
+                                .map_err(|e| {
+                                    format!(
+                                        "zil-llvm-api unit {idx} structured build failed: {}",
+                                        e.message
+                                    )
+                                })
+                                .and_then(|structured| {
+                                    zil_llvm_api::compile_module(&structured, &config, &|| false)
+                                        .map_err(|e| format!("zil-llvm-api unit {idx} failed: {e}"))
+                                });
                                 if let Ok(mut slot) = results[idx].lock() {
                                     *slot = Some(compiled);
                                 }

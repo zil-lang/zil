@@ -240,7 +240,7 @@ fn attrs(a: &[Attr], ty: Option<&Ty>) -> Result<()> {
         }
         match (x, ty) {
             (Attr::ZeroExt | Attr::SignExt, Some(Ty::Int(1 | 8 | 16 | 32 | 64))) => {}
-            (Attr::NonLazyBind | Attr::NoInline, None) => {}
+            (Attr::NonLazyBind | Attr::NoInline | Attr::NoBuiltin | Attr::NoReturn, None) => {}
             _ => return fail("attribute is invalid for its machine ABI position"),
         }
     }
@@ -498,7 +498,7 @@ impl<'a> World<'a> {
             Op::Compare { .. } => Some(&COMPARISON_RESULT),
             Op::Cast { to, .. } => Some(to),
             Op::Extract { arg, index } => Some(self.indexed(&arg.ty, *index)?),
-            Op::Insert { arg, .. } | Op::Freeze(arg) => Some(&arg.ty),
+            Op::Insert { arg, .. } | Op::Freeze(arg) | Op::Select { yes: arg, .. } => Some(&arg.ty),
             Op::Call {
                 result: Ty::Void, ..
             } => None,
@@ -607,7 +607,7 @@ impl<'a> World<'a> {
             } => {
                 let valid = match ty {
                     Ty::F32 | Ty::F64 => {
-                        matches!(opcode.as_str(), "fadd" | "fsub" | "fmul" | "fdiv")
+                        matches!(opcode.as_str(), "fadd" | "fsub" | "fmul" | "fdiv" | "frem")
                     }
                     Ty::Int(_) => matches!(
                         opcode.as_str(),
@@ -643,7 +643,7 @@ impl<'a> World<'a> {
                 let valid = match ty {
                     Ty::F32 | Ty::F64 => matches!(
                         predicate.as_str(),
-                        "oeq" | "une" | "ogt" | "oge" | "olt" | "ole" | "ord" | "uno"
+                        "oeq" | "one" | "une" | "ogt" | "oge" | "olt" | "ole" | "ord" | "uno"
                     ),
                     Ty::Int(_) | Ty::Ptr => matches!(
                         predicate.as_str(),
@@ -665,9 +665,20 @@ impl<'a> World<'a> {
                     ("zext" | "sext", Ty::Int(a), Ty::Int(b)) => a < b,
                     ("trunc", Ty::Int(a), Ty::Int(b)) => a > b,
                     ("ptrtoint", Ty::Ptr, Ty::Int(_)) => true,
+                    ("inttoptr", Ty::Int(_), Ty::Ptr) => true,
                     ("sitofp" | "uitofp", Ty::Int(8 | 16 | 32 | 64), Ty::F32 | Ty::F64) => true,
                     ("fptosi" | "fptoui", Ty::F32 | Ty::F64, Ty::Int(8 | 16 | 32 | 64)) => true,
                     ("fpext", Ty::F32, Ty::F64) | ("fptrunc", Ty::F64, Ty::F32) => true,
+                    ("bitcast", a, b) => {
+                        matches!(
+                            (a, b),
+                            (Ty::Int(32), Ty::F32)
+                                | (Ty::F32, Ty::Int(32))
+                                | (Ty::Int(64), Ty::F64)
+                                | (Ty::F64, Ty::Int(64))
+                                | (Ty::Ptr, Ty::Ptr)
+                        ) || a == b
+                    }
                     _ => false,
                 };
                 if !valid {
@@ -693,6 +704,14 @@ impl<'a> World<'a> {
                 }
             }
             Op::Freeze(arg) => self.arg(arg, defs, false)?,
+            Op::Select { condition, yes, no } => {
+                self.value(condition, &Ty::Int(1), defs, false, 0)?;
+                self.arg(yes, defs, false)?;
+                self.arg(no, defs, false)?;
+                if yes.ty != no.ty {
+                    return fail("select operand type mismatch");
+                }
+            }
             Op::Call {
                 result,
                 result_attrs,
