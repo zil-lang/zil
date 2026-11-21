@@ -79,7 +79,14 @@ def _write_valid_receipts(d: Path) -> None:
                 "status": "pass",
                 "positive": {"selected": 28, "passed": 28},
                 "negative": {"selected": 14, "passed": 14},
-                "cases": [{"id": "c1", "status": "pass"}],
+                "cases": [
+                    {"label": f"pos-{i}", "status": "pass", "expected": {"kind": "lifecycle"}}
+                    for i in range(28)
+                ]
+                + [
+                    {"label": f"neg-{i}", "status": "pass", "expected": {"kind": "safe-reject"}}
+                    for i in range(14)
+                ],
             }
         ),
         encoding="utf-8",
@@ -90,7 +97,14 @@ def _write_valid_receipts(d: Path) -> None:
                 "status": "pass",
                 "positive": {"selected": 16, "passed": 16},
                 "negative": {"selected": 8, "passed": 8},
-                "cases": [{"id": "t1", "status": "pass"}],
+                "cases": [
+                    {"label": f"tpos-{i}", "status": "pass", "expected": {"kind": "lifecycle"}}
+                    for i in range(16)
+                ]
+                + [
+                    {"label": f"tneg-{i}", "status": "pass", "expected": {"kind": "safe-reject"}}
+                    for i in range(8)
+                ],
             }
         ),
         encoding="utf-8",
@@ -148,12 +162,43 @@ class AlphaAcceptanceSummaryTests(unittest.TestCase):
             rc = json.loads((d / "roam-callable-report.json").read_text(encoding="utf-8"))
             rc["status"] = "fail"
             rc["positive"]["passed"] = 27
-            rc["cases"] = [{"id": "hp-early", "status": "fail", "detail": "Unsupported feature"}]
+            rc["cases"][0] = {
+                "label": "hp-early",
+                "status": "fail",
+                "expected": {"kind": "lifecycle"},
+                "detail": "Unsupported feature",
+            }
             (d / "roam-callable-report.json").write_text(json.dumps(rc), encoding="utf-8")
             summary, errors = mod.evaluate_receipts(d)
             self.assertEqual(summary["status"], "fail")
             self.assertIn("roam-callable:hp-early:fail", summary["failed_items"])
             self.assertTrue(any("Unsupported" in e for e in errors))
+
+    def test_roam_pass_case_with_unsupported_token_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            _write_valid_receipts(d)
+            rc = json.loads((d / "roam-callable-report.json").read_text(encoding="utf-8"))
+            rc["cases"][0]["diagnostic"] = "Unsupported fallback masked as pass"
+            (d / "roam-callable-report.json").write_text(json.dumps(rc), encoding="utf-8")
+            summary, errors = mod.evaluate_receipts(d)
+            self.assertEqual(summary["status"], "fail")
+            self.assertTrue(any("Unsupported" in e for e in errors))
+
+    def test_roam_case_count_and_duplicate_id_mismatch_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            _write_valid_receipts(d)
+            rc = json.loads((d / "roam-callable-report.json").read_text(encoding="utf-8"))
+            rc["cases"] = [{"label": "only-one", "status": "pass", "expected": {"kind": "lifecycle"}}]
+            (d / "roam-callable-report.json").write_text(json.dumps(rc), encoding="utf-8")
+            rt = json.loads((d / "roam-task-report.json").read_text(encoding="utf-8"))
+            rt["cases"][1]["label"] = rt["cases"][0]["label"]
+            (d / "roam-task-report.json").write_text(json.dumps(rt), encoding="utf-8")
+            summary, errors = mod.evaluate_receipts(d)
+            self.assertEqual(summary["status"], "fail")
+            self.assertTrue(any("cases count mismatch" in e for e in errors))
+            self.assertTrue(any("duplicate case identity" in e for e in errors))
 
 
 if __name__ == "__main__":

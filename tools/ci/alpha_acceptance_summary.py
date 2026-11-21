@@ -43,21 +43,94 @@ def _load_json(path: Path, label: str, errors: list[str]) -> dict[str, Any] | No
     return data
 
 
-def _scan_forbidden_in_cases(cases: Any, label: str, errors: list[str]) -> list[str]:
+def _case_identity(case: dict[str, Any]) -> str:
+    for key in ("label", "id", "name"):
+        val = case.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    return ""
+
+
+def _is_negative_case(case: dict[str, Any]) -> bool:
+    expected = case.get("expected")
+    if isinstance(expected, dict) and str(expected.get("kind", "")).lower() == "safe-reject":
+        return True
+    if str(case.get("kind", "")).lower() in ("negative", "safe-reject"):
+        return True
+    return False
+
+
+def _validate_roam_cases(
+    cases: Any,
+    label: str,
+    pos_sel: int,
+    pos_pass: int,
+    neg_sel: int,
+    neg_pass: int,
+    errors: list[str],
+) -> list[str]:
     failed_cases: list[str] = []
     if not isinstance(cases, list):
+        errors.append(f"{label} missing `cases` list")
         return failed_cases
+
+    expected_total = pos_sel + neg_sel
+    if len(cases) != expected_total:
+        errors.append(
+            f"{label} cases count mismatch: len(cases)={len(cases)} != selected={expected_total}"
+        )
+
+    seen_ids: set[str] = set()
+    actual_pos_total = 0
+    actual_pos_pass = 0
+    actual_neg_total = 0
+    actual_neg_pass = 0
+
     for idx, case in enumerate(cases):
         if not isinstance(case, dict):
+            errors.append(f"{label} case[{idx}] is not a JSON object")
             continue
+        name = _case_identity(case)
+        if not name:
+            errors.append(f"{label} case[{idx}] missing non-empty identity (`label`/`id`/`name`)")
+            name = f"case-{idx}"
+        elif name in seen_ids:
+            errors.append(f"{label} duplicate case identity `{name}`")
+        else:
+            seen_ids.add(name)
+
         status = str(case.get("status", "")).lower()
-        name = str(case.get("id") or case.get("name") or case.get("exit") or f"case-{idx}")
-        if status and status != "pass":
-            failed_cases.append(f"{label}:{name}:{status}")
+        passed = status == "pass"
+        if not passed:
+            failed_cases.append(f"{label}:{name}:{status or 'missing'}")
+            errors.append(f"{label} case `{name}` status is `{status or 'missing'}`, expected `pass`")
+
+        # Unconditionally reject forbidden fallback/limit tokens even if `status == "pass"`.
         raw = json.dumps(case, sort_keys=True)
         for tok in FORBIDDEN_TOKENS:
-            if tok in raw and status != "pass":
-                errors.append(f"{label} case `{name}` failed with forbidden token `{tok}`")
+            if tok in raw:
+                errors.append(f"{label} case `{name}` contains forbidden token `{tok}`")
+
+        if _is_negative_case(case):
+            actual_neg_total += 1
+            if passed:
+                actual_neg_pass += 1
+        else:
+            actual_pos_total += 1
+            if passed:
+                actual_pos_pass += 1
+
+    if actual_pos_total != pos_sel or actual_pos_pass != pos_pass:
+        errors.append(
+            f"{label} per-case positive tally ({actual_pos_pass}/{actual_pos_total}) "
+            f"does not match summary ({pos_pass}/{pos_sel})"
+        )
+    if actual_neg_total != neg_sel or actual_neg_pass != neg_pass:
+        errors.append(
+            f"{label} per-case negative tally ({actual_neg_pass}/{actual_neg_total}) "
+            f"does not match summary ({neg_pass}/{neg_sel})"
+        )
+
     return failed_cases
 
 
@@ -188,7 +261,11 @@ def evaluate_receipts(receipts_dir: Path) -> tuple[dict[str, Any], list[str]]:
             errors.append(f"{label} positive incomplete: {pos_pass}/{pos_sel} (min {min_pos})")
         if neg_sel < min_neg or neg_pass != neg_sel:
             errors.append(f"{label} negative incomplete: {neg_pass}/{neg_sel} (min {min_neg})")
-        failed_items.extend(_scan_forbidden_in_cases(data.get("cases"), label, errors))
+        failed_items.extend(
+            _validate_roam_cases(
+                data.get("cases"), label, pos_sel, pos_pass, neg_sel, neg_pass, errors
+            )
+        )
         return {
             "status": status,
             "positive": f"{pos_pass}/{pos_sel}",
