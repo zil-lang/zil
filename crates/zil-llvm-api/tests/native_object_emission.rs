@@ -155,6 +155,7 @@ fn cached_variadic_function_type_preserves_fixed_and_extra_arguments() {
             initializer: Some(Val::Bytes(b"%d\n\0".to_vec())),
             constant: true,
             unnamed_addr: true,
+            thread_local: false,
             alignment: 1,
         }),
         Item::Function(printf),

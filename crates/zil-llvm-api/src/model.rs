@@ -71,6 +71,7 @@ pub enum Linkage {
     External,
     /// Optimizer-only body; the canonical definition is emitted by another unit.
     AvailableExternally,
+    LinkOnceOdr,
     Internal,
     Private,
 }
@@ -82,6 +83,7 @@ impl Linkage {
         match self {
             Self::External => "",
             Self::AvailableExternally => "available_externally ",
+            Self::LinkOnceOdr => "linkonce_odr ",
             Self::Internal => "internal ",
             Self::Private => "private ",
         }
@@ -94,6 +96,8 @@ pub enum Attr {
     /// Function-level optimization boundary; never a language permission.
     NoInline,
     SignExt,
+    NoBuiltin,
+    NoReturn,
 }
 impl Attr {
     pub fn name(self) -> &'static str {
@@ -102,6 +106,8 @@ impl Attr {
             Self::SignExt => "signext",
             Self::NonLazyBind => "nonlazybind",
             Self::NoInline => "noinline",
+            Self::NoBuiltin => "nobuiltin",
+            Self::NoReturn => "noreturn",
         }
     }
 }
@@ -493,6 +499,11 @@ pub enum Op {
         vararg: Option<Vec<Ty>>,
     },
     Freeze(Arg),
+    Select {
+        condition: Val,
+        yes: Arg,
+        no: Arg,
+    },
     Phi {
         ty: Ty,
         incoming: Vec<(Val, String)>,
@@ -518,17 +529,20 @@ impl Op {
         type OperandParts<'a> = (
             Option<&'a Val>,
             Option<&'a Val>,
+            Option<&'a Val>,
             &'a [Arg],
             &'a [(Val, String)],
         );
-        let (first, second, args, incoming): OperandParts<'_> = match self {
+        let (first, second, third, args, incoming): OperandParts<'_> = match self {
             Self::Alloca { .. } | Self::Branch(_) | Self::Unreachable | Self::Return(None) => {
-                (None, None, &[], &[])
+                (None, None, None, &[], &[])
             }
-            Self::Load { ptr, .. } | Self::AtomicLoad { ptr, .. } => (Some(ptr), None, &[], &[]),
+            Self::Load { ptr, .. } | Self::AtomicLoad { ptr, .. } => {
+                (Some(ptr), None, None, &[], &[])
+            }
             Self::Store { arg, ptr, .. }
             | Self::AtomicStore { arg, ptr, .. }
-            | Self::AtomicRmw { arg, ptr, .. } => (Some(&arg.value), Some(ptr), &[], &[]),
+            | Self::AtomicRmw { arg, ptr, .. } => (Some(&arg.value), Some(ptr), None, &[], &[]),
             Self::AtomicCompareExchange {
                 expected,
                 desired,
@@ -537,25 +551,32 @@ impl Op {
             } => (
                 Some(ptr),
                 Some(desired),
+                None,
                 std::slice::from_ref(expected),
                 &[],
             ),
             Self::Binary { left, right, .. } | Self::Compare { left, right, .. } => {
-                (Some(left), Some(right), &[], &[])
+                (Some(left), Some(right), None, &[], &[])
             }
             Self::Cast { arg, .. }
             | Self::Extract { arg, .. }
             | Self::Freeze(arg)
-            | Self::Return(Some(arg)) => (Some(&arg.value), None, &[], &[]),
-            Self::Gep { ptr, indices, .. } => (Some(ptr), None, indices, &[]),
-            Self::Insert { arg, field, .. } => (Some(&arg.value), Some(&field.value), &[], &[]),
-            Self::Call { callee, args, .. } => (Some(callee), None, args, &[]),
-            Self::Phi { incoming, .. } => (None, None, &[], incoming),
-            Self::CondBranch { condition, .. } => (Some(condition), None, &[], &[]),
+            | Self::Return(Some(arg)) => (Some(&arg.value), None, None, &[], &[]),
+            Self::Select { condition, yes, no } => {
+                (Some(condition), Some(&yes.value), Some(&no.value), &[], &[])
+            }
+            Self::Gep { ptr, indices, .. } => (Some(ptr), None, None, indices, &[]),
+            Self::Insert { arg, field, .. } => {
+                (Some(&arg.value), Some(&field.value), None, &[], &[])
+            }
+            Self::Call { callee, args, .. } => (Some(callee), None, None, args, &[]),
+            Self::Phi { incoming, .. } => (None, None, None, &[], incoming),
+            Self::CondBranch { condition, .. } => (Some(condition), None, None, &[], &[]),
         };
         first
             .into_iter()
             .chain(second)
+            .chain(third)
             .chain(args.iter().map(|a| &a.value))
             .chain(incoming.iter().map(|(value, _)| value))
     }
@@ -633,6 +654,7 @@ pub struct Global {
     pub initializer: Option<Val>,
     pub constant: bool,
     pub unnamed_addr: bool,
+    pub thread_local: bool,
     pub alignment: u32,
 }
 impl Global {
@@ -644,6 +666,7 @@ impl Global {
             initializer: None,
             constant: self.constant,
             unnamed_addr: self.unnamed_addr,
+            thread_local: self.thread_local,
             alignment: self.alignment,
         }
     }
@@ -799,6 +822,9 @@ fn render_module(module: &Module) -> String {
                 s.push_str(global.linkage.prefix());
                 if global.initializer.is_none() {
                     s.push_str("external ");
+                }
+                if global.thread_local {
+                    s.push_str("thread_local ");
                 }
                 if global.unnamed_addr {
                     s.push_str("unnamed_addr ");
@@ -1172,6 +1198,14 @@ fn write_inst(s: &mut String, instruction: &Inst) {
         Op::Freeze(arg) => {
             s.push_str("freeze ");
             write_argument(s, arg);
+        }
+        Op::Select { condition, yes, no } => {
+            s.push_str("select i1 ");
+            write_value(s, condition);
+            s.push_str(", ");
+            write_argument(s, yes);
+            s.push_str(", ");
+            write_argument(s, no);
         }
         Op::Phi { ty, incoming } => {
             s.push_str("phi ");
