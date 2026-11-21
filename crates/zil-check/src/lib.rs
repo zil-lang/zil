@@ -555,14 +555,38 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<(), CheckE
                 } else {
                     None
                 };
-                if let Some(Operand::Copy(p) | Operand::Move(p)) = cb_arg
-                    && let Some(cfn) = closure_fn_of_place(&func.body, p)
-                    && can_suspend[cfn.index()]
-                {
-                    return Err(fail(
-                        fid,
-                        "foreign or thread_scope callback cannot suspend outside a Task context",
-                    ));
+                if let Some(Operand::Copy(p) | Operand::Move(p)) = cb_arg {
+                    if let Some(cfn) = closure_fn_of_place(&func.body, p)
+                        && can_suspend[cfn.index()]
+                    {
+                        return Err(fail(
+                            fid,
+                            "foreign or thread_scope callback cannot suspend outside a Task context",
+                        ));
+                    }
+                    if matches!(
+                        op,
+                        IntrinsicOp::RegistrationStart | IntrinsicOp::AsyncRegistrationStart
+                    ) {
+                        let env_ty = zil_ir::body::type_place(p, &func.body.cx(&module.tys))
+                            .ok()
+                            .map(|t| t.ty());
+                        if let Some(env_ty) = env_ty {
+                            let mut seen = Vec::new();
+                            if ty_can_suspend_on_drop(
+                                &module.tys,
+                                env_ty,
+                                &drop_fn_by_adt,
+                                &can_suspend,
+                                &mut seen,
+                            ) {
+                                return Err(fail(
+                                    fid,
+                                    "foreign registration environment cannot have a suspending Drop cleanup",
+                                ));
+                            }
+                        }
+                    }
                 }
             }
         }

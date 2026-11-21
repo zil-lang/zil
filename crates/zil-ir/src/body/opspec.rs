@@ -1644,7 +1644,12 @@ fn intrinsic_sig(
             }
             if tys.holds_address(*env) || tys.may_store_address(*env) {
                 return Err(bad(
-                    "async_registration.start environment cannot hold addresses",
+                    "async_registration.start environment cannot hold addresses (ClosedEnvironment)",
+                ));
+            }
+            if !ty_is_transfer_safe(tys, *env) {
+                return Err(bad(
+                    "async_registration.start environment must satisfy Transfer (no Task/MutexGuard/Registration/OwnedDyn)",
                 ));
             }
             let ok_dest = matches!(
@@ -1845,4 +1850,64 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::OwnedDynCreate => "owned_dyn.create",
         IntrinsicOp::ThreadScope => "thread.scope",
     }
+}
+
+/// Checks whether a value of type `ty` satisfies the closed `Transfer` contract
+/// required for cross-thread `AsyncRegistration` environments: no references,
+/// descriptors, thread-affine guards/tasks/registrations, or uncertified erased `dyn` values.
+fn ty_is_transfer_safe(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::{OpaqueTy, TyTable};
+    fn walk(tys: &TyTable, ty: TyId, seen: &mut Vec<TyId>) -> bool {
+        if seen.contains(&ty) {
+            return true;
+        }
+        seen.push(ty);
+        let Some(kind) = tys.get(ty) else {
+            return false;
+        };
+        match kind {
+            TyKind::Unit
+            | TyKind::Never
+            | TyKind::Bool
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. } => true,
+            TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Dyn(_) | TyKind::OwnedDyn(_) => false,
+            TyKind::Param(_) => false,
+            TyKind::Opaque(op) => match op {
+                OpaqueTy::ByteBuffer | OpaqueTy::ForeignCallback { .. } | OpaqueTy::SyncCell(_) => {
+                    true
+                }
+                OpaqueTy::OwnedStore { element } | OpaqueTy::Mutex { payload: element } => {
+                    walk(tys, *element, seen)
+                }
+                OpaqueTy::MutexGuard { .. }
+                | OpaqueTy::Task { .. }
+                | OpaqueTy::Registration { .. }
+                | OpaqueTy::AsyncRegistration { .. }
+                | OpaqueTy::ForeignHandle
+                | OpaqueTy::CWideString => false,
+            },
+            TyKind::Managed(inner)
+            | TyKind::Slice(inner)
+            | TyKind::Array { element: inner, .. } => walk(tys, *inner, seen),
+            TyKind::Tuple(elems) => elems.iter().all(|e| walk(tys, *e, seen)),
+            TyKind::ErrorUnion { ok, err } => walk(tys, *ok, seen) && walk(tys, *err, seen),
+            TyKind::Closure { def, args } => tys.closure(*def).is_some_and(|c| {
+                c.captures.iter().all(|cap| {
+                    tys.subst_lookup(*cap, *args)
+                        .is_some_and(|t| walk(tys, t, seen))
+                })
+            }),
+            TyKind::Adt { adt, args } => tys.get_adt(*adt).is_some_and(|def| {
+                def.variants.iter().all(|v| {
+                    v.fields.iter().all(|f| {
+                        tys.subst_lookup(f.ty, *args)
+                            .is_some_and(|t| walk(tys, t, seen))
+                    })
+                })
+            }),
+        }
+    }
+    walk(tys, ty, &mut Vec::new())
 }

@@ -67,7 +67,7 @@ fn build_and_run_c(
 }
 
 #[test]
-fn sync_registration_lifecycle_install_fail_post_return_and_late_reject() {
+fn sync_registration_lifecycle_install_fail_post_return_and_unregister() {
     let dir = temp_dir("a1-1-sync");
     let c_host = dir.join("sync_host.c");
     std::fs::write(
@@ -96,6 +96,10 @@ void *sync_register_fail(cb_t cb, void *ctx) {
 
 void sync_close(void *tok) {
     if (tok != (void *)&saved_cb) abort();
+    /* Synchronous provider contract: unregister must clear saved_cb/saved_ctx
+       before returning so registration_close can safely free the heap frame. */
+    saved_cb = NULL;
+    saved_ctx = NULL;
     closes++;
 }
 
@@ -154,13 +158,14 @@ fn main() -> i32 {
         let r2 = sync_invoke(7)
         if r2 != 87 { return 14 }
 
-        // 3. Explicit close calls C close once and drops Tag ('A') once.
+        // 3. Explicit close calls C unregister once (clearing saved_cb/saved_ctx) and drops Tag ('A') once.
         registration_close(give reg)
         if sync_closes() != 1 { return 15 }
 
-        // 4. Late callback after close must be rejected (1 << 32 = 4294967296).
-        let late = sync_invoke(1)
-        if late != 4294967296 { return 16 }
+        // 4. Subsequent host invoke sees unregistered slot (-1) and never touches freed userdata.
+        //    (True post-close late-entry rejection on a raw C holder is verified in AsyncRegistration.)
+        let after = sync_invoke(1)
+        if after != -1 { return 16 }
 
         return 0
     }
@@ -597,7 +602,7 @@ fn foreign_registration_safety_negatives_rejected() {
         ..CompileOptions::default()
     };
 
-    let neg_cases: [(&str, &str); 3] = [
+    let neg_cases: [(&str, &str); 5] = [
         // 1. Borrowed local environment (violates ClosedEnvironment / holds address).
         (
             "borrowed_env_sync.zil",
@@ -644,6 +649,50 @@ fn main() -> i32 {
     let cb = move (x: i32) -> i32 => x + 1
     let h = unsafe { c_register(fake_reg, cls, cb) }
     registration_close(give h)
+    return 0
+}
+"#,
+        ),
+        // 4. Non-Transfer capture (`Managed<Task<i32>>`) in `c_register_async` rejected.
+        (
+            "non_transfer_task_capture.zil",
+            r#"
+extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn req(tok: c_handle);
+extern "C" fn drn(tok: c_handle) -> i32;
+fn worker() -> i32 { return 7 }
+fn main() -> i32 {
+    let t = task_create(worker)
+    let cb = move (x: i32) -> i32 => {
+        if task_valid(t) { return x + 1 }
+        return x
+    }
+    var h = unsafe { c_register_async(reg, req, drn, cb) }
+    async_registration_request_close(&mut h)
+    let _ = async_registration_poll_close(&mut h)
+    async_registration_finish_destroy(give h)
+    return 0
+}
+"#,
+        ),
+        // 5. Suspending `Drop` on captured resource in `c_register_async` rejected (SyncDrop).
+        (
+            "suspending_drop_async_reg.zil",
+            r#"
+extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn req(tok: c_handle);
+extern "C" fn drn(tok: c_handle) -> i32;
+resource AsyncCleanup { code: i32 }
+impl Drop for AsyncCleanup {
+    fn drop(self: Self) { task_yield() }
+}
+fn main() -> i32 {
+    let r = AsyncCleanup { code: 1 }
+    let cb = move (x: i32) -> i32 => x + r.code
+    var h = unsafe { c_register_async(reg, req, drn, cb) }
+    async_registration_request_close(&mut h)
+    let _ = async_registration_poll_close(&mut h)
+    async_registration_finish_destroy(give h)
     return 0
 }
 "#,
