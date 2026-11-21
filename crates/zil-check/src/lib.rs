@@ -239,52 +239,29 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<(), CheckE
         }
     }
 
-    let closure_fn_of_place = |body: &zil_ir::body::Body, place: &Place| -> Option<FnId> {
-        let mut ty = match place.root {
-            zil_ir::body::PlaceRoot::Local(local) => body.locals.get(local.index())?.ty,
-            zil_ir::body::PlaceRoot::Capture(idx) => {
-                let cid = body.closure?;
-                *module.tys.closure(cid)?.captures.get(idx as usize)?
-            }
-        };
-        for proj in &place.projections {
-            match proj {
-                zil_ir::body::Projection::Deref => {
-                    if let TyKind::Ref { pointee, .. }
-                    | TyKind::Managed(pointee)
-                    | TyKind::Desc(pointee) = module.tys.get(ty)?
-                    {
-                        ty = *pointee;
-                    } else {
-                        return None;
-                    }
-                }
-                zil_ir::body::Projection::Field(fref) => {
-                    ty = module
-                        .tys
-                        .get_adt(fref.adt)?
-                        .field(fref.variant, fref.field)?
-                        .ty;
-                }
-                zil_ir::body::Projection::TupleField(idx) => {
-                    if let TyKind::Tuple(elems) = module.tys.get(ty)? {
-                        ty = *elems.get(*idx as usize)?;
-                    } else {
-                        return None;
-                    }
-                }
-                zil_ir::body::Projection::ErrorArm(is_ok) => {
-                    if let TyKind::ErrorUnion { ok, err } = module.tys.get(ty)? {
-                        ty = if *is_ok { *ok } else { *err };
-                    } else {
-                        return None;
-                    }
-                }
-                zil_ir::body::Projection::Index(_) | zil_ir::body::Projection::ConstIndex(_) => {
-                    return None;
-                }
-            }
+    struct BodyPlaceTypes<'a> {
+        body: &'a zil_ir::body::Body,
+        tys: &'a zil_ir::body::TyTable,
+    }
+    impl zil_ir::body::PlaceTypes for BodyPlaceTypes<'_> {
+        fn local_ty(&self, local: Local) -> Option<zil_ir::body::TyId> {
+            self.body.locals.get(local.index()).map(|d| d.ty)
         }
+        fn capture_ty(&self, index: u32) -> Option<zil_ir::body::TyId> {
+            let cid = self.body.closure?;
+            self.tys.closure(cid)?.captures.get(index as usize).copied()
+        }
+        fn tys(&self) -> &zil_ir::body::TyTable {
+            self.tys
+        }
+    }
+
+    let closure_fn_of_place = |body: &zil_ir::body::Body, place: &Place| -> Option<FnId> {
+        let cx = BodyPlaceTypes {
+            body,
+            tys: &module.tys,
+        };
+        let mut ty = zil_ir::body::type_place(place, &cx).ok()?.ty();
         for _ in 0..4 {
             match module.tys.get(ty)? {
                 TyKind::Ref { pointee, .. } => ty = *pointee,
