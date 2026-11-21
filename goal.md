@@ -1,6 +1,6 @@
 # ZIL 实时任务看板
 
-> 更新：2026-11-21（Asia/Shanghai） · 当前主线基线：[`main@af63106d6`](https://github.com/zil-lang/zil/commit/af63106d6)（Alpha Core、并发 Store 安全修补、A1 外部回调原生运行时、A2 验收自动化、A3 LLVM Builder Stage 1 均已合入；开放 PR：0；远端分支：5）
+> 更新：2026-11-21（Asia/Shanghai） · 当前主线基线：[`main@6a36c8849`](https://github.com/zil-lang/zil/commit/6a36c8849)（Alpha Core、并发 Store 安全修补、A1 外部回调原生运行时、A2 验收自动化、A3 LLVM Builder Stage 1、PR #95 `_zil_design.md` 终态瘦身均已合入；开放 PR：1 [`#96`](https://github.com/zil-lang/zil/pull/96)）
 >
 > **唯一职责**：本文件仅追踪**未完成任务、优先级、依赖与精确退出条件**，不记录历史施工流水账。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与规范 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；精简前完整历史快照固定于 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
 
@@ -19,7 +19,7 @@
 
 ## 第一轮：语言核心收口（L1 + L2）
 
-以最新 `main@af63106d6` 重跑 A4 的 486 份原 Source 消费者，按共用类型/所有权/来源根因合并收口，小批整链合入。
+以最新 `main@6a36c8849` 对全仓 `tests/**/*.zil`（1,385 份）按共用类型/所有权/来源根因合并收口，小批整链合入。首批 L1（[`PR #96`](https://github.com/zil-lang/zil/pull/96)，`task/l1-core-composition`：记录/包显式 life 实参、元组枚举 `manages` 字段、`ref`/`ref mut` 模式、多变体枚举 drop 细化，全仓通过 573 → 693/1,385，+120，0 回归，0 误放行）已开启远端 CI 验收。
 
 ### L1 · 普通语言组合（P0）
 
