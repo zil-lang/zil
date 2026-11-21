@@ -1,0 +1,144 @@
+name: Alpha acceptance evidence
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: zil-alpha-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  acceptance:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'alpha-acceptance' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_STRIP: 'symbols'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reclaim unused hosted-runner toolchain space
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/acceptance-receipts"
+          sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+      - name: Install the supported LLVM API toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm-23.1.4"
+          echo "ZIL_CLANG=$RUNNER_TEMP/llvm-23.1.4/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/llvm-23.1.4/bin" >> "$GITHUB_PATH"
+      - name: Record exact checkout, toolchain, and build ZIL + Roam binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "CARGO_TARGET_DIR=$RUNNER_TEMP/target" >> "$GITHUB_ENV"
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/target"
+          RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          mkdir -p "$RECEIPTS"
+          test -z "$(git status --porcelain)"
+          COMMIT="$(git rev-parse HEAD)"
+          TREE="$(git rev-parse 'HEAD^{tree}')"
+          echo "$COMMIT" > "$RECEIPTS/commit.txt"
+          echo "$TREE" > "$RECEIPTS/source-tree.txt"
+          rustup toolchain install 1.100.0 --profile minimal
+          rustc -vV > "$RECEIPTS/toolchain.txt"
+          "$ZIL_CLANG" --version >> "$RECEIPTS/toolchain.txt"
+          python3 tools/llvm/check_toolchain.py > "$RECEIPTS/llvm-api-toolchain.json"
+
+          cargo build --locked -p zil-cli
+          cargo build --locked --manifest-path tools/roam-rs/Cargo.toml --features llvm-api
+
+          CLI_BIN="$CARGO_TARGET_DIR/debug/zil"
+          ROAM_BIN="$CARGO_TARGET_DIR/debug/roam-rs"
+          CLI_SHA="$(sha256sum "$CLI_BIN" | awk '{print $1}')"
+          ROAM_SHA="$(sha256sum "$ROAM_BIN" | awk '{print $1}')"
+          python3 - "$RECEIPTS/build-receipt.json" "$COMMIT" "$TREE" "$CLI_SHA" "$ROAM_SHA" <<'PY'
+          import json, sys
+          out, commit, tree, cli_sha, roam_sha = sys.argv[1:]
+          with open(out, "w", encoding="utf-8") as fh:
+              json.dump({
+                  "source_commit": commit,
+                  "source_tree": tree,
+                  "cli_sha256": cli_sha,
+                  "roam_sha256": roam_sha,
+                  "exit_code": 0,
+              }, fh, indent=2, sort_keys=True)
+          PY
+      - name: Run Native API State/Store and allocation-failure validation (16/128/56)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          COMMIT="$(cat "$RECEIPTS/commit.txt")"
+          python3 tools/research/native-api-validation/validate.py \
+            --repo . \
+            --cli "$CARGO_TARGET_DIR/debug/zil" \
+            --clang "$ZIL_CLANG" \
+            --out "$RUNNER_TEMP/native-api-out" \
+            --source-commit "$COMMIT" | tee "$RECEIPTS/native-api-summary.json"
+      - name: Run Fixed Projects native comparison and controls (21/21, 152/152)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          python3 tools/language/check-fixed-projects.py \
+            --repo . \
+            --cli "$CARGO_TARGET_DIR/debug/zil" \
+            --build-receipt "$RECEIPTS/build-receipt.json" \
+            --out "$RUNNER_TEMP/fixed-projects-out" \
+            --jobs 2 | tee "$RECEIPTS/fixed-projects-summary.json"
+      - name: Run Roam callable-combinations (42/42)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          "$CARGO_TARGET_DIR/debug/roam-rs" callable-combinations \
+            --out="$RUNNER_TEMP/roam-callable-out" \
+            --jobs=2 | tee "$RECEIPTS/roam-callable-stdout.json"
+          cp "$RUNNER_TEMP/roam-callable-out/report.json" "$RECEIPTS/roam-callable-report.json"
+      - name: Run Roam task-result-combinations (24/24)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          "$CARGO_TARGET_DIR/debug/roam-rs" task-result-combinations \
+            --out="$RUNNER_TEMP/roam-task-out" \
+            --jobs=2 | tee "$RECEIPTS/roam-task-stdout.json"
+          cp "$RUNNER_TEMP/roam-task-out/report.json" "$RECEIPTS/roam-task-report.json"
+      - name: Test Alpha acceptance summary verifier
+        if: ${{ always() }}
+        shell: bash
+        run: python3 -m unittest discover -s tools/ci -p 'test_alpha_acceptance_summary.py' -v
+      - name: Verify receipts fail-closed and publish single summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          python3 tools/ci/alpha_acceptance_summary.py \
+            --receipts-dir "$RECEIPTS" \
+            --out-json "$RECEIPTS/alpha-acceptance-summary.json" \
+            --out-md "$RECEIPTS/alpha-acceptance-summary.md"
+          cat "$RECEIPTS/alpha-acceptance-summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload raw acceptance receipts and summary artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-alpha-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/acceptance-receipts
+          retention-days: 30
+          if-no-files-found: error
