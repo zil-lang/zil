@@ -537,6 +537,13 @@ pub struct ReturnSummary {
     /// When the return value is a closure whose capture fields have known
     /// parameter origins, per-field parameter masks (`field_idx -> param_mask`).
     pub ret_field_param_masks: Vec<u64>,
+    /// Parameter indices (`0..64`) whose described `OwnedStore`/`ByteBuffer`
+    /// may be structurally mutated (reallocated/pushed/popped/truncated) directly
+    /// or transitively by this function.
+    pub mutating_params: u64,
+    /// Closure capture indices (`0..64`) whose described `OwnedStore`/`ByteBuffer`
+    /// may be structurally mutated directly or transitively by this closure.
+    pub mutating_captures: u64,
 }
 
 /// The signatures a body may refer to.

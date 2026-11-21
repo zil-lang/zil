@@ -403,6 +403,8 @@ impl<'a> Kernel<'a> {
             | Terminator::Assert { .. } => {}
         }
         let flows = self.terminator_flows(&state, term);
+        self.check_store_mutation_conflict(&state, term, at)
+            .map_err(fail)?;
         for access in term.accesses() {
             self.access(&mut state, &access).map_err(fail)?;
         }
