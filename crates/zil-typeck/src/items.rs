@@ -1562,12 +1562,24 @@ fn collect_adt(
                     ast::VariantFields::Tuple(items) => {
                         let mut fs = Vec::new();
                         for (i, f) in items.iter().enumerate() {
-                            if f.manages {
-                                diags.push(diag::unsupported("managed enum fields", f.span));
-                            }
+                            let raw_ty = resolve(&f.ty, diags, types);
+                            let ty = if f.manages {
+                                if let Some(managed) = promote_to_managed(raw_ty, types) {
+                                    managed
+                                } else {
+                                    diags.push(diag::error(
+                                        diag::RESOURCE_TYPE,
+                                        f.span,
+                                        "`manages` field must have a resource, `Store<T>` or `ByteBuffer` type",
+                                    ));
+                                    types.error()
+                                }
+                            } else {
+                                raw_ty
+                            };
                             fs.push(FieldDecl {
                                 name: i.to_string(),
-                                ty: resolve(&f.ty, diags, types),
+                                ty,
                                 default: None,
                             });
                         }
