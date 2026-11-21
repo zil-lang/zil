@@ -1812,10 +1812,23 @@ trait Read {
     fn read(self: &Self) -> i32;
 }
 
+trait Other {
+    fn read(self: &Self) -> i32;
+}
+
 struct A { v: i32 }
+struct B { v: i32 }
 
 impl Read for A {
     fn read(self: &Self) -> i32 { return (*self).v }
+}
+
+impl Read for B {
+    fn read(self: &Self) -> i32 { return (*self).v + 10 }
+}
+
+impl Other for A {
+    fn read(self: &Self) -> i32 { return (*self).v + 20 }
 }
 
 fn spoof(a: &A) -> i32 {
@@ -1826,11 +1839,17 @@ fn call_read(x: OwnedDyn<dyn Read>) -> i32 {
     return x.read()
 }
 
+fn call_other(x: OwnedDyn<dyn Other>) -> i32 {
+    return x.read()
+}
+
 fn run() -> DynCreateError!i32 {
     let a0 = A { v: 1 }
     let _ = spoof(&a0)
     let ra = owned_dyn::<dyn Read>(A { v: 1 })?
-    return call_read(ra) - 1
+    let rb = owned_dyn::<dyn Read>(B { v: 2 })?
+    let oa = owned_dyn::<dyn Other>(A { v: 3 })?
+    return call_read(ra) + call_read(rb) + call_other(oa) - 36
 }
 
 fn main() -> i32 {
@@ -1858,11 +1877,8 @@ fn main() -> i32 {
     check_fidelity(&lowered.module, &lowered.source_map, &[&parsed.module])
         .expect("honest module passes AST fidelity");
 
-    // Forged Wire attack: swap FnRole::DynSlotImpl onto same-signature normal function `spoof`,
-    // and demote the real `impl Read for A::read` to FnRole::Normal so check_module's 1:1 IR
-    // invariant alone would see a well-formed role tag.
-    let mut forged = decode_module(&encode_module(&lowered.module)).expect("wire roundtrip");
-    let spoof_id = forged
+    let honest = decode_module(&encode_module(&lowered.module)).expect("wire roundtrip");
+    let spoof_id = honest
         .functions
         .iter()
         .enumerate()
@@ -1870,19 +1886,290 @@ fn main() -> i32 {
             (f.name == "spoof" && f.sig.role == FnRole::Normal).then_some(FnId::from_index(i))
         })
         .expect("spoof function");
-    let real_method_id = forged.dyn_impls[0].methods[0];
-    let real_role = forged.functions[real_method_id.index()].sig.role;
-    forged.functions[real_method_id.index()].sig.role = FnRole::Normal;
-    forged.functions[spoof_id.index()].sig.role = real_role;
-    forged.dyn_impls[0].methods[0] = spoof_id;
+    let read_a_idx = honest
+        .dyn_impls
+        .iter()
+        .position(|di| {
+            let d = honest.tys.dyn_def(di.dyn_id);
+            let cname = match honest.tys.get(di.concrete_ty) {
+                Some(zil_ir::body::TyKind::Adt { adt, .. }) => honest.tys.adt(*adt).name.as_str(),
+                _ => "",
+            };
+            d.name.ends_with("Read") && cname.ends_with('A')
+        })
+        .expect("Read for A DynImpl");
+    let read_b_idx = honest
+        .dyn_impls
+        .iter()
+        .position(|di| {
+            let d = honest.tys.dyn_def(di.dyn_id);
+            let cname = match honest.tys.get(di.concrete_ty) {
+                Some(zil_ir::body::TyKind::Adt { adt, .. }) => honest.tys.adt(*adt).name.as_str(),
+                _ => "",
+            };
+            d.name.ends_with("Read") && cname.ends_with('B')
+        })
+        .expect("Read for B DynImpl");
+    let other_a_idx = honest
+        .dyn_impls
+        .iter()
+        .position(|di| {
+            let d = honest.tys.dyn_def(di.dyn_id);
+            let cname = match honest.tys.get(di.concrete_ty) {
+                Some(zil_ir::body::TyKind::Adt { adt, .. }) => honest.tys.adt(*adt).name.as_str(),
+                _ => "",
+            };
+            d.name.ends_with("Other") && cname.ends_with('A')
+        })
+        .expect("Other for A DynImpl");
 
-    let forged_wire = decode_module(&encode_module(&forged)).expect("forged wire roundtrip");
-    let err = check_fidelity(&forged_wire, &lowered.source_map, &[&parsed.module])
-        .expect_err("forged DynSlotImpl role on normal function must be rejected by AST fidelity");
-    assert_eq!(err.function, spoof_id);
+    let read_a_fn = honest.dyn_impls[read_a_idx].methods[0];
+    let read_a_role = honest.functions[read_a_fn.index()].sig.role;
+    let read_b_fn = honest.dyn_impls[read_b_idx].methods[0];
+    let other_a_fn = honest.dyn_impls[other_a_idx].methods[0];
+
+    // Attack 1: Wire swaps FnRole::DynSlotImpl onto same-signature normal function `spoof`.
+    let mut forged1 = honest.clone();
+    forged1.functions[read_a_fn.index()].sig.role = FnRole::Normal;
+    forged1.functions[spoof_id.index()].sig.role = read_a_role;
+    forged1.dyn_impls[read_a_idx].methods[0] = spoof_id;
+    let fw1 = decode_module(&encode_module(&forged1)).expect("fw1");
+    let err1 = check_fidelity(&fw1, &lowered.source_map, &[&parsed.module])
+        .expect_err("forged DynSlotImpl role on normal function must be rejected");
+    assert_eq!(err1.function, spoof_id);
+
+    // Attack 2 (Joint Wire + SourceMap tampering): attacker ALSO forges `spoof`'s
+    // SourceMap.declaration to point to the real `impl Read for A::read` offset.
+    // Must still be rejected because `spoof`'s instruction spans lie outside `impl Read for A::read`.
+    let mut forged_sm = lowered.source_map.clone();
+    let real_decl = forged_sm
+        .functions
+        .iter()
+        .find(|f| f.function == read_a_fn)
+        .expect("read_a_fn source map")
+        .declaration;
+    forged_sm
+        .functions
+        .iter_mut()
+        .find(|f| f.function == spoof_id)
+        .expect("spoof source map")
+        .declaration = real_decl;
+    let err2 = check_fidelity(&fw1, &forged_sm, &[&parsed.module])
+        .expect_err("joint Wire + SourceMap.declaration spoofing must be rejected");
+    assert_eq!(err2.function, spoof_id);
     assert!(
-        err.reason.contains("AST trait impl method"),
-        "unexpected fidelity error reason: {}",
-        err.reason
+        err2.reason.contains("outside"),
+        "expected span containment error, got: {}",
+        err2.reason
     );
+
+    // Attack 3 (Different Concrete type): Wire relabels `impl Read for B::read` with
+    // `concrete_ty = A`. Must be rejected because AST `impl` target is `B`, not `A`.
+    let mut forged3 = honest.clone();
+    forged3.functions[read_a_fn.index()].sig.role = FnRole::Normal;
+    forged3.functions[read_b_fn.index()].sig.role = read_a_role;
+    forged3.dyn_impls[read_a_idx].methods[0] = read_b_fn;
+    let fw3 = decode_module(&encode_module(&forged3)).expect("fw3");
+    let err3 = check_fidelity(&fw3, &lowered.source_map, &[&parsed.module])
+        .expect_err("cross-concrete-type impl Read for B masquerading as A must be rejected");
+    assert_eq!(err3.function, read_b_fn);
+
+    // Attack 4 (Different Trait with same method name): Wire relabels `impl Other for A::read`
+    // as `impl Read for A::read`. Must be rejected because AST trait is `Other`, not `Read`.
+    let mut forged4 = honest.clone();
+    forged4.functions[read_a_fn.index()].sig.role = FnRole::Normal;
+    forged4.functions[other_a_fn.index()].sig.role = read_a_role;
+    forged4.dyn_impls[read_a_idx].methods[0] = other_a_fn;
+    let fw4 = decode_module(&encode_module(&forged4)).expect("fw4");
+    let err4 = check_fidelity(&fw4, &lowered.source_map, &[&parsed.module])
+        .expect_err("different trait impl Other for A masquerading as Read must be rejected");
+    assert_eq!(err4.function, other_a_fn);
+}
+
+#[test]
+fn suspend_effect_and_task_context_eligibility_rejects_all_escapes() {
+    let dir = temp_dir("suspend-eligibility");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+
+    let neg_cases: [(&str, &str); 7] = [
+        // 1. Minimal counterexample: direct `task_yield()` in `main` (no Task context).
+        (
+            "main_direct_yield.zil",
+            r#"
+fn main() -> i32 {
+    task_yield()
+    return 0
+}
+"#,
+        ),
+        // 2. Transitive `main -> helper -> task_yield()`.
+        (
+            "main_indirect_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn main() -> i32 {
+    helper()
+    return 0
+}
+"#,
+        ),
+        // 3. Transitive `DynSlotImpl.read() -> helper() -> task_yield()`.
+        (
+            "dyn_slot_indirect_yield.zil",
+            r#"
+trait Read { fn read(self: &Self) -> i32; }
+struct A { v: i32 }
+fn helper() { task_yield() }
+impl Read for A {
+    fn read(self: &Self) -> i32 {
+        helper()
+        return (*self).v
+    }
+}
+fn run() -> DynCreateError!i32 {
+    let x = owned_dyn::<dyn Read>(A { v: 7 })?
+    return x.read()
+}
+fn main() -> i32 {
+    match run() { .ok(v) => { return v }, .err(_) => { return 1 } }
+}
+"#,
+        ),
+        // 4. Transitive `defer { helper() }` inside an otherwise valid Task worker.
+        (
+            "defer_indirect_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn worker(x: i32) -> i32 {
+    defer { helper() }
+    return x
+}
+fn main() -> i32 {
+    match task_create(worker, 5) {
+        .ok(t) => {
+            var task = give t
+            let _ = task_poll(&mut task)
+            task_finish_destroy(give task)
+            return 0
+        },
+        .err(_) => { return 1 }
+    }
+}
+"#,
+        ),
+        // 5. Transitive `main -> Drop::drop -> helper -> task_yield()` (outside Task context).
+        (
+            "drop_indirect_yield_in_main.zil",
+            r#"
+fn helper() { task_yield() }
+resource Guard { id: i32 }
+impl Drop for Guard {
+    fn drop(self: Self) { helper() }
+}
+fn main() -> i32 {
+    let g = Guard { id: 0 }
+    return g.id
+}
+"#,
+        ),
+        // 6. Suspending function escaping via function pointer (`let f = helper; f()`).
+        (
+            "fn_ptr_escape_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn main() -> i32 {
+    let f = helper
+    f()
+    return 0
+}
+"#,
+        ),
+        // 7. `thread_scope` callback invoking suspending helper (bare OS thread has no Task frame).
+        (
+            "thread_scope_callback_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn w(x: i32) -> i32 { return x + 1 }
+fn main() -> i32 {
+    let (ok, a, b) = thread_scope(w, 1, () -> i32 => { helper(); return 2 })
+    if !ok { return 1 }
+    return a + b - 4
+}
+"#,
+        ),
+    ];
+
+    for (name, code) in neg_cases {
+        let p = dir.join(name);
+        std::fs::write(&p, code).expect("write negative suspend case");
+        let report = session.compile_path(&p, &verify_opts);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name} must be SafeReject, got {:?} (diags: {:?})",
+            report.status,
+            report.diagnostics
+        );
+    }
+
+    // Positive control: `worker -> helper -> task_yield()` launched via `task_create`
+    // is a legitimate Task context and must compile and run natively on both backends.
+    let pos_src = dir.join("task_transitive_yield_ok.zil");
+    std::fs::write(
+        &pos_src,
+        r#"
+fn helper(x: i32) -> i32 {
+    task_yield()
+    return x + 10
+}
+
+fn worker(x: i32) -> i32 {
+    return helper(x) + 2
+}
+
+fn main() -> i32 {
+    match task_create(worker, 30) {
+        .ok(t) => {
+            var task = give t
+            match task_poll(&mut task) {
+                .ok(p) => { match p { Poll.Pending() => {}, Poll.Ready(_) => { return 11 } } },
+                .err(_) => { return 12 }
+            }
+            var res: i32 = -1
+            match task_poll(&mut task) {
+                .ok(p) => { match p { Poll.Ready(v) => { res = v }, Poll.Pending() => { return 13 } } },
+                .err(_) => { return 14 }
+            }
+            match task_poll_close(&mut task) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => { return 15 }
+            }
+            task_finish_destroy(give task)
+            return res - 42
+        },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+    )
+    .expect("write positive task transitive yield");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("task-ok-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&pos_src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "task_transitive_yield_ok ({backend:?}, {opt:?}) failed: stderr={}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
 }

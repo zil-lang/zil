@@ -5752,3 +5752,511 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
     let mut aliases: Vec<LocalId> = root_local.into_iter().collect();
     walk(e, &mut aliases, root_cap)
 }
+
+/// Computes a transitive fixed-point `can_suspend` summary over all THIR
+/// functions and closures, then rejects any `defer` block that directly or
+/// transitively invokes a suspending function/closure or an unknown indirect
+/// callable.
+pub fn check_defer_suspend_effects(
+    items: &Items<'_>,
+    types: &Types,
+    thir: &[Option<ThirFn>],
+    diags: &mut Vec<Diagnostic>,
+) {
+    fn resolve_closure(types: &Types, mut ty: Ty) -> Option<(usize, usize)> {
+        for _ in 0..4 {
+            match types.data(ty) {
+                TyData::Ref { pointee, .. } => ty = *pointee,
+                TyData::Closure { owner, id, .. } => {
+                    return Some((owner.0 as usize, id.0 as usize));
+                }
+                TyData::Unit
+                | TyData::Bool
+                | TyData::Never
+                | TyData::Int(_)
+                | TyData::Float(_)
+                | TyData::Adt { .. }
+                | TyData::Tuple(_)
+                | TyData::Array { .. }
+                | TyData::Slice(_)
+                | TyData::Managed(_)
+                | TyData::Desc(_)
+                | TyData::Opaque(_)
+                | TyData::ErrorUnion { .. }
+                | TyData::FnPtr { .. }
+                | TyData::ImplCallable { .. }
+                | TyData::Dyn(_)
+                | TyData::OwnedDyn(_)
+                | TyData::Param(_)
+                | TyData::SelfParam
+                | TyData::Assoc { .. }
+                | TyData::ArrayConst { .. }
+                | TyData::ConstParam(_)
+                | TyData::ConstU32(_)
+                | TyData::Type
+                | TyData::Var(_)
+                | TyData::Error => return None,
+            }
+        }
+        None
+    }
+
+    fn expr_suspends(
+        e: &Expr,
+        items: &Items<'_>,
+        types: &Types,
+        fn_susp: &[bool],
+        cl_susp: &[Vec<bool>],
+    ) -> bool {
+        match &e.kind {
+            ExprKind::Intrinsic { op, args } => {
+                *op == IntrinsicOp::TaskYield
+                    || args
+                        .iter()
+                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::Call { callee, args, .. } => {
+                fn_susp.get(callee.0 as usize).copied().unwrap_or(false)
+                    || args
+                        .iter()
+                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::TraitCall {
+                trait_ref,
+                method,
+                args,
+                ..
+            } => {
+                let trait_may_suspend = items.trait_impls.iter().any(|imp| {
+                    imp.trait_ref == *trait_ref
+                        && imp.methods.iter().any(|(name, fn_ref)| {
+                            name == method
+                                && fn_susp.get(fn_ref.0 as usize).copied().unwrap_or(false)
+                        })
+                });
+                trait_may_suspend
+                    || args
+                        .iter()
+                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::ClosureCall { closure, args, .. } => {
+                let target_susp = match resolve_closure(types, closure.ty) {
+                    Some((o, i)) => cl_susp
+                        .get(o)
+                        .and_then(|v| v.get(i))
+                        .copied()
+                        .unwrap_or(true),
+                    None => false,
+                };
+                target_susp
+                    || expr_suspends(closure, items, types, fn_susp, cl_susp)
+                    || args
+                        .iter()
+                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::IndirectCall { callee, args } => {
+                expr_suspends(callee, items, types, fn_susp, cl_susp)
+                    || args
+                        .iter()
+                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::DynCall { object, args, .. } => {
+                expr_suspends(object, items, types, fn_susp, cl_susp)
+                    || args
+                        .iter()
+                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::ForeignCall { args, .. }
+            | ExprKind::ManagedCreate { fields: args, .. }
+            | ExprKind::Adt { fields: args, .. }
+            | ExprKind::Tuple(args)
+            | ExprKind::Array(args)
+            | ExprKind::Closure { captures: args, .. } => args
+                .iter()
+                .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp)),
+            ExprKind::Field { base: x, .. }
+            | ExprKind::TupleField { base: x, .. }
+            | ExprKind::Deref(x)
+            | ExprKind::Borrow { place: x, .. }
+            | ExprKind::Len(x)
+            | ExprKind::Give(x)
+            | ExprKind::Describe(x)
+            | ExprKind::Unary { operand: x, .. }
+            | ExprKind::Convert { operand: x }
+            | ExprKind::ErrorInject { value: x, .. }
+            | ExprKind::Try(x)
+            | ExprKind::CtEval(x)
+            | ExprKind::Loop(x) => expr_suspends(x, items, types, fn_susp, cl_susp),
+            ExprKind::SliceBorrow {
+                place, start, end, ..
+            } => {
+                expr_suspends(place, items, types, fn_susp, cl_susp)
+                    || start
+                        .as_deref()
+                        .is_some_and(|s| expr_suspends(s, items, types, fn_susp, cl_susp))
+                    || end
+                        .as_deref()
+                        .is_some_and(|s| expr_suspends(s, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::Index { base: a, index: b }
+            | ExprKind::Binary { lhs: a, rhs: b, .. }
+            | ExprKind::Logical { lhs: a, rhs: b, .. }
+            | ExprKind::While { cond: a, body: b }
+            | ExprKind::Assign {
+                place: a, value: b, ..
+            } => {
+                expr_suspends(a, items, types, fn_susp, cl_susp)
+                    || expr_suspends(b, items, types, fn_susp, cl_susp)
+            }
+            ExprKind::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                expr_suspends(cond, items, types, fn_susp, cl_susp)
+                    || expr_suspends(then, items, types, fn_susp, cl_susp)
+                    || otherwise
+                        .as_deref()
+                        .is_some_and(|o| expr_suspends(o, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::Match { scrutinee, arms } => {
+                expr_suspends(scrutinee, items, types, fn_susp, cl_susp)
+                    || arms
+                        .iter()
+                        .any(|arm| expr_suspends(&arm.body, items, types, fn_susp, cl_susp))
+            }
+            ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
+                Stmt::Let { init, .. } => expr_suspends(init, items, types, fn_susp, cl_susp),
+                Stmt::Expr(x) | Stmt::Defer(x) => expr_suspends(x, items, types, fn_susp, cl_susp),
+            }),
+            ExprKind::Return(opt) => opt
+                .as_deref()
+                .is_some_and(|x| expr_suspends(x, items, types, fn_susp, cl_susp)),
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::Capture(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Break
+            | ExprKind::Continue => false,
+        }
+    }
+
+    fn check_defer_expr(
+        e: &Expr,
+        items: &Items<'_>,
+        types: &Types,
+        fn_susp: &[bool],
+        cl_susp: &[Vec<bool>],
+        diags: &mut Vec<Diagnostic>,
+    ) {
+        match &e.kind {
+            ExprKind::Call { callee, args, .. } => {
+                if fn_susp.get(callee.0 as usize).copied().unwrap_or(false) {
+                    diags.push(Diagnostic {
+                        phase: zil_base::Phase::Types,
+                        category: zil_base::ResultCategory::SafeReject,
+                        code: diag::LOOP_CONTROL.to_string(),
+                        message: "cannot call suspending function inside a `defer` block".into(),
+                        span: Some(e.span),
+                        notes: Vec::new(),
+                        related: Vec::new(),
+                    });
+                }
+                for a in args {
+                    check_defer_expr(a, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::TraitCall {
+                trait_ref,
+                method,
+                args,
+                ..
+            } => {
+                let trait_may_suspend = items.trait_impls.iter().any(|imp| {
+                    imp.trait_ref == *trait_ref
+                        && imp.methods.iter().any(|(name, fn_ref)| {
+                            name == method
+                                && fn_susp.get(fn_ref.0 as usize).copied().unwrap_or(false)
+                        })
+                });
+                if trait_may_suspend {
+                    diags.push(Diagnostic {
+                        phase: zil_base::Phase::Types,
+                        category: zil_base::ResultCategory::SafeReject,
+                        code: diag::LOOP_CONTROL.to_string(),
+                        message: "cannot call suspending trait method inside a `defer` block"
+                            .into(),
+                        span: Some(e.span),
+                        notes: Vec::new(),
+                        related: Vec::new(),
+                    });
+                }
+                for a in args {
+                    check_defer_expr(a, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::ClosureCall { closure, args, .. } => {
+                let unsafe_target = match resolve_closure(types, closure.ty) {
+                    Some((o, i)) => cl_susp
+                        .get(o)
+                        .and_then(|v| v.get(i))
+                        .copied()
+                        .unwrap_or(true),
+                    None => true,
+                };
+                if unsafe_target {
+                    diags.push(Diagnostic {
+                        phase: zil_base::Phase::Types,
+                        category: zil_base::ResultCategory::SafeReject,
+                        code: diag::LOOP_CONTROL.to_string(),
+                        message: "cannot call suspending or unknown closure inside a `defer` block"
+                            .into(),
+                        span: Some(e.span),
+                        notes: Vec::new(),
+                        related: Vec::new(),
+                    });
+                }
+                check_defer_expr(closure, items, types, fn_susp, cl_susp, diags);
+                for a in args {
+                    check_defer_expr(a, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::IndirectCall { callee, args } => {
+                diags.push(Diagnostic {
+                    phase: zil_base::Phase::Types,
+                    category: zil_base::ResultCategory::SafeReject,
+                    code: diag::LOOP_CONTROL.to_string(),
+                    message: "cannot perform unknown indirect call inside a `defer` block".into(),
+                    span: Some(e.span),
+                    notes: Vec::new(),
+                    related: Vec::new(),
+                });
+                check_defer_expr(callee, items, types, fn_susp, cl_susp, diags);
+                for a in args {
+                    check_defer_expr(a, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::DynCall { object, args, .. } => {
+                check_defer_expr(object, items, types, fn_susp, cl_susp, diags);
+                for a in args {
+                    check_defer_expr(a, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Intrinsic { args, .. }
+            | ExprKind::ForeignCall { args, .. }
+            | ExprKind::ManagedCreate { fields: args, .. }
+            | ExprKind::Adt { fields: args, .. }
+            | ExprKind::Tuple(args)
+            | ExprKind::Array(args)
+            | ExprKind::Closure { captures: args, .. } => {
+                for a in args {
+                    check_defer_expr(a, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Field { base: x, .. }
+            | ExprKind::TupleField { base: x, .. }
+            | ExprKind::Deref(x)
+            | ExprKind::Borrow { place: x, .. }
+            | ExprKind::Len(x)
+            | ExprKind::Give(x)
+            | ExprKind::Describe(x)
+            | ExprKind::Unary { operand: x, .. }
+            | ExprKind::Convert { operand: x }
+            | ExprKind::ErrorInject { value: x, .. }
+            | ExprKind::Try(x)
+            | ExprKind::CtEval(x)
+            | ExprKind::Loop(x) => {
+                check_defer_expr(x, items, types, fn_susp, cl_susp, diags);
+            }
+            ExprKind::SliceBorrow {
+                place, start, end, ..
+            } => {
+                check_defer_expr(place, items, types, fn_susp, cl_susp, diags);
+                if let Some(s) = start {
+                    check_defer_expr(s, items, types, fn_susp, cl_susp, diags);
+                }
+                if let Some(s) = end {
+                    check_defer_expr(s, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Index { base: a, index: b }
+            | ExprKind::Binary { lhs: a, rhs: b, .. }
+            | ExprKind::Logical { lhs: a, rhs: b, .. }
+            | ExprKind::While { cond: a, body: b }
+            | ExprKind::Assign {
+                place: a, value: b, ..
+            } => {
+                check_defer_expr(a, items, types, fn_susp, cl_susp, diags);
+                check_defer_expr(b, items, types, fn_susp, cl_susp, diags);
+            }
+            ExprKind::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                check_defer_expr(cond, items, types, fn_susp, cl_susp, diags);
+                check_defer_expr(then, items, types, fn_susp, cl_susp, diags);
+                if let Some(o) = otherwise {
+                    check_defer_expr(o, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Match { scrutinee, arms } => {
+                check_defer_expr(scrutinee, items, types, fn_susp, cl_susp, diags);
+                for arm in arms {
+                    check_defer_expr(&arm.body, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Block(stmts) => {
+                for s in stmts {
+                    match s {
+                        Stmt::Let { init, .. } => {
+                            check_defer_expr(init, items, types, fn_susp, cl_susp, diags);
+                        }
+                        Stmt::Expr(x) | Stmt::Defer(x) => {
+                            check_defer_expr(x, items, types, fn_susp, cl_susp, diags);
+                        }
+                    }
+                }
+            }
+            ExprKind::Return(opt) => {
+                if let Some(x) = opt {
+                    check_defer_expr(x, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::Capture(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Break
+            | ExprKind::Continue => {}
+        }
+    }
+
+    fn walk_for_defers(
+        e: &Expr,
+        items: &Items<'_>,
+        types: &Types,
+        fn_susp: &[bool],
+        cl_susp: &[Vec<bool>],
+        diags: &mut Vec<Diagnostic>,
+    ) {
+        match &e.kind {
+            ExprKind::Block(stmts) => {
+                for s in stmts {
+                    match s {
+                        Stmt::Let { init, .. } => {
+                            walk_for_defers(init, items, types, fn_susp, cl_susp, diags);
+                        }
+                        Stmt::Expr(x) => {
+                            walk_for_defers(x, items, types, fn_susp, cl_susp, diags);
+                        }
+                        Stmt::Defer(x) => {
+                            check_defer_expr(x, items, types, fn_susp, cl_susp, diags);
+                        }
+                    }
+                }
+            }
+            ExprKind::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                walk_for_defers(cond, items, types, fn_susp, cl_susp, diags);
+                walk_for_defers(then, items, types, fn_susp, cl_susp, diags);
+                if let Some(o) = otherwise {
+                    walk_for_defers(o, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Match { scrutinee, arms } => {
+                walk_for_defers(scrutinee, items, types, fn_susp, cl_susp, diags);
+                for arm in arms {
+                    walk_for_defers(&arm.body, items, types, fn_susp, cl_susp, diags);
+                }
+            }
+            ExprKind::Loop(x) => walk_for_defers(x, items, types, fn_susp, cl_susp, diags),
+            ExprKind::While { cond, body } => {
+                walk_for_defers(cond, items, types, fn_susp, cl_susp, diags);
+                walk_for_defers(body, items, types, fn_susp, cl_susp, diags);
+            }
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::Capture(_)
+            | ExprKind::Field { .. }
+            | ExprKind::TupleField { .. }
+            | ExprKind::Index { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Len(_)
+            | ExprKind::Give(_)
+            | ExprKind::Describe(_)
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Unary { .. }
+            | ExprKind::Binary { .. }
+            | ExprKind::Logical { .. }
+            | ExprKind::Convert { .. }
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::Call { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Adt { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
+            | ExprKind::Tuple(_)
+            | ExprKind::Array(_)
+            | ExprKind::Break
+            | ExprKind::Continue
+            | ExprKind::Return(_)
+            | ExprKind::Assign { .. } => {}
+        }
+    }
+
+    let mut fn_susp = vec![false; thir.len()];
+    let mut cl_susp: Vec<Vec<bool>> = thir
+        .iter()
+        .map(|f| vec![false; f.as_ref().map_or(0, |t| t.closures.len())])
+        .collect();
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (i, tf_opt) in thir.iter().enumerate() {
+            let Some(tf) = tf_opt else { continue };
+            for (ci, cl) in tf.closures.iter().enumerate() {
+                if !cl_susp[i][ci] && expr_suspends(&cl.body, items, types, &fn_susp, &cl_susp) {
+                    cl_susp[i][ci] = true;
+                    changed = true;
+                }
+            }
+            if !fn_susp[i] && expr_suspends(&tf.body, items, types, &fn_susp, &cl_susp) {
+                fn_susp[i] = true;
+                changed = true;
+            }
+        }
+    }
+
+    for tf in thir.iter().flatten() {
+        walk_for_defers(&tf.body, items, types, &fn_susp, &cl_susp, diags);
+        for cl in &tf.closures {
+            walk_for_defers(&cl.body, items, types, &fn_susp, &cl_susp, diags);
+        }
+    }
+}

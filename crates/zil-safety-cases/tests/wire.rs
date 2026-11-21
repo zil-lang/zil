@@ -360,4 +360,64 @@ fn main() -> i32 {
         check_module(d3, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
         "TaskYield effect inside synchronous DynSlotImpl must be rejected"
     );
+
+    // Attack 4: transitive Suspend — inject TaskYield into `spoof`, and make A::read
+    // call `spoof` via `Callee::Direct` (A::read itself has no direct TaskYield).
+    let mut attack4 = decoded.clone();
+    let unit_ty4 = attack4.tys.intern(zil_ir::body::TyKind::Unit);
+    let spoof_body = &mut attack4.functions[spoof_id.index()].body;
+    let s_tmp = Local::from_index(spoof_body.locals.len());
+    spoof_body.locals.push(zil_ir::body::LocalDecl {
+        ty: unit_ty4,
+        name: None,
+    });
+    let s_next = BlockId::from_index(spoof_body.blocks.len());
+    let s_span = spoof_body.blocks[0].terminator_span;
+    let s_old = std::mem::replace(
+        &mut spoof_body.blocks[0].terminator,
+        Terminator::Call {
+            callee: Callee::Intrinsic(IntrinsicOp::TaskYield),
+            args: Vec::new(),
+            dest: zil_ir::body::Place::local(s_tmp),
+            target: s_next,
+            cancel: None,
+        },
+    );
+    spoof_body.blocks.push(zil_ir::body::Block {
+        instructions: Vec::new(),
+        terminator: s_old,
+        terminator_span: s_span,
+    });
+    let a_method_id4 = attack4.dyn_impls[a_impl_idx].methods[0];
+    let i32_ty = attack4.functions[a_method_id4.index()].sig.result;
+    let a_body4 = &mut attack4.functions[a_method_id4.index()].body;
+    let call_dest = Local::from_index(a_body4.locals.len());
+    a_body4.locals.push(zil_ir::body::LocalDecl {
+        ty: i32_ty,
+        name: None,
+    });
+    let a_next4 = BlockId::from_index(a_body4.blocks.len());
+    let a_span4 = a_body4.blocks[0].terminator_span;
+    let a_old4 = std::mem::replace(
+        &mut a_body4.blocks[0].terminator,
+        Terminator::Call {
+            callee: Callee::Direct(spoof_id),
+            args: vec![zil_ir::body::Operand::Copy(zil_ir::body::Place::local(
+                Local(0),
+            ))],
+            dest: zil_ir::body::Place::local(call_dest),
+            target: a_next4,
+            cancel: None,
+        },
+    );
+    a_body4.blocks.push(zil_ir::body::Block {
+        instructions: Vec::new(),
+        terminator: a_old4,
+        terminator_span: a_span4,
+    });
+    let d4 = decode_module(&encode_module(&attack4)).expect("decode attack4");
+    assert!(
+        check_module(d4, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "transitive DynSlotImpl -> helper -> TaskYield must be rejected"
+    );
 }

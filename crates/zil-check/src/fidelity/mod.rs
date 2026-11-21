@@ -45,7 +45,11 @@ pub fn check_fidelity(
             return Err(fail("source map references unknown function"));
         };
         if !sources.is_empty()
-            && let FnRole::DynSlotImpl { dyn_id, slot, .. } = func.sig.role
+            && let FnRole::DynSlotImpl {
+                dyn_id,
+                concrete_ty,
+                slot,
+            } = func.sig.role
         {
             let Some(dyn_def) = module.tys.get_dyn(dyn_id) else {
                 return Err(fail("dyn slot impl references unknown DynId"));
@@ -53,20 +57,39 @@ pub fn check_fidelity(
             let Some(slot_def) = dyn_def.slots.get(slot as usize) else {
                 return Err(fail("dyn slot impl references out-of-range slot"));
             };
-            let expected_trait = dyn_def.name.rsplit('.').next().unwrap_or(&dyn_def.name);
+            let Some(expected_concrete) = concrete_ty_name(&module.tys, concrete_ty) else {
+                return Err(fail(
+                    "dyn slot impl concrete target type has no nominal AST identity",
+                ));
+            };
             let expected_method = slot_def.name.as_str();
             let decl_start = fn_map.declaration.0;
             let fn_file = fn_map.spans.first().map(|(_, sp)| sp.file);
-            let matched = ast_impl_methods.iter().any(|&(file_id, start, tr, m)| {
-                start == decl_start
-                    && fn_file.is_none_or(|f| f == file_id)
-                    && tr == expected_trait
-                    && m == expected_method
+            let matched = ast_impl_methods.iter().find(|m| {
+                m.start == decl_start
+                    && fn_file.is_none_or(|f| f == m.file)
+                    && path_matches_qualified(m.trait_path, &dyn_def.name)
+                    && m.target_path
+                        .is_some_and(|tp| path_matches_qualified(tp, expected_concrete))
+                    && m.method_name == expected_method
             });
-            if !matched {
+            let Some(ast_m) = matched else {
                 return Err(fail(
-                    "dyn slot impl function does not originate from matching AST trait impl method",
+                    "dyn slot impl function does not originate from matching AST impl Trait for Concrete method",
                 ));
+            };
+            // Prevent SourceMap.declaration spoofing: every non-empty instruction/terminator
+            // span of the DynSlotImpl function must lie within the AST method's source range.
+            for (_, sp) in &fn_map.spans {
+                if sp.end > sp.start {
+                    let s = u32::try_from(sp.start).unwrap_or(u32::MAX);
+                    let e = u32::try_from(sp.end).unwrap_or(u32::MAX);
+                    if sp.file != ast_m.file || s < ast_m.start || e > ast_m.end {
+                        return Err(fail(
+                            "dyn slot impl spans lie outside the claimed AST trait impl method",
+                        ));
+                    }
+                }
             }
         }
         let body = &func.body;
@@ -295,29 +318,107 @@ fn collect_ast_field_indices<'a>(
     map
 }
 
-/// Collects `(file, decl_span_start, trait_last_segment, method_name)` for
-/// every method declared inside an `impl Trait for Target` block in the
+struct AstImplMethod<'a> {
+    file: zil_base::FileId,
+    start: u32,
+    end: u32,
+    trait_path: &'a [String],
+    target_path: Option<&'a [String]>,
+    method_name: &'a str,
+}
+
+fn concrete_ty_name(tys: &zil_ir::body::TyTable, ty: zil_ir::body::TyId) -> Option<&str> {
+    use zil_ir::body::{FloatTy, IntTy, TyKind};
+    match tys.get(ty)? {
+        TyKind::Adt { adt, .. } => Some(tys.adt(*adt).name.as_str()),
+        TyKind::Bool => Some("bool"),
+        TyKind::Int(IntTy::I8) => Some("i8"),
+        TyKind::Int(IntTy::I16) => Some("i16"),
+        TyKind::Int(IntTy::I32) => Some("i32"),
+        TyKind::Int(IntTy::I64) => Some("i64"),
+        TyKind::Int(IntTy::Isize) => Some("isize"),
+        TyKind::Int(IntTy::U8) => Some("u8"),
+        TyKind::Int(IntTy::U16) => Some("u16"),
+        TyKind::Int(IntTy::U32) => Some("u32"),
+        TyKind::Int(IntTy::U64) => Some("u64"),
+        TyKind::Int(IntTy::Usize) => Some("usize"),
+        TyKind::Float(FloatTy::F32) => Some("f32"),
+        TyKind::Float(FloatTy::F64) => Some("f64"),
+        TyKind::Unit
+        | TyKind::Never
+        | TyKind::Ref { .. }
+        | TyKind::Tuple(_)
+        | TyKind::Array { .. }
+        | TyKind::Slice(_)
+        | TyKind::Managed(_)
+        | TyKind::Desc(_)
+        | TyKind::ErrorUnion { .. }
+        | TyKind::FnPtr { .. }
+        | TyKind::Closure { .. }
+        | TyKind::Dyn { .. }
+        | TyKind::OwnedDyn { .. }
+        | TyKind::Opaque(_)
+        | TyKind::Param(_) => None,
+    }
+}
+
+fn path_matches_qualified(ast_path: &[String], ir_qualified: &str) -> bool {
+    if ast_path.is_empty() {
+        return false;
+    }
+    if ast_path.len() == 1 {
+        ir_qualified.rsplit('.').next().unwrap_or(ir_qualified) == ast_path[0]
+    } else {
+        let joined = ast_path.join(".");
+        ir_qualified == joined || ir_qualified.ends_with(&format!(".{joined}"))
+    }
+}
+
+/// Collects full `(file, span_start, span_end, trait_path, target_path, method_name)`
+/// for every method declared inside an `impl Trait for Target` block in the
 /// original parsed AST.
-fn collect_ast_impl_methods<'a>(
-    sources: &[&'a ast::Module],
-) -> Vec<(zil_base::FileId, u32, &'a str, &'a str)> {
+fn collect_ast_impl_methods<'a>(sources: &[&'a ast::Module]) -> Vec<AstImplMethod<'a>> {
     let mut out = Vec::new();
     for m in sources {
         for item in &m.items {
             if let ast::ItemKind::Impl(imp) = &item.kind
                 && let Some(trait_ref) = &imp.trait_type
-                && let ast::TypeKind::Named { path, .. } = &trait_ref.kind
-                && let Some(trait_name) = path.last()
+                && let ast::TypeKind::Named {
+                    path: trait_path, ..
+                } = &trait_ref.kind
+                && !trait_path.is_empty()
             {
+                let target_path = match &imp.target.kind {
+                    ast::TypeKind::Named { path, .. } if !path.is_empty() => Some(path.as_slice()),
+                    ast::TypeKind::Named { .. }
+                    | ast::TypeKind::Reference { .. }
+                    | ast::TypeKind::Tuple(_)
+                    | ast::TypeKind::Group(_)
+                    | ast::TypeKind::Array { .. }
+                    | ast::TypeKind::Function { .. }
+                    | ast::TypeKind::ForeignFunction { .. }
+                    | ast::TypeKind::Optional(_)
+                    | ast::TypeKind::Error { .. }
+                    | ast::TypeKind::Union(_)
+                    | ast::TypeKind::Dyn { .. }
+                    | ast::TypeKind::ForLifetime { .. }
+                    | ast::TypeKind::Impl(_)
+                    | ast::TypeKind::MetaEval(_)
+                    | ast::TypeKind::MetaSplice(_)
+                    | ast::TypeKind::MetaBlock(_) => None,
+                };
                 for member in &imp.members {
                     if let ast::ItemKind::Function(f) = &member.kind {
                         let start = u32::try_from(member.span.start).unwrap_or(u32::MAX);
-                        out.push((
-                            member.span.file,
+                        let end = u32::try_from(member.span.end).unwrap_or(u32::MAX);
+                        out.push(AstImplMethod {
+                            file: member.span.file,
                             start,
-                            trait_name.as_str(),
-                            f.name.as_str(),
-                        ));
+                            end,
+                            trait_path: trait_path.as_slice(),
+                            target_path,
+                            method_name: f.name.as_str(),
+                        });
                     }
                 }
             }

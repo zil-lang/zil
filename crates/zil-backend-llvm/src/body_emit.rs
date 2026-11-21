@@ -2718,14 +2718,25 @@ impl<'a> FnEmitter<'a> {
                 Ok(())
             }
             IntrinsicOp::TaskYield => {
+                let tid = self.tmp;
+                self.tmp += 1;
                 let f = self.fresh();
+                let f_null = self.fresh();
                 let st = self.fresh();
                 let cur_st = self.fresh();
                 let is_cl = self.fresh();
                 let next_st = self.fresh();
                 let cctx = self.fresh();
                 let wctx = self.fresh();
+                let sc_rc = self.fresh();
+                let sc_ok = self.fresh();
+                let l_have = format!("ty_have_{tid}");
+                let l_ok = format!("ty_ok_{tid}");
+                let l_ab = format!("ty_ab_{tid}");
                 let _ = writeln!(self.out, "  {f} = load ptr, ptr @__zil_current_task");
+                let _ = writeln!(self.out, "  {f_null} = icmp eq ptr {f}, null");
+                let _ = writeln!(self.out, "  br i1 {f_null}, label %{l_ab}, label %{l_have}");
+                let _ = writeln!(self.out, "{l_have}:");
                 let _ = writeln!(
                     self.out,
                     "  {st} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 0"
@@ -2742,12 +2753,6 @@ impl<'a> FnEmitter<'a> {
                     self.out,
                     "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 3"
                 );
-                let tid = self.tmp;
-                self.tmp += 1;
-                let sc_rc = self.fresh();
-                let sc_ok = self.fresh();
-                let l_ok = format!("ty_ok_{tid}");
-                let l_ab = format!("ty_ab_{tid}");
                 let _ = writeln!(
                     self.out,
                     "  {sc_rc} = call i32 @swapcontext(ptr {wctx}, ptr {cctx})"

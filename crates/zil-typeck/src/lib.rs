@@ -152,6 +152,10 @@ pub fn lower_program(
     if !diags.is_empty() {
         return Err(diags);
     }
+    infer::check_defer_suspend_effects(&items, &types, &thir, &mut diags);
+    if !diags.is_empty() {
+        return Err(diags);
+    }
     let mut mono = build::Mono::new(&items, &mut types, &thir, &mut diags, limits, ct);
     mono.lower_foreigns();
     let mut roots = Vec::new();
