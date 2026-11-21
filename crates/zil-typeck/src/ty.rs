@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use zil_ir::body::{ClosureKind, FloatTy, IntTy};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Ty(u32);
+pub struct Ty(pub(crate) u32);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AdtRef(pub u32);
@@ -118,6 +118,17 @@ pub enum TyData {
         base: Ty,
         name: String,
     },
+    /// Fixed-size array whose length is a const generic parameter or inference variable.
+    ArrayConst {
+        element: Ty,
+        length: Ty,
+    },
+    /// The n-th generic parameter when it is a `const` integer parameter.
+    ConstParam(u32),
+    /// Concrete instantiated integer const generic argument.
+    ConstU32(u32),
+    /// Compile-time first-class `Type` value (carries real interned `Ty` identity).
+    Type,
     Var(VarId),
     /// Already diagnosed; unifies with everything to avoid cascades.
     Error,
@@ -146,8 +157,14 @@ impl Types {
     pub fn data(&self, ty: Ty) -> &TyData {
         &self.data[ty.0 as usize]
     }
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
     pub fn unit(&mut self) -> Ty {
         self.intern(TyData::Unit)
+    }
+    pub fn meta_type(&mut self) -> Ty {
+        self.intern(TyData::Type)
     }
     pub fn bool(&mut self) -> Ty {
         self.intern(TyData::Bool)
@@ -197,6 +214,9 @@ impl Types {
             TyData::Adt { args, .. } => args.iter().any(|t| self.occurs(v, *t)),
             TyData::Tuple(items) => items.iter().any(|t| self.occurs(v, *t)),
             TyData::Array { element, .. } | TyData::Slice(element) => self.occurs(v, *element),
+            TyData::ArrayConst { element, length } => {
+                self.occurs(v, *element) || self.occurs(v, *length)
+            }
             TyData::Ref { pointee, .. } => self.occurs(v, *pointee),
             TyData::Managed(inner) | TyData::Desc(inner) => self.occurs(v, *inner),
             TyData::Opaque(
@@ -234,6 +254,8 @@ impl Types {
             }
             TyData::Assoc { base, .. } => self.occurs(v, *base),
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Never
             | TyData::Int(_)
@@ -241,6 +263,7 @@ impl Types {
             | TyData::Dyn(_)
             | TyData::OwnedDyn(_)
             | TyData::Param(_)
+            | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Error => false,
         }
@@ -315,6 +338,43 @@ impl Types {
                     length: m,
                 },
             ) if n == m => self.unify(x, y),
+            (
+                TyData::ArrayConst {
+                    element: x,
+                    length: l,
+                },
+                TyData::Array {
+                    element: y,
+                    length: m,
+                },
+            )
+            | (
+                TyData::Array {
+                    element: y,
+                    length: m,
+                },
+                TyData::ArrayConst {
+                    element: x,
+                    length: l,
+                },
+            ) => {
+                self.unify(x, y)?;
+                let cm = self.intern(TyData::ConstU32(m));
+                self.unify(l, cm)
+            }
+            (
+                TyData::ArrayConst {
+                    element: x,
+                    length: l1,
+                },
+                TyData::ArrayConst {
+                    element: y,
+                    length: l2,
+                },
+            ) => {
+                self.unify(x, y)?;
+                self.unify(l1, l2)
+            }
             (
                 TyData::Ref {
                     region: r1,
@@ -461,6 +521,15 @@ impl Types {
                 let element = self.zonk(element)?;
                 self.intern(TyData::Array { element, length })
             }
+            TyData::ArrayConst { element, length } => {
+                let element = self.zonk(element)?;
+                let length = self.zonk(length)?;
+                if let TyData::ConstU32(n) = *self.data(length) {
+                    self.intern(TyData::Array { element, length: n })
+                } else {
+                    self.intern(TyData::ArrayConst { element, length })
+                }
+            }
             TyData::Slice(element) => {
                 let element = self.zonk(element)?;
                 self.intern(TyData::Slice(element))
@@ -589,6 +658,8 @@ impl Types {
                 self.intern(TyData::Assoc { base, name })
             }
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Never
             | TyData::Int(_)
@@ -596,6 +667,7 @@ impl Types {
             | TyData::Dyn(_)
             | TyData::OwnedDyn(_)
             | TyData::Param(_)
+            | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Error => ty,
         })
@@ -606,7 +678,7 @@ impl Types {
         let data = self.data(ty).clone();
         match data {
             TyData::SelfParam => self_ty,
-            TyData::Param(i) => args.get(i as usize).copied().unwrap_or(ty),
+            TyData::Param(i) | TyData::ConstParam(i) => args.get(i as usize).copied().unwrap_or(ty),
             TyData::Adt {
                 adt,
                 args: inner,
@@ -632,6 +704,15 @@ impl Types {
             TyData::Array { element, length } => {
                 let element = self.subst_with_self(element, args, self_ty);
                 self.intern(TyData::Array { element, length })
+            }
+            TyData::ArrayConst { element, length } => {
+                let element = self.subst_with_self(element, args, self_ty);
+                let length = self.subst_with_self(length, args, self_ty);
+                if let TyData::ConstU32(n) = *self.data(length) {
+                    self.intern(TyData::Array { element, length: n })
+                } else {
+                    self.intern(TyData::ArrayConst { element, length })
+                }
             }
             TyData::Slice(element) => {
                 let element = self.subst_with_self(element, args, self_ty);
@@ -758,6 +839,8 @@ impl Types {
                 self.intern(TyData::Assoc { base, name })
             }
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Never
             | TyData::Int(_)
@@ -773,7 +856,7 @@ impl Types {
     pub fn subst(&mut self, ty: Ty, args: &[Ty]) -> Ty {
         let data = self.data(ty).clone();
         match data {
-            TyData::Param(i) => args.get(i as usize).copied().unwrap_or(ty),
+            TyData::Param(i) | TyData::ConstParam(i) => args.get(i as usize).copied().unwrap_or(ty),
             TyData::Adt {
                 adt,
                 args: inner,
@@ -793,6 +876,15 @@ impl Types {
             TyData::Array { element, length } => {
                 let element = self.subst(element, args);
                 self.intern(TyData::Array { element, length })
+            }
+            TyData::ArrayConst { element, length } => {
+                let element = self.subst(element, args);
+                let length = self.subst(length, args);
+                if let TyData::ConstU32(n) = *self.data(length) {
+                    self.intern(TyData::Array { element, length: n })
+                } else {
+                    self.intern(TyData::ArrayConst { element, length })
+                }
             }
             TyData::Slice(element) => {
                 let element = self.subst(element, args);
@@ -901,6 +993,8 @@ impl Types {
                 self.intern(TyData::Assoc { base, name })
             }
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Never
             | TyData::Int(_)
@@ -933,6 +1027,11 @@ impl Types {
             TyData::Array { element, length } => {
                 let element = self.erase_regions(element);
                 self.intern(TyData::Array { element, length })
+            }
+            TyData::ArrayConst { element, length } => {
+                let element = self.erase_regions(element);
+                let length = self.erase_regions(length);
+                self.intern(TyData::ArrayConst { element, length })
             }
             TyData::Slice(element) => {
                 let element = self.erase_regions(element);
@@ -1029,6 +1128,8 @@ impl Types {
                 self.intern(TyData::Assoc { base, name })
             }
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Never
             | TyData::Int(_)
@@ -1036,6 +1137,7 @@ impl Types {
             | TyData::Dyn(_)
             | TyData::OwnedDyn(_)
             | TyData::Param(_)
+            | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,

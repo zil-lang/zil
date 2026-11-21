@@ -69,6 +69,8 @@ pub struct Expr {
 #[derive(Clone, Debug)]
 pub enum ExprKind {
     Lit(Lit),
+    /// Reference to the n-th `const` generic parameter of the enclosing function.
+    ConstGeneric(u32),
     /// Static UTF-8 byte slice literal (`&[u8]`).
     StaticUtf(Vec<u8>),
     Local(LocalId),
@@ -234,6 +236,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Index { .. }
         | ExprKind::Deref(_) => true,
         ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
         | ExprKind::StaticUtf(_)
         | ExprKind::Borrow { .. }
         | ExprKind::SliceBorrow { .. }

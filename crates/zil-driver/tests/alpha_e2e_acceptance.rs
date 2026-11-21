@@ -1511,3 +1511,129 @@ void *calloc(size_t nmemb, size_t size) {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn ct_first_class_type_and_const_generics_execute_natively() {
+    let root = repo_root();
+    let dir = temp_dir("batch4-ct-type-const-generics");
+
+    // 1. Existing ct-type-control.zil fixture executes natively on dual backends O0/O2.
+    let ct_fixture = root.join("tests/language-readiness/controls/ct-type-control.zil");
+
+    // 2. Comprehensive program: branching CT Type selection + Type equality +
+    //    integer const generic functions (explicit & inferred N) + const generic struct.
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+fn pick(wide: bool) -> Type {
+    if wide { return i64 }
+    return i32
+}
+
+fn is_i32(t: Type) -> bool {
+    return t == i32
+}
+
+struct FixedBuf<T, #N: usize> {
+    data: [T; N]
+}
+
+fn sum_arr<#N: usize>(a: &[i32; N]) -> i32 {
+    var total = 0
+    for i in 0..N {
+        total += (*a)[i]
+    }
+    return total
+}
+
+fn buf_first_plus_last<#N: usize>(b: &FixedBuf<i32, N>) -> i32 {
+    return (*b).data[0] + (*b).data[N - 1]
+}
+
+fn main() -> i32 {
+    // First-class Type CT
+    let small: #(pick(false)) = 15
+    let big: #(pick(true)) = 27
+    if !#(is_i32(pick(false))) { return 1 }
+    if #(is_i32(pick(true))) { return 2 }
+
+    // Const generic function with inferred N and explicit N
+    let a4: [i32; 4] = [1, 2, 3, 4]
+    let a2: [i32; 2] = [10, 20]
+    if sum_arr::<4>(&a4) != 10 { return 3 }
+    if sum_arr(&a2) != 30 { return 4 }
+
+    // Const generic struct with distinct N instantiations
+    let b3 = FixedBuf::<i32, 3> { data: [5, 10, 15] }
+    let b2 = FixedBuf::<i32, 2> { data: [7, 8] }
+    if buf_first_plus_last(&b3) != 20 { return 5 }
+    if buf_first_plus_last(&b2) != 15 { return 6 }
+
+    return small + i32(big) - 42
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe1 = dir.join(format!("ct-fixture-{}-{opt:?}", backend.name()));
+            let out1 = build_and_run_raw(&ct_fixture, &exe1, backend, opt);
+            assert_eq!(
+                out1.status.code(),
+                Some(0),
+                "ct-type-control ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out1.status,
+                String::from_utf8_lossy(&out1.stderr)
+            );
+
+            let exe2 = dir.join(format!("batch4-{}-{opt:?}", backend.name()));
+            let out2 = build_and_run_raw(&src, &exe2, backend, opt);
+            assert_eq!(
+                out2.status.code(),
+                Some(0),
+                "batch4 ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out2.status,
+                String::from_utf8_lossy(&out2.stderr)
+            );
+        }
+    }
+
+    // 3. Negative check: non-Type expression in `#(...)` type position must be rejected.
+    let neg_ct = dir.join("neg_ct_type.zil");
+    std::fs::write(
+        &neg_ct,
+        r#"
+fn not_a_type() -> i32 { return 42 }
+fn main() -> i32 {
+    let x: #(not_a_type()) = 1
+    return x
+}
+"#,
+    )
+    .expect("write neg_ct_type.zil");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&neg_ct, &verify_opts);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "non-Type CT expression in type position must be rejected"
+    );
+    let msg: String = report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        msg.contains("E-TYPE-MISMATCH"),
+        "expected E-TYPE-MISMATCH, got: {msg}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

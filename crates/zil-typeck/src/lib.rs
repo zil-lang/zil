@@ -107,14 +107,47 @@ pub fn lower_program(
     if !diags.is_empty() {
         return Err(diags);
     }
-    let mut thir = Vec::new();
-    for i in 0..items.fns.len() {
-        thir.push(infer::infer_fn(
-            &items,
-            &mut types,
-            &mut diags,
-            thir::FnRef(i as u32),
-        ));
+    let mut ct = ct;
+    let mut thir: Vec<Option<thir::ThirFn>> = vec![None; items.fns.len()];
+    let is_ct_type_fn = |f: &items::FnDecl<'_>, types: &ty::Types| -> bool {
+        matches!(types.data(f.result), ty::TyData::Type)
+            || f.params
+                .iter()
+                .any(|p| matches!(types.data(p.ty), ty::TyData::Type))
+    };
+    // Pass 1: infer compile-time Type-using functions first so `#(...)`
+    // expressions in ordinary functions can evaluate them.
+    for (i, f) in items.fns.iter().enumerate() {
+        if is_ct_type_fn(f, &types) {
+            thir[i] = infer::infer_fn(
+                &items,
+                &mut types,
+                &mut diags,
+                &[],
+                None,
+                limits,
+                thir::FnRef(i as u32),
+            );
+        }
+    }
+    // Pass 2: infer all remaining functions with access to completed CT-Type THIR.
+    for (i, f) in items.fns.iter().enumerate() {
+        if !is_ct_type_fn(f, &types) {
+            let ct_ref: Option<&mut dyn ConstEvaluator> = match &mut ct {
+                Some(c) => Some(&mut **c),
+                None => None,
+            };
+            let done = infer::infer_fn(
+                &items,
+                &mut types,
+                &mut diags,
+                &thir,
+                ct_ref,
+                limits,
+                thir::FnRef(i as u32),
+            );
+            thir[i] = done;
+        }
     }
     if !diags.is_empty() {
         return Err(diags);
@@ -123,7 +156,12 @@ pub fn lower_program(
     mono.lower_foreigns();
     let mut roots = Vec::new();
     for (i, f) in items.fns.iter().enumerate() {
+        let ct_only = matches!(mono.ty_data(f.result), ty::TyData::Type)
+            || f.params
+                .iter()
+                .any(|p| matches!(mono.ty_data(p.ty), ty::TyData::Type));
         if f.generics.is_empty()
+            && !ct_only
             && let Some(id) = mono.instance(thir::FnRef(i as u32), Vec::new(), f.ast.span)
             && f.role == items::FnRoleSpec::Normal
         {

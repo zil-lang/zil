@@ -56,6 +56,8 @@ pub struct GenericInfo {
     pub traits: Vec<(TraitRef, Vec<Ty>)>,
     /// Declared `Fn`/`FnMut`/`FnOnce` bound: `(kind, params, result)`.
     pub callable: Option<(ClosureKind, Vec<Ty>, Ty)>,
+    /// If `Some(ty)`, this is a `const` generic parameter of integer type `ty`.
+    pub const_ty: Option<Ty>,
 }
 
 #[derive(Clone, Debug)]
@@ -198,6 +200,10 @@ impl<'a> Items<'a> {
     }
 
     /// Resolves a bare or module-qualified item path from module `from`.
+    pub fn eval_const_u32(&self, expr: &ast::Expr, from: ModIdx) -> Option<u32> {
+        eval_const_u32(expr, from, &self.modules, &self.mod_by_path)
+    }
+
     pub fn lookup_item(&self, from: ModIdx, path: &[String]) -> Option<ItemRef> {
         lookup_item_in(&self.modules, &self.mod_by_path, from, path)
     }
@@ -390,7 +396,19 @@ impl<'a> Items<'a> {
                     result,
                 })
             }
+            TyData::ArrayConst { element, length } => {
+                let element = self.normalize_ty_depth(element, types, depth + 1);
+                let length = self.normalize_ty_depth(length, types, depth + 1);
+                if let TyData::ConstU32(n) = *types.data(length) {
+                    types.intern(TyData::Array { element, length: n })
+                } else {
+                    types.intern(TyData::ArrayConst { element, length })
+                }
+            }
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Never
             | TyData::Int(_)
@@ -524,6 +542,7 @@ pub fn scalar_type(name: &str) -> Option<TyData> {
         "f64" => TyData::Float(FloatTy::F64),
         "bool" => TyData::Bool,
         "void" => TyData::Unit,
+        "Type" => TyData::Type,
         "c_handle" => TyData::Opaque(OpaqueKind::ForeignHandle),
         _ => return None,
     })
@@ -1232,13 +1251,46 @@ fn type_generics(
                     sync_drop,
                     traits,
                     callable,
+                    const_ty: None,
                 });
             }
             ast::GenericParamKind::Lifetime => {
                 regions.push(g.name.clone());
             }
-            ast::GenericParamKind::Const(_) => {
-                diags.push(diag::unsupported("const parameters", g.span));
+            ast::GenericParamKind::Const(ty_ref) => {
+                let cty = match resolve_type_with_lifetimes(
+                    ty_ref,
+                    mid,
+                    &[],
+                    &[],
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    None,
+                    None,
+                    types,
+                ) {
+                    Ok(t) => t,
+                    Err(d) => {
+                        diags.push(d);
+                        types.error()
+                    }
+                };
+                if !matches!(types.data(cty), TyData::Int(_) | TyData::Error) {
+                    diags.push(diag::unsupported(
+                        "non-integer const generic parameter",
+                        ty_ref.span,
+                    ));
+                }
+                out.push(GenericInfo {
+                    name: g.name.clone(),
+                    copy: true,
+                    store_element: false,
+                    sync_drop: false,
+                    traits: Vec::new(),
+                    callable: None,
+                    const_ty: Some(cty),
+                });
             }
         }
     }
@@ -1344,6 +1396,10 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         TyData::Desc(inner) | TyData::Managed(inner) => Some(types.intern(TyData::Managed(inner))),
         TyData::Error => Some(ty),
         TyData::Unit
+        | TyData::Type
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::ArrayConst { .. }
         | TyData::Bool
         | TyData::Never
         | TyData::Int(_)
@@ -2505,7 +2561,22 @@ fn resolve_type_with_lifetimes(
                                 let r = lifetimes.iter().position(|l| l == lt).map(|i| i as u32);
                                 regions.push(r);
                             }
-                            ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                            ast::GenericArg::Const(expr) => {
+                                if let Some(n) = eval_const_u32(expr, from, modules, mod_by_path) {
+                                    tys.push(types.intern(TyData::ConstU32(n)));
+                                } else if let ast::ExprKind::Name(cname) = &expr.kind
+                                    && let Some(idx) = generics.iter().position(|g| g == cname)
+                                {
+                                    tys.push(types.intern(TyData::ConstParam(idx as u32)));
+                                } else {
+                                    return Err(diag::error(
+                                        diag::ARRAY_LENGTH,
+                                        expr.span,
+                                        "const generic argument must be a compile-time usize constant",
+                                    ));
+                                }
+                            }
+                            ast::GenericArg::AssociatedBinding(_) => {
                                 return Err(diag::unsupported(
                                     "non-type generic arguments",
                                     t.span,
@@ -2542,7 +2613,22 @@ fn resolve_type_with_lifetimes(
                                 types,
                             )?),
                             ast::GenericArg::Lifetime(_) => {}
-                            ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                            ast::GenericArg::Const(expr) => {
+                                if let Some(n) = eval_const_u32(expr, from, modules, mod_by_path) {
+                                    tys.push(types.intern(TyData::ConstU32(n)));
+                                } else if let ast::ExprKind::Name(cname) = &expr.kind
+                                    && let Some(idx) = generics.iter().position(|g| g == cname)
+                                {
+                                    tys.push(types.intern(TyData::ConstParam(idx as u32)));
+                                } else {
+                                    return Err(diag::error(
+                                        diag::ARRAY_LENGTH,
+                                        expr.span,
+                                        "const generic argument must be a compile-time usize constant",
+                                    ));
+                                }
+                            }
+                            ast::GenericArg::AssociatedBinding(_) => {
                                 return Err(diag::unsupported(
                                     "non-type generic arguments",
                                     t.span,
@@ -2626,14 +2712,23 @@ fn resolve_type_with_lifetimes(
                 return Ok(types.intern(TyData::Slice(element)));
             };
             let n = eval_const_u32(length, from, modules, mod_by_path);
-            let Some(length) = n else {
-                return Err(diag::error(
-                    diag::ARRAY_LENGTH,
-                    t.span,
-                    "array length must be a usize literal",
-                ));
-            };
-            Ok(types.intern(TyData::Array { element, length }))
+            if let Some(length) = n {
+                return Ok(types.intern(TyData::Array { element, length }));
+            }
+            if let ast::ExprKind::Name(cname) = &length.kind
+                && let Some(idx) = generics.iter().position(|g| g == cname)
+            {
+                let len_ty = types.intern(TyData::ConstParam(idx as u32));
+                return Ok(types.intern(TyData::ArrayConst {
+                    element,
+                    length: len_ty,
+                }));
+            }
+            Err(diag::error(
+                diag::ARRAY_LENGTH,
+                t.span,
+                "array length must be a usize literal or const generic parameter",
+            ))
         }
         ast::TypeKind::Reference {
             lifetime,

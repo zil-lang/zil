@@ -553,7 +553,7 @@ fn helper_and_readiness_explicit_manifest() {
         ),
         (
             "tests/language-readiness/controls/ct-type-control.zil",
-            Expected::Rejected("typeck", "unknown type `Type`"),
+            Expected::Admitted,
         ),
         (
             "tests/language-readiness/controls/mutable-copy-record-helper-control.zil",

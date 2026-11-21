@@ -46,11 +46,12 @@ pub struct Mono<'c, 'a, 'e> {
     diags: &'c mut Vec<Diagnostic>,
     limits: Limits,
     ct: Option<&'e mut dyn ConstEvaluator>,
+    is_ct_eval: bool,
     pub module: Module,
     pub source_map: SourceMap,
     instances: HashMap<(FnRef, Vec<Ty>), FnId>,
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
-    adts: HashMap<AdtRef, AdtId>,
+    adts: HashMap<(AdtRef, Vec<u32>), AdtId>,
     dyns: HashMap<TraitRef, DynId>,
     closures: HashMap<(FnRef, Vec<Ty>, ClosureRef), ClosureId>,
     closure_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, ClosureId)>,
@@ -75,6 +76,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             diags,
             limits,
             ct,
+            is_ct_eval: false,
             module: Module::default(),
             source_map: SourceMap::default(),
             instances: HashMap::new(),
@@ -87,6 +89,10 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             closure_fn_queue: VecDeque::new(),
             ensured: HashSet::new(),
         }
+    }
+
+    pub fn ty_data(&self, ty: Ty) -> &TyData {
+        self.types.data(ty)
     }
 
     /// Lowers all `extern "C"` declarations into `module.foreigns`.
@@ -352,26 +358,59 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
     // ---- types -------------------------------------------------------------
 
     fn adt_id(&mut self, adt: AdtRef, span: Span) -> Option<AdtId> {
-        if let Some(id) = self.adts.get(&adt) {
+        self.adt_id_for(adt, &[], span)
+    }
+
+    fn adt_id_for(&mut self, adt: AdtRef, args: &[Ty], span: Span) -> Option<AdtId> {
+        let decl = self.items.adt(adt);
+        let has_const = args
+            .iter()
+            .any(|&t| matches!(self.types.data(t), TyData::ConstU32(_)));
+        let mut const_key = Vec::new();
+        let mut const_subst = Vec::new();
+        if has_const {
+            for (i, _) in decl.generics.iter().enumerate() {
+                if let Some(&t) = args.get(i)
+                    && let TyData::ConstU32(n) = *self.types.data(t)
+                {
+                    const_key.push(n);
+                    const_subst.push(self.types.intern(TyData::ConstU32(n)));
+                } else {
+                    const_subst.push(self.types.intern(TyData::Param(i as u32)));
+                }
+            }
+        }
+        let key = (adt, const_key.clone());
+        if let Some(id) = self.adts.get(&key) {
             return Some(*id);
         }
-        let decl = self.items.adt(adt);
+        let name = if const_key.is_empty() {
+            decl.name.clone()
+        } else {
+            let suffix: Vec<String> = const_key.iter().map(|n| n.to_string()).collect();
+            format!("{}${}", decl.name, suffix.join("_"))
+        };
         let id = self.module.tys.add_adt(AdtDef {
-            name: decl.name.clone(),
+            name: name.clone(),
             kind: decl.kind,
             type_params: decl.generics.len() as u32,
             region_params: 0,
             variants: Vec::new(),
             user_drop: decl.user_drop,
         });
-        self.adts.insert(adt, id);
+        self.adts.insert(key, id);
         let mut variants = Vec::new();
         for v in &decl.variants {
             let mut fields = Vec::new();
             for f in &v.fields {
+                let fty = if has_const {
+                    self.types.subst(f.ty, &const_subst)
+                } else {
+                    f.ty
+                };
                 fields.push(FieldDef {
                     name: f.name.clone(),
-                    ty: self.lower_ty(f.ty, span)?,
+                    ty: self.lower_ty(fty, span)?,
                 });
             }
             variants.push(VariantDef {
@@ -382,7 +421,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         self.module.tys.set_adt(
             id,
             AdtDef {
-                name: decl.name.clone(),
+                name,
                 kind: decl.kind,
                 type_params: decl.generics.len() as u32,
                 region_params: decl.region_params,
@@ -511,6 +550,15 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         let ty = self.items.normalize_ty(ty, self.types);
         let kind = match self.types.data(ty).clone() {
             TyData::Unit => TyKind::Unit,
+            TyData::Type => {
+                if self.is_ct_eval {
+                    TyKind::Int(IntTy::U32)
+                } else {
+                    self.diags
+                        .push(diag::unsupported("runtime Type value", span));
+                    return None;
+                }
+            }
             TyData::Bool => TyKind::Bool,
             TyData::Never => TyKind::Never,
             TyData::Int(i) => TyKind::Int(i),
@@ -529,7 +577,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             },
             TyData::Slice(element) => TyKind::Slice(self.lower_ty(element, span)?),
             TyData::Adt { adt, args, regions } => {
-                let adt = self.adt_id(adt, span)?;
+                let adt = self.adt_id_for(adt, &args, span)?;
                 let args = self.args_id_with_regions(&args, &regions, span)?;
                 TyKind::Adt { adt, args }
             }
@@ -623,7 +671,13 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             }
             TyData::Dyn(tr) => TyKind::Dyn(self.dyn_id(tr, span)?),
             TyData::OwnedDyn(tr) => TyKind::OwnedDyn(self.dyn_id(tr, span)?),
-            TyData::SelfParam | TyData::Assoc { .. } | TyData::Var(_) | TyData::Error => {
+            TyData::ConstU32(_) => TyKind::Unit,
+            TyData::ArrayConst { .. }
+            | TyData::ConstParam(_)
+            | TyData::SelfParam
+            | TyData::Assoc { .. }
+            | TyData::Var(_)
+            | TyData::Error => {
                 self.diags.push(diag::error(
                     diag::TYPE_INFERENCE,
                     span,
@@ -1167,11 +1221,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         args: &[Ty],
         span: Span,
     ) -> Option<FieldRef> {
-        let adt_id = self.mono.adt_id(adt, span)?;
+        let closed: Vec<Ty> = args.iter().map(|a| self.closed(*a)).collect();
+        let adt_id = self.mono.adt_id_for(adt, &closed, span)?;
         let args_id = if let Some(exact) = self.place_adt_args(base_place, adt_id) {
             exact
         } else {
-            let closed: Vec<Ty> = args.iter().map(|a| self.closed(*a)).collect();
             let reg_n = self.mono.items.adt(adt).region_params as usize;
             self.mono
                 .args_id_with_regions(&closed, &vec![None; reg_n], span)?
@@ -1228,6 +1282,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Try(_)
             | ExprKind::CtEval(_)
             | ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
             | ExprKind::StaticUtf(_)
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
@@ -1297,6 +1352,21 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             let ty = self.ty(e.ty, e.span);
             return self.constant(*l, ty, e.span);
         }
+        if let ExprKind::ConstGeneric(idx) = &e.kind {
+            let ty = self.ty(e.ty, e.span);
+            let val = self
+                .subst
+                .get(*idx as usize)
+                .and_then(|&t| {
+                    if let TyData::ConstU32(n) = self.mono.types.data(t) {
+                        Some(*n)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0);
+            return self.constant(Lit::Int(val as i128), ty, e.span);
+        }
         if let ExprKind::Give(inner) = &e.kind {
             return Operand::Move(self.place(inner));
         }
@@ -1331,7 +1401,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             } => {
                 let closed: Vec<Ty> = args.iter().map(|a| self.closed(*a)).collect();
                 let operands = self.eval_operands(e.span, fields);
-                let Some(adt_id) = self.mono.adt_id(*adt, e.span) else {
+                let Some(adt_id) = self.mono.adt_id_for(*adt, &closed, e.span) else {
                     self.failed = true;
                     return Rvalue::Use(Operand::Const(ConstValue::Unit));
                 };
@@ -1483,6 +1553,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Intrinsic { .. }
             | ExprKind::Try(_)
             | ExprKind::CtEval(_)
+            | ExprKind::ConstGeneric(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::Field { .. }
@@ -1854,6 +1925,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 }
             }
             ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
             | ExprKind::StaticUtf(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
@@ -1901,6 +1973,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             self.mono.limits,
             ct_handle,
         );
+        ct_mono.is_ct_eval = true;
         ct_mono.lower_foreigns();
         let Some(result) = ct_mono.lower_ty(closed_ty, span) else {
             self.mono.ct = ct_mono.ct.take();
@@ -2270,6 +2343,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 }
             }
             ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
             | ExprKind::StaticUtf(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_) => {}
@@ -2841,5 +2915,97 @@ fn build_fn_source_map(
         declaration: NodeId(decl_start),
         relations,
         spans,
+    }
+}
+
+/// Evaluates a compile-time expression of type `Type` through the full
+/// `zil-solve -> zil-check -> zil-interp` pipeline and recovers its interned
+/// `Ty` identity.
+#[allow(clippy::too_many_arguments)]
+pub fn eval_ct_type_expr<'a>(
+    items: &Items<'a>,
+    types: &mut Types,
+    thir: &[Option<ThirFn>],
+    owner_fn: FnRef,
+    locals: &[LocalInfo],
+    inner: &Expr,
+    diags: &mut Vec<Diagnostic>,
+    limits: Limits,
+    ct: &mut dyn ConstEvaluator,
+    span: Span,
+) -> Option<Ty> {
+    let mut ct_mono = Mono::new(items, types, thir, diags, limits, None);
+    ct_mono.is_ct_eval = true;
+    ct_mono.lower_foreigns();
+    let result = ct_mono.lower_ty(inner.ty, span)?;
+    let sig = FnSig {
+        params: Vec::new(),
+        result,
+        type_params: 0,
+        region_params: 0,
+        role: FnRole::Normal,
+    };
+    let synthetic_thir = ThirFn {
+        locals: locals.to_vec(),
+        params: Vec::new(),
+        body: Expr {
+            kind: ExprKind::Return(Some(Box::new(inner.clone()))),
+            ty: inner.ty,
+            span,
+        },
+        closures: Vec::new(),
+        opaque_return: None,
+    };
+    let mut b = Builder::new(
+        &mut ct_mono,
+        owner_fn,
+        &synthetic_thir,
+        Vec::new(),
+        sig.clone(),
+    );
+    b.function(&synthetic_thir);
+    let failed = b.failed;
+    let (body, _) = b.finish();
+    if failed {
+        return None;
+    }
+    let entry = FnId::from_index(ct_mono.module.functions.len());
+    ct_mono.module.functions.push(Function {
+        name: "$ct_type_eval".to_string(),
+        sig,
+        body,
+    });
+    ct_mono.run();
+    let ct_module = std::mem::take(&mut ct_mono.module);
+    drop(ct_mono);
+    match ct.eval(ct_module, entry, span) {
+        Ok(CtValue::Int {
+            ty: IntTy::U32,
+            bits,
+        }) => {
+            let idx = bits as usize;
+            if idx < types.len() {
+                Some(Ty(idx as u32))
+            } else {
+                diags.push(diag::error(
+                    diag::TYPE_INFERENCE,
+                    span,
+                    "compile-time Type evaluation returned an invalid type identity",
+                ));
+                None
+            }
+        }
+        Ok(_) => {
+            diags.push(diag::error(
+                diag::TYPE_MISMATCH,
+                span,
+                "compile-time type expression `#(...)` must evaluate to a `Type` value",
+            ));
+            None
+        }
+        Err(d) => {
+            diags.push(d);
+            None
+        }
     }
 }

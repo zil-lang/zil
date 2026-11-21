@@ -43,10 +43,13 @@ struct CaptureEnv {
     captures: Vec<CaptureEntry>,
 }
 
-pub struct FnCx<'c, 'a> {
+pub struct FnCx<'c, 'a, 'e> {
     items: &'c Items<'a>,
     types: &'c mut Types,
     diags: &'c mut Vec<Diagnostic>,
+    completed_thir: &'c [Option<ThirFn>],
+    ct: Option<&'e mut dyn crate::ConstEvaluator>,
+    limits: crate::build::Limits,
     fn_ref: FnRef,
     decl: &'c FnDecl<'a>,
     current_module: ModIdx,
@@ -63,10 +66,14 @@ pub struct FnCx<'c, 'a> {
 }
 
 /// Infers one function body against its declared signature.
+#[allow(clippy::too_many_arguments)]
 pub fn infer_fn<'a>(
     items: &Items<'a>,
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
+    completed_thir: &[Option<ThirFn>],
+    ct: Option<&mut dyn crate::ConstEvaluator>,
+    limits: crate::build::Limits,
     f: FnRef,
 ) -> Option<ThirFn> {
     let decl = items.func(f);
@@ -75,6 +82,9 @@ pub fn infer_fn<'a>(
         items,
         types,
         diags,
+        completed_thir,
+        ct,
+        limits,
         fn_ref: f,
         decl,
         current_module: decl.module,
@@ -146,7 +156,7 @@ pub fn infer_fn<'a>(
     (diags.len() == errors_before).then_some(thir)
 }
 
-impl<'c, 'a> FnCx<'c, 'a> {
+impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
     fn declare(&mut self, name: &str, ty: Ty, mutable: bool, span: Span) -> LocalId {
         let id = LocalId(self.locals.len() as u32);
         self.locals.push(LocalInfo {
@@ -1056,6 +1066,30 @@ impl<'c, 'a> FnCx<'c, 'a> {
     }
 
     fn resolve_written(&mut self, t: &ast::TypeRef) -> Ty {
+        if let ast::TypeKind::MetaEval(inner_ast) = &t.kind {
+            let meta_ty = self.types.meta_type();
+            let expr = self.infer_expected(inner_ast, meta_ty);
+            let expr = self.coerce_value(expr, meta_ty, inner_ast.span);
+            let Some(ct) = self.ct.as_deref_mut() else {
+                self.unsupported("compile-time types", t.span);
+                return self.types.error();
+            };
+            let mut expr = expr;
+            expr.ty = self.types.zonk(expr.ty).unwrap_or(meta_ty);
+            return crate::build::eval_ct_type_expr(
+                self.items,
+                self.types,
+                self.completed_thir,
+                self.fn_ref,
+                &self.locals,
+                &expr,
+                self.diags,
+                self.limits,
+                ct,
+                t.span,
+            )
+            .unwrap_or_else(|| self.types.error());
+        }
         match resolve_type(
             t,
             self.decl.module,
@@ -1070,6 +1104,23 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.types.error()
             }
         }
+    }
+
+    fn resolve_const_generic_arg(&mut self, expr: &ast::Expr) -> Ty {
+        if let Some(n) = self.items.eval_const_u32(expr, self.current_module) {
+            return self.types.intern(TyData::ConstU32(n));
+        }
+        if let ast::ExprKind::Name(cname) = &expr.kind
+            && let Some(idx) = self.generic_names.iter().position(|g| g == cname)
+        {
+            return self.types.intern(TyData::ConstParam(idx as u32));
+        }
+        self.error(
+            diag::ARRAY_LENGTH,
+            expr.span,
+            "const generic argument must be a compile-time usize constant",
+        );
+        self.types.error()
     }
 
     fn fresh_args(&mut self, adt: AdtRef) -> Vec<Ty> {
@@ -1780,6 +1831,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 | ExprKind::Try(_)
                 | ExprKind::CtEval(_)
                 | ExprKind::Lit(_)
+                | ExprKind::ConstGeneric(_)
                 | ExprKind::StaticUtf(_)
                 | ExprKind::Unary { .. }
                 | ExprKind::Binary { .. }
@@ -2094,6 +2146,16 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 if let Some(captured) = self.capture_outer(n, span) {
                     return captured;
                 }
+                if let Some((idx, g)) = self
+                    .decl
+                    .generics
+                    .iter()
+                    .enumerate()
+                    .find(|(_, g)| g.name == *n && g.const_ty.is_some())
+                {
+                    let ty = g.const_ty.unwrap();
+                    return mk(ExprKind::ConstGeneric(idx as u32), ty);
+                }
                 match self
                     .items
                     .lookup_item(self.current_module, std::slice::from_ref(n))
@@ -2110,11 +2172,27 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             }));
                         mk(ExprKind::ForeignRef(f), ty)
                     }
+                    Some(ItemRef::Adt(adt))
+                        if matches!(self.types.data(self.ret_ty), TyData::Type)
+                            && self.items.adt(adt).generics.is_empty()
+                            && self.items.adt(adt).region_params == 0 =>
+                    {
+                        let val_ty = self.adt_ty(adt, &[]);
+                        let meta_ty = self.types.meta_type();
+                        mk(ExprKind::Lit(Lit::Int(val_ty.0 as i128)), meta_ty)
+                    }
                     Some(ItemRef::Adt(_) | ItemRef::Trait(_) | ItemRef::TypeAlias(_, _)) => {
                         self.error(diag::NAME_UNRESOLVED, span, format!("`{n}` is a type"));
                         self.err_expr(span)
                     }
                     None => {
+                        if n != "Type"
+                            && let Some(scalar) = scalar_type(n)
+                        {
+                            let val_ty = self.types.intern(scalar);
+                            let meta_ty = self.types.meta_type();
+                            return mk(ExprKind::Lit(Lit::Int(val_ty.0 as i128)), meta_ty);
+                        }
                         self.error(diag::NAME_UNRESOLVED, span, format!("unknown name `{n}`"));
                         self.err_expr(span)
                     }
@@ -2164,9 +2242,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
                 let bt = self.types.shallow(base.ty);
                 let element = match self.types.data(bt) {
-                    TyData::Array { element, .. } | TyData::Slice(element) => *element,
+                    TyData::Array { element, .. }
+                    | TyData::ArrayConst { element, .. }
+                    | TyData::Slice(element) => *element,
                     TyData::Error => self.types.error(),
                     TyData::Unit
+                    | TyData::Type
+                    | TyData::ConstParam(_)
+                    | TyData::ConstU32(_)
                     | TyData::Bool
                     | TyData::Never
                     | TyData::Int(_)
@@ -2281,7 +2364,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         match g {
                             ast::GenericArg::Type(t) => explicit_tys.push(self.resolve_written(t)),
                             ast::GenericArg::Lifetime(_) => {}
-                            ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                            ast::GenericArg::Const(expr) => {
+                                explicit_tys.push(self.resolve_const_generic_arg(expr));
+                            }
+                            ast::GenericArg::AssociatedBinding(_) => {
                                 self.unsupported("non-type generic arguments", span);
                                 return self.err_expr(span);
                             }
@@ -2838,6 +2924,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
                         self.err_expr(span)
                     }
                     TyData::Unit
+                    | TyData::Type
+                    | TyData::ConstParam(_)
+                    | TyData::ConstU32(_)
                     | TyData::Bool
                     | TyData::Never
                     | TyData::Int(_)
@@ -2845,6 +2934,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | TyData::Adt { .. }
                     | TyData::Tuple(_)
                     | TyData::Array { .. }
+                    | TyData::ArrayConst { .. }
                     | TyData::Slice(_)
                     | TyData::Managed(_)
                     | TyData::Desc(_)
@@ -2878,8 +2968,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     let start = start.as_ref().map(|e| Box::new(self.infer(e)));
                     let end = end.as_ref().map(|e| Box::new(self.infer(e)));
                     let bt = self.types.shallow(base.ty);
-                    let elem = if let TyData::Array { element, .. } | TyData::Slice(element) =
-                        *self.types.data(bt)
+                    let elem = if let TyData::Array { element, .. }
+                    | TyData::ArrayConst { element, .. }
+                    | TyData::Slice(element) = *self.types.data(bt)
                     {
                         element
                     } else if matches!(self.types.data(bt), TyData::Error) {
@@ -3185,8 +3276,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     for g in given {
                         match g {
                             ast::GenericArg::Type(t) => out.push(self.resolve_written(t)),
+                            ast::GenericArg::Const(expr) => {
+                                out.push(self.resolve_const_generic_arg(expr));
+                            }
                             ast::GenericArg::Lifetime(_)
-                            | ast::GenericArg::Const(_)
                             | ast::GenericArg::AssociatedBinding(_) => {
                                 self.unsupported("non-type generic arguments", span);
                                 out.push(self.types.error());
@@ -3324,7 +3417,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 match g {
                     ast::GenericArg::Type(t) => explicit_tys.push(self.resolve_written(t)),
                     ast::GenericArg::Lifetime(_) => {}
-                    ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                    ast::GenericArg::Const(expr) => {
+                        explicit_tys.push(self.resolve_const_generic_arg(expr));
+                    }
+                    ast::GenericArg::AssociatedBinding(_) => {
                         self.unsupported("non-type generic arguments", span);
                         explicit_tys.push(self.types.error());
                     }
@@ -4427,7 +4523,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     match g {
                         ast::GenericArg::Type(t) => out.push(self.resolve_written(t)),
                         ast::GenericArg::Lifetime(_) => {}
-                        ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                        ast::GenericArg::Const(expr) => {
+                            out.push(self.resolve_const_generic_arg(expr));
+                        }
+                        ast::GenericArg::AssociatedBinding(_) => {
                             self.unsupported("non-type generic arguments", span);
                             return self.err_expr(span);
                         }
@@ -4489,6 +4588,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 TyData::Ref { .. } => true,
                 TyData::Tuple(xs) => xs.into_iter().any(|x| walk(types, x, depth + 1)),
                 TyData::Array { element: elem, .. }
+                | TyData::ArrayConst { element: elem, .. }
                 | TyData::Slice(elem)
                 | TyData::Managed(elem)
                 | TyData::Desc(elem) => walk(types, elem, depth + 1),
@@ -4511,6 +4611,9 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     | OpaqueKind::AsyncRegistration(e),
                 ) => walk(types, e, depth + 1),
                 TyData::Unit
+                | TyData::Type
+                | TyData::ConstParam(_)
+                | TyData::ConstU32(_)
                 | TyData::Bool
                 | TyData::Int(_)
                 | TyData::Float(_)
@@ -4570,6 +4673,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Try(inner)
             | ExprKind::CtEval(inner) => walk(inner),
             ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
             | ExprKind::StaticUtf(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
@@ -4747,6 +4851,9 @@ impl Finalizer<'_, '_> {
             TyData::Closure { .. } | TyData::ImplCallable { .. } => true,
             TyData::Tuple(xs) => xs.iter().any(|&x| self.may_suspend_on_drop(x)),
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Int(_)
             | TyData::Float(_)
@@ -4754,6 +4861,7 @@ impl Finalizer<'_, '_> {
             | TyData::Param(_)
             | TyData::Var(_)
             | TyData::Array { .. }
+            | TyData::ArrayConst { .. }
             | TyData::Slice(_)
             | TyData::Ref { .. }
             | TyData::FnPtr { .. }
@@ -4785,13 +4893,18 @@ impl Finalizer<'_, '_> {
         }
         match self.data(ty) {
             TyData::Unit
+            | TyData::Type
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
             | TyData::Bool
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Error => true,
             TyData::Tuple(items) => items.iter().all(|t| self.is_copy_depth(*t, depth + 1)),
-            TyData::Array { element, .. } => self.is_copy_depth(element, depth + 1),
+            TyData::Array { element, .. } | TyData::ArrayConst { element, .. } => {
+                self.is_copy_depth(element, depth + 1)
+            }
             TyData::Slice(_) | TyData::SelfParam => false,
             TyData::Ref { mutable, .. } => !mutable,
             TyData::Desc(_) | TyData::FnPtr { .. } => true,
@@ -4876,6 +4989,7 @@ impl Finalizer<'_, '_> {
             (Lit::Float(_), TyData::Float(zil_ir::body::FloatTy::F64))
             | (Lit::Bool(_), TyData::Bool)
             | (Lit::Unit, TyData::Unit)
+            | (Lit::Int(_), TyData::Type)
             | (_, TyData::Error) => {}
             _ => self.diags.push(diag::error(
                 diag::TYPE_MISMATCH,
@@ -4905,7 +5019,7 @@ impl Finalizer<'_, '_> {
             }
             BinOp::Eq | BinOp::Ne => matches!(
                 kind,
-                TyData::Int(_) | TyData::Float(_) | TyData::Bool | TyData::Unit
+                TyData::Int(_) | TyData::Float(_) | TyData::Bool | TyData::Unit | TyData::Type
             ),
             BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
                 matches!(kind, TyData::Int(_) | TyData::Float(_))
@@ -4931,6 +5045,7 @@ impl Finalizer<'_, '_> {
                 self.literal(l, ty, span);
             }
             ExprKind::StaticUtf(_)
+            | ExprKind::ConstGeneric(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::ForeignRef(_)
@@ -5269,6 +5384,7 @@ fn expr_contains_suspend(e: &Expr) -> bool {
             ..
         } => true,
         ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
         | ExprKind::StaticUtf(_)
         | ExprKind::Local(_)
         | ExprKind::Capture(_)
@@ -5361,6 +5477,7 @@ fn unwrap_local_ref(e: &Expr) -> Option<LocalId> {
         ExprKind::Local(l) => Some(*l),
         ExprKind::Give(inner) => unwrap_local_ref(inner),
         ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
         | ExprKind::StaticUtf(_)
         | ExprKind::Capture(_)
         | ExprKind::Field { .. }
@@ -5418,6 +5535,7 @@ fn unwrap_capture_ref(e: &Expr) -> Option<u32> {
         ExprKind::Capture(c) => Some(*c),
         ExprKind::Give(inner) => unwrap_capture_ref(inner),
         ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
         | ExprKind::StaticUtf(_)
         | ExprKind::Local(_)
         | ExprKind::Field { .. }
@@ -5580,6 +5698,7 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
                     || walk(value, aliases, root_cap)
             }
             ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
             | ExprKind::StaticUtf(_)
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
