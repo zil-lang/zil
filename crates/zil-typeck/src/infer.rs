@@ -4092,6 +4092,9 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             "task_request_cancel" => IntrinsicOp::TaskRequestCancel,
             "task_poll_close" => IntrinsicOp::TaskPollClose,
             "task_finish_destroy" => IntrinsicOp::TaskFinishDestroy,
+            "c_register" => IntrinsicOp::RegistrationStart,
+            "registration_valid" => IntrinsicOp::RegistrationValid,
+            "registration_close" => IntrinsicOp::RegistrationClose,
             "c_register_async" => IntrinsicOp::AsyncRegistrationStart,
             "async_registration_valid" => IntrinsicOp::AsyncRegistrationValid,
             "async_registration_request_close" => IntrinsicOp::AsyncRegistrationRequestClose,
@@ -4101,6 +4104,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             }
             _ => return None,
         };
+        if matches!(
+            op,
+            IntrinsicOp::RegistrationStart | IntrinsicOp::AsyncRegistrationStart
+        ) && self.in_unsafe == 0
+        {
+            self.error(
+                diag::FFI_UNSAFE,
+                span,
+                format!("calling `{name}` requires an `unsafe` block"),
+            );
+        }
         if explicit.is_some() {
             self.error(
                 diag::TYPE_ARGUMENT,
@@ -4509,15 +4523,38 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let managed = self.types.intern(TyData::Managed(inner));
                 (vec![managed], unit_ty)
             }
+            IntrinsicOp::RegistrationStart => {
+                let env = self.types.fresh(VarKind::General);
+                let reg = self.types.fresh(VarKind::General);
+                let close = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::Registration(env)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                (vec![reg, close, env], managed)
+            }
+            IntrinsicOp::RegistrationValid => {
+                let env = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::Registration(env)));
+                let desc = self.types.intern(TyData::Desc(inner));
+                (vec![desc], bool_ty)
+            }
+            IntrinsicOp::RegistrationClose => {
+                let env = self.types.fresh(VarKind::General);
+                let inner = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::Registration(env)));
+                let managed = self.types.intern(TyData::Managed(inner));
+                (vec![managed], unit_ty)
+            }
             IntrinsicOp::MutexUnlock
             | IntrinsicOp::SyncLoad
             | IntrinsicOp::SyncStore
             | IntrinsicOp::SyncFetchAdd
             | IntrinsicOp::SyncCompareExchange
             | IntrinsicOp::TaskStart
-            | IntrinsicOp::RegistrationStart
-            | IntrinsicOp::RegistrationValid
-            | IntrinsicOp::RegistrationClose
             | IntrinsicOp::ManagedCreate
             | IntrinsicOp::OwnedDynCreate
             | IntrinsicOp::ThreadScope => return None,
@@ -4648,6 +4685,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     OpaqueKind::OwnedStore(e)
                     | OpaqueKind::Mutex(e)
                     | OpaqueKind::MutexGuard(e)
+                    | OpaqueKind::Registration(e)
                     | OpaqueKind::AsyncRegistration(e),
                 ) => walk(types, e, depth + 1),
                 TyData::Unit
@@ -4960,6 +4998,7 @@ impl Finalizer<'_, '_> {
                 | OpaqueKind::Mutex(_)
                 | OpaqueKind::MutexGuard(_)
                 | OpaqueKind::Task { .. }
+                | OpaqueKind::Registration(_)
                 | OpaqueKind::AsyncRegistration(_),
             ) => false,
             TyData::ErrorUnion { ok, err } => {

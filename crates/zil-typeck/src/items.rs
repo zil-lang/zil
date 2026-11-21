@@ -317,6 +317,10 @@ impl<'a> Items<'a> {
                 let context = context.map(|c| self.normalize_ty_depth(c, types, depth + 1));
                 types.intern(TyData::Opaque(OpaqueKind::Task { result, context }))
             }
+            TyData::Opaque(OpaqueKind::Registration(elem)) => {
+                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                types.intern(TyData::Opaque(OpaqueKind::Registration(elem)))
+            }
             TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
                 let elem = self.normalize_ty_depth(elem, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
@@ -2447,7 +2451,7 @@ fn resolve_type_with_lifetimes(
                 }
                 if matches!(
                     name.as_str(),
-                    "Task" | "Mutex" | "MutexGuard" | "AsyncRegistration"
+                    "Task" | "Mutex" | "MutexGuard" | "Registration" | "AsyncRegistration"
                 ) {
                     let (elem_ast, ctx_ty) = match (name.as_str(), args.as_slice()) {
                         ("Task", [ast::GenericArg::Type(r), ast::GenericArg::Type(ctx)]) => {
@@ -2500,6 +2504,11 @@ fn resolve_type_with_lifetimes(
                         }
                         "MutexGuard" => {
                             Ok(types.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem))))
+                        }
+                        "Registration" => {
+                            let inner =
+                                types.intern(TyData::Opaque(OpaqueKind::Registration(elem)));
+                            Ok(types.intern(TyData::Desc(inner)))
                         }
                         _ => {
                             let inner =
@@ -2751,7 +2760,11 @@ fn resolve_type_with_lifetimes(
                 && let TyData::Desc(inner_ty) = *types.data(pointee)
                 && matches!(
                     types.data(inner_ty),
-                    TyData::Opaque(OpaqueKind::Task { .. } | OpaqueKind::AsyncRegistration(_))
+                    TyData::Opaque(
+                        OpaqueKind::Task { .. }
+                            | OpaqueKind::Registration(_)
+                            | OpaqueKind::AsyncRegistration(_),
+                    )
                 )
             {
                 pointee = types.intern(TyData::Managed(inner_ty));

@@ -162,6 +162,234 @@ done:\n\
 }\n",
     );
     header.push_str(
+        "%__zil_reg_hdr = type { i32, ptr, ptr, ptr }\n\
+define linkonce_odr void @__zil_reg_drop_frame(ptr %frame) {\n\
+entry:\n\
+  %is_null = icmp eq ptr %frame, null\n\
+  br i1 %is_null, label %done, label %close_step\n\
+close_step:\n\
+  %gate_p = getelementptr inbounds %__zil_reg_hdr, ptr %frame, i32 0, i32 0\n\
+  store i32 2, ptr %gate_p\n\
+  %cfn_p = getelementptr inbounds %__zil_reg_hdr, ptr %frame, i32 0, i32 2\n\
+  %cfn = load ptr, ptr %cfn_p\n\
+  %has_cfn = icmp ne ptr %cfn, null\n\
+  br i1 %has_cfn, label %check_tok, label %drop_env\n\
+check_tok:\n\
+  store ptr null, ptr %cfn_p\n\
+  %tok_p = getelementptr inbounds %__zil_reg_hdr, ptr %frame, i32 0, i32 1\n\
+  %tok = load ptr, ptr %tok_p\n\
+  %has_tok = icmp ne ptr %tok, null\n\
+  br i1 %has_tok, label %call_close, label %drop_env\n\
+call_close:\n\
+  call void %cfn(ptr %tok)\n\
+  br label %drop_env\n\
+drop_env:\n\
+  %dfn_p = getelementptr inbounds %__zil_reg_hdr, ptr %frame, i32 0, i32 3\n\
+  %dfn = load ptr, ptr %dfn_p\n\
+  %has_dfn = icmp ne ptr %dfn, null\n\
+  br i1 %has_dfn, label %call_drop, label %do_free\n\
+call_drop:\n\
+  store ptr null, ptr %dfn_p\n\
+  call void %dfn(ptr %frame)\n\
+  br label %do_free\n\
+do_free:\n\
+  call void @free(ptr %frame)\n\
+  br label %done\n\
+done:\n\
+  ret void\n\
+}\n\
+%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n\
+define linkonce_odr void @__zil_areg_mark_closing(ptr %frame) {\n\
+entry:\n\
+  %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 0\n\
+  %g0 = load atomic i32, ptr %gate_p acquire, align 4\n\
+  br label %loop\n\
+loop:\n\
+  %g = phi i32 [ %g0, %entry ], [ %g_next, %retry ]\n\
+  %already = icmp uge i32 %g, 2\n\
+  br i1 %already, label %done, label %try_cas\n\
+try_cas:\n\
+  %target = or i32 %g, 2\n\
+  %res = cmpxchg ptr %gate_p, i32 %g, i32 %target acq_rel acquire\n\
+  %ok = extractvalue { i32, i1 } %res, 1\n\
+  br i1 %ok, label %done, label %retry\n\
+retry:\n\
+  %g_next = extractvalue { i32, i1 } %res, 0\n\
+  br label %loop\n\
+done:\n\
+  ret void\n\
+}\n\
+define linkonce_odr void @__zil_areg_request_close(ptr %frame) {\n\
+entry:\n\
+  %is_null = icmp eq ptr %frame, null\n\
+  br i1 %is_null, label %done, label %mark\n\
+mark:\n\
+  call void @__zil_areg_mark_closing(ptr %frame)\n\
+  %drv_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 1\n\
+  %lock_res = cmpxchg ptr %drv_p, i32 0, i32 1 acq_rel acquire\n\
+  %got_lock = extractvalue { i32, i1 } %lock_res, 1\n\
+  br i1 %got_lock, label %check_sent, label %done\n\
+check_sent:\n\
+  %sent_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 2\n\
+  %sent = load i32, ptr %sent_p\n\
+  %need_send = icmp eq i32 %sent, 0\n\
+  br i1 %need_send, label %do_send, label %unlock\n\
+do_send:\n\
+  store i32 1, ptr %sent_p\n\
+  %rfn_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 4\n\
+  %rfn = load ptr, ptr %rfn_p\n\
+  %tok_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 3\n\
+  %tok_i64 = load atomic i64, ptr %tok_p acquire, align 8\n\
+  %tok = inttoptr i64 %tok_i64 to ptr\n\
+  %has_rfn = icmp ne ptr %rfn, null\n\
+  %has_tok = icmp ne ptr %tok, null\n\
+  %can_call = and i1 %has_rfn, %has_tok\n\
+  br i1 %can_call, label %call_req, label %unlock\n\
+call_req:\n\
+  call void %rfn(ptr %tok)\n\
+  br label %unlock\n\
+unlock:\n\
+  store atomic i32 0, ptr %drv_p release, align 4\n\
+  br label %done\n\
+done:\n\
+  ret void\n\
+}\n\
+define linkonce_odr i1 @__zil_areg_poll_close(ptr %frame) {\n\
+entry:\n\
+  %is_null = icmp eq ptr %frame, null\n\
+  br i1 %is_null, label %ret_ready, label %try_lock\n\
+try_lock:\n\
+  %drv_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 1\n\
+  %lock_res = cmpxchg ptr %drv_p, i32 0, i32 1 acq_rel acquire\n\
+  %got_lock = extractvalue { i32, i1 } %lock_res, 1\n\
+  br i1 %got_lock, label %ensure_req, label %ret_pending\n\
+ensure_req:\n\
+  %sent_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 2\n\
+  %sent = load i32, ptr %sent_p\n\
+  %need_send = icmp eq i32 %sent, 0\n\
+  br i1 %need_send, label %do_req, label %check_gate\n\
+do_req:\n\
+  call void @__zil_areg_mark_closing(ptr %frame)\n\
+  store i32 1, ptr %sent_p\n\
+  %rfn_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 4\n\
+  %rfn = load ptr, ptr %rfn_p\n\
+  %tok_p0 = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 3\n\
+  %tok0_i64 = load atomic i64, ptr %tok_p0 acquire, align 8\n\
+  %tok0 = inttoptr i64 %tok0_i64 to ptr\n\
+  %has_rfn = icmp ne ptr %rfn, null\n\
+  %has_tok0 = icmp ne ptr %tok0, null\n\
+  %can_req = and i1 %has_rfn, %has_tok0\n\
+  br i1 %can_req, label %call_req, label %check_gate\n\
+call_req:\n\
+  call void %rfn(ptr %tok0)\n\
+  br label %check_gate\n\
+check_gate:\n\
+  %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 0\n\
+  %g = load atomic i32, ptr %gate_p acquire, align 4\n\
+  %is_closed = icmp eq i32 %g, 4\n\
+  br i1 %is_closed, label %unlock_ready, label %check_idle\n\
+check_idle:\n\
+  %is_idle = icmp eq i32 %g, 2\n\
+  br i1 %is_idle, label %call_drain, label %unlock_pending\n\
+call_drain:\n\
+  %pfn_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 5\n\
+  %pfn = load ptr, ptr %pfn_p\n\
+  %tok_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 3\n\
+  %tok_i64 = load atomic i64, ptr %tok_p acquire, align 8\n\
+  %tok = inttoptr i64 %tok_i64 to ptr\n\
+  %has_pfn = icmp ne ptr %pfn, null\n\
+  %has_tok = icmp ne ptr %tok, null\n\
+  %can_drain = and i1 %has_pfn, %has_tok\n\
+  br i1 %can_drain, label %do_drain, label %cleanup\n\
+do_drain:\n\
+  %rc = call i32 %pfn(ptr %tok)\n\
+  %rc_pend = icmp eq i32 %rc, 0\n\
+  br i1 %rc_pend, label %unlock_pending, label %check_rc_one\n\
+check_rc_one:\n\
+  %rc_done = icmp eq i32 %rc, 1\n\
+  br i1 %rc_done, label %recheck_idle, label %invalid_drain\n\
+recheck_idle:\n\
+  %g2 = load atomic i32, ptr %gate_p acquire, align 4\n\
+  %still_idle = icmp eq i32 %g2, 2\n\
+  br i1 %still_idle, label %cleanup, label %unlock_pending\n\
+cleanup:\n\
+  %dfn_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 6\n\
+  %dfn = load ptr, ptr %dfn_p\n\
+  %has_dfn = icmp ne ptr %dfn, null\n\
+  br i1 %has_dfn, label %call_drop, label %publish_closed\n\
+call_drop:\n\
+  store ptr null, ptr %dfn_p\n\
+  call void %dfn(ptr %frame)\n\
+  br label %publish_closed\n\
+publish_closed:\n\
+  store atomic i32 4, ptr %gate_p release, align 4\n\
+  br label %unlock_ready\n\
+invalid_drain:\n\
+  store atomic i32 0, ptr %drv_p release, align 4\n\
+  call void @abort()\n\
+  unreachable\n\
+unlock_pending:\n\
+  store atomic i32 0, ptr %drv_p release, align 4\n\
+  br label %ret_pending\n\
+unlock_ready:\n\
+  store atomic i32 0, ptr %drv_p release, align 4\n\
+  br label %ret_ready\n\
+ret_pending:\n\
+  ret i1 0\n\
+ret_ready:\n\
+  ret i1 1\n\
+}\n\
+define linkonce_odr void @__zil_areg_finish_destroy(ptr %frame) {\n\
+entry:\n\
+  %is_null = icmp eq ptr %frame, null\n\
+  br i1 %is_null, label %done, label %check\n\
+check:\n\
+  %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 0\n\
+  %g = load atomic i32, ptr %gate_p acquire, align 4\n\
+  %is_closed = icmp eq i32 %g, 4\n\
+  br i1 %is_closed, label %do_free, label %early_abort\n\
+early_abort:\n\
+  call void @abort()\n\
+  unreachable\n\
+do_free:\n\
+  call void @free(ptr %frame)\n\
+  br label %done\n\
+done:\n\
+  ret void\n\
+}\n\
+define linkonce_odr void @__zil_areg_drop_frame(ptr %frame) {\n\
+entry:\n\
+  %is_null = icmp eq ptr %frame, null\n\
+  br i1 %is_null, label %done, label %loop\n\
+loop:\n\
+  %ready = call i1 @__zil_areg_poll_close(ptr %frame)\n\
+  br i1 %ready, label %finish, label %maybe_yield\n\
+maybe_yield:\n\
+  %cur = load ptr, ptr @__zil_current_task\n\
+  %in_task = icmp ne ptr %cur, null\n\
+  br i1 %in_task, label %yield_task, label %loop\n\
+yield_task:\n\
+  %st_p = getelementptr inbounds %__zil_task_hdr, ptr %cur, i32 0, i32 0\n\
+  %cur_st = load i32, ptr %st_p\n\
+  %is_cl = icmp eq i32 %cur_st, 4\n\
+  %next_st = select i1 %is_cl, i32 4, i32 1\n\
+  store i32 %next_st, ptr %st_p\n\
+  %cctx = getelementptr inbounds %__zil_task_hdr, ptr %cur, i32 0, i32 2\n\
+  %wctx = getelementptr inbounds %__zil_task_hdr, ptr %cur, i32 0, i32 3\n\
+  %sc = call i32 @swapcontext(ptr %wctx, ptr %cctx)\n\
+  %sc_ok = icmp eq i32 %sc, 0\n\
+  br i1 %sc_ok, label %loop, label %sys_abort\n\
+sys_abort:\n\
+  call void @abort()\n\
+  unreachable\n\
+finish:\n\
+  call void @__zil_areg_finish_destroy(ptr %frame)\n\
+  br label %done\n\
+done:\n\
+  ret void\n\
+}\n",
+    );
+    header.push_str(
         "@__zil_fmt_i64 = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\", align 1\n\n",
     );
 
@@ -922,6 +1150,16 @@ impl<'a> FnEmitter<'a> {
                             writeln!(self.out, "  call void @__zil_task_drop_frame(ptr {handle})");
                         return Ok(());
                     }
+                    Some(TyKind::Opaque(OpaqueTy::Registration { .. })) => {
+                        let _ =
+                            writeln!(self.out, "  call void @__zil_reg_drop_frame(ptr {handle})");
+                        return Ok(());
+                    }
+                    Some(TyKind::Opaque(OpaqueTy::AsyncRegistration { .. })) => {
+                        let _ =
+                            writeln!(self.out, "  call void @__zil_areg_drop_frame(ptr {handle})");
+                        return Ok(());
+                    }
                     Some(TyKind::OwnedDyn(_)) => {
                         self.emit_owned_dyn_drop(ptr);
                         return Ok(());
@@ -945,8 +1183,6 @@ impl<'a> FnEmitter<'a> {
                         | TyKind::Param(_)
                         | TyKind::Opaque(
                             OpaqueTy::SyncCell { .. }
-                            | OpaqueTy::Registration { .. }
-                            | OpaqueTy::AsyncRegistration { .. }
                             | OpaqueTy::ForeignHandle
                             | OpaqueTy::CWideString
                             | OpaqueTy::ForeignCallback { .. },
@@ -3628,15 +3864,501 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "{l_done}:");
                 Ok(())
             }
-            IntrinsicOp::TaskStart
-            | IntrinsicOp::RegistrationStart
-            | IntrinsicOp::RegistrationValid
-            | IntrinsicOp::RegistrationClose
-            | IntrinsicOp::AsyncRegistrationStart
-            | IntrinsicOp::AsyncRegistrationValid
-            | IntrinsicOp::AsyncRegistrationRequestClose
-            | IntrinsicOp::AsyncRegistrationPollClose
-            | IntrinsicOp::AsyncRegistrationFinishDestroy => Err(BodyEmitError::new(format!(
+            IntrinsicOp::RegistrationStart => {
+                if args.len() != 3 {
+                    return Err(BodyEmitError::new(
+                        "RegistrationStart expects 3 arguments (reg, close, env)",
+                    ));
+                }
+                let (reg_fn, _, _) = self.emit_operand(&args[0])?;
+                let (close_fn, _, _) = self.emit_operand(&args[1])?;
+                let (env_val, env_lt, env_ty_opt) = self.emit_operand(&args[2])?;
+                let env_ty = env_ty_opt.ok_or_else(|| {
+                    BodyEmitError::new("RegistrationStart missing environment type")
+                })?;
+                let env_st = if env_lt == "void" {
+                    "i8".to_string()
+                } else {
+                    llvm_storage_ty(self.tys(), env_ty)?
+                };
+                let tid = self.tmp;
+                self.tmp += 1;
+                let frame_ty = format!("{{ %__zil_reg_hdr, {env_st} }}");
+
+                // Resolve callable entry (closure body or fn ptr).
+                let tramp_sym = format!("__zil_reg_tramp_f{}_{tid}", self.fn_id.0);
+                let closure_sym = match self.tys().get(env_ty) {
+                    Some(TyKind::Closure { def, .. }) => {
+                        let c_fn_id = self
+                            .module
+                            .functions
+                            .iter()
+                            .position(|f| f.body.closure == Some(*def))
+                            .map(FnId::from_index)
+                            .ok_or_else(|| {
+                                BodyEmitError::new("RegistrationStart closure body missing")
+                            })?;
+                        Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]))
+                    }
+                    Some(TyKind::FnPtr { .. }) => None,
+                    _ => {
+                        return Err(BodyEmitError::new(
+                            "RegistrationStart environment must be a closure or fn ptr",
+                        ));
+                    }
+                };
+                let _ = writeln!(
+                    self.extra_defs,
+                    "\ndefine internal i64 @{tramp_sym}(ptr %ctx, i32 %arg) {{"
+                );
+                self.extra_defs.push_str(
+                    "entry:\n\
+  %is_null = icmp eq ptr %ctx, null\n\
+  br i1 %is_null, label %reject, label %check\n\
+check:\n\
+  %gate_p = getelementptr inbounds %__zil_reg_hdr, ptr %ctx, i32 0, i32 0\n\
+  %g = load i32, ptr %gate_p\n\
+  %is_open = icmp eq i32 %g, 0\n\
+  br i1 %is_open, label %run, label %reject\n\
+run:\n\
+  store i32 1, ptr %gate_p\n",
+                );
+                let _ = writeln!(
+                    self.extra_defs,
+                    "  %env_p = getelementptr inbounds {frame_ty}, ptr %ctx, i32 0, i32 1"
+                );
+                if let Some(csym) = closure_sym {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  %rv = call i32 @{csym}(ptr %env_p, i32 %arg)"
+                    );
+                } else {
+                    self.extra_defs
+                        .push_str("  %f_val = load ptr, ptr %env_p\n");
+                    self.extra_defs
+                        .push_str("  %rv = call i32 %f_val(i32 %arg)\n");
+                }
+                self.extra_defs.push_str(
+                    "  %g_after = load i32, ptr %gate_p\n\
+  %still_busy = icmp eq i32 %g_after, 1\n\
+  br i1 %still_busy, label %restore, label %ret_ok\n\
+restore:\n\
+  store i32 0, ptr %gate_p\n\
+  br label %ret_ok\n\
+ret_ok:\n\
+  %rv64 = zext i32 %rv to i64\n\
+  ret i64 %rv64\n\
+reject:\n\
+  ret i64 4294967296\n\
+}\n",
+                );
+
+                // Emit env drop helper if environment owns resources.
+                let saved_len = self.out.len();
+                let res = self.emit_drop_ptr("%env_p", env_ty);
+                let env_drop_body = self.out.split_off(saved_len);
+                res?;
+                let drop_sym = if !env_drop_body.is_empty() {
+                    let sym = format!("__zil_reg_drop_env_f{}_{tid}", self.fn_id.0);
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "\ndefine internal void @{sym}(ptr %frame) {{"
+                    );
+                    self.extra_defs.push_str("entry:\n");
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  %env_p = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 1"
+                    );
+                    self.extra_defs.push_str(&env_drop_body);
+                    self.extra_defs.push_str("  ret void\n}\n");
+                    Some(sym)
+                } else {
+                    None
+                };
+
+                // Allocate frame via calloc(1, sizeof(frame_ty)).
+                let sz_ptr = self.fresh();
+                let sz_i64 = self.fresh();
+                let raw = self.fresh();
+                let is_oom = self.fresh();
+                let l_oom = format!("reg_oom_{tid}");
+                let l_init = format!("reg_init_{tid}");
+                let l_fail = format!("reg_fail_{tid}");
+                let l_ok = format!("reg_ok_{tid}");
+                let l_done = format!("reg_done_{tid}");
+                let _ = writeln!(
+                    self.out,
+                    "  {sz_ptr} = getelementptr {frame_ty}, ptr null, i32 1"
+                );
+                let _ = writeln!(self.out, "  {sz_i64} = ptrtoint ptr {sz_ptr} to i64");
+                let _ = writeln!(self.out, "  {raw} = call ptr @calloc(i64 1, i64 {sz_i64})");
+                let _ = writeln!(self.out, "  {is_oom} = icmp eq ptr {raw}, null");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {is_oom}, label %{l_oom}, label %{l_init}"
+                );
+
+                // OOM: drop untransferred env in place, store null handle.
+                let _ = writeln!(self.out, "{l_oom}:");
+                if env_lt != "void" && drop_sym.is_some() {
+                    let tmp_env = self.fresh();
+                    let _ = writeln!(self.out, "  {tmp_env} = alloca {env_st}");
+                    let _ = writeln!(self.out, "  store {env_lt} {env_val}, ptr {tmp_env}");
+                    self.emit_drop_ptr(&tmp_env, env_ty)?;
+                }
+                let _ = writeln!(self.out, "  store ptr null, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Initialize frame header + env, then call C register_fn(trampoline, frame).
+                let _ = writeln!(self.out, "{l_init}:");
+                let gate_p = self.fresh();
+                let cfn_p = self.fresh();
+                let dfn_p = self.fresh();
+                let env_p = self.fresh();
+                let tok = self.fresh();
+                let tok_null = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {gate_p} = getelementptr inbounds %__zil_reg_hdr, ptr {raw}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i32 0, ptr {gate_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {cfn_p} = getelementptr inbounds %__zil_reg_hdr, ptr {raw}, i32 0, i32 2"
+                );
+                let _ = writeln!(self.out, "  store ptr {close_fn}, ptr {cfn_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {dfn_p} = getelementptr inbounds %__zil_reg_hdr, ptr {raw}, i32 0, i32 3"
+                );
+                if let Some(dsym) = &drop_sym {
+                    let _ = writeln!(self.out, "  store ptr @{dsym}, ptr {dfn_p}");
+                } else {
+                    let _ = writeln!(self.out, "  store ptr null, ptr {dfn_p}");
+                }
+                if env_lt != "void" {
+                    let _ = writeln!(
+                        self.out,
+                        "  {env_p} = getelementptr inbounds {frame_ty}, ptr {raw}, i32 0, i32 1"
+                    );
+                    let _ = writeln!(self.out, "  store {env_lt} {env_val}, ptr {env_p}");
+                }
+                let _ = writeln!(
+                    self.out,
+                    "  {tok} = call ptr {reg_fn}(ptr @{tramp_sym}, ptr {raw})"
+                );
+                let _ = writeln!(self.out, "  {tok_null} = icmp eq ptr {tok}, null");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {tok_null}, label %{l_fail}, label %{l_ok}"
+                );
+
+                // Install failure: close gate, drop env once, free frame, store null handle.
+                let _ = writeln!(self.out, "{l_fail}:");
+                let _ = writeln!(self.out, "  store i32 2, ptr {gate_p}");
+                if let Some(dsym) = &drop_sym {
+                    let _ = writeln!(self.out, "  store ptr null, ptr {dfn_p}");
+                    let _ = writeln!(self.out, "  call void @{dsym}(ptr {raw})");
+                }
+                let _ = writeln!(self.out, "  call void @free(ptr {raw})");
+                let _ = writeln!(self.out, "  store ptr null, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Success: store token and return frame handle.
+                let _ = writeln!(self.out, "{l_ok}:");
+                let tok_p = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {tok_p} = getelementptr inbounds %__zil_reg_hdr, ptr {raw}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store ptr {tok}, ptr {tok_p}");
+                let _ = writeln!(self.out, "  store ptr {raw}, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                let _ = writeln!(self.out, "{l_done}:");
+                Ok(())
+            }
+            IntrinsicOp::RegistrationValid => {
+                let (frame, _, _) = self.emit_operand(&args[0])?;
+                let ok = self.fresh();
+                let _ = writeln!(self.out, "  {ok} = icmp ne ptr {frame}, null");
+                let _ = writeln!(self.out, "  store i1 {ok}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::RegistrationClose => {
+                let (frame, _, _) = self.emit_operand(&args[0])?;
+                let _ = writeln!(self.out, "  call void @__zil_reg_drop_frame(ptr {frame})");
+                Ok(())
+            }
+            IntrinsicOp::AsyncRegistrationStart => {
+                if args.len() != 4 {
+                    return Err(BodyEmitError::new(
+                        "AsyncRegistrationStart expects 4 arguments (reg, req, drain, env)",
+                    ));
+                }
+                let (reg_fn, _, _) = self.emit_operand(&args[0])?;
+                let (req_fn, _, _) = self.emit_operand(&args[1])?;
+                let (drain_fn, _, _) = self.emit_operand(&args[2])?;
+                let (env_val, env_lt, env_ty_opt) = self.emit_operand(&args[3])?;
+                let env_ty = env_ty_opt.ok_or_else(|| {
+                    BodyEmitError::new("AsyncRegistrationStart missing environment type")
+                })?;
+                let env_st = if env_lt == "void" {
+                    "i8".to_string()
+                } else {
+                    llvm_storage_ty(self.tys(), env_ty)?
+                };
+                let tid = self.tmp;
+                self.tmp += 1;
+                let frame_ty = format!("{{ %__zil_areg_hdr, {env_st} }}");
+
+                let tramp_sym = format!("__zil_areg_tramp_f{}_{tid}", self.fn_id.0);
+                let closure_sym = match self.tys().get(env_ty) {
+                    Some(TyKind::Closure { def, .. }) => {
+                        let c_fn_id = self
+                            .module
+                            .functions
+                            .iter()
+                            .position(|f| f.body.closure == Some(*def))
+                            .map(FnId::from_index)
+                            .ok_or_else(|| {
+                                BodyEmitError::new("AsyncRegistrationStart closure body missing")
+                            })?;
+                        Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]))
+                    }
+                    Some(TyKind::FnPtr { .. }) => None,
+                    _ => {
+                        return Err(BodyEmitError::new(
+                            "AsyncRegistrationStart environment must be a closure or fn ptr",
+                        ));
+                    }
+                };
+
+                // Atomic cross-thread trampoline: single acq_rel CAS OpenIdle(0)->OpenBusy(1),
+                // and atomicrmw and -2 release (OpenBusy(1)->OpenIdle(0), ClosingBusy(3)->ClosingIdle(2)).
+                let _ = writeln!(
+                    self.extra_defs,
+                    "\ndefine internal i64 @{tramp_sym}(ptr %ctx, i32 %arg) {{"
+                );
+                self.extra_defs.push_str(
+                    "entry:\n\
+  %is_null = icmp eq ptr %ctx, null\n\
+  br i1 %is_null, label %reject, label %admit\n\
+admit:\n\
+  %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %ctx, i32 0, i32 0\n\
+  %cas = cmpxchg ptr %gate_p, i32 0, i32 1 acq_rel acquire\n\
+  %ok = extractvalue { i32, i1 } %cas, 1\n\
+  br i1 %ok, label %run, label %reject\n\
+run:\n",
+                );
+                let _ = writeln!(
+                    self.extra_defs,
+                    "  %env_p = getelementptr inbounds {frame_ty}, ptr %ctx, i32 0, i32 1"
+                );
+                if let Some(csym) = closure_sym {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  %rv = call i32 @{csym}(ptr %env_p, i32 %arg)"
+                    );
+                } else {
+                    self.extra_defs
+                        .push_str("  %f_val = load ptr, ptr %env_p\n");
+                    self.extra_defs
+                        .push_str("  %rv = call i32 %f_val(i32 %arg)\n");
+                }
+                self.extra_defs.push_str(
+                    "  %prev_g = atomicrmw and ptr %gate_p, i32 -2 acq_rel, align 4\n\
+  %rv64 = zext i32 %rv to i64\n\
+  ret i64 %rv64\n\
+reject:\n\
+  ret i64 4294967296\n\
+}\n",
+                );
+
+                // Emit env drop helper if environment owns resources.
+                let saved_len = self.out.len();
+                let res = self.emit_drop_ptr("%env_p", env_ty);
+                let env_drop_body = self.out.split_off(saved_len);
+                res?;
+                let drop_sym = if !env_drop_body.is_empty() {
+                    let sym = format!("__zil_areg_drop_env_f{}_{tid}", self.fn_id.0);
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "\ndefine internal void @{sym}(ptr %frame) {{"
+                    );
+                    self.extra_defs.push_str("entry:\n");
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  %env_p = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 1"
+                    );
+                    self.extra_defs.push_str(&env_drop_body);
+                    self.extra_defs.push_str("  ret void\n}\n");
+                    Some(sym)
+                } else {
+                    None
+                };
+
+                // Allocate frame via calloc(1, sizeof(frame_ty)).
+                let sz_ptr = self.fresh();
+                let sz_i64 = self.fresh();
+                let raw = self.fresh();
+                let is_oom = self.fresh();
+                let l_oom = format!("areg_oom_{tid}");
+                let l_init = format!("areg_init_{tid}");
+                let l_fail = format!("areg_fail_{tid}");
+                let l_ok = format!("areg_ok_{tid}");
+                let l_done = format!("areg_done_{tid}");
+                let _ = writeln!(
+                    self.out,
+                    "  {sz_ptr} = getelementptr {frame_ty}, ptr null, i32 1"
+                );
+                let _ = writeln!(self.out, "  {sz_i64} = ptrtoint ptr {sz_ptr} to i64");
+                let _ = writeln!(self.out, "  {raw} = call ptr @calloc(i64 1, i64 {sz_i64})");
+                let _ = writeln!(self.out, "  {is_oom} = icmp eq ptr {raw}, null");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {is_oom}, label %{l_oom}, label %{l_init}"
+                );
+
+                // OOM: drop untransferred env in place, store null handle.
+                let _ = writeln!(self.out, "{l_oom}:");
+                if env_lt != "void" && drop_sym.is_some() {
+                    let tmp_env = self.fresh();
+                    let _ = writeln!(self.out, "  {tmp_env} = alloca {env_st}");
+                    let _ = writeln!(self.out, "  store {env_lt} {env_val}, ptr {tmp_env}");
+                    self.emit_drop_ptr(&tmp_env, env_ty)?;
+                }
+                let _ = writeln!(self.out, "  store ptr null, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Initialize header + env, release-publish OpenIdle(0), then call C register_fn.
+                let _ = writeln!(self.out, "{l_init}:");
+                let gate_p = self.fresh();
+                let rfn_p = self.fresh();
+                let pfn_p = self.fresh();
+                let dfn_p = self.fresh();
+                let env_p = self.fresh();
+                let tok = self.fresh();
+                let tok_null = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {rfn_p} = getelementptr inbounds %__zil_areg_hdr, ptr {raw}, i32 0, i32 4"
+                );
+                let _ = writeln!(self.out, "  store ptr {req_fn}, ptr {rfn_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {pfn_p} = getelementptr inbounds %__zil_areg_hdr, ptr {raw}, i32 0, i32 5"
+                );
+                let _ = writeln!(self.out, "  store ptr {drain_fn}, ptr {pfn_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {dfn_p} = getelementptr inbounds %__zil_areg_hdr, ptr {raw}, i32 0, i32 6"
+                );
+                if let Some(dsym) = &drop_sym {
+                    let _ = writeln!(self.out, "  store ptr @{dsym}, ptr {dfn_p}");
+                } else {
+                    let _ = writeln!(self.out, "  store ptr null, ptr {dfn_p}");
+                }
+                if env_lt != "void" {
+                    let _ = writeln!(
+                        self.out,
+                        "  {env_p} = getelementptr inbounds {frame_ty}, ptr {raw}, i32 0, i32 1"
+                    );
+                    let _ = writeln!(self.out, "  store {env_lt} {env_val}, ptr {env_p}");
+                }
+                let _ = writeln!(
+                    self.out,
+                    "  {gate_p} = getelementptr inbounds %__zil_areg_hdr, ptr {raw}, i32 0, i32 0"
+                );
+                let _ = writeln!(
+                    self.out,
+                    "  store atomic i32 0, ptr {gate_p} release, align 4"
+                );
+                let _ = writeln!(
+                    self.out,
+                    "  {tok} = call ptr {reg_fn}(ptr @{tramp_sym}, ptr {raw})"
+                );
+                let _ = writeln!(self.out, "  {tok_null} = icmp eq ptr {tok}, null");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {tok_null}, label %{l_fail}, label %{l_ok}"
+                );
+
+                // Install failure: mark closing, drop env once, publish Closed(4), free frame.
+                let _ = writeln!(self.out, "{l_fail}:");
+                let _ = writeln!(self.out, "  call void @__zil_areg_mark_closing(ptr {raw})");
+                if let Some(dsym) = &drop_sym {
+                    let _ = writeln!(self.out, "  store ptr null, ptr {dfn_p}");
+                    let _ = writeln!(self.out, "  call void @{dsym}(ptr {raw})");
+                }
+                let _ = writeln!(
+                    self.out,
+                    "  store atomic i32 4, ptr {gate_p} release, align 4"
+                );
+                let _ = writeln!(self.out, "  call void @free(ptr {raw})");
+                let _ = writeln!(self.out, "  store ptr null, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Success: publish token and return frame handle.
+                let _ = writeln!(self.out, "{l_ok}:");
+                let tok_p = self.fresh();
+                let tok_i64 = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {tok_p} = getelementptr inbounds %__zil_areg_hdr, ptr {raw}, i32 0, i32 3"
+                );
+                let _ = writeln!(self.out, "  {tok_i64} = ptrtoint ptr {tok} to i64");
+                let _ = writeln!(
+                    self.out,
+                    "  store atomic i64 {tok_i64}, ptr {tok_p} release, align 8"
+                );
+                let _ = writeln!(self.out, "  store ptr {raw}, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                let _ = writeln!(self.out, "{l_done}:");
+                Ok(())
+            }
+            IntrinsicOp::AsyncRegistrationValid => {
+                let (frame, _, _) = self.emit_operand(&args[0])?;
+                let ok = self.fresh();
+                let _ = writeln!(self.out, "  {ok} = icmp ne ptr {frame}, null");
+                let _ = writeln!(self.out, "  store i1 {ok}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::AsyncRegistrationRequestClose => {
+                let (reg_ref, _, _) = self.emit_operand(&args[0])?;
+                let frame = self.fresh();
+                let _ = writeln!(self.out, "  {frame} = load ptr, ptr {reg_ref}");
+                let _ = writeln!(
+                    self.out,
+                    "  call void @__zil_areg_request_close(ptr {frame})"
+                );
+                Ok(())
+            }
+            IntrinsicOp::AsyncRegistrationPollClose => {
+                let (reg_ref, _, _) = self.emit_operand(&args[0])?;
+                let frame = self.fresh();
+                let ready = self.fresh();
+                let tag = self.fresh();
+                let _ = writeln!(self.out, "  {frame} = load ptr, ptr {reg_ref}");
+                let _ = writeln!(
+                    self.out,
+                    "  {ready} = call i1 @__zil_areg_poll_close(ptr {frame})"
+                );
+                // Poll.Pending -> tag 0, Poll.Ready(()) -> tag 1
+                let _ = writeln!(self.out, "  {tag} = zext i1 {ready} to i32");
+                let _ = writeln!(self.out, "  store i32 {tag}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::AsyncRegistrationFinishDestroy => {
+                let (frame, _, _) = self.emit_operand(&args[0])?;
+                let _ = writeln!(
+                    self.out,
+                    "  call void @__zil_areg_finish_destroy(ptr {frame})"
+                );
+                Ok(())
+            }
+            IntrinsicOp::TaskStart => Err(BodyEmitError::new(format!(
                 "intrinsic {op:?} native emission not yet implemented"
             ))),
         }

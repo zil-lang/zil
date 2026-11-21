@@ -42,6 +42,7 @@ pub enum OpaqueKind {
     Mutex(Ty),
     MutexGuard(Ty),
     Task { result: Ty, context: Option<Ty> },
+    Registration(Ty),
     AsyncRegistration(Ty),
     ForeignHandle,
     ForeignCallback { params: Vec<Ty>, result: Ty },
@@ -223,6 +224,7 @@ impl Types {
                 OpaqueKind::OwnedStore(elem)
                 | OpaqueKind::Mutex(elem)
                 | OpaqueKind::MutexGuard(elem)
+                | OpaqueKind::Registration(elem)
                 | OpaqueKind::AsyncRegistration(elem),
             ) => self.occurs(v, *elem),
             TyData::Opaque(OpaqueKind::Task { result, context }) => {
@@ -407,6 +409,10 @@ impl Types {
                 TyData::Opaque(OpaqueKind::MutexGuard(y)),
             )
             | (
+                TyData::Opaque(OpaqueKind::Registration(x)),
+                TyData::Opaque(OpaqueKind::Registration(y)),
+            )
+            | (
                 TyData::Opaque(OpaqueKind::AsyncRegistration(x)),
                 TyData::Opaque(OpaqueKind::AsyncRegistration(y)),
             ) => self.unify(x, y),
@@ -573,6 +579,10 @@ impl Types {
                     None => None,
                 };
                 self.intern(TyData::Opaque(OpaqueKind::Task { result, context }))
+            }
+            TyData::Opaque(OpaqueKind::Registration(elem)) => {
+                let elem = self.zonk(elem)?;
+                self.intern(TyData::Opaque(OpaqueKind::Registration(elem)))
             }
             TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
                 let elem = self.zonk(elem)?;
@@ -755,6 +765,10 @@ impl Types {
                 let context = context.map(|c| self.subst_with_self(c, args, self_ty));
                 self.intern(TyData::Opaque(OpaqueKind::Task { result, context }))
             }
+            TyData::Opaque(OpaqueKind::Registration(elem)) => {
+                let elem = self.subst_with_self(elem, args, self_ty);
+                self.intern(TyData::Opaque(OpaqueKind::Registration(elem)))
+            }
             TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
                 let elem = self.subst_with_self(elem, args, self_ty);
                 self.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
@@ -927,6 +941,10 @@ impl Types {
                 let context = context.map(|c| self.subst(c, args));
                 self.intern(TyData::Opaque(OpaqueKind::Task { result, context }))
             }
+            TyData::Opaque(OpaqueKind::Registration(elem)) => {
+                let elem = self.subst(elem, args);
+                self.intern(TyData::Opaque(OpaqueKind::Registration(elem)))
+            }
             TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
                 let elem = self.subst(elem, args);
                 self.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
@@ -1064,6 +1082,7 @@ impl Types {
                         result: self.erase_regions(result),
                         context: context.map(|c| self.erase_regions(c)),
                     },
+                    OpaqueKind::Registration(e) => OpaqueKind::Registration(self.erase_regions(e)),
                     OpaqueKind::AsyncRegistration(e) => {
                         OpaqueKind::AsyncRegistration(self.erase_regions(e))
                     }

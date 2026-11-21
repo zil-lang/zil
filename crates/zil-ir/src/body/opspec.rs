@@ -1632,19 +1632,29 @@ fn intrinsic_sig(
             let [reg, req, drain, env] = found else {
                 return Err(bad("async_registration.start takes 4 arguments"));
             };
-            for cb in [*reg, *req, *drain] {
-                if !matches!(
-                    tys.get(cb),
-                    Some(TyKind::Opaque(OpaqueTy::ForeignCallback { .. }))
-                ) {
-                    return Err(bad(
-                        "async_registration.start requires extern \"C\" callbacks",
-                    ));
-                }
+            if !is_foreign_register_cb(tys, *reg) {
+                return Err(bad(
+                    "async_registration.start register callback must have ABI extern \"C\" fn(extern \"C\" fn(c_handle, i32) -> i64, c_handle) -> c_handle",
+                ));
+            }
+            if !is_foreign_close_cb(tys, *req) {
+                return Err(bad(
+                    "async_registration.start request_close callback must have ABI extern \"C\" fn(c_handle)",
+                ));
+            }
+            if !is_foreign_drain_cb(tys, *drain) {
+                return Err(bad(
+                    "async_registration.start poll_drain callback must have ABI extern \"C\" fn(c_handle) -> i32",
+                ));
             }
             if tys.holds_address(*env) || tys.may_store_address(*env) {
                 return Err(bad(
-                    "async_registration.start environment cannot hold addresses",
+                    "async_registration.start environment cannot hold addresses (ClosedEnvironment)",
+                ));
+            }
+            if !ty_is_transfer_safe(tys, *env) {
+                return Err(bad(
+                    "async_registration.start environment must satisfy Transfer (no Task/MutexGuard/Registration/OwnedDyn)",
                 ));
             }
             let ok_dest = matches!(
@@ -1739,15 +1749,61 @@ fn intrinsic_sig(
             }
             Ok((vec![*reg_ty], cx.lookup(TyKind::Unit)?))
         }
+        IntrinsicOp::RegistrationStart => {
+            let [reg, close, env] = found else {
+                return Err(bad("registration.start takes 3 arguments"));
+            };
+            if !is_foreign_register_cb(tys, *reg) {
+                return Err(bad(
+                    "registration.start register callback must have ABI extern \"C\" fn(extern \"C\" fn(c_handle, i32) -> i64, c_handle) -> c_handle",
+                ));
+            }
+            if !is_foreign_close_cb(tys, *close) {
+                return Err(bad(
+                    "registration.start close callback must have ABI extern \"C\" fn(c_handle)",
+                ));
+            }
+            if tys.holds_address(*env) || tys.may_store_address(*env) {
+                return Err(bad("registration.start environment cannot hold addresses"));
+            }
+            let ok_dest = matches!(
+                tys.get(dest_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Registration { environment })) if *environment == *env)
+            );
+            if !ok_dest {
+                return Err(bad(
+                    "registration.start destination must be Managed<Registration<F>>",
+                ));
+            }
+            Ok((vec![*reg, *close, *env], dest_ty))
+        }
+        IntrinsicOp::RegistrationValid => {
+            let (d, OpaqueTy::Registration { .. }) = desc_arg()? else {
+                return Err(bad("registration.valid requires Registration descriptor"));
+            };
+            Ok((vec![d], bool_ty()?))
+        }
+        IntrinsicOp::RegistrationClose => {
+            let [reg_ty] = found else {
+                return Err(bad("registration.close takes Managed<Registration<F>>"));
+            };
+            let ok = matches!(
+                tys.get(*reg_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Registration { .. })))
+            );
+            if !ok {
+                return Err(bad("registration.close requires Managed<Registration<F>>"));
+            }
+            Ok((vec![*reg_ty], cx.lookup(TyKind::Unit)?))
+        }
         IntrinsicOp::MutexUnlock
         | IntrinsicOp::SyncLoad
         | IntrinsicOp::SyncStore
         | IntrinsicOp::SyncFetchAdd
         | IntrinsicOp::SyncCompareExchange
-        | IntrinsicOp::TaskStart
-        | IntrinsicOp::RegistrationStart
-        | IntrinsicOp::RegistrationValid
-        | IntrinsicOp::RegistrationClose => Err(ConstraintError::Unspecified(intrinsic_name(op))),
+        | IntrinsicOp::TaskStart => Err(ConstraintError::Unspecified(intrinsic_name(op))),
     }
 }
 
@@ -1801,4 +1857,115 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::OwnedDynCreate => "owned_dyn.create",
         IntrinsicOp::ThreadScope => "thread.scope",
     }
+}
+
+fn is_foreign_register_cb(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::{IntTy, OpaqueTy};
+    let Some(TyKind::Opaque(OpaqueTy::ForeignCallback { params, result })) = tys.get(ty) else {
+        return false;
+    };
+    if params.len() != 2 {
+        return false;
+    }
+    let cb_ok = matches!(
+        tys.get(params[0]),
+        Some(TyKind::Opaque(OpaqueTy::ForeignCallback {
+            params: inner_params,
+            result: inner_res,
+        })) if inner_params.len() == 2
+            && matches!(tys.get(inner_params[0]), Some(TyKind::Opaque(OpaqueTy::ForeignHandle)))
+            && matches!(tys.get(inner_params[1]), Some(TyKind::Int(IntTy::I32)))
+            && matches!(tys.get(*inner_res), Some(TyKind::Int(IntTy::I64)))
+    );
+    let ctx_ok = matches!(
+        tys.get(params[1]),
+        Some(TyKind::Opaque(OpaqueTy::ForeignHandle))
+    );
+    let res_ok = matches!(
+        tys.get(*result),
+        Some(TyKind::Opaque(OpaqueTy::ForeignHandle))
+    );
+    cb_ok && ctx_ok && res_ok
+}
+
+fn is_foreign_close_cb(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::OpaqueTy;
+    matches!(
+        tys.get(ty),
+        Some(TyKind::Opaque(OpaqueTy::ForeignCallback { params, result }))
+            if params.len() == 1
+                && matches!(tys.get(params[0]), Some(TyKind::Opaque(OpaqueTy::ForeignHandle)))
+                && matches!(tys.get(*result), Some(TyKind::Unit))
+    )
+}
+
+fn is_foreign_drain_cb(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::{IntTy, OpaqueTy};
+    matches!(
+        tys.get(ty),
+        Some(TyKind::Opaque(OpaqueTy::ForeignCallback { params, result }))
+            if params.len() == 1
+                && matches!(tys.get(params[0]), Some(TyKind::Opaque(OpaqueTy::ForeignHandle)))
+                && matches!(tys.get(*result), Some(TyKind::Int(IntTy::I32)))
+    )
+}
+
+/// Checks whether a value of type `ty` satisfies the closed `Transfer` contract
+/// required for cross-thread `AsyncRegistration` environments: no references,
+/// descriptors, thread-affine guards/tasks/registrations, or uncertified erased `dyn` values.
+fn ty_is_transfer_safe(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::{OpaqueTy, TyTable};
+    fn walk(tys: &TyTable, ty: TyId, seen: &mut Vec<TyId>) -> bool {
+        if seen.contains(&ty) {
+            return true;
+        }
+        seen.push(ty);
+        let Some(kind) = tys.get(ty) else {
+            return false;
+        };
+        match kind {
+            TyKind::Unit
+            | TyKind::Never
+            | TyKind::Bool
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. } => true,
+            TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Dyn(_) | TyKind::OwnedDyn(_) => false,
+            TyKind::Param(_) => false,
+            TyKind::Opaque(op) => match op {
+                OpaqueTy::ByteBuffer | OpaqueTy::ForeignCallback { .. } | OpaqueTy::SyncCell(_) => {
+                    true
+                }
+                OpaqueTy::OwnedStore { element } | OpaqueTy::Mutex { payload: element } => {
+                    walk(tys, *element, seen)
+                }
+                OpaqueTy::MutexGuard { .. }
+                | OpaqueTy::Task { .. }
+                | OpaqueTy::Registration { .. }
+                | OpaqueTy::AsyncRegistration { .. }
+                | OpaqueTy::ForeignHandle
+                | OpaqueTy::CWideString => false,
+            },
+            TyKind::Managed(inner)
+            | TyKind::Slice(inner)
+            | TyKind::Array { element: inner, .. } => walk(tys, *inner, seen),
+            TyKind::Tuple(elems) => elems.iter().all(|e| walk(tys, *e, seen)),
+            TyKind::ErrorUnion { ok, err } => walk(tys, *ok, seen) && walk(tys, *err, seen),
+            TyKind::Closure { def, args } => tys.closure(*def).is_some_and(|c| {
+                c.captures.iter().all(|cap| {
+                    tys.subst_lookup(*cap, *args)
+                        .is_some_and(|t| walk(tys, t, seen))
+                })
+            }),
+            TyKind::Adt { adt, args } => tys.get_adt(*adt).is_some_and(|def| {
+                def.variants.iter().all(|v| {
+                    v.fields.iter().all(|f| {
+                        tys.subst_lookup(f.ty, *args)
+                            .is_some_and(|t| walk(tys, t, seen))
+                    })
+                })
+            }),
+        }
+    }
+    walk(tys, ty, &mut Vec::new())
 }
