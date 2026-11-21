@@ -1041,6 +1041,9 @@ fn callable<'a>(cx: &ConstraintCx<'a>, f: u32) -> Result<&'a FnSig, ConstraintEr
         FnRole::Drop(_) => Err(ConstraintError::Operator {
             reason: "a cleanup entry is neither called nor named",
         }),
+        FnRole::DynSlotImpl { .. } => Err(ConstraintError::Operator {
+            reason: "a dyn slot implementation entry is neither called nor named directly",
+        }),
     }
 }
 

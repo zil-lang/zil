@@ -8,7 +8,7 @@
 
 use std::collections::{HashMap, HashSet};
 use zil_ir::body::{
-    BlockId, Body, Callee, FieldIdx, FnId, InstructionKind, Module, OpLocation, Projection,
+    BlockId, Body, Callee, FieldIdx, FnId, FnRole, InstructionKind, Module, OpLocation, Projection,
     SourceMap, SourceRelation, Terminator,
 };
 use zil_syntax::ast;
@@ -19,9 +19,9 @@ pub struct FidelityError {
     pub reason: &'static str,
 }
 
-/// Re-derives nominal field layouts and field-selection expressions from the
-/// original AST and checks that `source_map` faithfully and completely
-/// corresponds to `module`.
+/// Re-derives nominal field layouts, field-selection expressions, and trait
+/// impl method declarations from the original AST and checks that `source_map`
+/// faithfully and completely corresponds to `module`.
 pub fn check_fidelity(
     module: &Module,
     source_map: &SourceMap,
@@ -29,6 +29,7 @@ pub fn check_fidelity(
 ) -> Result<(), FidelityError> {
     let ast_fields = collect_ast_field_indices(sources);
     let ast_selects = collect_ast_field_selects(sources);
+    let ast_impl_methods = collect_ast_impl_methods(sources);
     let mut seen_fns = HashSet::with_capacity(source_map.functions.len());
 
     for fn_map in &source_map.functions {
@@ -43,6 +44,31 @@ pub fn check_fidelity(
         let Some(func) = module.functions.get(fn_id.index()) else {
             return Err(fail("source map references unknown function"));
         };
+        if !sources.is_empty()
+            && let FnRole::DynSlotImpl { dyn_id, slot, .. } = func.sig.role
+        {
+            let Some(dyn_def) = module.tys.get_dyn(dyn_id) else {
+                return Err(fail("dyn slot impl references unknown DynId"));
+            };
+            let Some(slot_def) = dyn_def.slots.get(slot as usize) else {
+                return Err(fail("dyn slot impl references out-of-range slot"));
+            };
+            let expected_trait = dyn_def.name.rsplit('.').next().unwrap_or(&dyn_def.name);
+            let expected_method = slot_def.name.as_str();
+            let decl_start = fn_map.declaration.0;
+            let fn_file = fn_map.spans.first().map(|(_, sp)| sp.file);
+            let matched = ast_impl_methods.iter().any(|&(file_id, start, tr, m)| {
+                start == decl_start
+                    && fn_file.is_none_or(|f| f == file_id)
+                    && tr == expected_trait
+                    && m == expected_method
+            });
+            if !matched {
+                return Err(fail(
+                    "dyn slot impl function does not originate from matching AST trait impl method",
+                ));
+            }
+        }
         let body = &func.body;
 
         let mut span_by_loc: HashMap<OpLocation, zil_base::Span> =
@@ -267,6 +293,37 @@ fn collect_ast_field_indices<'a>(
         }
     }
     map
+}
+
+/// Collects `(file, decl_span_start, trait_last_segment, method_name)` for
+/// every method declared inside an `impl Trait for Target` block in the
+/// original parsed AST.
+fn collect_ast_impl_methods<'a>(
+    sources: &[&'a ast::Module],
+) -> Vec<(zil_base::FileId, u32, &'a str, &'a str)> {
+    let mut out = Vec::new();
+    for m in sources {
+        for item in &m.items {
+            if let ast::ItemKind::Impl(imp) = &item.kind
+                && let Some(trait_ref) = &imp.trait_type
+                && let ast::TypeKind::Named { path, .. } = &trait_ref.kind
+                && let Some(trait_name) = path.last()
+            {
+                for member in &imp.members {
+                    if let ast::ItemKind::Function(f) = &member.kind {
+                        let start = u32::try_from(member.span.start).unwrap_or(u32::MAX);
+                        out.push((
+                            member.span.file,
+                            start,
+                            trait_name.as_str(),
+                            f.name.as_str(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Collects `(span.start, span.end, field_name)` per file for every

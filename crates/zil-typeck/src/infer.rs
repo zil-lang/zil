@@ -62,6 +62,7 @@ pub struct FnCx<'c, 'a, 'e> {
     closures: Vec<ThirClosure>,
     capture_stack: Vec<CaptureEnv>,
     loop_depth: u32,
+    defer_depth: u32,
     in_unsafe: u32,
 }
 
@@ -97,6 +98,7 @@ pub fn infer_fn<'a>(
         closures: Vec::new(),
         capture_stack: Vec::new(),
         loop_depth: 0,
+        defer_depth: 0,
         in_unsafe: 0,
     };
     let mut params = Vec::new();
@@ -1337,6 +1339,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 Some(Stmt::Let { pattern, init })
             }
             ast::StmtKind::Return(value) => {
+                if self.defer_depth > 0 {
+                    self.error(
+                        diag::LOOP_CONTROL,
+                        span,
+                        "cannot `return` out of a `defer` block",
+                    );
+                    return None;
+                }
                 let result = self.ret_ty;
                 let value = match value {
                     Some(v) => {
@@ -1514,8 +1524,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 None
             }
             ast::StmtKind::Defer(block) => {
+                if self.defer_depth > 0 {
+                    self.error(
+                        diag::LOOP_CONTROL,
+                        span,
+                        "nested `defer` inside a `defer` block is not allowed",
+                    );
+                    return None;
+                }
                 let saved_loop = self.loop_depth;
                 self.loop_depth = 0;
+                self.defer_depth += 1;
                 let expr = if block.statements.len() == 1
                     && let ast::StmtKind::Expression(act) = &block.statements[0].kind
                     && let ast::ExprKind::Closure {
@@ -1529,6 +1548,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 } else {
                     self.block(block)
                 };
+                self.defer_depth -= 1;
                 self.loop_depth = saved_loop;
                 Some(Stmt::Defer(expr))
             }
@@ -2402,6 +2422,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 self.infer_slice_borrow(object, start.as_deref(), end.as_deref(), false, span)
             }
             ast::ExprKind::Try(inner) => {
+                if self.defer_depth > 0 {
+                    self.error(
+                        diag::LOOP_CONTROL,
+                        span,
+                        "cannot propagate errors with `?` out of a `defer` block",
+                    );
+                    return self.err_expr(span);
+                }
                 let x = self.infer(inner);
                 let xt = self.types.shallow(x.ty);
                 let (ok_ty, err_ty) =
@@ -2697,10 +2725,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         let saved_scopes = std::mem::take(&mut self.scopes);
         let saved_ret = self.ret_ty;
         let saved_loop = self.loop_depth;
+        let saved_defer = self.defer_depth;
         let saved_unsafe = self.in_unsafe;
 
         self.scopes.push(Vec::new());
         self.loop_depth = 0;
+        self.defer_depth = 0;
         self.in_unsafe = 0;
         self.capture_stack.push(CaptureEnv {
             outer,
@@ -2762,6 +2792,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         self.scopes = saved_scopes;
         self.ret_ty = saved_ret;
         self.loop_depth = saved_loop;
+        self.defer_depth = saved_defer;
         self.in_unsafe = saved_unsafe;
         let env = self
             .capture_stack
@@ -4341,7 +4372,16 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let desc = self.types.intern(TyData::Desc(inner));
                 (vec![desc], bool_ty)
             }
-            IntrinsicOp::TaskYield => (Vec::new(), unit_ty),
+            IntrinsicOp::TaskYield => {
+                if self.defer_depth > 0 {
+                    self.error(
+                        diag::LOOP_CONTROL,
+                        span,
+                        "cannot suspend with `task_yield` inside a `defer` block",
+                    );
+                }
+                (Vec::new(), unit_ty)
+            }
             IntrinsicOp::TaskPoll => {
                 let res = self.types.fresh(VarKind::General);
                 let inner = self.types.intern(TyData::Opaque(OpaqueKind::Task {

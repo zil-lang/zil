@@ -1408,6 +1408,16 @@ fn encode_function(w: &mut Writer, f: &Function) {
             w.u8(1);
             w.u32(adt.0);
         }
+        FnRole::DynSlotImpl {
+            dyn_id,
+            concrete_ty,
+            slot,
+        } => {
+            w.u8(2);
+            w.u32(dyn_id.0);
+            w.u32(concrete_ty.0);
+            w.u32(slot);
+        }
     }
     w.u32(f.body.param_count);
     w.vec(&f.body.locals, |w, l| {
@@ -1437,6 +1447,11 @@ fn decode_function(r: &mut Reader<'_>) -> Result<Function, WireError> {
     let role = match r.u8()? {
         0 => FnRole::Normal,
         1 => FnRole::Drop(AdtId(r.u32()?)),
+        2 => FnRole::DynSlotImpl {
+            dyn_id: DynId(r.u32()?),
+            concrete_ty: TyId(r.u32()?),
+            slot: r.u32()?,
+        },
         t => return Err(WireError::InvalidTag("FnRole", t)),
     };
     let param_count = r.u32()?;

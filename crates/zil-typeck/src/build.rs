@@ -170,6 +170,61 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         Some(id)
     }
 
+    /// Instantiates a dedicated `FnRole::DynSlotImpl` vtable entry for
+    /// `(dyn_id, concrete_ty, slot)` whose declaration span remains anchored
+    /// to the concrete `impl Trait for ConcreteType` method AST node.
+    fn instance_dyn_slot(
+        &mut self,
+        f: FnRef,
+        args: Vec<Ty>,
+        dyn_id: DynId,
+        concrete_ty: TyId,
+        slot: u32,
+        span: Span,
+    ) -> Option<FnId> {
+        if self.module.functions.len() >= self.limits.instances {
+            self.diags
+                .push(diag::limit("too many function instances", span));
+            return None;
+        }
+        let decl = self.items.func(f);
+        let mut params = Vec::new();
+        for p in &decl.params {
+            let t = self.types.subst(p.ty, &args);
+            params.push(self.lower_ty(t, span)?);
+        }
+        let r = self.types.subst(decl.result, &args);
+        let result = self.lower_ty(r, span)?;
+        let id = FnId::from_index(self.module.functions.len());
+        let name = format!("{}::dyn_slot#{slot}", decl.name);
+        self.module.functions.push(Function {
+            name,
+            sig: FnSig {
+                params,
+                result,
+                type_params: 0,
+                region_params: decl.region_params.len() as u32,
+                role: FnRole::DynSlotImpl {
+                    dyn_id,
+                    concrete_ty,
+                    slot,
+                },
+            },
+            body: Body {
+                param_count: 0,
+                locals: Vec::new(),
+                captures: Vec::new(),
+                closure: None,
+                result,
+                param_env: ParamEnv::default(),
+                drop_flags: Vec::new(),
+                blocks: Vec::new(),
+            },
+        });
+        self.queue.push_back((f, args, id));
+        Some(id)
+    }
+
     /// Registers a closure `(owner, args, cid)` on demand and queues its body.
     fn ensure_closure(
         &mut self,
@@ -528,11 +583,18 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             return;
         };
         let mut methods = Vec::with_capacity(slot_names.len());
-        for sname in &slot_names {
+        for (slot_idx, sname) in slot_names.iter().enumerate() {
             let Some((_, fn_ref)) = imp_methods.iter().find(|(n, _)| n == sname) else {
                 return;
             };
-            let Some(fn_id) = self.instance(*fn_ref, impl_args.clone(), span) else {
+            let Some(fn_id) = self.instance_dyn_slot(
+                *fn_ref,
+                impl_args.clone(),
+                dyn_id,
+                concrete_ty,
+                slot_idx as u32,
+                span,
+            ) else {
                 return;
             };
             methods.push(fn_id);
@@ -789,6 +851,7 @@ struct Builder<'m, 'c, 'a, 'e> {
     eval_relations: Vec<SourceRelation>,
     failed: bool,
     reported_exhaustive: bool,
+    in_defer_unwind: bool,
 }
 
 impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
@@ -822,6 +885,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             eval_relations: Vec::new(),
             failed: false,
             reported_exhaustive: false,
+            in_defer_unwind: false,
         };
         b.cur = b.new_block(Span::default());
         b
@@ -1003,7 +1067,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                         self.push(InstructionKind::StorageDead(l), span);
                     }
                     FrameCleanup::Defer(e) => {
-                        self.effect(&e);
+                        if !self.in_defer_unwind {
+                            self.in_defer_unwind = true;
+                            self.effect(&e);
+                            self.in_defer_unwind = false;
+                        }
                     }
                 }
             }

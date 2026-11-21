@@ -484,6 +484,15 @@ pub enum FnRole {
     /// only parameter is the descriptor of the closing resource, and it runs
     /// only from cleanup of a `Managed` carrier. No call or value names it.
     Drop(AdtId),
+    /// A concrete `impl Trait for ConcreteType` vtable slot entry bound to
+    /// `(dyn_id, concrete_ty, slot)`. Runs only through `Callee::DynSlot`
+    /// dispatch; an unrelated `FnRole::Normal` function of the same signature
+    /// cannot substitute for it.
+    DynSlotImpl {
+        dyn_id: DynId,
+        concrete_ty: TyId,
+        slot: u32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

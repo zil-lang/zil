@@ -127,8 +127,9 @@ fn check_drop_bindings(module: &Module) -> Result<(), CheckError> {
 }
 
 /// Verifies every concrete `dyn Trait` vtable implementation against its
-/// declared `DynDef` slots so a forged wire module cannot smuggle mismatched
-/// method signatures or out-of-bounds `FnId`s into dynamic dispatch.
+/// declared `DynDef` slots, implementation identity (`FnRole::DynSlotImpl`),
+/// and synchronous effect contract so a forged wire module cannot substitute
+/// an unrelated same-signature `FnRole::Normal` function or unauthorized effect.
 fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
     let tys = &module.tys;
     let fail = |f: FnId, reason: &'static str| CheckError {
@@ -136,6 +137,7 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
         kind: CheckErrorKind::CertificateShape(reason),
     };
     let mut seen: Vec<(zil_ir::body::DynId, zil_ir::body::TyId)> = Vec::new();
+    let mut bound_fns: Vec<FnId> = Vec::new();
     for dimpl in &module.dyn_impls {
         let def = tys
             .get_dyn(dimpl.dyn_id)
@@ -151,13 +153,41 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
         if dimpl.methods.len() != def.slots.len() {
             return Err(fail(FnId(0), "dyn impl method count does not match slots"));
         }
-        for (slot, &fn_id) in def.slots.iter().zip(&dimpl.methods) {
+        for (slot_idx, (slot, &fn_id)) in def.slots.iter().zip(&dimpl.methods).enumerate() {
             let func = module
                 .functions
                 .get(fn_id.index())
                 .ok_or_else(|| fail(fn_id, "dyn impl method FnId out of bounds"))?;
-            if func.sig.role != FnRole::Normal {
-                return Err(fail(fn_id, "dyn impl method cannot be a Drop entry"));
+            let expected_role = FnRole::DynSlotImpl {
+                dyn_id: dimpl.dyn_id,
+                concrete_ty: dimpl.concrete_ty,
+                slot: slot_idx as u32,
+            };
+            if func.sig.role != expected_role {
+                return Err(fail(
+                    fn_id,
+                    "dyn impl method lacks matching FnRole::DynSlotImpl authorization",
+                ));
+            }
+            if func.sig.type_params != 0 || func.sig.region_params != 0 {
+                return Err(fail(fn_id, "dyn impl method cannot be generic"));
+            }
+            // Synchronous dyn trait slots must not suspend via TaskYield.
+            for block in &func.body.blocks {
+                if matches!(
+                    block.terminator,
+                    zil_ir::body::Terminator::Call {
+                        callee: zil_ir::body::Callee::Intrinsic(
+                            zil_ir::body::IntrinsicOp::TaskYield
+                        ),
+                        ..
+                    }
+                ) {
+                    return Err(fail(
+                        fn_id,
+                        "dyn impl method contains unauthorized TaskYield suspension effect",
+                    ));
+                }
             }
             if func.sig.params.len() != 1 + slot.params.len() {
                 return Err(fail(fn_id, "dyn impl method arity mismatch"));
@@ -179,6 +209,22 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
             }
             if func.sig.result != slot.result {
                 return Err(fail(fn_id, "dyn impl method return type mismatch"));
+            }
+            if bound_fns.contains(&fn_id) {
+                return Err(fail(fn_id, "dyn impl method bound to multiple slots"));
+            }
+            bound_fns.push(fn_id);
+        }
+    }
+    // Every FnRole::DynSlotImpl function in the module must be uniquely bound by a DynImpl.
+    for (i, func) in module.functions.iter().enumerate() {
+        if matches!(func.sig.role, FnRole::DynSlotImpl { .. }) {
+            let fid = FnId::from_index(i);
+            if !bound_fns.contains(&fid) {
+                return Err(fail(
+                    fid,
+                    "orphan FnRole::DynSlotImpl not referenced by DynImpl",
+                ));
             }
         }
     }

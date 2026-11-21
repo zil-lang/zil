@@ -231,3 +231,133 @@ fn forged_dyn_impl_in_wire_is_rejected_by_checker() {
         "duplicate dyn_impl must be rejected"
     );
 }
+
+#[test]
+fn same_signature_dyn_impl_substitution_attack_is_rejected() {
+    use zil_ir::body::{Callee, FnRole, IntrinsicOp, Terminator};
+
+    // `spoof` has the exact same `(self: &A) -> i32` signature as `impl Read for A::read`,
+    // and is referenced from `main` so it is lowered into the Body IR module.
+    let src = r#"
+trait Read {
+    fn read(self: &Self) -> i32;
+}
+
+struct A { v: i32 }
+struct B { v: i32 }
+
+impl Read for A {
+    fn read(self: &Self) -> i32 { return (*self).v }
+}
+
+impl Read for B {
+    fn read(self: &Self) -> i32 { return (*self).v + 10 }
+}
+
+fn spoof(a: &A) -> i32 {
+    return (*a).v + 999
+}
+
+fn call_read(x: OwnedDyn<dyn Read>) -> i32 {
+    return x.read()
+}
+
+fn run() -> DynCreateError!i32 {
+    let a0 = A { v: 1 }
+    let _ = spoof(&a0)
+    let ra = owned_dyn::<dyn Read>(A { v: 1 })?
+    let rb = owned_dyn::<dyn Read>(B { v: 2 })?
+    return call_read(ra) + call_read(rb) - 13
+}
+
+fn main() -> i32 {
+    match run() {
+        .ok(v) => { return v },
+        .err(_) => { return 99 }
+    }
+}
+"#;
+    let lowered = zil_typeck::lower_source("dyn_spoof_attack.zil", src).expect("lowers");
+    let cert =
+        solve_module(&lowered.module, zil_solve::Budget { steps: 1_000_000 }).expect("solves");
+    let decoded = decode_module(&encode_module(&lowered.module)).expect("decode honest");
+    check_module(decoded.clone(), &cert, CheckBudget { steps: 1_000_000 })
+        .expect("honest module passes");
+
+    let spoof_id = decoded
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(i, f)| {
+            (f.name == "spoof" && f.sig.role == FnRole::Normal).then_some(FnId::from_index(i))
+        })
+        .expect("spoof Normal function exists");
+    let a_impl_idx = decoded
+        .dyn_impls
+        .iter()
+        .position(|di| {
+            let fid = di.methods[0];
+            let f = &decoded.functions[fid.index()];
+            f.sig.params == decoded.functions[spoof_id.index()].sig.params
+                && f.sig.result == decoded.functions[spoof_id.index()].sig.result
+        })
+        .expect("find A DynImpl matching spoof signature");
+    let b_impl_idx = decoded
+        .dyn_impls
+        .iter()
+        .enumerate()
+        .find_map(|(i, _)| (i != a_impl_idx).then_some(i))
+        .expect("find B DynImpl");
+
+    // Attack 1: replace A's DynImpl method with same-signature Normal `spoof`.
+    // Must be rejected because `spoof` lacks `FnRole::DynSlotImpl` authorization.
+    let mut attack1 = decoded.clone();
+    attack1.dyn_impls[a_impl_idx].methods[0] = spoof_id;
+    let d1 = decode_module(&encode_module(&attack1)).expect("decode attack1");
+    assert!(
+        check_module(d1, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "same-signature Normal function substitution into DynImpl must be rejected"
+    );
+
+    // Attack 2: substitute B's authorized DynSlotImpl into A's DynImpl.
+    let mut attack2 = decoded.clone();
+    attack2.dyn_impls[a_impl_idx].methods[0] = attack2.dyn_impls[b_impl_idx].methods[0];
+    let d2 = decode_module(&encode_module(&attack2)).expect("decode attack2");
+    assert!(
+        check_module(d2, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "cross-concrete-type DynSlotImpl substitution must be rejected"
+    );
+
+    // Attack 3: inject a TaskYield suspension effect into an authorized DynSlotImpl body.
+    let mut attack3 = decoded.clone();
+    let a_method_id = attack3.dyn_impls[a_impl_idx].methods[0];
+    let unit_ty = attack3.tys.intern(zil_ir::body::TyKind::Unit);
+    let a_body = &mut attack3.functions[a_method_id.index()].body;
+    let tmp_local = Local::from_index(a_body.locals.len());
+    a_body.locals.push(zil_ir::body::LocalDecl {
+        ty: unit_ty,
+        name: None,
+    });
+    let next_block = BlockId::from_index(a_body.blocks.len());
+    let old_span = a_body.blocks[0].terminator_span;
+    let old_entry_term = std::mem::replace(
+        &mut a_body.blocks[0].terminator,
+        Terminator::Call {
+            callee: Callee::Intrinsic(IntrinsicOp::TaskYield),
+            args: Vec::new(),
+            dest: zil_ir::body::Place::local(tmp_local),
+            target: next_block,
+            cancel: None,
+        },
+    );
+    a_body.blocks.push(zil_ir::body::Block {
+        instructions: Vec::new(),
+        terminator: old_entry_term,
+        terminator_span: old_span,
+    });
+    let d3 = decode_module(&encode_module(&attack3)).expect("decode attack3");
+    assert!(
+        check_module(d3, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "TaskYield effect inside synchronous DynSlotImpl must be rejected"
+    );
+}

@@ -1637,3 +1637,252 @@ fn main() -> i32 {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn defer_control_flow_boundaries_reject_escapes_and_allow_local_control() {
+    let dir = temp_dir("defer-control-flow");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+
+    // Negative 1: `return` out of `defer` must be rejected cleanly without recursive unwinding.
+    let neg_cases: [(&str, &str, &str); 6] = [
+        (
+            "defer_return.zil",
+            r#"
+fn f() -> i32 {
+    defer { return 1 }
+    return 2
+}
+fn main() -> i32 { return f() }
+"#,
+            "cannot `return` out of a `defer` block",
+        ),
+        (
+            "defer_outer_break.zil",
+            r#"
+fn main() -> i32 {
+    loop {
+        defer { break }
+        break
+    }
+    return 0
+}
+"#,
+            "outside a loop",
+        ),
+        (
+            "defer_outer_continue.zil",
+            r#"
+fn main() -> i32 {
+    loop {
+        defer { continue }
+        break
+    }
+    return 0
+}
+"#,
+            "outside a loop",
+        ),
+        (
+            "defer_try.zil",
+            r#"
+fn fail_one() -> i32!i32 { return .err(7) }
+fn f() -> i32!i32 {
+    defer {
+        let _ = fail_one()?
+    }
+    return .ok(0)
+}
+fn main() -> i32 {
+    match f() { .ok(v) => { return v }, .err(e) => { return e } }
+}
+"#,
+            "cannot propagate errors with `?` out of a `defer` block",
+        ),
+        (
+            "defer_nested.zil",
+            r#"
+fn main() -> i32 {
+    defer {
+        defer { let _ = 1 }
+    }
+    return 0
+}
+"#,
+            "nested `defer` inside a `defer` block is not allowed",
+        ),
+        (
+            "defer_task_yield.zil",
+            r#"
+fn worker(x: i32) -> i32 {
+    defer { task_yield() }
+    return x
+}
+fn main() -> i32 { return worker(0) }
+"#,
+            "cannot suspend with `task_yield` inside a `defer` block",
+        ),
+    ];
+
+    for (name, code, expected_substr) in neg_cases {
+        let p = dir.join(name);
+        std::fs::write(&p, code).expect("write negative defer case");
+        let report = session.compile_path(&p, &verify_opts);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name} must be rejected, got {:?}",
+            report.status
+        );
+        let msg: String = report
+            .diagnostics
+            .iter()
+            .map(|d| format!("{}: {}", d.code, d.message))
+            .collect::<Vec<_>>()
+            .join("; ");
+        assert!(
+            msg.contains(expected_substr),
+            "{name}: expected diagnostic containing `{expected_substr}`, got: {msg}"
+        );
+    }
+
+    // Positive: local loop (`break`/`continue`) and local closure (`return`) inside `defer`
+    // are strictly contained within the defer block and must compile and execute on both backends.
+    let pos_src = dir.join("defer_local_control.zil");
+    std::fs::write(
+        &pos_src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+fn work() -> i32 {
+    defer {
+        var i: i32 = 0
+        var sum: i32 = 0
+        loop {
+            i = i + 1
+            if i == 2 { continue }
+            sum = sum + i
+            if i >= 4 { break }
+        }
+        // sum = 1 + 3 + 4 = 8
+        let f = () -> i32 => {
+            return sum + 57
+        }
+        // 8 + 57 = 65 ('A')
+        unsafe { putchar(f()) }
+    }
+    unsafe { putchar(66) }
+    return 0
+}
+
+fn main() -> i32 {
+    return work()
+}
+"#,
+    )
+    .expect("write positive defer case");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("defer-pos-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&pos_src, &exe, backend, opt);
+            assert_eq!(
+                (out.status.code(), out.stdout.as_slice()),
+                (Some(0), b"BA".as_slice()),
+                "defer positive ({backend:?}, {opt:?}) failed: stderr={}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn forged_dyn_slot_impl_role_is_rejected_by_ast_fidelity_checker() {
+    use zil_base::FileId;
+    use zil_check::check_fidelity;
+    use zil_ir::body::{FnId, FnRole, decode_module, encode_module};
+
+    let src = r#"
+trait Read {
+    fn read(self: &Self) -> i32;
+}
+
+struct A { v: i32 }
+
+impl Read for A {
+    fn read(self: &Self) -> i32 { return (*self).v }
+}
+
+fn spoof(a: &A) -> i32 {
+    return (*a).v + 999
+}
+
+fn call_read(x: OwnedDyn<dyn Read>) -> i32 {
+    return x.read()
+}
+
+fn run() -> DynCreateError!i32 {
+    let a0 = A { v: 1 }
+    let _ = spoof(&a0)
+    let ra = owned_dyn::<dyn Read>(A { v: 1 })?
+    return call_read(ra) - 1
+}
+
+fn main() -> i32 {
+    match run() {
+        .ok(v) => { return v },
+        .err(_) => { return 99 }
+    }
+}
+"#;
+    let unit = zil_base::SourceUnit {
+        file_id: FileId(0),
+        module_id: zil_base::ModuleId(0),
+        path: "forged_dyn_ast.zil".to_string(),
+        text: src.to_string(),
+    };
+    let parsed = zil_syntax::parse(&unit);
+    assert!(
+        parsed.diagnostics.is_empty(),
+        "parse diagnostics: {:?}",
+        parsed.diagnostics
+    );
+    let lowered = zil_typeck::lower_source("forged_dyn_ast.zil", src).expect("lowers");
+
+    // Honest module + AST passes check_fidelity.
+    check_fidelity(&lowered.module, &lowered.source_map, &[&parsed.module])
+        .expect("honest module passes AST fidelity");
+
+    // Forged Wire attack: swap FnRole::DynSlotImpl onto same-signature normal function `spoof`,
+    // and demote the real `impl Read for A::read` to FnRole::Normal so check_module's 1:1 IR
+    // invariant alone would see a well-formed role tag.
+    let mut forged = decode_module(&encode_module(&lowered.module)).expect("wire roundtrip");
+    let spoof_id = forged
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(i, f)| {
+            (f.name == "spoof" && f.sig.role == FnRole::Normal).then_some(FnId::from_index(i))
+        })
+        .expect("spoof function");
+    let real_method_id = forged.dyn_impls[0].methods[0];
+    let real_role = forged.functions[real_method_id.index()].sig.role;
+    forged.functions[real_method_id.index()].sig.role = FnRole::Normal;
+    forged.functions[spoof_id.index()].sig.role = real_role;
+    forged.dyn_impls[0].methods[0] = spoof_id;
+
+    let forged_wire = decode_module(&encode_module(&forged)).expect("forged wire roundtrip");
+    let err = check_fidelity(&forged_wire, &lowered.source_map, &[&parsed.module])
+        .expect_err("forged DynSlotImpl role on normal function must be rejected by AST fidelity");
+    assert_eq!(err.function, spoof_id);
+    assert!(
+        err.reason.contains("AST trait impl method"),
+        "unexpected fidelity error reason: {}",
+        err.reason
+    );
+}
