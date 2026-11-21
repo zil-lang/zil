@@ -60,10 +60,10 @@ jobs:
           python3 tools/llvm/check_toolchain.py > "$RECEIPTS/llvm-api-toolchain.json"
 
           cargo build --locked -p zil-cli
-          cargo build --locked --manifest-path tools/roam-rs/Cargo.toml --features llvm-api
+          cargo build --locked --release --manifest-path tools/roam-rs/Cargo.toml --features llvm-api
 
           CLI_BIN="$CARGO_TARGET_DIR/debug/zil"
-          ROAM_BIN="$CARGO_TARGET_DIR/debug/roam"
+          ROAM_BIN="$CARGO_TARGET_DIR/release/roam"
           CLI_SHA="$(sha256sum "$CLI_BIN" | awk '{print $1}')"
           ROAM_SHA="$(sha256sum "$ROAM_BIN" | awk '{print $1}')"
           python3 - "$RECEIPTS/build-receipt.json" "$COMMIT" "$TREE" "$CLI_SHA" "$ROAM_SHA" <<'PY'
@@ -106,7 +106,7 @@ jobs:
         run: |
           set -euo pipefail
           RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
-          "$CARGO_TARGET_DIR/debug/roam" callable-combinations \
+          "$CARGO_TARGET_DIR/release/roam" callable-combinations \
             --out="$RUNNER_TEMP/roam-callable-out" \
             --jobs=2 | tee "$RECEIPTS/roam-callable-stdout.json"
           cp "$RUNNER_TEMP/roam-callable-out/report.json" "$RECEIPTS/roam-callable-report.json"
@@ -115,7 +115,7 @@ jobs:
         run: |
           set -euo pipefail
           RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
-          "$CARGO_TARGET_DIR/debug/roam" task-result-combinations \
+          "$CARGO_TARGET_DIR/release/roam" task-result-combinations \
             --out="$RUNNER_TEMP/roam-task-out" \
             --jobs=2 | tee "$RECEIPTS/roam-task-stdout.json"
           cp "$RUNNER_TEMP/roam-task-out/report.json" "$RECEIPTS/roam-task-report.json"
