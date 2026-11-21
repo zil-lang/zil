@@ -20,8 +20,14 @@ use zil_ir::body::{
 };
 use zil_syntax::ast;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CaptureSource {
+    Local(LocalId),
+    OuterCapture(u32),
+}
+
 struct CaptureEntry {
-    source: LocalId,
+    source: CaptureSource,
     orig_ty: Ty,
     by_value: bool,
     mutable: bool,
@@ -31,7 +37,7 @@ struct CaptureEntry {
 }
 
 struct CaptureEnv {
-    /// Visible locals in the enclosing function: `(name, local, ty, mutable)`.
+    /// Visible locals in the immediately enclosing function or closure: `(name, local, ty, mutable)`.
     outer: Vec<(String, LocalId, Ty, bool)>,
     move_capture: bool,
     captures: Vec<CaptureEntry>,
@@ -51,7 +57,7 @@ pub struct FnCx<'c, 'a> {
     locals: Vec<LocalInfo>,
     scopes: Vec<Vec<(String, LocalId)>>,
     closures: Vec<ThirClosure>,
-    capture_env: Option<CaptureEnv>,
+    capture_stack: Vec<CaptureEnv>,
     loop_depth: u32,
     in_unsafe: u32,
 }
@@ -79,7 +85,7 @@ pub fn infer_fn<'a>(
         locals: Vec::new(),
         scopes: vec![Vec::new()],
         closures: Vec::new(),
-        capture_env: None,
+        capture_stack: Vec::new(),
         loop_depth: 0,
         in_unsafe: 0,
     };
@@ -193,7 +199,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         self.const_eval_stack.push(cid);
         let saved_mod = self.current_module;
         let saved_scopes = std::mem::take(&mut self.scopes);
-        let saved_cap = self.capture_env.take();
+        let saved_cap = std::mem::take(&mut self.capture_stack);
         self.current_module = target_mod;
         self.scopes.push(Vec::new());
         let mut expr = if let Some(ty) = expected_ty {
@@ -207,7 +213,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         expr.span = span;
         self.current_module = saved_mod;
         self.scopes = saved_scopes;
-        self.capture_env = saved_cap;
+        self.capture_stack = saved_cap;
         self.const_eval_stack.pop();
         expr
     }
@@ -807,6 +813,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 kind: want_k,
                 params: wp,
                 result: wr,
+                ..
             },
             TyData::Closure {
                 id,
@@ -1169,9 +1176,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
         path.first().is_some_and(|n| {
             self.lookup_local(n).is_some()
                 || self
-                    .capture_env
-                    .as_ref()
-                    .is_some_and(|env| env.outer.iter().any(|(name, ..)| name == n))
+                    .capture_stack
+                    .iter()
+                    .rev()
+                    .any(|env| env.outer.iter().any(|(name, ..)| name == n))
         })
     }
 
@@ -1726,7 +1734,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     return;
                 }
                 ExprKind::Capture(idx) => {
-                    if let Some(env) = &mut self.capture_env
+                    if let Some(env) = self.capture_stack.last_mut()
                         && let Some(cap) = env.captures.get_mut(*idx as usize)
                     {
                         if !cap.mutable {
@@ -1753,7 +1761,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             format!("a place behind a shared address cannot be {what}"),
                         );
                     } else if let ExprKind::Capture(idx) = base.kind
-                        && let Some(env) = &mut self.capture_env
+                        && let Some(env) = self.capture_stack.last_mut()
                         && let Some(cap) = env.captures.get_mut(idx as usize)
                     {
                         cap.mutated = true;
@@ -2374,10 +2382,27 @@ impl<'c, 'a> FnCx<'c, 'a> {
         }
     }
 
-    fn capture_outer(&mut self, name: &str, span: Span) -> Option<Expr> {
-        let env = self.capture_env.as_mut()?;
-        let (_, source, orig_ty, outer_mut) =
-            env.outer.iter().rev().find(|(n, ..)| n == name).cloned()?;
+    fn resolve_capture_at(
+        &mut self,
+        depth: usize,
+        name: &str,
+    ) -> Option<(u32, Ty, Ty, bool, bool)> {
+        let found = self.capture_stack[depth]
+            .outer
+            .iter()
+            .rev()
+            .find(|(n, ..)| n == name)
+            .map(|(_, l, ty, mutable)| (CaptureSource::Local(*l), *ty, *mutable));
+        let (source, orig_ty, outer_mut) = if let Some(entry) = found {
+            entry
+        } else if depth > 0 {
+            let (outer_idx, _, orig_ty, _, outer_mut) = self.resolve_capture_at(depth - 1, name)?;
+            (CaptureSource::OuterCapture(outer_idx), orig_ty, outer_mut)
+        } else {
+            return None;
+        };
+
+        let env = &mut self.capture_stack[depth];
         let idx = if let Some(pos) = env.captures.iter().position(|c| c.source == source) {
             pos
         } else {
@@ -2392,6 +2417,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     pointee: orig_ty,
                 })
             };
+            let env = &mut self.capture_stack[depth];
             env.captures.push(CaptureEntry {
                 source,
                 orig_ty,
@@ -2403,18 +2429,38 @@ impl<'c, 'a> FnCx<'c, 'a> {
             });
             env.captures.len() - 1
         };
-        let cap = &env.captures[idx];
+        let cap = &self.capture_stack[depth].captures[idx];
+        Some((
+            idx as u32,
+            cap.field_ty,
+            cap.orig_ty,
+            cap.by_value,
+            cap.mutable,
+        ))
+    }
+
+    fn capture_outer(&mut self, name: &str, span: Span) -> Option<Expr> {
+        let depth = self.capture_stack.len().checked_sub(1)?;
+        let (idx, field_ty, orig_ty, by_value, _) = self.resolve_capture_at(depth, name)?;
+        if by_value {
+            let ot = self.types.shallow(orig_ty);
+            if matches!(self.types.data(ot), TyData::Param(_))
+                && let Some(cap) = self.capture_stack[depth].captures.get_mut(idx as usize)
+            {
+                cap.consumed = true;
+            }
+        }
         let cap_expr = Expr {
-            kind: ExprKind::Capture(idx as u32),
-            ty: cap.field_ty,
+            kind: ExprKind::Capture(idx),
+            ty: field_ty,
             span,
         };
-        if cap.by_value {
+        if by_value {
             Some(cap_expr)
         } else {
             Some(Expr {
                 kind: ExprKind::Deref(Box::new(cap_expr)),
-                ty: cap.orig_ty,
+                ty: orig_ty,
                 span,
             })
         }
@@ -2553,11 +2599,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         span: Span,
         expected: Option<(&[Ty], Ty)>,
     ) -> Expr {
-        if self.capture_env.is_some() {
-            self.unsupported("nested closures", span);
-            return self.err_expr(span);
-        }
-        // Snapshot currently visible locals of the enclosing function.
+        // Snapshot currently visible locals of the immediately enclosing function or closure.
         let mut outer = Vec::new();
         for scope in &self.scopes {
             for (name, l) in scope {
@@ -2574,7 +2616,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         self.scopes.push(Vec::new());
         self.loop_depth = 0;
         self.in_unsafe = 0;
-        self.capture_env = Some(CaptureEnv {
+        self.capture_stack.push(CaptureEnv {
             outer,
             move_capture,
             captures: Vec::new(),
@@ -2635,7 +2677,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
         self.ret_ty = saved_ret;
         self.loop_depth = saved_loop;
         self.in_unsafe = saved_unsafe;
-        let env = self.capture_env.take().expect("capture_env set above");
+        let env = self
+            .capture_stack
+            .pop()
+            .expect("capture_stack pushed above");
 
         let kind = if env.captures.iter().any(|c| c.consumed) {
             ClosureKind::FnOnce
@@ -2646,29 +2691,59 @@ impl<'c, 'a> FnCx<'c, 'a> {
         };
         let id = ClosureRef(self.closures.len() as u32);
         let capture_tys: Vec<Ty> = env.captures.iter().map(|c| c.field_ty).collect();
-        let capture_exprs: Vec<Expr> = env
-            .captures
-            .iter()
-            .map(|c| {
-                let place = Expr {
-                    kind: ExprKind::Local(c.source),
+        let mut capture_exprs = Vec::with_capacity(env.captures.len());
+        for c in &env.captures {
+            let place = match c.source {
+                CaptureSource::Local(l) => Expr {
+                    kind: ExprKind::Local(l),
                     ty: c.orig_ty,
                     span,
-                };
-                if c.by_value {
-                    place
-                } else {
-                    Expr {
-                        kind: ExprKind::Borrow {
-                            mutable: c.mutable,
-                            place: Box::new(place),
-                        },
-                        ty: c.field_ty,
+                },
+                CaptureSource::OuterCapture(outer_idx) => {
+                    let is_managed = matches!(
+                        self.types.data(self.types.shallow(c.orig_ty)),
+                        TyData::Managed(_)
+                    );
+                    let outer_env = self
+                        .capture_stack
+                        .last_mut()
+                        .expect("OuterCapture requires enclosing closure");
+                    let outer_cap = &mut outer_env.captures[outer_idx as usize];
+                    if c.consumed || (c.by_value && is_managed) {
+                        outer_cap.consumed = true;
+                    }
+                    if c.mutated || (!c.by_value && c.mutable) {
+                        outer_cap.mutated = true;
+                    }
+                    let cap_expr = Expr {
+                        kind: ExprKind::Capture(outer_idx),
+                        ty: outer_cap.field_ty,
                         span,
+                    };
+                    if outer_cap.by_value {
+                        cap_expr
+                    } else {
+                        Expr {
+                            kind: ExprKind::Deref(Box::new(cap_expr)),
+                            ty: outer_cap.orig_ty,
+                            span,
+                        }
                     }
                 }
-            })
-            .collect();
+            };
+            capture_exprs.push(if c.by_value {
+                place
+            } else {
+                Expr {
+                    kind: ExprKind::Borrow {
+                        mutable: c.mutable,
+                        place: Box::new(place),
+                    },
+                    ty: c.field_ty,
+                    span,
+                }
+            });
+        }
         self.closures.push(ThirClosure {
             kind,
             capture_tys,
@@ -2678,9 +2753,13 @@ impl<'c, 'a> FnCx<'c, 'a> {
             result: result_ty,
             body: body_expr,
         });
+        let owner_args = (0..self.generic_names.len() as u32)
+            .map(|i| self.types.intern(TyData::Param(i)))
+            .collect();
         let ty = self.types.intern(TyData::Closure {
             owner: self.fn_ref,
             id,
+            owner_args,
             kind,
             params: param_tys,
             result: result_ty,
@@ -2859,7 +2938,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let xt = self.types.shallow(x.ty);
                 if matches!(self.types.data(xt), TyData::Managed(_)) {
                     if let ExprKind::Capture(idx) = x.kind
-                        && let Some(env) = &mut self.capture_env
+                        && let Some(env) = self.capture_stack.last_mut()
                         && let Some(entry) = env.captures.get_mut(idx as usize)
                     {
                         entry.consumed = true;

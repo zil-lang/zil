@@ -169,6 +169,9 @@ impl<K: Eq + Clone, V: Eq + Clone> MustFacts<K, V> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Carries {
     sets: Vec<BitSet>,
+    /// Optional per-field loan breakdown for closure values; `None` falls back
+    /// conservatively to `sets[local]`.
+    fields: Vec<Option<Vec<BitSet>>>,
     loans: usize,
 }
 
@@ -176,6 +179,7 @@ impl Carries {
     pub fn empty(locals: usize, loans: usize) -> Self {
         Carries {
             sets: vec![BitSet::new(loans); locals],
+            fields: vec![None; locals],
             loans,
         }
     }
@@ -188,14 +192,25 @@ impl Carries {
     pub fn get(&self, local: Local) -> Option<&BitSet> {
         self.sets.get(local.index())
     }
+    pub fn fields_of(&self, local: Local) -> Option<&[BitSet]> {
+        self.fields
+            .get(local.index())
+            .and_then(|opt| opt.as_deref())
+    }
     pub fn set(&mut self, local: Local, loans: BitSet) {
         self.sets[local.index()] = loans;
+        self.fields[local.index()] = None;
+    }
+    pub fn set_fields(&mut self, local: Local, field_loans: Vec<BitSet>) {
+        self.fields[local.index()] = Some(field_loans);
     }
     pub fn add(&mut self, local: Local, loans: &BitSet) {
         self.sets[local.index()].union_with(loans);
+        self.fields[local.index()] = None;
     }
     pub fn clear(&mut self, local: Local) {
         self.sets[local.index()] = BitSet::new(self.loans);
+        self.fields[local.index()] = None;
     }
     pub fn locals(&self) -> usize {
         self.sets.len()
@@ -211,6 +226,16 @@ impl Carries {
     fn join_with(&mut self, other: &Carries) {
         for (a, b) in self.sets.iter_mut().zip(&other.sets) {
             a.union_with(b);
+        }
+        for (a, b) in self.fields.iter_mut().zip(&other.fields) {
+            match (a.as_mut(), b.as_ref()) {
+                (Some(fa), Some(fb)) if fa.len() == fb.len() => {
+                    for (x, y) in fa.iter_mut().zip(fb) {
+                        x.union_with(y);
+                    }
+                }
+                _ => *a = None,
+            }
         }
     }
     fn leq(&self, other: &Carries) -> bool {

@@ -343,10 +343,15 @@ impl<'a> Items<'a> {
             TyData::Closure {
                 owner,
                 id,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
                 let params = params
                     .into_iter()
                     .map(|a| self.normalize_ty_depth(a, types, depth + 1))
@@ -355,6 +360,7 @@ impl<'a> Items<'a> {
                 types.intern(TyData::Closure {
                     owner,
                     id,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -362,10 +368,15 @@ impl<'a> Items<'a> {
             }
             TyData::ImplCallable {
                 owner,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
                 let params = params
                     .into_iter()
                     .map(|a| self.normalize_ty_depth(a, types, depth + 1))
@@ -373,6 +384,7 @@ impl<'a> Items<'a> {
                 let result = self.normalize_ty_depth(result, types, depth + 1);
                 types.intern(TyData::ImplCallable {
                     owner,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -2823,8 +2835,12 @@ fn resolve_type_with_lifetimes(
             if let Some(d) = diags.into_iter().next() {
                 return Err(d);
             }
+            let owner_args = (0..generics.len() as u32)
+                .map(|i| types.intern(TyData::Param(i)))
+                .collect();
             Ok(types.intern(TyData::ImplCallable {
                 owner,
+                owner_args,
                 kind,
                 params,
                 result,

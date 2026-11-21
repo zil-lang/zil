@@ -544,18 +544,25 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     result: self.lower_ty(result, span)?,
                 }
             }
-            TyData::Closure { owner, id, .. } => {
-                let def = self.ensure_closure(owner, Vec::new(), id, span)?;
+            TyData::Closure {
+                owner,
+                id,
+                owner_args,
+                ..
+            } => {
+                let def = self.ensure_closure(owner, owner_args, id, span)?;
                 let args = self.args_id(&[], span)?;
                 TyKind::Closure { def, args }
             }
-            TyData::ImplCallable { owner, .. } => {
+            TyData::ImplCallable {
+                owner, owner_args, ..
+            } => {
                 let cid = self
                     .thir
                     .get(owner.0 as usize)
                     .and_then(Option::as_ref)
                     .and_then(|t| t.opaque_return)?;
-                let def = self.ensure_closure(owner, Vec::new(), cid, span)?;
+                let def = self.ensure_closure(owner, owner_args, cid, span)?;
                 let args = self.args_id(&[], span)?;
                 TyKind::Closure { def, args }
             }

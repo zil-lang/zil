@@ -283,7 +283,7 @@ fn constraints_reject_copy_of_affine_and_resource_aggregates() {
             functions: &[],
             foreigns: &[],
             static_count: 0,
-            return_param_masks: None,
+            return_summaries: None,
         },
     };
     let copy_pkg = InstructionKind::Assign {

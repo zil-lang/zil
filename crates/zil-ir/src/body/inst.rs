@@ -514,16 +514,31 @@ pub struct ForeignDecl {
     pub noescape_params: Vec<u32>,
 }
 
+/// Per-function sound over-approximation of parameter and closure-capture flows
+/// into the return value, independently derived from the module's bodies by
+/// both solver and checker.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReturnSummary {
+    /// If this function is the body of a closure, its `ClosureId`.
+    pub closure: Option<ClosureId>,
+    /// Parameter indices (`0..64`) that may flow into the return value.
+    pub param_mask: u64,
+    /// Closure capture indices (`0..64`) that may flow into the return value.
+    pub capture_mask: u64,
+    /// When the return value is a closure whose capture fields have known
+    /// parameter origins, per-field parameter masks (`field_idx -> param_mask`).
+    pub ret_field_param_masks: Vec<u64>,
+}
+
 /// The signatures a body may refer to.
 #[derive(Clone, Copy, Debug)]
 pub struct Sigs<'a> {
     pub functions: &'a [FnSig],
     pub foreigns: &'a [ForeignDecl],
     pub static_count: usize,
-    /// Per-function sound over-approximation of which parameter indices (`0..64`)
-    /// may flow into the function's return value (independently derived from the
+    /// Per-function return flow summaries (independently derived from the
     /// module's bodies by both solver and checker).
-    pub return_param_masks: Option<&'a [u64]>,
+    pub return_summaries: Option<&'a [ReturnSummary]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

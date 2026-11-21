@@ -42,12 +42,12 @@ pub fn check_module(
         kind: CheckErrorKind::CertificateShape(e.reason),
     })?;
     let fn_sigs = module.fn_sigs();
-    let return_param_masks = zil_semantics::compute_return_param_masks(&module);
+    let return_summaries = zil_semantics::compute_return_summaries(&module);
     let sigs = Sigs {
         functions: &fn_sigs,
         foreigns: &module.foreigns,
         static_count: module.statics.len(),
-        return_param_masks: Some(&return_param_masks),
+        return_summaries: Some(&return_summaries),
     };
     let mut remaining = budget;
     if certificate.functions.len() != module.functions.len() {

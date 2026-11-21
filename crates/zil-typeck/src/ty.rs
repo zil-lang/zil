@@ -92,6 +92,7 @@ pub enum TyData {
     Closure {
         owner: FnRef,
         id: ClosureRef,
+        owner_args: Vec<Ty>,
         kind: ClosureKind,
         params: Vec<Ty>,
         result: Ty,
@@ -99,6 +100,7 @@ pub enum TyData {
     /// Return-position `impl Fn/FnMut/FnOnce` of `owner`.
     ImplCallable {
         owner: FnRef,
+        owner_args: Vec<Ty>,
         kind: ClosureKind,
         params: Vec<Ty>,
         result: Ty,
@@ -211,10 +213,24 @@ impl Types {
             }
             TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => false,
             TyData::ErrorUnion { ok, err } => self.occurs(v, *ok) || self.occurs(v, *err),
-            TyData::FnPtr { params, result }
-            | TyData::Closure { params, result, .. }
-            | TyData::ImplCallable { params, result, .. } => {
+            TyData::FnPtr { params, result } => {
                 params.iter().any(|t| self.occurs(v, *t)) || self.occurs(v, *result)
+            }
+            TyData::Closure {
+                owner_args,
+                params,
+                result,
+                ..
+            }
+            | TyData::ImplCallable {
+                owner_args,
+                params,
+                result,
+                ..
+            } => {
+                owner_args.iter().any(|t| self.occurs(v, *t))
+                    || params.iter().any(|t| self.occurs(v, *t))
+                    || self.occurs(v, *result)
             }
             TyData::Assoc { base, .. } => self.occurs(v, *base),
             TyData::Unit
@@ -521,10 +537,15 @@ impl Types {
             TyData::Closure {
                 owner,
                 id,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args
+                    .iter()
+                    .map(|t| self.zonk(*t))
+                    .collect::<Option<Vec<_>>>()?;
                 let params = params
                     .iter()
                     .map(|t| self.zonk(*t))
@@ -533,6 +554,7 @@ impl Types {
                 self.intern(TyData::Closure {
                     owner,
                     id,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -540,10 +562,15 @@ impl Types {
             }
             TyData::ImplCallable {
                 owner,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args
+                    .iter()
+                    .map(|t| self.zonk(*t))
+                    .collect::<Option<Vec<_>>>()?;
                 let params = params
                     .iter()
                     .map(|t| self.zonk(*t))
@@ -551,6 +578,7 @@ impl Types {
                 let result = self.zonk(result)?;
                 self.intern(TyData::ImplCallable {
                     owner,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -678,10 +706,15 @@ impl Types {
             TyData::Closure {
                 owner,
                 id,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
                 let params = params
                     .iter()
                     .map(|t| self.subst_with_self(*t, args, self_ty))
@@ -690,6 +723,7 @@ impl Types {
                 self.intern(TyData::Closure {
                     owner,
                     id,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -697,10 +731,15 @@ impl Types {
             }
             TyData::ImplCallable {
                 owner,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
                 let params = params
                     .iter()
                     .map(|t| self.subst_with_self(*t, args, self_ty))
@@ -708,6 +747,7 @@ impl Types {
                 let result = self.subst_with_self(result, args, self_ty);
                 self.intern(TyData::ImplCallable {
                     owner,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -821,15 +861,18 @@ impl Types {
             TyData::Closure {
                 owner,
                 id,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args.iter().map(|t| self.subst(*t, args)).collect();
                 let params = params.iter().map(|t| self.subst(*t, args)).collect();
                 let result = self.subst(result, args);
                 self.intern(TyData::Closure {
                     owner,
                     id,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -837,14 +880,17 @@ impl Types {
             }
             TyData::ImplCallable {
                 owner,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args.iter().map(|t| self.subst(*t, args)).collect();
                 let params = params.iter().map(|t| self.subst(*t, args)).collect();
                 let result = self.subst(result, args);
                 self.intern(TyData::ImplCallable {
                     owner,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -943,15 +989,18 @@ impl Types {
             TyData::Closure {
                 owner,
                 id,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args.iter().map(|t| self.erase_regions(*t)).collect();
                 let params = params.iter().map(|t| self.erase_regions(*t)).collect();
                 let result = self.erase_regions(result);
                 self.intern(TyData::Closure {
                     owner,
                     id,
+                    owner_args,
                     kind,
                     params,
                     result,
@@ -959,14 +1008,17 @@ impl Types {
             }
             TyData::ImplCallable {
                 owner,
+                owner_args,
                 kind,
                 params,
                 result,
             } => {
+                let owner_args = owner_args.iter().map(|t| self.erase_regions(*t)).collect();
                 let params = params.iter().map(|t| self.erase_regions(*t)).collect();
                 let result = self.erase_regions(result);
                 self.intern(TyData::ImplCallable {
                     owner,
+                    owner_args,
                     kind,
                     params,
                     result,

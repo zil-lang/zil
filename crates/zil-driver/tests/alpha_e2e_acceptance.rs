@@ -1262,3 +1262,170 @@ fn main() -> i32 {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn nested_closures_generic_impl_fn_and_higher_order_task_transport() {
+    let root = repo_root();
+    let dir = temp_dir("batch2-closures-tasks");
+
+    // 1. Nested closures (multi-level capture + FnMut propagation) and generic impl FnOnce
+    //    monomorphization (invoked transfer + uninvoked drop cleanup).
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+resource Token { tag: i32 }
+impl Drop for Token { fn drop(self: Self) { unsafe { putchar(.tag) } } }
+
+fn make_box<T>(value: T) -> impl FnOnce() -> T {
+    return move () -> T => value
+}
+
+fn drop_uninvoked(code: i32) {
+    let tok = Token { tag: code }
+    let cb = make_box(give tok)
+    // cb is never invoked; leaving scope must drop the captured Token once.
+    let _ = cb
+}
+
+fn invoke_and_return(code: i32) -> Managed<Token> {
+    let tok = Token { tag: code }
+    let cb = make_box(give tok)
+    return cb()
+}
+
+fn main() -> i32 {
+    // Nested closures capturing outer local + outer closure param + mutating outer var
+    let base = 10
+    var acc = 1
+    var outer = (scale: i32) -> i32 => {
+        var inner = (delta: i32) -> i32 => {
+            acc += base * scale + delta
+            return acc
+        }
+        let r1 = inner(2)
+        let r2 = inner(3)
+        return r1 + r2
+    }
+    let total = outer(2)
+    // r1 = 1 + 20 + 2 = 23, r2 = 23 + 20 + 3 = 46, total = 69, acc = 46
+    if total != 69 || acc != 46 { return 1 }
+
+    // Generic impl FnOnce instantiated with i32
+    let get_num = make_box(42)
+    if get_num() != 42 { return 2 }
+
+    // Generic impl FnOnce instantiated with Managed<Token>:
+    // First uninvoked drops 'U' (85), then invoked returns token dropped at end of main 'I' (73).
+    drop_uninvoked(85)
+    let returned = invoke_and_return(73)
+    if returned.tag != 73 { return 3 }
+    return 0
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    let fixtures = [
+        "tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil",
+        "tests/language-readiness/task-owner-transport/returned-shared-task-classes.zil",
+        "tests/fixtures/call-regions/known-closure-borrowed.zil",
+    ];
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("nested-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "nested+generic ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"UI",
+                "nested+generic ({backend:?}, {opt:?}) unexpected drop trace: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+
+            for rel in fixtures {
+                let fpath = root.join(rel);
+                let stem = fpath.file_stem().unwrap().to_string_lossy();
+                let fexe = dir.join(format!("{stem}-{}-{opt:?}", backend.name()));
+                let fout = build_and_run_raw(&fpath, &fexe, backend, opt);
+                assert_eq!(
+                    fout.status.code(),
+                    Some(0),
+                    "{rel} ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                    fout.status,
+                    String::from_utf8_lossy(&fout.stderr)
+                );
+            }
+        }
+    }
+
+    // 2. Negative safety check: if closure returns `original` (borrowing `number`),
+    //    mutating `number` before consuming `restored` must still be rejected with LoanConflict.
+    let neg_task = dir.join("neg_task_conflict.zil");
+    std::fs::write(
+        &neg_task,
+        r#"
+fn worker(input: &mut i32) -> i32 { *input += 5; task_yield(); return *input }
+fn drive<life a>(give original: Task<i32, &'a mut i32>) -> i32 {
+    var task = give original
+    var answer = 0
+    loop {
+        match task_poll(&mut task) {
+            .ok(p) => { match p { Poll.Pending() => { continue }, Poll.Ready(v) => { answer = v; break } } },
+            .err(_) => { break }
+        }
+    }
+    task_request_cancel(&mut task)
+    loop { match task_poll_close(&mut task) { Poll.Pending() => { continue }, Poll.Ready(_) => { break } } }
+    task_finish_destroy(give task)
+    return answer
+}
+fn keep_first<life a, life b>(give original: Task<i32, &'a mut i32>, give second: Task<i32, &'b mut i32>) -> impl FnOnce() -> Managed<Task<i32, &'a mut i32>> {
+    return move () => { drive(give second); return give original }
+}
+fn main() -> TaskCreateError!i32 {
+    var number = 37
+    var other = 41
+    let original = task_create(worker, &mut number)?
+    let second = task_create(worker, &mut other)?
+    let cb = keep_first(give original, give second)
+    let restored = cb()
+    number = 9
+    return drive(give restored)
+}
+"#,
+    )
+    .expect("write neg_task_conflict.zil");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&neg_task, &verify_opts);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "mutating number while restored still borrows number must be rejected"
+    );
+    let msg: String = report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        msg.contains("LoanConflict"),
+        "expected LoanConflict, got: {msg}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

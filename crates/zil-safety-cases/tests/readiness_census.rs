@@ -340,18 +340,9 @@ fn task_owner_transport_explicit_manifest() {
             Expected::Rejected("typeck", "E-GENERIC-ARGUMENT"),
         ),
         // 3 known higher-order cross-function task-region transport gaps
-        (
-            "nested-once-callable-child-cleanup.zil",
-            Expected::Rejected("solve", "MoveFromBorrowed"),
-        ),
-        (
-            "returned-second-task-fnonce.zil",
-            Expected::Rejected("solve", "LoanConflict"),
-        ),
-        (
-            "returned-shared-task-classes.zil",
-            Expected::Rejected("solve", "LoanConflict"),
-        ),
+        ("nested-once-callable-child-cleanup.zil", Expected::Admitted),
+        ("returned-second-task-fnonce.zil", Expected::Admitted),
+        ("returned-shared-task-classes.zil", Expected::Admitted),
     ];
 
     assert_eq!(manifest.len(), 33);
@@ -446,7 +437,7 @@ fn helper_and_readiness_explicit_manifest() {
         // tests/fixtures/call-regions (3)
         (
             "tests/fixtures/call-regions/known-closure-borrowed.zil",
-            Expected::Rejected("solve", "MissingType"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/call-regions/negative-closure-rigid-life.zil",

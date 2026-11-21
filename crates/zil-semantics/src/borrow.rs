@@ -24,6 +24,7 @@ pub(crate) enum Flow {
     Write {
         place: Place,
         loans: BitSet,
+        field_loans: Option<Vec<BitSet>>,
     },
     /// A writing loan was created: facts about the place no longer hold.
     KillFacts(Place),
@@ -35,6 +36,8 @@ pub(crate) struct TermFlows {
     /// Loans that flow into the destination of a `Call` according to its region
     /// contract (equals `loans` when the callee has no region parameters).
     ret_loans: BitSet,
+    /// Optional per-field loan breakdown for a closure returned by a `Call`.
+    ret_field_loans: Option<Vec<BitSet>>,
     /// Some operand grants a callee write access to external storage that
     /// can hold addresses.
     external_store: bool,
@@ -315,9 +318,53 @@ impl Kernel<'_> {
                 } else {
                     self.empty_loans()
                 };
+                let field_loans = if dest.projections.is_empty() && self.place_holds_address(dest) {
+                    match value {
+                        Rvalue::Aggregate {
+                            kind: zil_ir::body::AggregateKind::Closure { .. },
+                            operands,
+                        } => Some(
+                            operands
+                                .iter()
+                                .map(|op| match op {
+                                    zil_ir::body::Operand::Copy(p)
+                                    | zil_ir::body::Operand::Move(p) => self.reach(state, p.root),
+                                    zil_ir::body::Operand::Const(_)
+                                    | zil_ir::body::Operand::Pooled(_) => self.empty_loans(),
+                                })
+                                .collect(),
+                        ),
+                        Rvalue::Use(
+                            zil_ir::body::Operand::Copy(p) | zil_ir::body::Operand::Move(p),
+                        ) if p.projections.is_empty() => match p.root {
+                            PlaceRoot::Local(src) => {
+                                state.carries.fields_of(src).map(|s| s.to_vec())
+                            }
+                            PlaceRoot::Capture(_) => None,
+                        },
+                        Rvalue::Use(_)
+                        | Rvalue::Aggregate { .. }
+                        | Rvalue::ErrorUnion { .. }
+                        | Rvalue::Ref { .. }
+                        | Rvalue::SliceRef { .. }
+                        | Rvalue::Describe { .. }
+                        | Rvalue::Unary { .. }
+                        | Rvalue::Binary { .. }
+                        | Rvalue::Convert { .. }
+                        | Rvalue::Discriminant(_)
+                        | Rvalue::ErrorArm(_)
+                        | Rvalue::Len(_)
+                        | Rvalue::FnRef(_)
+                        | Rvalue::ForeignFnRef(_)
+                        | Rvalue::StaticUtf(_) => None,
+                    }
+                } else {
+                    None
+                };
                 flows.push(Flow::Write {
                     place: dest.clone(),
                     loans,
+                    field_loans,
                 });
             }
             InstructionKind::Replace { place, old, .. } => {
@@ -336,10 +383,12 @@ impl Kernel<'_> {
                 flows.push(Flow::Write {
                     place: place.clone(),
                     loans: incoming,
+                    field_loans: None,
                 });
                 flows.push(Flow::Write {
                     place: Place::local(*old),
                     loans: outgoing,
+                    field_loans: None,
                 });
             }
             InstructionKind::Drop { .. }
@@ -359,7 +408,19 @@ impl Kernel<'_> {
     ) -> Result<(), ViolationKind> {
         for flow in flows {
             match flow {
-                Flow::Write { place, loans } => self.write(state, &place, &loans)?,
+                Flow::Write {
+                    place,
+                    loans,
+                    field_loans,
+                } => {
+                    self.write(state, &place, &loans)?;
+                    if let Some(fl) = field_loans
+                        && place.projections.is_empty()
+                        && let PlaceRoot::Local(d) = place.root
+                    {
+                        state.carries.set_fields(d, fl);
+                    }
+                }
                 Flow::KillFacts(place) => self.invalidate(state, &place),
             }
         }
@@ -452,23 +513,44 @@ impl Kernel<'_> {
                 .iter()
                 .map(|a| (a.role, a.access, a.place.as_ref())),
         );
-        let ret_loans = match term {
+        let (ret_loans, ret_field_loans) = match term {
             Terminator::Call {
                 callee: zil_ir::body::Callee::Direct(f),
+                args,
                 ..
             } => {
-                if let Some(sig) = self.sigs.functions.get(f.index())
+                let summary = self.sigs.return_summaries.and_then(|ms| ms.get(f.index()));
+                let rf = summary.and_then(|s| {
+                    if s.ret_field_param_masks.is_empty() {
+                        return None;
+                    }
+                    let mut out = Vec::with_capacity(s.ret_field_param_masks.len());
+                    for &fmask in &s.ret_field_param_masks {
+                        let mut fl = self.empty_loans();
+                        for (ai, arg) in args.iter().enumerate() {
+                            if ai >= 64 || (fmask & (1u64 << ai)) != 0 {
+                                match arg {
+                                    zil_ir::body::Operand::Copy(p)
+                                    | zil_ir::body::Operand::Move(p) => {
+                                        fl.union_with(&self.reach(state, p.root));
+                                    }
+                                    zil_ir::body::Operand::Const(_)
+                                    | zil_ir::body::Operand::Pooled(_) => {}
+                                }
+                            }
+                        }
+                        out.push(fl);
+                    }
+                    Some(out)
+                });
+                let rl = if let Some(sig) = self.sigs.functions.get(f.index())
                     && sig.region_params > 0
                 {
                     let ret_regions = self.tys.regions_in(sig.result);
                     if ret_regions.is_empty() {
                         self.empty_loans()
                     } else {
-                        let param_mask = self
-                            .sigs
-                            .return_param_masks
-                            .and_then(|ms| ms.get(f.index()).copied())
-                            .unwrap_or(u64::MAX);
+                        let param_mask = summary.map_or(u64::MAX, |s| s.param_mask);
                         let matching = accesses.iter().filter(|a| {
                             let OperandRole::Arg(idx) = a.role else {
                                 return false;
@@ -489,22 +571,86 @@ impl Kernel<'_> {
                     }
                 } else {
                     loans.clone()
+                };
+                (rl, rf)
+            }
+            Terminator::Call {
+                callee: zil_ir::body::Callee::Closure { closure, .. },
+                ..
+            } => {
+                let cx = self.body.cx(self.tys);
+                let closure_def = type_place(closure, &cx).ok().and_then(|t| {
+                    let ty = t.ty();
+                    if let zil_ir::body::TyKind::Closure { def, .. } = self.tys.kind(ty) {
+                        Some(*def)
+                    } else if let zil_ir::body::TyKind::Managed(inner)
+                    | zil_ir::body::TyKind::Ref { pointee: inner, .. } = self.tys.kind(ty)
+                    {
+                        if let zil_ir::body::TyKind::Closure { def, .. } = self.tys.kind(*inner) {
+                            Some(*def)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                });
+                let summary = closure_def.and_then(|def| {
+                    self.sigs
+                        .return_summaries
+                        .and_then(|ms| ms.iter().find(|s| s.closure == Some(def)))
+                });
+                if let Some(csum) = summary
+                    && closure.projections.is_empty()
+                    && let PlaceRoot::Local(rl_local) = closure.root
+                    && let Some(rfields) = state.carries.fields_of(rl_local)
+                {
+                    let max_bit = if rfields.len() >= 64 {
+                        u64::MAX
+                    } else {
+                        (1u64 << rfields.len()) - 1
+                    };
+                    if (csum.capture_mask & !max_bit) == 0 {
+                        let mut out = self.empty_loans();
+                        for (ci, fl) in rfields.iter().enumerate() {
+                            if (csum.capture_mask & (1u64 << ci)) != 0 {
+                                out.union_with(fl);
+                            }
+                        }
+                        let matching_args = accesses.iter().filter(|a| {
+                            let OperandRole::Arg(idx) = a.role else {
+                                return false;
+                            };
+                            idx >= 64 || (csum.param_mask & (1u64 << idx)) != 0
+                        });
+                        out.union_with(&self.operand_loans(
+                            state,
+                            matching_args.map(|a| (a.role, a.access, a.place.as_ref())),
+                        ));
+                        (out, None)
+                    } else {
+                        (loans.clone(), None)
+                    }
+                } else {
+                    (loans.clone(), None)
                 }
             }
             Terminator::Call {
                 callee: zil_ir::body::Callee::Intrinsic(zil_ir::body::IntrinsicOp::TaskPoll),
                 args,
                 ..
-            } => self
-                .task_poll_ret_loans(state, args, &loans)
-                .unwrap_or_else(|| loans.clone()),
+            } => (
+                self.task_poll_ret_loans(state, args, &loans)
+                    .unwrap_or_else(|| loans.clone()),
+                None,
+            ),
             Terminator::Call { .. }
             | Terminator::Goto { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
             | Terminator::Assert { .. }
             | Terminator::Unreachable
-            | Terminator::Trap(_) => loans.clone(),
+            | Terminator::Trap(_) => (loans.clone(), None),
         };
         let external_store = match term {
             Terminator::Call {
@@ -542,6 +688,7 @@ impl Kernel<'_> {
         TermFlows {
             loans,
             ret_loans,
+            ret_field_loans,
             external_store,
         }
     }
@@ -683,12 +830,21 @@ impl Kernel<'_> {
     ) -> Result<(), ViolationKind> {
         match (term, kind) {
             (Terminator::Call { dest, .. }, EdgeKind::CallReturn) => {
-                let loans = if self.place_holds_address(dest) {
+                let holds = self.place_holds_address(dest);
+                let loans = if holds {
                     flows.ret_loans.clone()
                 } else {
                     self.empty_loans()
                 };
-                self.write(state, dest, &loans)
+                self.write(state, dest, &loans)?;
+                if holds
+                    && let Some(fl) = &flows.ret_field_loans
+                    && dest.projections.is_empty()
+                    && let PlaceRoot::Local(d) = dest.root
+                {
+                    state.carries.set_fields(d, fl.clone());
+                }
+                Ok(())
             }
             (
                 Terminator::Goto { .. }
