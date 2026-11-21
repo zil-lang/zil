@@ -17,6 +17,9 @@ use zil_syntax::ast;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ModIdx(pub u32);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ConstRef(pub u32);
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ItemRef {
     Fn(FnRef),
@@ -24,6 +27,7 @@ pub enum ItemRef {
     Foreign(ForeignRef),
     Trait(TraitRef),
     TypeAlias(ModIdx, u32),
+    Const(ConstRef),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -153,6 +157,14 @@ pub struct ModuleScope {
     pub publics: HashSet<String>,
     pub imports: HashMap<String, ModIdx>,
     pub type_aliases: Vec<(usize, Ty)>,
+    pub const_u32: HashMap<String, u32>,
+}
+
+pub struct ConstDeclInfo<'a> {
+    pub module: ModIdx,
+    pub name: String,
+    pub ty: Option<Ty>,
+    pub value: Option<&'a ast::Expr>,
 }
 
 pub struct Items<'a> {
@@ -164,6 +176,7 @@ pub struct Items<'a> {
     pub traits: Vec<TraitDecl>,
     pub trait_impls: Vec<TraitImplDecl>,
     pub adt_kinds: Vec<AdtKind>,
+    pub consts: Vec<ConstDeclInfo<'a>>,
 }
 
 impl<'a> Items<'a> {
@@ -178,6 +191,9 @@ impl<'a> Items<'a> {
     }
     pub fn trait_decl(&self, t: TraitRef) -> &TraitDecl {
         &self.traits[t.0 as usize]
+    }
+    pub fn const_decl(&self, c: ConstRef) -> &ConstDeclInfo<'a> {
+        &self.consts[c.0 as usize]
     }
 
     /// Resolves a bare or module-qualified item path from module `from`.
@@ -517,6 +533,7 @@ pub fn collect_program<'a>(
         traits: Vec::new(),
         trait_impls: Vec::new(),
         adt_kinds: Vec::new(),
+        consts: Vec::new(),
     };
     for (i, inp) in inputs.iter().enumerate() {
         let idx = ModIdx(i as u32);
@@ -526,6 +543,7 @@ pub fn collect_program<'a>(
             publics: HashSet::new(),
             imports: HashMap::new(),
             type_aliases: Vec::new(),
+            const_u32: HashMap::new(),
         });
         if !inp.path.is_empty() {
             items.mod_by_path.insert(inp.path.clone(), idx);
@@ -684,6 +702,7 @@ pub fn collect_program<'a>(
     let mut impl_asts: Vec<(ModIdx, &'a ast::ImplBlock, Span)> = Vec::new();
     let mut trait_asts: Vec<(ModIdx, &'a ast::TraitDecl, Span)> = Vec::new();
     let mut alias_asts: Vec<(ModIdx, u32, &'a ast::TypeAlias, Span)> = Vec::new();
+    let mut const_asts: Vec<(ModIdx, ConstRef, &'a ast::ConstDecl, Span)> = Vec::new();
 
     for (m_i, inp) in inputs.iter().enumerate() {
         let mid = ModIdx(m_i as u32);
@@ -765,9 +784,16 @@ pub fn collect_program<'a>(
                     alias_asts.push((mid, ta_idx, ta, item.span));
                     (&ta.name, ItemRef::TypeAlias(mid, ta_idx))
                 }
-                ast::ItemKind::Const(_) => {
-                    diags.push(diag::unsupported("constant items", item.span));
-                    continue;
+                ast::ItemKind::Const(c) => {
+                    let cid = ConstRef(items.consts.len() as u32);
+                    items.consts.push(ConstDeclInfo {
+                        module: mid,
+                        name: c.name.clone(),
+                        ty: None,
+                        value: c.value.as_ref(),
+                    });
+                    const_asts.push((mid, cid, c, item.span));
+                    (&c.name, ItemRef::Const(cid))
                 }
                 ast::ItemKind::Meta(_) => {
                     diags.push(diag::unsupported("meta items", item.span));
@@ -813,6 +839,31 @@ pub fn collect_program<'a>(
             .names
             .entry("MutexCreateError".to_string())
             .or_insert(ItemRef::Adt(mutex_create_error_adt));
+    }
+
+    // Pass 1a: evaluate integer const items for fixed array lengths `[T; N]`.
+    let max_const_passes = const_asts.len().max(1);
+    for _ in 0..max_const_passes {
+        let mut progress = false;
+        for &(mid, _, c, _) in &const_asts {
+            if items.modules[mid.0 as usize]
+                .const_u32
+                .contains_key(&c.name)
+            {
+                continue;
+            }
+            if let Some(expr) = &c.value
+                && let Some(val) = eval_const_u32(expr, mid, &items.modules, &items.mod_by_path)
+            {
+                items.modules[mid.0 as usize]
+                    .const_u32
+                    .insert(c.name.clone(), val);
+                progress = true;
+            }
+        }
+        if !progress {
+            break;
+        }
     }
 
     // Pass 1b: resolve type aliases (fixed-point loop for chained aliases).
@@ -936,6 +987,15 @@ pub fn collect_program<'a>(
             diags,
         );
         items.foreigns.push(decl);
+    }
+    for (mid, cid, c, _) in const_asts {
+        if let Some(ty_ast) = &c.ty {
+            let resolved = resolve_type(ty_ast, mid, &[], &[], &items, types);
+            match resolved {
+                Ok(ty) => items.consts[cid.0 as usize].ty = Some(ty),
+                Err(d) => diags.push(d),
+            }
+        }
     }
     for (mid, imp, span) in impl_asts {
         collect_impl(mid, imp, span, &mut items, types, diags);
@@ -1806,7 +1866,8 @@ fn collect_impl<'a>(
             | ItemRef::Fn(_)
             | ItemRef::Foreign(_)
             | ItemRef::Trait(_)
-            | ItemRef::TypeAlias(_, _),
+            | ItemRef::TypeAlias(_, _)
+            | ItemRef::Const(_),
         )
         | None => {
             diags.push(diag::error(
@@ -2466,13 +2527,14 @@ fn resolve_type_with_lifetimes(
                         types.subst(target, &tys)
                     })
                 }
-                Some(ItemRef::Fn(_) | ItemRef::Foreign(_) | ItemRef::Trait(_)) | None => {
-                    Err(diag::error(
-                        diag::NAME_UNRESOLVED,
-                        t.span,
-                        format!("unknown type `{}`", path.join(".")),
-                    ))
-                }
+                Some(
+                    ItemRef::Fn(_) | ItemRef::Foreign(_) | ItemRef::Trait(_) | ItemRef::Const(_),
+                )
+                | None => Err(diag::error(
+                    diag::NAME_UNRESOLVED,
+                    t.span,
+                    format!("unknown type `{}`", path.join(".")),
+                )),
             }
         }
         ast::TypeKind::Tuple(items) => {
@@ -2524,14 +2586,7 @@ fn resolve_type_with_lifetimes(
             let Some(length) = length else {
                 return Ok(types.intern(TyData::Slice(element)));
             };
-            let n = if let ast::ExprKind::Literal(ast::Literal::Integer(text)) = &length.kind {
-                crate::literal::parse_int(text).and_then(|(v, suffix)| match suffix {
-                    None | Some(IntTy::Usize) => u32::try_from(v).ok(),
-                    Some(_) => None,
-                })
-            } else {
-                None
-            };
+            let n = eval_const_u32(length, from, modules, mod_by_path);
             let Some(length) = n else {
                 return Err(diag::error(
                     diag::ARRAY_LENGTH,
@@ -2750,5 +2805,73 @@ fn resolve_type_with_lifetimes(
         ast::TypeKind::MetaEval(_) | ast::TypeKind::MetaSplice(_) | ast::TypeKind::MetaBlock(_) => {
             Err(diag::unsupported("compile-time types", t.span))
         }
+    }
+}
+
+fn eval_const_u32(
+    expr: &ast::Expr,
+    from: ModIdx,
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+) -> Option<u32> {
+    if let ast::ExprKind::Literal(ast::Literal::Integer(text)) = &expr.kind {
+        crate::literal::parse_int(text).and_then(|(v, suffix)| match suffix {
+            None | Some(IntTy::Usize) => u32::try_from(v).ok(),
+            Some(_) => None,
+        })
+    } else if let ast::ExprKind::Group(inner) = &expr.kind {
+        eval_const_u32(inner, from, modules, mod_by_path)
+    } else if let ast::ExprKind::Name(name) = &expr.kind {
+        modules[from.0 as usize].const_u32.get(name).copied()
+    } else if let ast::ExprKind::Member {
+        object,
+        member: ast::MemberName::Name(name),
+    } = &expr.kind
+    {
+        let mut segs = Vec::new();
+        let mut cur = object.as_ref();
+        loop {
+            if let ast::ExprKind::Name(id) = &cur.kind {
+                segs.push(id.clone());
+                break;
+            } else if let ast::ExprKind::Member {
+                object: o,
+                member: ast::MemberName::Name(n),
+            } = &cur.kind
+            {
+                segs.push(n.clone());
+                cur = o;
+            } else {
+                return None;
+            }
+        }
+        segs.reverse();
+        let target_mod = if segs.len() == 1 {
+            modules[from.0 as usize].imports.get(&segs[0]).copied()
+        } else {
+            mod_by_path.get(&segs.join(".")).copied()
+        }?;
+        if target_mod != from && !modules[target_mod.0 as usize].publics.contains(name) {
+            return None;
+        }
+        modules[target_mod.0 as usize].const_u32.get(name).copied()
+    } else if let ast::ExprKind::Binary { op, left, right } = &expr.kind {
+        let l = eval_const_u32(left, from, modules, mod_by_path)?;
+        let r = eval_const_u32(right, from, modules, mod_by_path)?;
+        if *op == ast::BinaryOp::Add {
+            l.checked_add(r)
+        } else if *op == ast::BinaryOp::Subtract {
+            l.checked_sub(r)
+        } else if *op == ast::BinaryOp::Multiply {
+            l.checked_mul(r)
+        } else if *op == ast::BinaryOp::Divide {
+            l.checked_div(r)
+        } else if *op == ast::BinaryOp::Remainder {
+            l.checked_rem(r)
+        } else {
+            None
+        }
+    } else {
+        None
     }
 }

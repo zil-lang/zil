@@ -8,7 +8,8 @@
 
 use crate::diag;
 use crate::items::{
-    FnDecl, ForeignDeclInfo, ItemRef, Items, VariantShape, resolve_type, scalar_type,
+    ConstRef, FnDecl, ForeignDeclInfo, ItemRef, Items, ModIdx, VariantShape, resolve_type,
+    scalar_type,
 };
 use crate::literal;
 use crate::thir::*;
@@ -42,6 +43,8 @@ pub struct FnCx<'c, 'a> {
     diags: &'c mut Vec<Diagnostic>,
     fn_ref: FnRef,
     decl: &'c FnDecl<'a>,
+    current_module: ModIdx,
+    const_eval_stack: Vec<ConstRef>,
     opaque_return: Option<ClosureRef>,
     generic_names: Vec<String>,
     ret_ty: Ty,
@@ -68,6 +71,8 @@ pub fn infer_fn<'a>(
         diags,
         fn_ref: f,
         decl,
+        current_module: decl.module,
+        const_eval_stack: Vec::new(),
         opaque_return: None,
         generic_names: decl.generics.iter().map(|g| g.name.clone()).collect(),
         ret_ty: decl.result,
@@ -163,6 +168,576 @@ impl<'c, 'a> FnCx<'c, 'a> {
 
     fn unsupported(&mut self, feature: &str, span: Span) {
         self.diags.push(diag::unsupported(feature, span));
+    }
+
+    fn infer_const_ref(&mut self, cid: ConstRef, span: Span) -> Expr {
+        if self.const_eval_stack.contains(&cid) {
+            self.error(
+                diag::NAME_UNRESOLVED,
+                span,
+                format!("cyclic constant `{}`", self.items.const_decl(cid).name),
+            );
+            return self.err_expr(span);
+        }
+        let info = self.items.const_decl(cid);
+        let Some(value_ast) = info.value else {
+            self.error(
+                diag::NAME_UNRESOLVED,
+                span,
+                format!("constant `{}` has no value", info.name),
+            );
+            return self.err_expr(span);
+        };
+        let target_mod = info.module;
+        let expected_ty = info.ty;
+        self.const_eval_stack.push(cid);
+        let saved_mod = self.current_module;
+        let saved_scopes = std::mem::take(&mut self.scopes);
+        let saved_cap = self.capture_env.take();
+        self.current_module = target_mod;
+        self.scopes.push(Vec::new());
+        let mut expr = if let Some(ty) = expected_ty {
+            self.infer_expected(value_ast, ty)
+        } else {
+            self.infer(value_ast)
+        };
+        if let Some(ty) = expected_ty {
+            expr = self.coerce_value(expr, ty, span);
+        }
+        expr.span = span;
+        self.current_module = saved_mod;
+        self.scopes = saved_scopes;
+        self.capture_env = saved_cap;
+        self.const_eval_stack.pop();
+        expr
+    }
+
+    fn infer_slice_borrow(
+        &mut self,
+        object: &ast::Expr,
+        start: Option<&ast::Expr>,
+        end: Option<&ast::Expr>,
+        mutable: bool,
+        span: Span,
+    ) -> Expr {
+        let base = self.infer(object);
+        let base = self.auto_deref(base);
+        if mutable && is_place(&base.kind) {
+            self.check_mutable_place(&base, "borrowed exclusively");
+        }
+        let start = start.map(|e| Box::new(self.infer(e)));
+        let end = end.map(|e| Box::new(self.infer(e)));
+        let bt = self.types.shallow(base.ty);
+        let elem =
+            if let TyData::Array { element, .. } | TyData::Slice(element) = *self.types.data(bt) {
+                element
+            } else if matches!(self.types.data(bt), TyData::Error) {
+                self.types.error()
+            } else {
+                self.error(
+                    diag::OPERATOR_TYPE,
+                    span,
+                    "only arrays and slices can be sliced",
+                );
+                self.types.error()
+            };
+        let slice_ty = self.types.intern(TyData::Slice(elem));
+        let ty = self.types.intern(TyData::Ref {
+            region: None,
+            mutable,
+            pointee: slice_ty,
+        });
+        Expr {
+            kind: ExprKind::SliceBorrow {
+                mutable,
+                place: Box::new(base),
+                start,
+                end,
+            },
+            ty,
+            span,
+        }
+    }
+
+    fn infer_collection_for(
+        &mut self,
+        pattern: &ast::Pattern,
+        iterable: &ast::Expr,
+        body: &ast::Block,
+        span: Span,
+    ) -> Option<Stmt> {
+        let unit = self.types.unit();
+        let never = self.types.never();
+        let usize_ty = self.types.int(IntTy::Usize);
+        let i64_ty = self.types.int(IntTy::I64);
+        let iter_expr = self.infer(iterable);
+        let iter_ty = self.types.shallow(iter_expr.ty);
+        let data = self.types.data(iter_ty).clone();
+
+        // Case 1: Array `[T; N]`, `&[T; N]`, `&mut [T; N]`, Slice `[T]`, `&[T]`, `&mut [T]`.
+        let seq_info: Option<(Ty, Option<u32>, bool)> =
+            if let TyData::Array { element, length } = data {
+                Some((element, Some(length), false))
+            } else if let TyData::Slice(element) = data {
+                Some((element, None, false))
+            } else if let TyData::Ref { pointee, .. } = data {
+                let p = self.types.data(self.types.shallow(pointee));
+                if let TyData::Array { element, length } = *p {
+                    Some((element, Some(length), true))
+                } else if let TyData::Slice(element) = *p {
+                    Some((element, None, true))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+        if let Some((elem_ty, fixed_len, needs_deref)) = seq_info {
+            self.scopes.push(Vec::new());
+            let src_local = self.declare("__for_src", iter_ty, false, iterable.span);
+            let idx_local = self.declare("__for_idx", usize_ty, true, iterable.span);
+            let len_local = self.declare("__for_len", usize_ty, false, iterable.span);
+
+            let src_place = Expr {
+                kind: ExprKind::Local(src_local),
+                ty: iter_ty,
+                span: iterable.span,
+            };
+            let idx_place = Expr {
+                kind: ExprKind::Local(idx_local),
+                ty: usize_ty,
+                span: iterable.span,
+            };
+            let len_place = Expr {
+                kind: ExprKind::Local(len_local),
+                ty: usize_ty,
+                span: iterable.span,
+            };
+            let base_place = if needs_deref {
+                let inner_ty = if let TyData::Ref { pointee, .. } = *self.types.data(iter_ty) {
+                    pointee
+                } else {
+                    iter_ty
+                };
+                Expr {
+                    kind: ExprKind::Deref(Box::new(src_place.clone())),
+                    ty: inner_ty,
+                    span: iterable.span,
+                }
+            } else {
+                src_place.clone()
+            };
+            let len_init = if let Some(n) = fixed_len {
+                Expr {
+                    kind: ExprKind::Lit(Lit::Int(i128::from(n))),
+                    ty: usize_ty,
+                    span: iterable.span,
+                }
+            } else {
+                Expr {
+                    kind: ExprKind::Convert {
+                        operand: Box::new(Expr {
+                            kind: ExprKind::Len(Box::new(base_place.clone())),
+                            ty: i64_ty,
+                            span: iterable.span,
+                        }),
+                    },
+                    ty: usize_ty,
+                    span: iterable.span,
+                }
+            };
+            let cond = Expr {
+                kind: ExprKind::Binary {
+                    op: BinOp::Ge,
+                    lhs: Box::new(idx_place.clone()),
+                    rhs: Box::new(len_place),
+                },
+                ty: self.types.bool(),
+                span: iterable.span,
+            };
+            let break_stmt = Stmt::Expr(Expr {
+                kind: ExprKind::If {
+                    cond: Box::new(cond),
+                    then: Box::new(Expr {
+                        kind: ExprKind::Block(vec![Stmt::Expr(Expr {
+                            kind: ExprKind::Break,
+                            ty: never,
+                            span: iterable.span,
+                        })]),
+                        ty: unit,
+                        span: iterable.span,
+                    }),
+                    otherwise: None,
+                },
+                ty: unit,
+                span: iterable.span,
+            });
+            self.scopes.push(Vec::new());
+            let pat = self.pattern(pattern, elem_ty, false);
+            let bind_stmt = Stmt::Let {
+                pattern: pat,
+                init: Expr {
+                    kind: ExprKind::Index {
+                        base: Box::new(base_place),
+                        index: Box::new(idx_place.clone()),
+                    },
+                    ty: elem_ty,
+                    span: iterable.span,
+                },
+            };
+            let inc_stmt = Stmt::Expr(Expr {
+                kind: ExprKind::Assign {
+                    place: Box::new(idx_place),
+                    op: Some(BinOp::Add),
+                    value: Box::new(Expr {
+                        kind: ExprKind::Lit(Lit::Int(1)),
+                        ty: usize_ty,
+                        span: iterable.span,
+                    }),
+                },
+                ty: unit,
+                span: iterable.span,
+            });
+            self.loop_depth += 1;
+            let body_expr = self.block(body);
+            self.loop_depth -= 1;
+            self.scopes.pop();
+            let loop_expr = Expr {
+                kind: ExprKind::Loop(Box::new(Expr {
+                    kind: ExprKind::Block(vec![
+                        break_stmt,
+                        bind_stmt,
+                        inc_stmt,
+                        Stmt::Expr(body_expr),
+                    ]),
+                    ty: unit,
+                    span: body.span,
+                })),
+                ty: unit,
+                span,
+            };
+            self.scopes.pop();
+            let outer_block = Expr {
+                kind: ExprKind::Block(vec![
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(src_local),
+                            ty: iter_ty,
+                            span: iterable.span,
+                        },
+                        init: iter_expr,
+                    },
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(idx_local),
+                            ty: usize_ty,
+                            span: iterable.span,
+                        },
+                        init: Expr {
+                            kind: ExprKind::Lit(Lit::Int(0)),
+                            ty: usize_ty,
+                            span: iterable.span,
+                        },
+                    },
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(len_local),
+                            ty: usize_ty,
+                            span: iterable.span,
+                        },
+                        init: len_init,
+                    },
+                    Stmt::Expr(loop_expr),
+                ]),
+                ty: unit,
+                span,
+            };
+            return Some(Stmt::Expr(outer_block));
+        }
+
+        // Case 2: `Managed<OwnedStore<T>>` or `Desc<OwnedStore<T>>`.
+        let store_info: Option<(Ty, Ty, bool)> = if let TyData::Managed(inner) = data {
+            if let TyData::Opaque(OpaqueKind::OwnedStore(elem)) =
+                *self.types.data(self.types.shallow(inner))
+            {
+                Some((elem, inner, true))
+            } else {
+                None
+            }
+        } else if let TyData::Desc(inner) = data {
+            if let TyData::Opaque(OpaqueKind::OwnedStore(elem)) =
+                *self.types.data(self.types.shallow(inner))
+            {
+                Some((elem, inner, false))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some((elem_ty, inner_ty, wrap_desc)) = store_info {
+            let desc_ty = self.types.intern(TyData::Desc(inner_ty));
+            let desc_init = if wrap_desc {
+                Expr {
+                    kind: ExprKind::Describe(Box::new(iter_expr)),
+                    ty: desc_ty,
+                    span: iterable.span,
+                }
+            } else {
+                iter_expr
+            };
+            self.scopes.push(Vec::new());
+            let src_local = self.declare("__for_store", desc_ty, false, iterable.span);
+            let idx_local = self.declare("__for_idx", i64_ty, true, iterable.span);
+            let len_local = self.declare("__for_len", i64_ty, false, iterable.span);
+
+            let src_place = Expr {
+                kind: ExprKind::Local(src_local),
+                ty: desc_ty,
+                span: iterable.span,
+            };
+            let idx_place = Expr {
+                kind: ExprKind::Local(idx_local),
+                ty: i64_ty,
+                span: iterable.span,
+            };
+            let len_place = Expr {
+                kind: ExprKind::Local(len_local),
+                ty: i64_ty,
+                span: iterable.span,
+            };
+            let len_init = Expr {
+                kind: ExprKind::Intrinsic {
+                    op: IntrinsicOp::StoreLen,
+                    args: vec![src_place.clone()],
+                },
+                ty: i64_ty,
+                span: iterable.span,
+            };
+            let cond = Expr {
+                kind: ExprKind::Binary {
+                    op: BinOp::Ge,
+                    lhs: Box::new(idx_place.clone()),
+                    rhs: Box::new(len_place),
+                },
+                ty: self.types.bool(),
+                span: iterable.span,
+            };
+            let break_stmt = Stmt::Expr(Expr {
+                kind: ExprKind::If {
+                    cond: Box::new(cond),
+                    then: Box::new(Expr {
+                        kind: ExprKind::Block(vec![Stmt::Expr(Expr {
+                            kind: ExprKind::Break,
+                            ty: never,
+                            span: iterable.span,
+                        })]),
+                        ty: unit,
+                        span: iterable.span,
+                    }),
+                    otherwise: None,
+                },
+                ty: unit,
+                span: iterable.span,
+            });
+            let elem_ref_ty = self.types.intern(TyData::Ref {
+                region: None,
+                mutable: false,
+                pointee: elem_ty,
+            });
+            let elem_ref = Expr {
+                kind: ExprKind::Intrinsic {
+                    op: IntrinsicOp::StoreBorrow {
+                        mutability: Mutability::Shared,
+                    },
+                    args: vec![src_place, idx_place.clone()],
+                },
+                ty: elem_ref_ty,
+                span: iterable.span,
+            };
+            let elem_val = Expr {
+                kind: ExprKind::Deref(Box::new(elem_ref)),
+                ty: elem_ty,
+                span: iterable.span,
+            };
+            self.scopes.push(Vec::new());
+            let pat = self.pattern(pattern, elem_ty, false);
+            let bind_stmt = Stmt::Let {
+                pattern: pat,
+                init: elem_val,
+            };
+            let inc_stmt = Stmt::Expr(Expr {
+                kind: ExprKind::Assign {
+                    place: Box::new(idx_place),
+                    op: Some(BinOp::Add),
+                    value: Box::new(Expr {
+                        kind: ExprKind::Lit(Lit::Int(1)),
+                        ty: i64_ty,
+                        span: iterable.span,
+                    }),
+                },
+                ty: unit,
+                span: iterable.span,
+            });
+            self.loop_depth += 1;
+            let body_expr = self.block(body);
+            self.loop_depth -= 1;
+            self.scopes.pop();
+            let loop_expr = Expr {
+                kind: ExprKind::Loop(Box::new(Expr {
+                    kind: ExprKind::Block(vec![
+                        break_stmt,
+                        bind_stmt,
+                        inc_stmt,
+                        Stmt::Expr(body_expr),
+                    ]),
+                    ty: unit,
+                    span: body.span,
+                })),
+                ty: unit,
+                span,
+            };
+            self.scopes.pop();
+            let outer_block = Expr {
+                kind: ExprKind::Block(vec![
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(src_local),
+                            ty: desc_ty,
+                            span: iterable.span,
+                        },
+                        init: desc_init,
+                    },
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(idx_local),
+                            ty: i64_ty,
+                            span: iterable.span,
+                        },
+                        init: Expr {
+                            kind: ExprKind::Lit(Lit::Int(0)),
+                            ty: i64_ty,
+                            span: iterable.span,
+                        },
+                    },
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(len_local),
+                            ty: i64_ty,
+                            span: iterable.span,
+                        },
+                        init: len_init,
+                    },
+                    Stmt::Expr(loop_expr),
+                ]),
+                ty: unit,
+                span,
+            };
+            return Some(Stmt::Expr(outer_block));
+        }
+
+        // Case 3: Any type with a `.next(&mut self) -> Option<T>` method (e.g. `std.iter`).
+        self.scopes.push(Vec::new());
+        let it_local = self.declare("__for_it", iter_ty, true, iterable.span);
+        let diags_before = self.diags.len();
+        let next_callee = ast::Expr {
+            kind: ast::ExprKind::Member {
+                object: Box::new(ast::Expr {
+                    kind: ast::ExprKind::Name("__for_it".to_string()),
+                    span: iterable.span,
+                    semantic: ast::SemanticContextMarker::default(),
+                }),
+                member: ast::MemberName::Name("next".to_string()),
+            },
+            span: iterable.span,
+            semantic: ast::SemanticContextMarker::default(),
+        };
+        let next_call = self.call(&next_callee, &[], iterable.span);
+        let next_ty = self.types.shallow(next_call.ty);
+        if self.diags.len() == diags_before
+            && let TyData::Adt { adt, args } = self.types.data(next_ty).clone()
+            && adt == AdtRef(0)
+            && args.len() == 1
+        {
+            let elem_ty = args[0];
+            self.scopes.push(Vec::new());
+            let pat = self.pattern(pattern, elem_ty, false);
+            self.loop_depth += 1;
+            let body_expr = self.block(body);
+            self.loop_depth -= 1;
+            self.scopes.pop();
+            let match_expr = Expr {
+                kind: ExprKind::Match {
+                    scrutinee: Box::new(next_call),
+                    arms: vec![
+                        Arm {
+                            pattern: Pat {
+                                kind: PatKind::Adt {
+                                    adt: AdtRef(0),
+                                    variant: 1, // Option.Some(pat)
+                                    args: args.clone(),
+                                    fields: vec![pat],
+                                },
+                                ty: next_ty,
+                                span: pattern.span,
+                            },
+                            body: body_expr,
+                            span: body.span,
+                        },
+                        Arm {
+                            pattern: Pat {
+                                kind: PatKind::Adt {
+                                    adt: AdtRef(0),
+                                    variant: 0, // Option.None
+                                    args,
+                                    fields: Vec::new(),
+                                },
+                                ty: next_ty,
+                                span: iterable.span,
+                            },
+                            body: Expr {
+                                kind: ExprKind::Break,
+                                ty: never,
+                                span: iterable.span,
+                            },
+                            span: iterable.span,
+                        },
+                    ],
+                },
+                ty: unit,
+                span,
+            };
+            let loop_expr = Expr {
+                kind: ExprKind::Loop(Box::new(match_expr)),
+                ty: unit,
+                span,
+            };
+            self.scopes.pop();
+            let outer_block = Expr {
+                kind: ExprKind::Block(vec![
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(it_local),
+                            ty: iter_ty,
+                            span: iterable.span,
+                        },
+                        init: iter_expr,
+                    },
+                    Stmt::Expr(loop_expr),
+                ]),
+                ty: unit,
+                span,
+            };
+            return Some(Stmt::Expr(outer_block));
+        }
+        self.diags.truncate(diags_before);
+        self.scopes.pop();
+        self.error(
+            diag::OPERATOR_TYPE,
+            span,
+            "for-in requires a range, array, slice, store, or iterator with `next() -> Option<T>`",
+        );
+        None
     }
 
     fn err_expr(&mut self, span: Span) -> Expr {
@@ -608,7 +1183,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             let ty = match &stmt {
                 Some(Stmt::Expr(e)) => Some(e.ty),
                 Some(Stmt::Let { init, .. }) => Some(init.ty),
-                None => None,
+                Some(Stmt::Defer(_)) | None => None,
             };
             if ty.is_some_and(|t| self.types.is_never(t)) {
                 diverges = true;
@@ -876,9 +1451,24 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("yield", span);
                 None
             }
-            ast::StmtKind::Defer(_) => {
-                self.unsupported("defer", span);
-                None
+            ast::StmtKind::Defer(block) => {
+                let saved_loop = self.loop_depth;
+                self.loop_depth = 0;
+                let expr = if block.statements.len() == 1
+                    && let ast::StmtKind::Expression(act) = &block.statements[0].kind
+                    && let ast::ExprKind::Closure {
+                        params,
+                        body: ast::ArrowBody::Block(inner),
+                        ..
+                    } = &act.kind
+                    && params.is_empty()
+                {
+                    self.block(inner)
+                } else {
+                    self.block(block)
+                };
+                self.loop_depth = saved_loop;
+                Some(Stmt::Defer(expr))
             }
             ast::StmtKind::For {
                 pattern,
@@ -1005,8 +1595,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     };
                     Some(Stmt::Expr(outer_block))
                 } else {
-                    self.unsupported("for loops", span);
-                    None
+                    self.infer_collection_for(pattern, iterable, body, span)
                 }
             }
             ast::StmtKind::With { .. } => {
@@ -1038,7 +1627,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             ast::ElseBranch::Block(b) => self.block(b),
             ast::ElseBranch::If(s) => match self.stmt(s) {
                 Some(Stmt::Expr(e)) => e,
-                Some(Stmt::Let { .. }) | None => self.err_expr(s.span),
+                Some(Stmt::Let { .. } | Stmt::Defer(_)) | None => self.err_expr(s.span),
             },
         });
         match condition {
@@ -1496,9 +2085,10 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 }
                 match self
                     .items
-                    .lookup_item(self.decl.module, std::slice::from_ref(n))
+                    .lookup_item(self.current_module, std::slice::from_ref(n))
                 {
                     Some(ItemRef::Fn(f)) => self.fn_value(f, span),
+                    Some(ItemRef::Const(c)) => self.infer_const_ref(c, span),
                     Some(ItemRef::Foreign(f)) => {
                         let decl = self.items.foreign(f);
                         let ty = self
@@ -1711,9 +2301,8 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.unsupported("explicit type arguments outside a call", span);
                 self.err_expr(span)
             }
-            ast::ExprKind::Slice { .. } => {
-                self.unsupported("slices", span);
-                self.err_expr(span)
+            ast::ExprKind::Slice { object, start, end } => {
+                self.infer_slice_borrow(object, start.as_deref(), end.as_deref(), false, span)
             }
             ast::ExprKind::Try(inner) => {
                 let x = self.infer(inner);
@@ -2373,8 +2962,15 @@ impl<'c, 'a> FnCx<'c, 'a> {
             && !self.path_is_value(&path)
             && path.len() >= 2
         {
-            if let Some(ItemRef::Fn(f)) = self.items.lookup_item(self.decl.module, &path) {
-                return self.fn_value(f, span);
+            if let Some(item) = self.items.lookup_item(self.current_module, &path) {
+                match item {
+                    ItemRef::Fn(f) => return self.fn_value(f, span),
+                    ItemRef::Const(c) => return self.infer_const_ref(c, span),
+                    ItemRef::Adt(_)
+                    | ItemRef::Foreign(_)
+                    | ItemRef::Trait(_)
+                    | ItemRef::TypeAlias(_, _) => {}
+                }
             }
             if let Some((adt, variant)) = self.resolve_variant_path(&path, span) {
                 if self.items.adt(adt).variants[variant as usize].shape != VariantShape::Unit {
@@ -2714,6 +3310,14 @@ impl<'c, 'a> FnCx<'c, 'a> {
                             );
                         }
                         return self.foreign_call(f, arguments, span);
+                    }
+                    ItemRef::Const(_) => {
+                        self.error(
+                            diag::ENUM_VARIANT,
+                            span,
+                            "a constant cannot be called directly",
+                        );
+                        return self.err_expr(span);
                     }
                     ItemRef::Adt(_) | ItemRef::Trait(_) | ItemRef::TypeAlias(_, _) => {
                         self.error(diag::ENUM_VARIANT, span, "a type cannot be called directly");
@@ -3850,7 +4454,7 @@ fn contains_break(e: &Expr) -> bool {
             ExprKind::Loop(_) | ExprKind::While { .. } => false,
             ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
                 Stmt::Let { init, .. } => walk(init),
-                Stmt::Expr(e) => walk(e),
+                Stmt::Expr(e) | Stmt::Defer(e) => walk(e),
             }),
             ExprKind::If {
                 cond,
@@ -4528,7 +5132,7 @@ impl Finalizer<'_, '_> {
                             self.expr(init);
                             self.pat(pattern);
                         }
-                        Stmt::Expr(e) => self.expr(e),
+                        Stmt::Expr(e) | Stmt::Defer(e) => self.expr(e),
                     }
                 }
             }
@@ -4657,7 +5261,7 @@ fn expr_contains_suspend(e: &Expr) -> bool {
         }
         ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
             Stmt::Let { init, .. } => expr_contains_suspend(init),
-            Stmt::Expr(x) => expr_contains_suspend(x),
+            Stmt::Expr(x) | Stmt::Defer(x) => expr_contains_suspend(x),
         }),
     }
 }
@@ -4787,7 +5391,7 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
                                 return true;
                             }
                         }
-                        Stmt::Expr(x) => {
+                        Stmt::Expr(x) | Stmt::Defer(x) => {
                             if walk(x, aliases, root_cap) {
                                 return true;
                             }

@@ -616,9 +616,15 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
 
 // ---- function builder -------------------------------------------------------
 
+#[derive(Clone)]
+enum FrameCleanup {
+    Local(Local),
+    Defer(Expr),
+}
+
 struct Frame {
-    /// User bindings declared in this lexical scope, in declaration order.
-    locals: Vec<Local>,
+    /// User bindings and `defer` blocks declared in this lexical scope, in declaration order.
+    cleanups: Vec<FrameCleanup>,
     /// Compiler temporaries needing cleanup created in this scope (no StorageLive/Dead).
     temps: Vec<Local>,
 }
@@ -676,7 +682,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             cur: BlockId(0),
             map: vec![None; thir.locals.len()],
             frames: vec![Frame {
-                locals: Vec::new(),
+                cleanups: Vec::new(),
                 temps: Vec::new(),
             }],
             loops: Vec::new(),
@@ -809,7 +815,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
 
     fn enter_frame(&mut self) {
         self.frames.push(Frame {
-            locals: Vec::new(),
+            cleanups: Vec::new(),
             temps: Vec::new(),
         });
     }
@@ -837,9 +843,16 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             for t in frame.temps.into_iter().rev() {
                 self.push_auto_drop(t, span);
             }
-            for l in frame.locals.into_iter().rev() {
-                self.push_auto_drop(l, span);
-                self.push(InstructionKind::StorageDead(l), span);
+            for item in frame.cleanups.into_iter().rev() {
+                match item {
+                    FrameCleanup::Local(l) => {
+                        self.push_auto_drop(l, span);
+                        self.push(InstructionKind::StorageDead(l), span);
+                    }
+                    FrameCleanup::Defer(e) => {
+                        self.effect(&e);
+                    }
+                }
             }
         }
     }
@@ -848,18 +861,25 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     /// them (a jump out of nested scopes). When unwinding to depth 0 (function
     /// exit), owning parameters are also dropped in reverse order.
     fn unwind_to(&mut self, depth: usize, span: Span) {
-        let frames: Vec<(Vec<Local>, Vec<Local>)> = self.frames[depth..]
+        let frames: Vec<(Vec<Local>, Vec<FrameCleanup>)> = self.frames[depth..]
             .iter()
             .rev()
-            .map(|f| (f.temps.clone(), f.locals.clone()))
+            .map(|f| (f.temps.clone(), f.cleanups.clone()))
             .collect();
-        for (temps, locals) in frames {
+        for (temps, cleanups) in frames {
             for t in temps.into_iter().rev() {
                 self.push_auto_drop(t, span);
             }
-            for l in locals.into_iter().rev() {
-                self.push_auto_drop(l, span);
-                self.push(InstructionKind::StorageDead(l), span);
+            for item in cleanups.into_iter().rev() {
+                match item {
+                    FrameCleanup::Local(l) => {
+                        self.push_auto_drop(l, span);
+                        self.push(InstructionKind::StorageDead(l), span);
+                    }
+                    FrameCleanup::Defer(e) => {
+                        self.effect(&e);
+                    }
+                }
             }
         }
         if depth == 0 {
@@ -893,7 +913,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     fn declare(&mut self, l: Local, span: Span) {
         self.push(InstructionKind::StorageLive(l), span);
         if let Some(f) = self.frames.last_mut() {
-            f.locals.push(l);
+            f.cleanups.push(FrameCleanup::Local(l));
         }
     }
 
@@ -1965,6 +1985,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     match s {
                         Stmt::Let { pattern, init } => self.let_stmt(pattern, init),
                         Stmt::Expr(x) => self.effect(x),
+                        Stmt::Defer(x) => {
+                            if let Some(f) = self.frames.last_mut() {
+                                f.cleanups.push(FrameCleanup::Defer(x.clone()));
+                            }
+                        }
                     }
                 }
                 self.exit_frame(span);
@@ -2206,7 +2231,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             }
             self.enter_frame();
             if let Some(f) = self.frames.last_mut() {
-                f.locals = arm_bindings[i].clone();
+                f.cleanups = arm_bindings[i]
+                    .iter()
+                    .copied()
+                    .map(FrameCleanup::Local)
+                    .collect();
             }
             match &dest {
                 Some(d) => self.into(d.clone(), &arm.body),

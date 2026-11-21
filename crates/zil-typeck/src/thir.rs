@@ -282,6 +282,8 @@ pub enum Stmt {
         init: Expr,
     },
     Expr(Expr),
+    /// `defer { ... }`: evaluate block in LIFO order on every exit from the enclosing scope.
+    Defer(Expr),
 }
 
 #[derive(Clone, Debug)]

@@ -1026,3 +1026,120 @@ fn main() -> i32 {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn everyday_const_defer_slice_and_collection_for_in_execute_natively() {
+    let dir = temp_dir("batch1a-everyday");
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+const BASE: usize = 2
+const LEN: usize = BASE * 2 + 1
+const BONUS: i32 = 10
+
+resource Tag { code: i32 }
+impl Drop for Tag { fn drop(self: Self) { unsafe { putchar(.code) } } }
+
+struct Counter { cur: i32, limit: i32 }
+trait Next { fn next(self: &mut Self) -> Option<i32>; }
+impl Next for Counter {
+    fn next() -> Option<i32> {
+        if .cur >= .limit {
+            return Option.None()
+        }
+        let v = .cur
+        .cur += 1
+        return Option.Some(v)
+    }
+}
+
+fn test_defer(early: bool) -> i32 {
+    let t1 = Tag { code: 65 } // 'A'
+    defer { unsafe { putchar(66) } } // 'B'
+    let t2 = Tag { code: 67 } // 'C'
+    defer { unsafe { putchar(68) } } // 'D'
+    if early {
+        return t1.code + t2.code
+    }
+    unsafe { putchar(69) } // 'E'
+    return 0
+}
+
+fn main() -> i32 {
+    // 1. Const array length + bare slice expressions + for..in over array & slice
+    let arr: [i32; LEN] = [1, 2, 3, 4, 5]
+    var arr_sum = 0
+    for x in arr {
+        arr_sum += x
+    }
+    if arr_sum != 15 { return 1 }
+
+    let mid = arr[1..4]
+    var mid_sum = 0
+    for x in mid {
+        mid_sum += x
+    }
+    if mid_sum != 9 { return 2 }
+
+    let head = arr[..2]
+    let tail = arr[3..]
+    let full = arr[..]
+    if head.len() != 2 || tail.len() != 2 || full.len() != 5 { return 3 }
+
+    // 2. for..in over Managed<OwnedStore<i32>> (non-consuming)
+    let store: Store<i32> = store_new()
+    if !store_reserve(store, 3) { return 4 }
+    store_push(store, 10)
+    store_push(store, 20)
+    store_push(store, BONUS)
+    var store_sum = 0
+    for x in store {
+        store_sum += x
+    }
+    if store_sum != 40 || store_len(store) != 3 { return 7 }
+
+    // 3. for..in over custom iterator with .next() -> Option<i32>
+    let counter = Counter { cur: 1, limit: 5 }
+    var it_sum = 0
+    for x in counter {
+        it_sum += x
+    }
+    if it_sum != 10 { return 8 }
+
+    // 4. defer LIFO interleaved with resource Drop on early return and normal exit
+    let r = test_defer(true)
+    if r != 132 { return 9 }
+    let r2 = test_defer(false)
+    if r2 != 0 { return 10 }
+    return 0
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            // Early return: D, C, B, A. Normal exit: E, D, C, B, A.
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"DCBAEDCBA",
+                "({backend:?}, {opt:?}) unexpected defer/drop order: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
