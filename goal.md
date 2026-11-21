@@ -1,6 +1,6 @@
 # ZIL 实时任务看板
 
-> 更新：2026-11-21（Asia/Shanghai） · 当前主线基线：[`main@2504c9a86`](https://github.com/zil-lang/zil/commit/2504c9a86)（Alpha Core、并发 Store 安全修补、A1 外部回调原生运行时、A2 验收自动化、A3 LLVM Builder Stage 1、PR #95 `_zil_design.md` 终态瘦身、PR #96 L1 Batch 1 均已合入；开放 PR：1 [`#97`](https://github.com/zil-lang/zil/pull/97)）
+> 更新：2026-11-21（Asia/Shanghai） · 当前主线基线：[`main@a3e2f5227`](https://github.com/zil-lang/zil/commit/a3e2f5227)（Alpha Core、并发 Store 安全修补、A1 外部回调原生运行时、A2 验收自动化、A3 LLVM Builder Stage 1、PR #95 `_zil_design.md` 终态瘦身、PR #96 L1 Batch 1、PR #97 L1 Batch 2 均已合入；开放 PR：0；远端分支：5）
 >
 > **唯一职责**：本文件仅追踪**未完成任务、优先级、依赖与精确退出条件**，不记录历史施工流水账。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与规范 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；精简前完整历史快照固定于 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
 
@@ -19,9 +19,9 @@
 
 ## 第一轮：语言核心收口（L1 + L2）
 
-以全仓 `tests/**/*.zil`（1,385 份）按共用类型/所有权/来源根因小批整链收口：
-- **L1 Batch 1（[`PR #96`](https://github.com/zil-lang/zil/pull/96)，已合入 `main@2504c9a86`）**：记录/包显式 `life` 实参、元组枚举 `manages` 字段、`ref`/`ref mut` 模式、多变体枚举 `drop_elab`（573 → 693/1,385，+120，0 回归）。
-- **L1 Batch 2（[`PR #97`](https://github.com/zil-lang/zil/pull/97)，CI 验收中）**：泛型单态化 `FnSig.region_params` 计数、继承默认 trait 方法合成（693 → 716/1,385，+23，累计 +143）。
+以全仓 `tests/**/*.zil`（1,385 份）按共用类型/所有权/来源根因小批整链收口（当前全仓通过 **716/1,385**，较基线 `573/1,385` 净增 **+143**，0 回归，0 误放行）：
+- **L1 Batch 1（[`PR #96`](https://github.com/zil-lang/zil/pull/96)，已合入 `main@2504c9a86`）**：记录/包显式 `life` 实参、元组枚举 `manages` 字段、`ref`/`ref mut` 模式、多变体枚举 `drop_elab`（+120）。
+- **L1 Batch 2（[`PR #97`](https://github.com/zil-lang/zil/pull/97)，已合入 `main@a3e2f5227`）**：泛型单态化 `FnSig.region_params` 计数、继承默认 trait 方法合成（+23）。
 
 ### L1 · 普通语言组合（P0）
 
