@@ -9,18 +9,17 @@
   "alpha_scope_boundary": {
     "minimal_alpha_verified": [
       "Unified Body IR pipeline (Parse -> CT -> Typeck -> AST Fidelity -> Solve -> Independent Check -> Dual Native Build Clang/LLVM-API O0/O2 1/8 units)",
-      "Ownership, borrowing, NLL loans, rigid closure lifetime checks, SCC region escape rejection, and forged-certificate rejection",
+      "Ownership, borrowing, NLL loans, rigid closure lifetime checks, SCC region escape rejection, multi-parameter borrowed-enum region propagation (choice, same-life, mixed-classes, poll, error-wrapper, module-api), and forged-certificate rejection",
+      "Everyday system-programming surface: top-level const items & const array lengths, LIFO defer interleaved with resource Drop, bare slice expressions (xs[a..b]), and non-range for..in over arrays, slices, OwnedStore, and .next()->Option<T> iterators",
       "Managed<Resource>, Package, OwnedStore, ByteBuffer inline ABI, SyncDrop enforcement, and State/Store 16/128/56 zero-leak validation",
-      "Closures (impl Fn/FnMut/FnOnce), static trait dispatch, fixed-projects 21/21 matrix, and Roam callable-combinations 42/42",
-      "Task native runtime (single-calloc ucontext_t, cooperative Pending cancel unwinding, nested Pending close propagation, Closed abort check, 4 KiB PROT_NONE guard page with SEGV_ACCERR fault-address & mprotect-failure refusal checks, Roam task-result-combinations 24/24)",
+      "Nested closures, generic impl Fn/FnMut/FnOnce monomorphization, static trait dispatch, integer const generics (<#N: usize> on functions and structs), fixed-projects 21/21 matrix, and Roam callable-combinations 42/42",
+      "First-class compile-time Type evaluation (#(select()), branching Type selection, Type equality) through verified zil-interp (ct-type-control.zil)",
+      "Native dynamic dispatch: OwnedDynCreate (calloc + concrete-value Drop on OOM), Callee::DynSlot vtable dispatch, dynamic Managed<OwnedDyn> Drop + free, multi-unit vtable linking, and independent zil-check DynImpl signature/slot verification",
+      "Task native runtime (single-calloc ucontext_t, cooperative Pending cancel unwinding, nested Pending close propagation, Closed abort check, 4 KiB PROT_NONE guard page with SEGV_ACCERR fault-address & mprotect-failure refusal checks, 24/24 positive + 9/9 negative task-owner-transport manifest, Roam task-result-combinations 24/24)",
       "Real OS threads (pthread_create/pthread_join ThreadScope), real pthread_mutex_t with fail-closed lock/unlock/destroy checks, and thread_local @__zil_current_task verified via 2-thread pthread_barrier_wait + distinct TIDs"
     ],
     "deferred_post_alpha": [
-      "Generic function returning impl FnOnce capturing generic type parameter (ImplCallable monomorphization args)",
-      "Multi-parameter borrowed-enum region propagation (borrowed-enums/choice.zil, same-life.zil, mixed-classes.zil)",
-      "Compile-time Type reflection queries (ct-type-control.zil)",
-      "3 higher-order task-owner-transport static cases (nested-once-callable-child-cleanup, returned-second-task-fnonce, returned-shared-task-classes)",
-      "Native codegen for Registration, AsyncRegistration, OwnedDyn, and Callee::DynSlot (currently fail closed with BodyEmitError)",
+      "Native codegen for cross-thread foreign Registration and AsyncRegistration protocols (currently fail closed with BodyEmitError)",
       "Direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser)"
     ]
   },
@@ -43,17 +42,15 @@
         "crates/zil-safety-cases/tests/readiness_census.rs",
         "crates/zil-driver/tests/alpha_e2e_acceptance.rs"
       ],
-      "status": "covered_with_tracked_gaps",
+      "status": "covered",
       "verified_properties": [
-        "move, partial move, refill, drop flags, and reverse-scope cleanup",
+        "move, partial move, refill, drop flags, LIFO defer interleaved with Drop, and reverse-scope cleanup",
         "shared vs exclusive borrows, reborrows, and NLL loan conflicts",
+        "multi-parameter borrowed-enum region propagation and sound interprocedural return-summary loan propagation (choice, same-life, mixed-classes, poll, error-wrapper, module-api + RegionEscape/LoanConflict negatives)",
         "rigid closure lifetime mismatch rejection (negative-closure-rigid-life.zil -> E-TYPE-MISMATCH)",
         "mutual recursion SCC region-escape rejection even under forged certificates"
       ],
-      "open_gaps": [
-        "multi-parameter borrowed-enum region propagation (tests/fixtures/borrowed-enums/choice.zil, same-life.zil, mixed-classes.zil)",
-        "verify cross-function region preservation under Types::erase_regions for nested generic region wrappers"
-      ]
+      "open_gaps": []
     },
     {
       "id": "resources_and_cleanup",
@@ -94,19 +91,19 @@
         "crates/zil-driver/tests/alpha_e2e_acceptance.rs",
         "tools/roam-rs callable-combinations (28 positive x 4 native configs + 14 negative = 42/42 PASS)"
       ],
-      "status": "covered_with_tracked_gaps",
+      "status": "covered",
       "verified_properties": [
+        "nested closures with multi-level capture lifting and FnMut/FnOnce propagation",
+        "generic functions returning impl Fn/FnMut/FnOnce capturing generic type parameters with full monomorphization (invoked transfer + uninvoked drop cleanup)",
         "bidirectional expected callable signature propagation into returned impl Fn/FnMut/FnOnce closures",
         "all 7 helper/projection composition shapes (direct, h, p, hh, hp, ph, pp) x 4 exits x 4 native configs (Clang/LLVM-API x O0/O2)",
         "all 14 paired exclusive-receiver and nominal-error safety negatives rejected with exact semantic diagnostics",
-        "static trait impl dispatch, inherited self receivers, and Managed<R> -> Desc<R> method calls",
-        "range for-loops (for pat in start..end), aggregate field defaults, and bytes_view_mut",
+        "static trait impl dispatch, inherited self receivers, Managed<R> -> Desc<R> method calls, and integer const generics (<#N: usize>) on functions and structs",
+        "range and collection for-loops (arrays, slices, OwnedStore, .next()->Option<T> iterators), bare slice expressions, top-level const items, aggregate field defaults, and bytes_view_mut",
         "type aliases with generic substitution and ADT/enum variant path resolution (generic-alias-loop)",
         "non-capturing contextual closures lowered to env-less function pointers (function-pointer-pipeline)"
       ],
-      "open_gaps": [
-        "generic function returning impl FnOnce capturing generic type parameter (ImplCallable monomorphization args)"
-      ]
+      "open_gaps": []
     },
     {
       "id": "compile_time_programming",
@@ -120,15 +117,14 @@
         "crates/zil-safety-cases/tests/source.rs",
         "crates/zil-driver/tests/alpha_e2e_acceptance.rs"
       ],
-      "status": "covered_with_tracked_gaps",
+      "status": "covered",
       "verified_properties": [
         "multi-module recursive import discovery (local + lib/std) and CtOriginalImport verification",
         "unused invalid CT declarations rejected before lowering",
-        "CT evaluation through verified zil-interp (ct-enum-match.zil, ct-generic.zil executed natively on both backends)"
+        "CT evaluation through verified zil-interp (ct-enum-match.zil, ct-generic.zil executed natively on both backends)",
+        "first-class compile-time Type values (#(select()), branching Type selection, Type equality) evaluated through zil-solve -> zil-check -> zil-interp (ct-type-control.zil)"
       ],
-      "open_gaps": [
-        "compile-time Type reflection queries (ct-type-control.zil)"
-      ]
+      "open_gaps": []
     },
     {
       "id": "tasks_and_async_ownership",
@@ -142,7 +138,7 @@
         "crates/zil-driver/tests/alpha_e2e_acceptance.rs",
         "tools/roam-rs task-result-combinations (16 positive x O0/O2 native + 8 negative = 24/24 PASS)"
       ],
-      "status": "covered_with_tracked_gaps",
+      "status": "covered",
       "verified_properties": [
         "native single-calloc ucontext_t coroutine runtime for TaskCreate/TaskYield/TaskPoll/TaskRequestCancel/TaskPollClose/TaskFinishDestroy/TaskValid",
         "cooperative Pending cancellation unwinding: task_poll_close resumes suspended workers onto cancel cleanup blocks (TrapKind::Cancel) dropping live Managed resources, closure captures, and nested Tasks in exact reverse order; unstarted cancelled Tasks drop owned frame arguments before reaching Closed",
@@ -153,11 +149,9 @@
         "TaskPollState builtin enum (Cancelled/Complete/Invalid) and complete/compact Task context tuples",
         "all 16 positive task-result-combinations (compact/complete x direct/relay x ready/cancel-before-start/cancel-after-pending/allocation-error) passing natively at O0/O2 with exact single-frame allocation/free witness",
         "all 8 negative task-result-combinations (worker-result-source, active-input-write) rejected with exact semantic safety diagnostics",
-        "21/24 positive task-owner-transport static programs admitted and 9/9 negative safety contracts rejected (0 false admits)"
+        "24/24 positive task-owner-transport static programs admitted (including nested-once-callable-child-cleanup, returned-second-task-fnonce, returned-shared-task-classes) and 9/9 negative safety contracts rejected (0 false admits)"
       ],
-      "open_gaps": [
-        "3 higher-order task-owner-transport static cases: nested-once-callable-child-cleanup, returned-second-task-fnonce, returned-shared-task-classes"
-      ]
+      "open_gaps": []
     },
     {
       "id": "independent_verify_raw_wire",
@@ -175,7 +169,7 @@
       "status": "covered",
       "verified_properties": [
         "sealed VerifiedModule capability: backend and interpreter accept only zil-check::check_module output",
-        "forged/truncated/mutated certificates and wire payloads rejected without consulting solver",
+        "forged/truncated/mutated certificates, DynImpl vtable entries, and wire payloads rejected without consulting solver",
         "AST fidelity cross-checks field ordinals, field selection names across instruction spans, evaluation order, and complete Drop/Intrinsic coverage"
       ],
       "open_gaps": []
@@ -196,12 +190,13 @@
       "status": "covered_with_tracked_gaps",
       "verified_properties": [
         "dual native backends (Clang and in-process LLVM 23 C API) at O0 and O2",
-        "real multi-codegen-unit parallel object emission (1-unit and 8-unit) with multi-object clang linking",
+        "native OwnedDynCreate (calloc + concrete Drop on OOM), Callee::DynSlot vtable dispatch, and Managed<OwnedDyn> dynamic Drop + free across single-unit and multi-unit builds",
+        "real multi-codegen-unit parallel object emission (1-unit, 4-unit, and 8-unit) with multi-object clang linking",
         "fixed-projects matrix 100% PASS (exit 0): 21/21 projects (17/17 originals verified, 4/4 expected rejections exact), 60/60 original builds & 152/152 required comparisons, 12/12 additional builds & 56/56 comparisons, 4/4 controls & 16/16 builds & 60/60 comparisons, 8/8 cleanup control comparisons"
       ],
       "open_gaps": [
         "direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser under llvm-api feature)",
-        "native codegen for Registration, AsyncRegistration, OwnedDyn, and Callee::DynSlot is explicitly outside the minimal Alpha native scope and fails closed with BodyEmitError"
+        "native codegen for cross-thread foreign Registration and AsyncRegistration protocols is deferred post-Alpha and fails closed with BodyEmitError"
       ]
     },
     {
