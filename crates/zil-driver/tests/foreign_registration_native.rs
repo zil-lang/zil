@@ -209,36 +209,32 @@ fn threaded_async_registration_race_raw_holder_and_invalid_drain_abort() {
 typedef int64_t (*cb_t)(void *, int32_t);
 static cb_t g_cb = NULL;
 static void *g_ctx = NULL;
-static atomic_int g_in_cb = 0;
-static atomic_int g_release_cb = 0;
+static atomic_int g_t1_done = 0;
+static atomic_int g_t2_done = 0;
+static atomic_int g_t3_ready = 0;
 static atomic_int g_closing = 0;
+static atomic_int g_release_t3 = 0;
 static atomic_int g_raw_holder_done = 0;
-static atomic_int g_concurrent_rejected = 0;
 static atomic_int g_late_rejected = 0;
 static atomic_int g_cb1_result = 0;
+static atomic_int g_cb2_result = 0;
 static pthread_t g_t1, g_t2, g_t3;
-
-// Called from inside ZIL closure on thread 1 to create a deterministic ClosingBusy window.
-void host_pause_in_callback(void) {
-    atomic_store(&g_in_cb, 1);
-    while (!atomic_load(&g_release_cb)) {
-        sched_yield();
-    }
-}
 
 static void *worker_t1(void *arg) {
     (void)arg;
     int64_t r = g_cb(g_ctx, 10);
     atomic_store(&g_cb1_result, (int)r);
+    atomic_store_explicit(&g_t1_done, 1, memory_order_relaxed);
     return NULL;
 }
 
 static void *worker_t2(void *arg) {
     (void)arg;
-    while (!atomic_load(&g_in_cb)) sched_yield();
-    // Concurrent call while t1 holds OpenBusy must be rejected with (1 << 32).
+    // Relaxed wait orders attempt only; visibility of t1's capture mutation relies on gate release/acquire.
+    while (!atomic_load_explicit(&g_t1_done, memory_order_relaxed)) sched_yield();
     int64_t r = g_cb(g_ctx, 20);
-    if (r == (INT64_C(1) << 32)) atomic_store(&g_concurrent_rejected, 1);
+    atomic_store(&g_cb2_result, (int)r);
+    atomic_store(&g_t2_done, 1);
     return NULL;
 }
 
@@ -247,8 +243,9 @@ static void *worker_t3_raw_holder(void *arg) {
     // Raw holder keeps userdata before trampoline admission until closing starts.
     cb_t local_cb = g_cb;
     void *local_ctx = g_ctx;
+    atomic_store(&g_t3_ready, 1);
     while (!atomic_load(&g_closing)) sched_yield();
-    while (!atomic_load(&g_release_cb)) sched_yield();
+    while (!atomic_load(&g_release_t3)) sched_yield();
     int64_t r = local_cb(local_ctx, 30);
     if (r == (INT64_C(1) << 32)) atomic_store(&g_late_rejected, 1);
     atomic_store(&g_raw_holder_done, 1);
@@ -262,9 +259,8 @@ void *thr_register(cb_t cb, void *ctx) {
     if (pthread_create(&g_t1, NULL, worker_t1, NULL) != 0) abort();
     if (pthread_create(&g_t2, NULL, worker_t2, NULL) != 0) abort();
     if (pthread_create(&g_t3, NULL, worker_t3_raw_holder, NULL) != 0) abort();
-    // Wait until t1 is actively inside the closure and t2 was rejected concurrently.
-    while (!atomic_load(&g_in_cb)) sched_yield();
-    while (!atomic_load(&g_concurrent_rejected)) sched_yield();
+    while (!atomic_load(&g_t2_done)) sched_yield();
+    while (!atomic_load(&g_t3_ready)) sched_yield();
     return (void *)&g_cb;
 }
 
@@ -285,13 +281,13 @@ int32_t thr_poll_drain(void *tok) {
     return 1;
 }
 
-void host_release_t1(void) {
-    atomic_store(&g_release_cb, 1);
+void host_release_t3(void) {
+    atomic_store(&g_release_t3, 1);
 }
 
 int32_t host_verify_race_counts(void) {
-    if (atomic_load(&g_cb1_result) != 110) return 1;
-    if (atomic_load(&g_concurrent_rejected) != 1) return 2;
+    if (atomic_load(&g_cb1_result) != 111) return 1;
+    if (atomic_load(&g_cb2_result) != 122) return 2;
     if (atomic_load(&g_late_rejected) != 1) return 3;
     return 0;
 }
@@ -307,8 +303,7 @@ extern "C" fn putchar(c: i32) -> i32;
 extern "C" fn thr_register(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
 extern "C" fn thr_request_close(tok: c_handle);
 extern "C" fn thr_poll_drain(tok: c_handle) -> i32;
-extern "C" fn host_pause_in_callback();
-extern "C" fn host_release_t1();
+extern "C" fn host_release_t3();
 extern "C" fn host_verify_race_counts() -> i32;
 
 resource DropMark { code: i32 }
@@ -319,9 +314,10 @@ impl Drop for DropMark {
 fn main() -> i32 {
     unsafe {
         let mark = DropMark { code: 68 }
+        var count: i32 = 100
         let cb = move (x: i32) -> i32 => {
-            unsafe { host_pause_in_callback() }
-            return x + 100 + (mark.code - 68)
+            count = count + 1
+            return x + count + (mark.code - 68)
         }
         var reg = c_register_async(thr_register, thr_request_close, thr_poll_drain, cb)
         if !async_registration_valid(reg) {
@@ -330,17 +326,17 @@ fn main() -> i32 {
             return 0
         }
 
-        // t1 is currently inside the callback (OpenBusy). Request close -> ClosingBusy.
+        // Request close while t3 still holds raw userdata (before draining).
         async_registration_request_close(&mut reg)
 
-        // Poll while ClosingBusy MUST return Pending and must NOT drop `mark` yet.
+        // Poll while raw holder t3 is not drained MUST return Pending and must NOT drop `mark` yet.
         match async_registration_poll_close(&mut reg) {
             Poll.Pending() => {},
             Poll.Ready(_) => { return 21 }
         }
 
-        // Release t1 so it transitions ClosingBusy -> ClosingIdle, and t3 raw holder observes rejection.
-        host_release_t1()
+        // Release t3 raw holder so it attempts late invocation (rejected) and drains.
+        host_release_t3()
 
         loop {
             match async_registration_poll_close(&mut reg) {
@@ -411,14 +407,10 @@ fn main() -> i32 {
 extern "C" fn thr_register(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
 extern "C" fn thr_request_close(tok: c_handle);
 extern "C" fn thr_poll_drain(tok: c_handle) -> i32;
-extern "C" fn host_pause_in_callback();
 
 fn main() -> i32 {
     unsafe {
-        let cb = move (x: i32) -> i32 => {
-            unsafe { host_pause_in_callback() }
-            return x
-        }
+        let cb = move (x: i32) -> i32 => x + 1
         let reg = c_register_async(thr_register, thr_request_close, thr_poll_drain, cb)
         // Illegal early finish_destroy before poll_close reaches Ready(Closed).
         async_registration_finish_destroy(give reg)
@@ -602,7 +594,7 @@ fn foreign_registration_safety_negatives_rejected() {
         ..CompileOptions::default()
     };
 
-    let neg_cases: [(&str, &str); 5] = [
+    let neg_cases: [(&str, &str); 11] = [
         // 1. Borrowed local environment (violates ClosedEnvironment / holds address).
         (
             "borrowed_env_sync.zil",
@@ -693,6 +685,113 @@ fn main() -> i32 {
     async_registration_request_close(&mut h)
     let _ = async_registration_poll_close(&mut h)
     async_registration_finish_destroy(give h)
+    return 0
+}
+"#,
+        ),
+        // 6. Calling `c_register` outside `unsafe` block must be rejected (`E-FFI-UNSAFE`).
+        (
+            "safe_call_c_register_rejected.zil",
+            r#"
+extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn cls(tok: c_handle);
+fn main() -> i32 {
+    let cb = move (x: i32) -> i32 => x + 1
+    let h = c_register(reg, cls, cb)
+    registration_close(give h)
+    return 0
+}
+"#,
+        ),
+        // 7. Calling `c_register_async` outside `unsafe` block must be rejected (`E-FFI-UNSAFE`).
+        (
+            "safe_call_c_register_async_rejected.zil",
+            r#"
+extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn req(tok: c_handle);
+extern "C" fn drn(tok: c_handle) -> i32;
+fn main() -> i32 {
+    let cb = move (x: i32) -> i32 => x + 1
+    var h = c_register_async(reg, req, drn, cb)
+    async_registration_request_close(&mut h)
+    let _ = async_registration_poll_close(&mut h)
+    async_registration_finish_destroy(give h)
+    return 0
+}
+"#,
+        ),
+        // 8. Unknown `extern "C"` call inside `c_register_async` callback rejected (sealed ThreadCallable).
+        (
+            "thread_callable_ffi_rejected.zil",
+            r#"
+extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn req(tok: c_handle);
+extern "C" fn drn(tok: c_handle) -> i32;
+extern "C" fn unknown_host_fn(v: i32) -> i32;
+fn helper(v: i32) -> i32 { return unsafe { unknown_host_fn(v) } }
+fn main() -> i32 {
+    let cb = move (x: i32) -> i32 => helper(x)
+    var h = unsafe { c_register_async(reg, req, drn, cb) }
+    async_registration_request_close(&mut h)
+    let _ = async_registration_poll_close(&mut h)
+    async_registration_finish_destroy(give h)
+    return 0
+}
+"#,
+        ),
+        // 9. Indirect function-pointer call inside `c_register_async` callback rejected (sealed ThreadCallable).
+        (
+            "thread_callable_indirect_rejected.zil",
+            r#"
+extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn req(tok: c_handle);
+extern "C" fn drn(tok: c_handle) -> i32;
+fn bump(v: i32) -> i32 { return v + 1 }
+fn main() -> i32 {
+    let fp: fn(i32) -> i32 = bump
+    let cb = move (x: i32) -> i32 => fp(x)
+    var h = unsafe { c_register_async(reg, req, drn, cb) }
+    async_registration_request_close(&mut h)
+    let _ = async_registration_poll_close(&mut h)
+    async_registration_finish_destroy(give h)
+    return 0
+}
+"#,
+        ),
+        // 10. Temporary user `Drop` inside `c_register_async` callback rejected (sealed ThreadCallable).
+        (
+            "thread_callable_temp_user_drop_rejected.zil",
+            r#"
+extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn req(tok: c_handle);
+extern "C" fn drn(tok: c_handle) -> i32;
+resource TempDrop { v: i32 }
+impl Drop for TempDrop {
+    fn drop(self: Self) {}
+}
+fn main() -> i32 {
+    let cb = move (x: i32) -> i32 => {
+        let tmp = TempDrop { v: x }
+        return tmp.v + 1
+    }
+    var h = unsafe { c_register_async(reg, req, drn, cb) }
+    async_registration_request_close(&mut h)
+    let _ = async_registration_poll_close(&mut h)
+    async_registration_finish_destroy(give h)
+    return 0
+}
+"#,
+        ),
+        // 11. Mismatched `extern "C"` provider ABI signature rejected by opspec/zil-check.
+        (
+            "mismatched_provider_abi_rejected.zil",
+            r#"
+extern "C" fn bad_reg(x: i32) -> i32;
+extern "C" fn cls(tok: c_handle);
+fn main() -> i32 {
+    let cb = move (x: i32) -> i32 => x + 1
+    let h = unsafe { c_register(bad_reg, cls, cb) }
+    registration_close(give h)
     return 0
 }
 "#,

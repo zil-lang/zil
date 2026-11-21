@@ -4104,6 +4104,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             }
             _ => return None,
         };
+        if matches!(
+            op,
+            IntrinsicOp::RegistrationStart | IntrinsicOp::AsyncRegistrationStart
+        ) && self.in_unsafe == 0
+        {
+            self.error(
+                diag::FFI_UNSAFE,
+                span,
+                format!("calling `{name}` requires an `unsafe` block"),
+            );
+        }
         if explicit.is_some() {
             self.error(
                 diag::TYPE_ARGUMENT,

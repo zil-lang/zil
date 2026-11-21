@@ -1632,15 +1632,20 @@ fn intrinsic_sig(
             let [reg, req, drain, env] = found else {
                 return Err(bad("async_registration.start takes 4 arguments"));
             };
-            for cb in [*reg, *req, *drain] {
-                if !matches!(
-                    tys.get(cb),
-                    Some(TyKind::Opaque(OpaqueTy::ForeignCallback { .. }))
-                ) {
-                    return Err(bad(
-                        "async_registration.start requires extern \"C\" callbacks",
-                    ));
-                }
+            if !is_foreign_register_cb(tys, *reg) {
+                return Err(bad(
+                    "async_registration.start register callback must have ABI extern \"C\" fn(extern \"C\" fn(c_handle, i32) -> i64, c_handle) -> c_handle",
+                ));
+            }
+            if !is_foreign_close_cb(tys, *req) {
+                return Err(bad(
+                    "async_registration.start request_close callback must have ABI extern \"C\" fn(c_handle)",
+                ));
+            }
+            if !is_foreign_drain_cb(tys, *drain) {
+                return Err(bad(
+                    "async_registration.start poll_drain callback must have ABI extern \"C\" fn(c_handle) -> i32",
+                ));
             }
             if tys.holds_address(*env) || tys.may_store_address(*env) {
                 return Err(bad(
@@ -1748,13 +1753,15 @@ fn intrinsic_sig(
             let [reg, close, env] = found else {
                 return Err(bad("registration.start takes 3 arguments"));
             };
-            for cb in [*reg, *close] {
-                if !matches!(
-                    tys.get(cb),
-                    Some(TyKind::Opaque(OpaqueTy::ForeignCallback { .. }))
-                ) {
-                    return Err(bad("registration.start requires extern \"C\" callbacks"));
-                }
+            if !is_foreign_register_cb(tys, *reg) {
+                return Err(bad(
+                    "registration.start register callback must have ABI extern \"C\" fn(extern \"C\" fn(c_handle, i32) -> i64, c_handle) -> c_handle",
+                ));
+            }
+            if !is_foreign_close_cb(tys, *close) {
+                return Err(bad(
+                    "registration.start close callback must have ABI extern \"C\" fn(c_handle)",
+                ));
             }
             if tys.holds_address(*env) || tys.may_store_address(*env) {
                 return Err(bad("registration.start environment cannot hold addresses"));
@@ -1850,6 +1857,57 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::OwnedDynCreate => "owned_dyn.create",
         IntrinsicOp::ThreadScope => "thread.scope",
     }
+}
+
+fn is_foreign_register_cb(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::{IntTy, OpaqueTy};
+    let Some(TyKind::Opaque(OpaqueTy::ForeignCallback { params, result })) = tys.get(ty) else {
+        return false;
+    };
+    if params.len() != 2 {
+        return false;
+    }
+    let cb_ok = matches!(
+        tys.get(params[0]),
+        Some(TyKind::Opaque(OpaqueTy::ForeignCallback {
+            params: inner_params,
+            result: inner_res,
+        })) if inner_params.len() == 2
+            && matches!(tys.get(inner_params[0]), Some(TyKind::Opaque(OpaqueTy::ForeignHandle)))
+            && matches!(tys.get(inner_params[1]), Some(TyKind::Int(IntTy::I32)))
+            && matches!(tys.get(*inner_res), Some(TyKind::Int(IntTy::I64)))
+    );
+    let ctx_ok = matches!(
+        tys.get(params[1]),
+        Some(TyKind::Opaque(OpaqueTy::ForeignHandle))
+    );
+    let res_ok = matches!(
+        tys.get(*result),
+        Some(TyKind::Opaque(OpaqueTy::ForeignHandle))
+    );
+    cb_ok && ctx_ok && res_ok
+}
+
+fn is_foreign_close_cb(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::OpaqueTy;
+    matches!(
+        tys.get(ty),
+        Some(TyKind::Opaque(OpaqueTy::ForeignCallback { params, result }))
+            if params.len() == 1
+                && matches!(tys.get(params[0]), Some(TyKind::Opaque(OpaqueTy::ForeignHandle)))
+                && matches!(tys.get(*result), Some(TyKind::Unit))
+    )
+}
+
+fn is_foreign_drain_cb(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    use super::ty::{IntTy, OpaqueTy};
+    matches!(
+        tys.get(ty),
+        Some(TyKind::Opaque(OpaqueTy::ForeignCallback { params, result }))
+            if params.len() == 1
+                && matches!(tys.get(params[0]), Some(TyKind::Opaque(OpaqueTy::ForeignHandle)))
+                && matches!(tys.get(*result), Some(TyKind::Int(IntTy::I32)))
+    )
 }
 
 /// Checks whether a value of type `ty` satisfies the closed `Transfer` contract

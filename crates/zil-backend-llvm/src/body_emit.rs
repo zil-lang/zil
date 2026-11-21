@@ -239,7 +239,8 @@ do_send:\n\
   %rfn_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 4\n\
   %rfn = load ptr, ptr %rfn_p\n\
   %tok_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 3\n\
-  %tok = load atomic ptr, ptr %tok_p acquire, align 8\n\
+  %tok_i64 = load atomic i64, ptr %tok_p acquire, align 8\n\
+  %tok = inttoptr i64 %tok_i64 to ptr\n\
   %has_rfn = icmp ne ptr %rfn, null\n\
   %has_tok = icmp ne ptr %tok, null\n\
   %can_call = and i1 %has_rfn, %has_tok\n\
@@ -273,7 +274,8 @@ do_req:\n\
   %rfn_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 4\n\
   %rfn = load ptr, ptr %rfn_p\n\
   %tok_p0 = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 3\n\
-  %tok0 = load atomic ptr, ptr %tok_p0 acquire, align 8\n\
+  %tok0_i64 = load atomic i64, ptr %tok_p0 acquire, align 8\n\
+  %tok0 = inttoptr i64 %tok0_i64 to ptr\n\
   %has_rfn = icmp ne ptr %rfn, null\n\
   %has_tok0 = icmp ne ptr %tok0, null\n\
   %can_req = and i1 %has_rfn, %has_tok0\n\
@@ -293,7 +295,8 @@ call_drain:\n\
   %pfn_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 5\n\
   %pfn = load ptr, ptr %pfn_p\n\
   %tok_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 3\n\
-  %tok = load atomic ptr, ptr %tok_p acquire, align 8\n\
+  %tok_i64 = load atomic i64, ptr %tok_p acquire, align 8\n\
+  %tok = inttoptr i64 %tok_i64 to ptr\n\
   %has_pfn = icmp ne ptr %pfn, null\n\
   %has_tok = icmp ne ptr %tok, null\n\
   %can_drain = and i1 %has_pfn, %has_tok\n\
@@ -4299,13 +4302,15 @@ reject:\n\
                 // Success: publish token and return frame handle.
                 let _ = writeln!(self.out, "{l_ok}:");
                 let tok_p = self.fresh();
+                let tok_i64 = self.fresh();
                 let _ = writeln!(
                     self.out,
                     "  {tok_p} = getelementptr inbounds %__zil_areg_hdr, ptr {raw}, i32 0, i32 3"
                 );
+                let _ = writeln!(self.out, "  {tok_i64} = ptrtoint ptr {tok} to i64");
                 let _ = writeln!(
                     self.out,
-                    "  store atomic ptr {tok}, ptr {tok_p} release, align 8"
+                    "  store atomic i64 {tok_i64}, ptr {tok_p} release, align 8"
                 );
                 let _ = writeln!(self.out, "  store ptr {raw}, ptr {d_ptr}");
                 let _ = writeln!(self.out, "  br label %{l_done}");
