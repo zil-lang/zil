@@ -39,6 +39,94 @@ impl Default for Limits {
     }
 }
 
+/// Computes the minimum `FnSig.region_params` count needed to declare every
+/// `Region::Param(idx)` appearing in `params` or `result` (which can arise when
+/// a generic function is monomorphized with reference-bearing type arguments).
+fn max_region_param_count(tys: &zil_ir::body::TyTable, params: &[TyId], result: TyId) -> u32 {
+    fn walk_region(r: Region, out: &mut u32) {
+        if let Region::Param(idx) = r {
+            *out = (*out).max(idx + 1);
+        }
+    }
+    fn walk_ty(tys: &zil_ir::body::TyTable, ty: TyId, visited: &mut HashSet<TyId>, out: &mut u32) {
+        if !visited.insert(ty) {
+            return;
+        }
+        match tys.kind(ty) {
+            TyKind::Ref {
+                region, pointee, ..
+            } => {
+                walk_region(*region, out);
+                walk_ty(tys, *pointee, visited, out);
+            }
+            TyKind::Tuple(elems) => {
+                for &e in elems {
+                    walk_ty(tys, e, visited, out);
+                }
+            }
+            TyKind::Array { element, .. } | TyKind::Slice(element) => {
+                walk_ty(tys, *element, visited, out);
+            }
+            TyKind::Adt { args, .. } => {
+                let a = tys.args(*args);
+                for &r in &a.regions {
+                    walk_region(r, out);
+                }
+                for &t in &a.tys {
+                    walk_ty(tys, t, visited, out);
+                }
+            }
+            TyKind::FnPtr { params, result } => {
+                for &p in params {
+                    walk_ty(tys, p, visited, out);
+                }
+                walk_ty(tys, *result, visited, out);
+            }
+            TyKind::Closure { def, args } => {
+                let a = tys.args(*args);
+                for &r in &a.regions {
+                    walk_region(r, out);
+                }
+                for &t in &a.tys {
+                    walk_ty(tys, t, visited, out);
+                }
+                if let Some(cdef) = tys.closure(*def) {
+                    for &c in &cdef.captures {
+                        walk_ty(tys, c, visited, out);
+                    }
+                    for &p in &cdef.params {
+                        walk_ty(tys, p, visited, out);
+                    }
+                    walk_ty(tys, cdef.result, visited, out);
+                }
+            }
+            TyKind::ErrorUnion { ok, err } => {
+                walk_ty(tys, *ok, visited, out);
+                walk_ty(tys, *err, visited, out);
+            }
+            TyKind::Managed(inner) | TyKind::Desc(inner) => {
+                walk_ty(tys, *inner, visited, out);
+            }
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::Never
+            | TyKind::Param(_)
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn(_)
+            | TyKind::Opaque(_) => {}
+        }
+    }
+    let mut visited = HashSet::new();
+    let mut out = 0u32;
+    for &p in params {
+        walk_ty(tys, p, &mut visited, &mut out);
+    }
+    walk_ty(tys, result, &mut visited, &mut out);
+    out
+}
+
 pub struct Mono<'c, 'a, 'e> {
     items: &'c Items<'a>,
     types: &'c mut Types,
@@ -145,13 +233,18 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         if !args.is_empty() {
             name.push_str(&format!("::<#{}>", self.instances.len()));
         }
+        let region_params = (decl.region_params.len() as u32).max(max_region_param_count(
+            &self.module.tys,
+            &params,
+            result,
+        ));
         self.module.functions.push(Function {
             name,
             sig: FnSig {
                 params,
                 result,
                 type_params: 0,
-                region_params: decl.region_params.len() as u32,
+                region_params,
                 role,
             },
             body: Body {
@@ -197,13 +290,18 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         let result = self.lower_ty(r, span)?;
         let id = FnId::from_index(self.module.functions.len());
         let name = format!("{}::dyn_slot#{slot}", decl.name);
+        let region_params = (decl.region_params.len() as u32).max(max_region_param_count(
+            &self.module.tys,
+            &params,
+            result,
+        ));
         self.module.functions.push(Function {
             name,
             sig: FnSig {
                 params,
                 result,
                 type_params: 0,
-                region_params: decl.region_params.len() as u32,
+                region_params,
                 role: FnRole::DynSlotImpl {
                     dyn_id,
                     concrete_ty,
@@ -288,11 +386,13 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         }
         let r = self.types.subst(c.result, &args);
         let result = self.lower_ty(r, span)?;
+        let region_params = (self.items.func(owner).region_params.len() as u32)
+            .max(max_region_param_count(&self.module.tys, &param_tys, result));
         let sig = FnSig {
             params: param_tys,
             result,
             type_params: 0,
-            region_params: self.items.func(owner).region_params.len() as u32,
+            region_params,
             role: FnRole::Normal,
         };
         let owner_name = self.items.func(owner).name.clone();
@@ -349,11 +449,16 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     .closure(def_id)
                     .cloned()
                     .expect("registered");
+                let mut sig_tys = def.params.clone();
+                sig_tys.extend_from_slice(&def.captures);
+                let region_params = (self.items.func(owner).region_params.len() as u32).max(
+                    max_region_param_count(&self.module.tys, &sig_tys, def.result),
+                );
                 let csig = FnSig {
                     params: def.params.clone(),
                     result: def.result,
                     type_params: 0,
-                    region_params: self.items.func(owner).region_params.len() as u32,
+                    region_params,
                     role: FnRole::Normal,
                 };
                 let cthir = ThirFn {

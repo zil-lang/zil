@@ -61,16 +61,18 @@ pub struct GenericInfo {
 }
 
 #[derive(Clone, Debug)]
-pub struct TraitMethodDecl {
+pub struct TraitMethodDecl<'a> {
     pub name: String,
     pub params: Vec<Ty>,
     pub result: Ty,
+    pub default_ast: Option<&'a ast::Function>,
 }
 
 #[derive(Clone, Debug)]
-pub struct TraitDecl {
+pub struct TraitDecl<'a> {
+    pub module: ModIdx,
     pub name: String,
-    pub methods: Vec<TraitMethodDecl>,
+    pub methods: Vec<TraitMethodDecl<'a>>,
 }
 
 #[derive(Clone, Debug)]
@@ -176,7 +178,7 @@ pub struct Items<'a> {
     pub fns: Vec<FnDecl<'a>>,
     pub adts: Vec<AdtDecl>,
     pub foreigns: Vec<ForeignDeclInfo>,
-    pub traits: Vec<TraitDecl>,
+    pub traits: Vec<TraitDecl<'a>>,
     pub trait_impls: Vec<TraitImplDecl>,
     pub adt_kinds: Vec<AdtKind>,
     pub consts: Vec<ConstDeclInfo<'a>>,
@@ -192,7 +194,7 @@ impl<'a> Items<'a> {
     pub fn foreign(&self, f: ForeignRef) -> &ForeignDeclInfo {
         &self.foreigns[f.0 as usize]
     }
-    pub fn trait_decl(&self, t: TraitRef) -> &TraitDecl {
+    pub fn trait_decl(&self, t: TraitRef) -> &TraitDecl<'a> {
         &self.traits[t.0 as usize]
     }
     pub fn const_decl(&self, c: ConstRef) -> &ConstDeclInfo<'a> {
@@ -1302,16 +1304,16 @@ fn type_generics(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn collect_trait(
+fn collect_trait<'a>(
     mid: ModIdx,
-    tr: &ast::TraitDecl,
+    tr: &'a ast::TraitDecl,
     _span: Span,
     modules: &[ModuleScope],
     mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
-) -> TraitDecl {
+) -> TraitDecl<'a> {
     let (generics, _) = type_generics(
         mid,
         &tr.generics,
@@ -1369,6 +1371,11 @@ fn collect_trait(
                     name: f.name.clone(),
                     params,
                     result,
+                    default_ast: if matches!(f.body, ast::FunctionBody::Declaration) {
+                        None
+                    } else {
+                        Some(f)
+                    },
                 });
             }
             ast::ItemKind::Import(_)
@@ -1384,6 +1391,7 @@ fn collect_trait(
         }
     }
     TraitDecl {
+        module: mid,
         name: qualify(&modules[mid.0 as usize].path, &tr.name),
         methods,
     }
@@ -2270,6 +2278,48 @@ fn collect_trait_impl<'a>(
                 diags.push(diag::unsupported("non-function impl member", m.span));
             }
         }
+    }
+    let trait_module = items.traits[trait_ref.0 as usize].module;
+    let trait_defaults: Vec<(String, Vec<Ty>, Ty, &'a ast::Function)> = items.traits
+        [trait_ref.0 as usize]
+        .methods
+        .iter()
+        .filter_map(|tm| {
+            let default_f = tm.default_ast?;
+            if methods.iter().any(|(n, _)| n == &tm.name) {
+                return None;
+            }
+            Some((tm.name.clone(), tm.params.clone(), tm.result, default_f))
+        })
+        .collect();
+    for (mname, tm_params, tm_result, default_f) in trait_defaults {
+        let mut params = Vec::with_capacity(tm_params.len());
+        for (idx, &pty) in tm_params.iter().enumerate() {
+            let subst_ty = types.subst_with_self(pty, &trait_args, target);
+            let (pname, pspan) = default_f
+                .params
+                .get(idx)
+                .map(|p| (p.name.clone(), p.span))
+                .unwrap_or_else(|| ("self".into(), default_f.span));
+            params.push(ParamInfo {
+                name: pname,
+                ty: subst_ty,
+                span: pspan,
+            });
+        }
+        let result = types.subst_with_self(tm_result, &trait_args, target);
+        let fn_ref = FnRef(items.fns.len() as u32);
+        items.fns.push(FnDecl {
+            module: trait_module,
+            name: format!("{trait_name}::{mname}"),
+            generics: impl_generics.clone(),
+            region_params: Vec::new(),
+            params,
+            result,
+            role: FnRoleSpec::Normal,
+            ast: default_f,
+        });
+        methods.push((mname, fn_ref));
     }
     items.trait_impls.push(TraitImplDecl {
         trait_ref,
