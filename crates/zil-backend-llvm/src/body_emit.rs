@@ -866,14 +866,28 @@ impl<'a> FnEmitter<'a> {
                         let _ = writeln!(self.out, "  call void @free(ptr {data})");
                     }
                     Some(TyKind::Opaque(OpaqueTy::Mutex { payload: elem })) => {
+                        let rc = self.fresh();
+                        let ok = self.fresh();
+                        let tid = self.tmp;
+                        self.tmp += 1;
+                        let l_ok = format!("md_ok_{tid}");
+                        let l_ab = format!("md_ab_{tid}");
+                        let _ = writeln!(
+                            self.out,
+                            "  {rc} = call i32 @pthread_mutex_destroy(ptr {handle})"
+                        );
+                        let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
+                        let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
+                        let _ = writeln!(self.out, "{l_ab}:");
+                        let _ = writeln!(self.out, "  call void @abort()");
+                        let _ = writeln!(self.out, "  unreachable");
+                        let _ = writeln!(self.out, "{l_ok}:");
                         let pay_ptr = self.fresh();
                         let _ = writeln!(
                             self.out,
                             "  {pay_ptr} = getelementptr inbounds i8, ptr {handle}, i64 64"
                         );
                         self.emit_drop_ptr(&pay_ptr, elem)?;
-                        let _ =
-                            writeln!(self.out, "  call i32 @pthread_mutex_destroy(ptr {handle})");
                     }
                     Some(TyKind::Opaque(OpaqueTy::MutexGuard { .. })) => {
                         let rc = self.fresh();

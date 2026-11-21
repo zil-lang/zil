@@ -6,6 +6,24 @@
     "legacy_driver_test_files": 339,
     "policy": "Preserve language semantics, safety counterexamples, and observable native behavior; retire legacy internal IR/planner/work-count tests."
   },
+  "alpha_scope_boundary": {
+    "minimal_alpha_verified": [
+      "Unified Body IR pipeline (Parse -> CT -> Typeck -> AST Fidelity -> Solve -> Independent Check -> Dual Native Build Clang/LLVM-API O0/O2 1/8 units)",
+      "Ownership, borrowing, NLL loans, rigid closure lifetime checks, SCC region escape rejection, and forged-certificate rejection",
+      "Managed<Resource>, Package, OwnedStore, ByteBuffer inline ABI, SyncDrop enforcement, and State/Store 16/128/56 zero-leak validation",
+      "Closures (impl Fn/FnMut/FnOnce), static trait dispatch, fixed-projects 21/21 matrix, and Roam callable-combinations 42/42",
+      "Task native runtime (single-calloc ucontext_t, cooperative Pending cancel unwinding, nested Pending close propagation, Closed abort check, 4 KiB PROT_NONE guard page with SEGV_ACCERR fault-address & mprotect-failure refusal checks, Roam task-result-combinations 24/24)",
+      "Real OS threads (pthread_create/pthread_join ThreadScope), real pthread_mutex_t with fail-closed lock/unlock/destroy checks, and thread_local @__zil_current_task verified via 2-thread pthread_barrier_wait + distinct TIDs"
+    ],
+    "deferred_post_alpha": [
+      "Generic function returning impl FnOnce capturing generic type parameter (ImplCallable monomorphization args)",
+      "Multi-parameter borrowed-enum region propagation (borrowed-enums/choice.zil, same-life.zil, mixed-classes.zil)",
+      "Compile-time Type reflection queries (ct-type-control.zil)",
+      "3 higher-order task-owner-transport static cases (nested-once-callable-child-cleanup, returned-second-task-fnonce, returned-shared-task-classes)",
+      "Native codegen for Registration, AsyncRegistration, OwnedDyn, and Callee::DynSlot (currently fail closed with BodyEmitError)",
+      "Direct structured LLVM Builder emission in llvm-api backend (currently uses audited LLVM 23 C API text parser)"
+    ]
+  },
   "capabilities": [
     {
       "id": "ownership_and_borrowing",

@@ -941,3 +941,88 @@ fn main() -> i32 {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[cfg(unix)]
+#[test]
+fn mutex_destroy_failure_aborts_without_freeing() {
+    use std::os::unix::process::ExitStatusExt;
+
+    let dir = temp_dir("mutex-destroy-fail");
+    let probe_c = dir.join("mutex_destroy_probe.c");
+    std::fs::write(
+        &probe_c,
+        r#"
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stddef.h>
+#include <unistd.h>
+
+static volatile void *g_failed_mutex = NULL;
+
+int pthread_mutex_destroy(pthread_mutex_t *m) {
+    g_failed_mutex = (void *)m;
+    return EBUSY;
+}
+
+void free(void *p) {
+    if (p != NULL && p == g_failed_mutex) {
+        const char msg[] = "FREED_AFTER_DESTROY_FAIL";
+        ssize_t ignored = write(1, msg, sizeof(msg) - 1);
+        (void)ignored;
+        _exit(99);
+    }
+    void (*real_free)(void *) = (void (*)(void *))dlsym(RTLD_NEXT, "free");
+    if (real_free != NULL) {
+        real_free(p);
+    }
+}
+"#,
+    )
+    .expect("write mutex_destroy_probe.c");
+
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+fn entry() -> MutexCreateError!i32 {
+    let cell = mutex_create(42)?
+    var guard = mutex_lock(cell)
+    let value = mutex_value(&mut guard)
+    *value += 1
+    return 0
+}
+
+fn main() -> i32 {
+    match entry() {
+        .ok(v) => { return v },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    let extra = vec![probe_c];
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw_with_c(&src, &exe, backend, opt, &extra);
+            assert_eq!(
+                out.status.signal(),
+                Some(6), // SIGABRT
+                "({backend:?}, {opt:?}) expected SIGABRT(6) on pthread_mutex_destroy failure, got status={:?}, stdout={:?}",
+                out.status,
+                String::from_utf8_lossy(&out.stdout)
+            );
+            assert!(
+                out.stdout.is_empty(),
+                "({backend:?}, {opt:?}) backing memory must not be freed after destroy failure: stdout={:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
