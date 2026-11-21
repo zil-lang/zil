@@ -1,0 +1,2175 @@
+//! End-to-end Alpha acceptance integration suite through `zil_driver::CompilationSession`.
+//!
+//! Unlike component-level corpus tests, every test here runs the complete CLI pipeline:
+//! Parse -> CT original declaration/import checks -> Typeck -> Real AST `check_fidelity`
+//! -> Solve -> Independent Check -> Native Build (`Clang` and `LlvmApi`, O0/O2, 1/8 units)
+//! -> Real ELF execution with observable exit codes and stdout.
+
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use zil_base::{Phase, ResultCategory};
+use zil_driver::{
+    CodegenOptions, CompilationSession, CompileOptions, NativeBackend, Optimization, Stage,
+};
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("crates")
+        .parent()
+        .expect("repo root")
+        .to_path_buf()
+}
+
+fn temp_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("zil-alpha-e2e-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+fn build_and_run(
+    entry: &Path,
+    exe: &Path,
+    backend: NativeBackend,
+    opt: Optimization,
+    units: usize,
+    stdin_bytes: &[u8],
+) -> (i32, Vec<u8>, usize, usize) {
+    let mut session = CompilationSession::new();
+    let opts = CompileOptions {
+        stop_after: Stage::Build,
+        optimization: opt,
+        backend,
+        output: Some(exe.to_path_buf()),
+        codegen: CodegenOptions {
+            units,
+            jobs: if units > 1 { 4 } else { 1 },
+        },
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(entry, &opts);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "build failed for {} ({backend:?}, {opt:?}, u{units}): {:?}",
+        entry.display(),
+        report.diagnostics
+    );
+    assert_eq!(report.verification_runs, 1);
+    let cg = report
+        .native_codegen
+        .as_ref()
+        .expect("native_codegen summary");
+    assert_eq!(cg.backend, backend);
+    let actual_units = cg.actual_units;
+    let obj_reports = cg.object_reports.len();
+
+    let mut child = Command::new(exe)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|e| panic!("failed to spawn {}: {e}", exe.display()));
+    if !stdin_bytes.is_empty() {
+        child
+            .stdin
+            .as_mut()
+            .expect("stdin")
+            .write_all(stdin_bytes)
+            .expect("write stdin");
+    }
+    let out = child.wait_with_output().expect("wait child");
+    assert!(
+        out.stderr.is_empty(),
+        "unexpected stderr from {}: {}",
+        exe.display(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    (
+        out.status.code().unwrap_or(-1),
+        out.stdout,
+        actual_units,
+        obj_reports,
+    )
+}
+
+#[test]
+fn state_store_example_dual_backend_o0_o2_and_real_8_unit_execution() {
+    let dir = temp_dir("state-store");
+    let main_entry = repo_root().join("examples/mainline/zui-language-store-fields/main.zil");
+    let field_exit = repo_root().join("examples/mainline/zui-language-store-fields/field_exit.zil");
+
+    let mut configs = vec![
+        ("clang-o0-u1", NativeBackend::Clang, Optimization::O0, 1),
+        ("clang-o2-u1", NativeBackend::Clang, Optimization::O2, 1),
+    ];
+    if cfg!(feature = "llvm-api") {
+        configs.push(("llvmapi-o0-u1", NativeBackend::LlvmApi, Optimization::O0, 1));
+        configs.push(("llvmapi-o2-u1", NativeBackend::LlvmApi, Optimization::O2, 1));
+        configs.push(("llvmapi-o0-u8", NativeBackend::LlvmApi, Optimization::O0, 8));
+        configs.push(("llvmapi-o2-u8", NativeBackend::LlvmApi, Optimization::O2, 8));
+    }
+
+    for (label, backend, opt, units) in configs {
+        let exe_main = dir.join(format!("main-{label}"));
+        let (code0, out0, actual_u, obj_r) =
+            build_and_run(&main_entry, &exe_main, backend, opt, units, b"0");
+        assert_eq!((code0, out0.as_slice()), (0, b"HZMK".as_slice()), "{label}");
+        if backend == NativeBackend::LlvmApi {
+            assert_eq!(actual_u, units, "{label}: expected real {units} units");
+            assert_eq!(obj_r, units, "{label}: expected {units} object reports");
+        }
+
+        let mut child1 = Command::new(&exe_main)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("spawn count-1");
+        child1
+            .stdin
+            .as_mut()
+            .expect("stdin")
+            .write_all(b"1")
+            .expect("write 1");
+        let run1 = child1.wait_with_output().expect("wait count-1");
+        assert_eq!(
+            (run1.status.code(), run1.stdout.as_slice()),
+            (Some(0), b"DHZMNK".as_slice()),
+            "{label} count-1"
+        );
+
+        let exe_fe = dir.join(format!("field-exit-{label}"));
+        let (fe_code, fe_out, fe_u, fe_r) =
+            build_and_run(&field_exit, &exe_fe, backend, opt, units, b"1");
+        assert_eq!(
+            (fe_code, fe_out.as_slice()),
+            (1, b"DHZ".as_slice()),
+            "{label} field_exit"
+        );
+        if backend == NativeBackend::LlvmApi {
+            assert_eq!(fe_u, units, "{label}: field_exit real {units} units");
+            assert_eq!(fe_r, units, "{label}: field_exit {units} object reports");
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn safety_negatives_reject_at_exact_phase_and_code_through_full_driver() {
+    let root = repo_root();
+    let mut session = CompilationSession::new();
+    let check_opts = CompileOptions {
+        stop_after: Stage::Lower,
+        ..CompileOptions::default()
+    };
+
+    // 1. Historical unbounded SyncDrop cleanup fixtures -> Phase::Types, E-ORIGINAL-CLEANUP
+    for entry in ["main.zil", "field_exit.zil"] {
+        let path = root
+            .join("tests/fixtures/state-store-without-sync-drop")
+            .join(entry);
+        let report = session.compile_path(&path, &check_opts);
+        assert_eq!(report.status, ResultCategory::SafeReject);
+        assert_eq!(report.phase, Phase::Types);
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report.diagnostics.iter().any(|d| {
+                d.code == "E-ORIGINAL-CLEANUP"
+                    && d.message.contains("SyncDrop")
+                    && d.notes
+                        .iter()
+                        .any(|n| n.contains("original scope cleanup binding \"callback\""))
+            }),
+            "{entry}: unexpected diagnostics {:?}",
+            report.diagnostics
+        );
+    }
+
+    // 2. Rigid-life closure mismatch -> Phase::Types, E-TYPE-MISMATCH (0 false admits)
+    let rigid = root.join("tests/fixtures/call-regions/negative-closure-rigid-life.zil");
+    let report = session.compile_path(&rigid, &check_opts);
+    assert_eq!(report.status, ResultCategory::SafeReject);
+    assert_eq!(report.phase, Phase::Types);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-TYPE-MISMATCH"),
+        "expected E-TYPE-MISMATCH, got {:?}",
+        report.diagnostics
+    );
+
+    // 3. Task SDK negative controls through full driver (including CT + AST fidelity)
+    let worker_neg = root.join(
+        "tests/language-readiness/task-owner-transport/invalid-source-contracts/direct-worker-owner-cleanup.zil",
+    );
+    let report = session.compile_path(&worker_neg, &check_opts);
+    assert_eq!(report.status, ResultCategory::SafeReject);
+    assert_eq!(report.phase, Phase::Types);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-ORIGINAL-CLEANUP" && d.message.contains("SyncDrop")),
+        "expected E-ORIGINAL-CLEANUP SyncDrop, got {:?}",
+        report.diagnostics
+    );
+
+    let region_neg = root.join(
+        "tests/language-readiness/task-owner-transport/invalid-source-contracts/equal-distinct-task-classes.zil",
+    );
+    let report = session.compile_path(&region_neg, &check_opts);
+    assert_eq!(report.status, ResultCategory::SafeReject);
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-SAFETY-SOLVE" && d.message.contains("RegionEscape")),
+        "expected RegionEscape, got {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn stdlib_and_control_programs_execute_natively_on_both_backends_at_o0_and_o2() {
+    let dir = temp_dir("stdlib-controls");
+    let root = repo_root();
+    let cases = [
+        (
+            "std_store_mut",
+            "tests/language-readiness/store-mutation/std-store.zil",
+        ),
+        (
+            "store_mut_direct",
+            "tests/language-readiness/store-mutation/direct.zil",
+        ),
+        (
+            "nested_packages",
+            "tests/fixtures/nested-store/packages.zil",
+        ),
+        (
+            "static_trait",
+            "tests/language-readiness/controls/static-trait-control.zil",
+        ),
+        (
+            "owned_closure",
+            "tests/language-readiness/controls/owned-closure-return-control.zil",
+        ),
+        (
+            "mut_store_helper",
+            "tests/language-readiness/controls/mutable-store-helper-control.zil",
+        ),
+        (
+            "ct_enum_match",
+            "tests/language-readiness/controls/ct-enum-match.zil",
+        ),
+        (
+            "ct_generic",
+            "tests/language-readiness/controls/ct-generic.zil",
+        ),
+    ];
+
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+
+    for (name, rel) in cases {
+        let path = root.join(rel);
+        for &backend in &backends {
+            for opt in [Optimization::O0, Optimization::O2] {
+                let exe = dir.join(format!("{name}-{}-{opt:?}", backend.name()));
+                let (code, _, _, _) = build_and_run(&path, &exe, backend, opt, 1, b"");
+                assert_eq!(
+                    code, 0,
+                    "{rel} ({backend:?}, {opt:?}) exited with non-zero status {code}"
+                );
+            }
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn build_and_run_raw(
+    entry: &Path,
+    exe: &Path,
+    backend: NativeBackend,
+    opt: Optimization,
+) -> std::process::Output {
+    build_and_run_raw_with_c(entry, exe, backend, opt, &[])
+}
+
+fn build_and_run_raw_with_c(
+    entry: &Path,
+    exe: &Path,
+    backend: NativeBackend,
+    opt: Optimization,
+    extra_c_sources: &[PathBuf],
+) -> std::process::Output {
+    let mut session = CompilationSession::new();
+    let opts = CompileOptions {
+        stop_after: Stage::Build,
+        optimization: opt,
+        backend,
+        output: Some(exe.to_path_buf()),
+        extra_c_sources: extra_c_sources.to_vec(),
+        codegen: CodegenOptions { units: 1, jobs: 1 },
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(entry, &opts);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "build failed for {} ({backend:?}, {opt:?}): {:?}",
+        entry.display(),
+        report.diagnostics
+    );
+    assert_eq!(report.verification_runs, 1);
+
+    Command::new(exe)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap_or_else(|e| panic!("failed to run {}: {e}", exe.display()))
+}
+
+fn dual_backends() -> Vec<NativeBackend> {
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    backends
+}
+
+#[test]
+fn task_cancel_pending_unwinds_resources_and_closures_in_reverse_order() {
+    let dir = temp_dir("task-cancel-unwind");
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+resource Guard { code: i32 }
+impl Drop for Guard { fn drop(self: Self) { unsafe { putchar(.code) } } }
+
+fn worker(arg: i32) -> i32 {
+    let g1 = Guard { code: 49 }
+    let g2 = Guard { code: 50 }
+    let cap = Guard { code: 51 }
+    let cls = move () -> i32 => cap.code + arg
+    unsafe { putchar(83) }
+    task_yield()
+    unsafe { putchar(88) }
+    return cls() + g1.code + g2.code
+}
+
+fn main() -> i32 {
+    let created = task_create(worker, 1)
+    match created {
+        .ok(t) => {
+            var task = give t
+            match task_poll(&mut task) {
+                .ok(v) => { match v { Poll.Pending() => {}, Poll.Ready(_) => { return 11 } } },
+                .err(_) => { return 12 }
+            }
+            task_request_cancel(&mut task)
+            match task_poll_close(&mut task) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => { return 13 }
+            }
+            task_finish_destroy(give task)
+            return 0
+        },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+    )
+    .expect("write source");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            // 'S' before yield, then reverse drop order: cls(cap='3'), g2='2', g1='1'; no 'X'.
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"S321",
+                "({backend:?}, {opt:?}) unexpected drop trace: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn task_cancel_pending_propagates_pending_and_cleans_nested_task() {
+    let dir = temp_dir("task-nested-pending-close");
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+resource Guard { code: i32 }
+impl Drop for Guard { fn drop(self: Self) { unsafe { putchar(.code) } } }
+
+resource YieldingGuard { code: i32 }
+impl Drop for YieldingGuard {
+    fn drop(self: Self) {
+        unsafe { putchar(.code) }
+        task_yield()
+        unsafe { putchar(.code + 32) }
+    }
+}
+
+fn child_worker(x: i32) -> i32 {
+    let cg = YieldingGuard { code: 67 }
+    task_yield()
+    unsafe { putchar(88) }
+    return cg.code + x
+}
+
+fn parent_worker(x: i32) -> i32 {
+    let pg = Guard { code: 80 }
+    let created = task_create(child_worker, x)
+    match created {
+        .ok(t) => {
+            var child = give t
+            match task_poll(&mut child) {
+                .ok(v) => { match v { Poll.Pending() => {}, Poll.Ready(_) => { return -2 } } },
+                .err(_) => { return -3 }
+            }
+            task_yield()
+            unsafe { putchar(89) }
+            match task_poll_close(&mut child) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => {}
+            }
+            task_finish_destroy(give child)
+            return pg.code
+        },
+        .err(_) => { return -1 }
+    }
+}
+
+fn main() -> i32 {
+    let created = task_create(parent_worker, 7)
+    match created {
+        .ok(t) => {
+            var parent = give t
+            match task_poll(&mut parent) {
+                .ok(v) => { match v { Poll.Pending() => {}, Poll.Ready(_) => { return 11 } } },
+                .err(_) => { return 12 }
+            }
+            task_request_cancel(&mut parent)
+            match task_poll_close(&mut parent) {
+                Poll.Pending() => {},
+                Poll.Ready(_) => { return 13 }
+            }
+            unsafe { putchar(77) }
+            match task_poll_close(&mut parent) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => { return 14 }
+            }
+            task_finish_destroy(give parent)
+            return 0
+        },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+    )
+    .expect("write source");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            // Child starts YieldingGuard drop ('C') and yields -> parent task_poll_close returns Pending
+            // -> main prints 'M' -> second task_poll_close resumes child drop ('c'), frees child,
+            // drops parent Guard ('P'), returns Ready. No 'X' or 'Y'.
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"CMcP",
+                "({backend:?}, {opt:?}) unexpected nested cancel trace: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn task_finish_destroy_aborts_if_not_closed() {
+    use std::os::unix::process::ExitStatusExt;
+
+    let dir = temp_dir("task-destroy-abort");
+    let cases = [
+        (
+            "pending",
+            r#"
+fn worker(x: i32) -> i32 {
+    task_yield()
+    return x + 1
+}
+
+fn main() -> i32 {
+    let created = task_create(worker, 5)
+    match created {
+        .ok(t) => {
+            var task = give t
+            match task_poll(&mut task) {
+                .ok(v) => { match v { Poll.Pending() => {}, Poll.Ready(_) => { return 11 } } },
+                .err(_) => { return 12 }
+            }
+            // Deliberately skip task_poll_close: must abort!
+            task_finish_destroy(give task)
+            return 0
+        },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+        ),
+        (
+            "unstarted",
+            r#"
+fn worker(x: i32) -> i32 {
+    return x + 1
+}
+
+fn main() -> i32 {
+    let created = task_create(worker, 5)
+    match created {
+        .ok(t) => {
+            var task = give t
+            // Deliberately skip task_poll_close on unstarted task: must abort!
+            task_finish_destroy(give task)
+            return 0
+        },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+        ),
+    ];
+
+    for (case_name, code) in cases {
+        let src = dir.join(format!("{case_name}.zil"));
+        std::fs::write(&src, code).expect("write source");
+        for backend in dual_backends() {
+            for opt in [Optimization::O0, Optimization::O2] {
+                let exe = dir.join(format!("{case_name}-{}-{opt:?}", backend.name()));
+                let out = build_and_run_raw(&src, &exe, backend, opt);
+                assert_eq!(
+                    out.status.signal(),
+                    Some(6), // SIGABRT
+                    "{case_name} ({backend:?}, {opt:?}) expected SIGABRT(6), got status={:?}",
+                    out.status
+                );
+            }
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn task_stack_overflow_hits_guard_page_safely() {
+    let dir = temp_dir("task-guard-page");
+    let probe_c = dir.join("guard_probe.c");
+    std::fs::write(
+        &probe_c,
+        r#"
+#define _GNU_SOURCE
+#include <errno.h>
+#include <signal.h>
+#include <stdint.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+static volatile uintptr_t g_guard_addr = 0;
+static volatile size_t g_guard_len = 0;
+static volatile int g_fail_next_guard = 0;
+static unsigned char g_altstack[65536];
+
+void probe_fail_next_mprotect(void) {
+    g_fail_next_guard = 1;
+}
+
+int mprotect(void *addr, size_t len, int prot) {
+    if (prot == PROT_NONE) {
+        if (g_fail_next_guard) {
+            g_fail_next_guard = 0;
+            errno = ENOMEM;
+            return -1;
+        }
+        g_guard_addr = (uintptr_t)addr;
+        g_guard_len = len;
+    }
+    return (int)syscall(SYS_mprotect, addr, len, prot);
+}
+
+static void segv_handler(int sig, siginfo_t *si, void *ucontext) {
+    (void)ucontext;
+    uintptr_t fault = (uintptr_t)si->si_addr;
+    uintptr_t base = g_guard_addr;
+    size_t len = g_guard_len;
+    if (sig == SIGSEGV &&
+        si->si_code == SEGV_ACCERR &&
+        base != 0 &&
+        fault >= base &&
+        fault < base + len) {
+        _exit(77);
+    }
+    _exit(99);
+}
+
+void probe_install_segv_handler(void) {
+    stack_t ss;
+    ss.ss_sp = g_altstack;
+    ss.ss_size = sizeof(g_altstack);
+    ss.ss_flags = 0;
+    if (sigaltstack(&ss, NULL) != 0) {
+        _exit(91);
+    }
+    struct sigaction sa;
+    sa.sa_sigaction = segv_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    if (sigaction(SIGSEGV, &sa, NULL) != 0) {
+        _exit(92);
+    }
+}
+"#,
+    )
+    .expect("write guard_probe.c");
+
+    // Subtest A: Deep recursion overflows into the exact 4 KiB PROT_NONE guard page
+    // and triggers SIGSEGV with si_code == SEGV_ACCERR and fault address in [guard, guard+4096).
+    let overflow_src = dir.join("overflow.zil");
+    std::fs::write(
+        &overflow_src,
+        r#"
+extern "C" fn probe_install_segv_handler() -> ();
+
+fn burn_stack(depth: i32) -> i32 {
+    if depth <= 0 {
+        return 1
+    }
+    let left = burn_stack(depth - 1)
+    let right = burn_stack(depth - 1)
+    return left + right
+}
+
+fn worker(depth: i32) -> i32 {
+    return burn_stack(depth)
+}
+
+fn main() -> i32 {
+    unsafe { probe_install_segv_handler() }
+    let created = task_create(worker, 5000)
+    match created {
+        .ok(t) => {
+            var task = give t
+            match task_poll(&mut task) {
+                .ok(v) => { match v { Poll.Ready(res) => { return res }, Poll.Pending() => { return 11 } } },
+                .err(_) => { return 12 }
+            }
+        },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+    )
+    .expect("write overflow.zil");
+
+    // Subtest B: If mprotect fails when installing the guard page, task_poll MUST refuse
+    // to start the worker, return err(TaskPollState.Invalid), and allow clean close + destroy.
+    let fail_src = dir.join("mprotect_fail.zil");
+    std::fs::write(
+        &fail_src,
+        r#"
+extern "C" fn probe_fail_next_mprotect() -> ();
+extern "C" fn putchar(value: i32) -> i32;
+
+fn worker(x: i32) -> i32 {
+    // Must NEVER execute when guard page mprotect fails!
+    unsafe { putchar(88) }
+    return x + 1
+}
+
+fn main() -> i32 {
+    let created = task_create(worker, 5)
+    match created {
+        .ok(t) => {
+            var task = give t
+            unsafe { probe_fail_next_mprotect() }
+            match task_poll(&mut task) {
+                .ok(_) => { return 21 },
+                .err(st) => {
+                    match st {
+                        TaskPollState.Invalid() => {},
+                        _ => { return 22 }
+                    }
+                }
+            }
+            match task_poll_close(&mut task) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => { return 23 }
+            }
+            task_finish_destroy(give task)
+            return 0
+        },
+        .err(_) => { return 20 }
+    }
+}
+"#,
+    )
+    .expect("write mprotect_fail.zil");
+
+    let extra = vec![probe_c];
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe_ov = dir.join(format!("overflow-{}-{opt:?}", backend.name()));
+            let out_ov = build_and_run_raw_with_c(&overflow_src, &exe_ov, backend, opt, &extra);
+            assert_eq!(
+                out_ov.status.code(),
+                Some(77),
+                "overflow ({backend:?}, {opt:?}) expected exit 77 (SEGV_ACCERR inside guard page), got status={:?}",
+                out_ov.status
+            );
+
+            let exe_mf = dir.join(format!("mprotect-fail-{}-{opt:?}", backend.name()));
+            let out_mf = build_and_run_raw_with_c(&fail_src, &exe_mf, backend, opt, &extra);
+            assert_eq!(
+                out_mf.status.code(),
+                Some(0),
+                "mprotect_fail ({backend:?}, {opt:?}) expected exit 0, got status={:?}, stderr={}",
+                out_mf.status,
+                String::from_utf8_lossy(&out_mf.stderr)
+            );
+            assert!(
+                out_mf.stdout.is_empty(),
+                "mprotect_fail ({backend:?}, {opt:?}) worker must not execute: stdout={:?}",
+                String::from_utf8_lossy(&out_mf.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn task_concurrent_polling_on_two_os_threads_isolated_tls() {
+    let dir = temp_dir("task-tls-threads");
+    let probe_c = dir.join("barrier_probe.c");
+    std::fs::write(
+        &probe_c,
+        r#"
+#define _POSIX_C_SOURCE 200809L
+#include <pthread.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+static pthread_barrier_t g_bar;
+static volatile unsigned long g_tid0 = 0;
+static volatile unsigned long g_tid1 = 0;
+
+void probe_barrier_init(void) {
+    if (pthread_barrier_init(&g_bar, NULL, 2) != 0) {
+        abort();
+    }
+    g_tid0 = 0;
+    g_tid1 = 0;
+}
+
+void probe_barrier_wait(void) {
+    int rc = pthread_barrier_wait(&g_bar);
+    if (rc != 0 && rc != PTHREAD_BARRIER_SERIAL_THREAD) {
+        abort();
+    }
+}
+
+void probe_record_tid(int slot) {
+    unsigned long self = (unsigned long)pthread_self();
+    if (slot == 0) {
+        g_tid0 = self;
+    } else {
+        g_tid1 = self;
+    }
+}
+
+int probe_tids_distinct(void) {
+    return (g_tid0 != 0 && g_tid1 != 0 && g_tid0 != g_tid1) ? 1 : 0;
+}
+"#,
+    )
+    .expect("write barrier_probe.c");
+
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+extern "C" fn probe_barrier_init() -> ();
+extern "C" fn probe_barrier_wait() -> ();
+extern "C" fn probe_record_tid(slot: i32) -> ();
+extern "C" fn probe_tids_distinct() -> i32;
+
+fn step_worker(seed: i32) -> i32 {
+    var acc = 0
+    var i = 0
+    while i < 40 {
+        // Real 2-thread pthread_barrier_wait inside active Task frames:
+        // guarantees both OS threads are simultaneously alive and executing Tasks.
+        unsafe { probe_barrier_wait() }
+        acc += seed + i
+        task_yield()
+        i += 1
+    }
+    return acc
+}
+
+fn run_task(seed: i32) -> i32 {
+    if seed == 100 {
+        unsafe { probe_record_tid(0) }
+    } else {
+        unsafe { probe_record_tid(1) }
+    }
+    let created = task_create(step_worker, seed)
+    match created {
+        .ok(t) => {
+            var task = give t
+            var result = -1
+            var done = false
+            while !done {
+                match task_poll(&mut task) {
+                    .ok(v) => {
+                        match v {
+                            Poll.Pending() => {},
+                            Poll.Ready(res) => {
+                                result = res
+                                done = true
+                            }
+                        }
+                    },
+                    .err(_) => { return -11 }
+                }
+            }
+            match task_poll_close(&mut task) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => { return -12 }
+            }
+            task_finish_destroy(give task)
+            return result
+        },
+        .err(_) => { return -10 }
+    }
+}
+
+fn main() -> i32 {
+    unsafe { probe_barrier_init() }
+    let (created, child_res, main_res) = thread_scope(run_task, 100, () -> i32 => run_task(200))
+    if !created { return 1 }
+    var distinct = 0
+    unsafe { distinct = probe_tids_distinct() }
+    if distinct != 1 { return 4 }
+    // sum_{i=0..39} (100 + i) = 4000 + 780 = 4780
+    if child_res != 4780 { return 2 }
+    // sum_{i=0..39} (200 + i) = 8000 + 780 = 8780
+    if main_res != 8780 { return 3 }
+    return 0
+}
+"#,
+    )
+    .expect("write source");
+
+    let mutex_fixture = repo_root().join("tests/fixtures/threading/mutex-worker-helpers.zil");
+    let extra = vec![probe_c];
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw_with_c(&src, &exe, backend, opt, &extra);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "tls-threads ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+
+            let exe_m = dir.join(format!("mutex-{}-{opt:?}", backend.name()));
+            let out_m = build_and_run_raw(&mutex_fixture, &exe_m, backend, opt);
+            assert_eq!(
+                out_m.status.code(),
+                Some(0),
+                "mutex-worker-helpers ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out_m.status,
+                String::from_utf8_lossy(&out_m.stderr)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(unix)]
+#[test]
+fn mutex_destroy_failure_aborts_without_freeing() {
+    use std::os::unix::process::ExitStatusExt;
+
+    let dir = temp_dir("mutex-destroy-fail");
+    let probe_c = dir.join("mutex_destroy_probe.c");
+    std::fs::write(
+        &probe_c,
+        r#"
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <errno.h>
+#include <pthread.h>
+#include <stddef.h>
+#include <unistd.h>
+
+static volatile void *g_failed_mutex = NULL;
+
+int pthread_mutex_destroy(pthread_mutex_t *m) {
+    g_failed_mutex = (void *)m;
+    return EBUSY;
+}
+
+void free(void *p) {
+    if (p != NULL && p == g_failed_mutex) {
+        const char msg[] = "FREED_AFTER_DESTROY_FAIL";
+        ssize_t ignored = write(1, msg, sizeof(msg) - 1);
+        (void)ignored;
+        _exit(99);
+    }
+    void (*real_free)(void *) = (void (*)(void *))dlsym(RTLD_NEXT, "free");
+    if (real_free != NULL) {
+        real_free(p);
+    }
+}
+"#,
+    )
+    .expect("write mutex_destroy_probe.c");
+
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+fn entry() -> MutexCreateError!i32 {
+    let cell = mutex_create(42)?
+    var guard = mutex_lock(cell)
+    let value = mutex_value(&mut guard)
+    *value += 1
+    return 0
+}
+
+fn main() -> i32 {
+    match entry() {
+        .ok(v) => { return v },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    let extra = vec![probe_c];
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw_with_c(&src, &exe, backend, opt, &extra);
+            assert_eq!(
+                out.status.signal(),
+                Some(6), // SIGABRT
+                "({backend:?}, {opt:?}) expected SIGABRT(6) on pthread_mutex_destroy failure, got status={:?}, stdout={:?}",
+                out.status,
+                String::from_utf8_lossy(&out.stdout)
+            );
+            assert!(
+                out.stdout.is_empty(),
+                "({backend:?}, {opt:?}) backing memory must not be freed after destroy failure: stdout={:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn everyday_const_defer_slice_and_collection_for_in_execute_natively() {
+    let dir = temp_dir("batch1a-everyday");
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+const BASE: usize = 2
+const LEN: usize = BASE * 2 + 1
+const BONUS: i32 = 10
+
+resource Tag { code: i32 }
+impl Drop for Tag { fn drop(self: Self) { unsafe { putchar(.code) } } }
+
+struct Counter { cur: i32, limit: i32 }
+trait Next { fn next(self: &mut Self) -> Option<i32>; }
+impl Next for Counter {
+    fn next() -> Option<i32> {
+        if .cur >= .limit {
+            return Option.None()
+        }
+        let v = .cur
+        .cur += 1
+        return Option.Some(v)
+    }
+}
+
+fn test_defer(early: bool) -> i32 {
+    let t1 = Tag { code: 65 } // 'A'
+    defer { unsafe { putchar(66) } } // 'B'
+    let t2 = Tag { code: 67 } // 'C'
+    defer { unsafe { putchar(68) } } // 'D'
+    if early {
+        return t1.code + t2.code
+    }
+    unsafe { putchar(69) } // 'E'
+    return 0
+}
+
+fn main() -> i32 {
+    // 1. Const array length + bare slice expressions + for..in over array & slice
+    let arr: [i32; LEN] = [1, 2, 3, 4, 5]
+    var arr_sum = 0
+    for x in arr {
+        arr_sum += x
+    }
+    if arr_sum != 15 { return 1 }
+
+    let mid = arr[1..4]
+    var mid_sum = 0
+    for x in mid {
+        mid_sum += x
+    }
+    if mid_sum != 9 { return 2 }
+
+    let head = arr[..2]
+    let tail = arr[3..]
+    let full = arr[..]
+    if head.len() != 2 || tail.len() != 2 || full.len() != 5 { return 3 }
+
+    // 2. for..in over Managed<OwnedStore<i32>> (non-consuming)
+    let store: Store<i32> = store_new()
+    if !store_reserve(store, 3) { return 4 }
+    store_push(store, 10)
+    store_push(store, 20)
+    store_push(store, BONUS)
+    var store_sum = 0
+    for x in store {
+        store_sum += x
+    }
+    if store_sum != 40 || store_len(store) != 3 { return 7 }
+
+    // 3. for..in over custom iterator with .next() -> Option<i32>
+    let counter = Counter { cur: 1, limit: 5 }
+    var it_sum = 0
+    for x in counter {
+        it_sum += x
+    }
+    if it_sum != 10 { return 8 }
+
+    // 4. defer LIFO interleaved with resource Drop on early return and normal exit
+    let r = test_defer(true)
+    if r != 132 { return 9 }
+    let r2 = test_defer(false)
+    if r2 != 0 { return 10 }
+    return 0
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("bin-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            // Early return: D, C, B, A. Normal exit: E, D, C, B, A.
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"DCBAEDCBA",
+                "({backend:?}, {opt:?}) unexpected defer/drop order: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn borrowed_enums_positive_native_and_negative_safety_checks() {
+    let root = repo_root();
+    let dir = temp_dir("batch1b-borrowed-enums");
+
+    // 1. Positive fixtures execute natively on both Clang and LLVM-API at O0 and O2.
+    let positives = [
+        "tests/fixtures/borrowed-enums/choice.zil",
+        "tests/fixtures/borrowed-enums/same-life.zil",
+        "tests/fixtures/borrowed-enums/mixed-classes.zil",
+        "tests/fixtures/borrowed-enums/poll.zil",
+        "tests/fixtures/borrowed-enums/error-wrapper.zil",
+    ];
+    for rel in positives {
+        let src = root.join(rel);
+        let stem = src.file_stem().unwrap().to_string_lossy();
+        for backend in dual_backends() {
+            for opt in [Optimization::O0, Optimization::O2] {
+                let exe = dir.join(format!("{stem}-{}-{opt:?}", backend.name()));
+                let out = build_and_run_raw(&src, &exe, backend, opt);
+                assert_eq!(
+                    out.status.code(),
+                    Some(0),
+                    "{rel} ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                    out.status,
+                    String::from_utf8_lossy(&out.stderr)
+                );
+            }
+        }
+    }
+
+    // 2. Negative safety check: returning Mix.Other(&'b i32) as &'a i32 must be rejected.
+    let neg_escape = dir.join("neg_escape.zil");
+    std::fs::write(
+        &neg_escape,
+        r#"
+enum Mix<life a, life b> { First(&'a i32), Other(&'b i32) }
+fn bad<life a, life b>(m: Mix<'a, 'b>) -> &'a i32 {
+    match m {
+        Mix.First(p) => { return p },
+        Mix.Other(q) => { return q }
+    }
+}
+fn main() -> i32 {
+    let x = 1
+    let y = 2
+    let p = bad(Mix::<'_, '_>.Other(&y))
+    return *p + x - 3
+}
+"#,
+    )
+    .expect("write neg_escape.zil");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let escape_report = session.compile_path(&neg_escape, &verify_opts);
+    assert_ne!(
+        escape_report.status,
+        ResultCategory::Success,
+        "returning Mix.Other(&'b i32) as &'a i32 must be rejected"
+    );
+    let escape_msg: String = escape_report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        escape_msg.contains("RegionEscape") || escape_msg.contains("E-TYPE-MISMATCH"),
+        "expected RegionEscape or type mismatch, got: {escape_msg}"
+    );
+
+    // 3. Negative safety check: mutating `right` while a returned enum still borrows `right` must be rejected.
+    let neg_conflict = dir.join("neg_conflict.zil");
+    std::fs::write(
+        &neg_conflict,
+        r#"
+enum Choice<life a, life b> { Left(&'a i32), Right(&'b i32) }
+fn select_right<life a, life b>(left: &'a i32, right: &'b i32) -> Choice<'a, 'b> {
+    return Choice::<'a, 'b>.Right(right)
+}
+fn read<life a, life b>(c: Choice<'a, 'b>) -> i32 {
+    match c {
+        Choice.Left(p) => { return *p },
+        Choice.Right(p) => { return *p }
+    }
+}
+fn main() -> i32 {
+    let a = 10
+    var b = 20
+    let c = select_right(&a, &b)
+    b = 99
+    return read(c)
+}
+"#,
+    )
+    .expect("write neg_conflict.zil");
+    let conflict_report = session.compile_path(&neg_conflict, &verify_opts);
+    assert_ne!(
+        conflict_report.status,
+        ResultCategory::Success,
+        "mutating borrowed right after select_right must be rejected"
+    );
+    let conflict_msg: String = conflict_report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        conflict_msg.contains("LoanConflict"),
+        "expected LoanConflict, got: {conflict_msg}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn nested_closures_generic_impl_fn_and_higher_order_task_transport() {
+    let root = repo_root();
+    let dir = temp_dir("batch2-closures-tasks");
+
+    // 1. Nested closures (multi-level capture + FnMut propagation) and generic impl FnOnce
+    //    monomorphization (invoked transfer + uninvoked drop cleanup).
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+resource Token { tag: i32 }
+impl Drop for Token { fn drop(self: Self) { unsafe { putchar(.tag) } } }
+
+fn make_box<T>(value: T) -> impl FnOnce() -> T {
+    return move () -> T => value
+}
+
+fn drop_uninvoked(code: i32) {
+    let tok = Token { tag: code }
+    let cb = make_box(give tok)
+    // cb is never invoked; leaving scope must drop the captured Token once.
+    let _ = cb
+}
+
+fn invoke_and_return(code: i32) -> Managed<Token> {
+    let tok = Token { tag: code }
+    let cb = make_box(give tok)
+    return cb()
+}
+
+fn main() -> i32 {
+    // Nested closures capturing outer local + outer closure param + mutating outer var
+    let base = 10
+    var acc = 1
+    var outer = (scale: i32) -> i32 => {
+        var inner = (delta: i32) -> i32 => {
+            acc += base * scale + delta
+            return acc
+        }
+        let r1 = inner(2)
+        let r2 = inner(3)
+        return r1 + r2
+    }
+    let total = outer(2)
+    // r1 = 1 + 20 + 2 = 23, r2 = 23 + 20 + 3 = 46, total = 69, acc = 46
+    if total != 69 || acc != 46 { return 1 }
+
+    // Generic impl FnOnce instantiated with i32
+    let get_num = make_box(42)
+    if get_num() != 42 { return 2 }
+
+    // Generic impl FnOnce instantiated with Managed<Token>:
+    // First uninvoked drops 'U' (85), then invoked returns token dropped at end of main 'I' (73).
+    drop_uninvoked(85)
+    let returned = invoke_and_return(73)
+    if returned.tag != 73 { return 3 }
+    return 0
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    let fixtures = [
+        "tests/language-readiness/task-owner-transport/returned-second-task-fnonce.zil",
+        "tests/language-readiness/task-owner-transport/returned-shared-task-classes.zil",
+        "tests/fixtures/call-regions/known-closure-borrowed.zil",
+    ];
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("nested-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "nested+generic ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"UI",
+                "nested+generic ({backend:?}, {opt:?}) unexpected drop trace: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+
+            for rel in fixtures {
+                let fpath = root.join(rel);
+                let stem = fpath.file_stem().unwrap().to_string_lossy();
+                let fexe = dir.join(format!("{stem}-{}-{opt:?}", backend.name()));
+                let fout = build_and_run_raw(&fpath, &fexe, backend, opt);
+                assert_eq!(
+                    fout.status.code(),
+                    Some(0),
+                    "{rel} ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                    fout.status,
+                    String::from_utf8_lossy(&fout.stderr)
+                );
+            }
+        }
+    }
+
+    // 2. Negative safety check: if closure returns `original` (borrowing `number`),
+    //    mutating `number` before consuming `restored` must still be rejected with LoanConflict.
+    let neg_task = dir.join("neg_task_conflict.zil");
+    std::fs::write(
+        &neg_task,
+        r#"
+fn worker(input: &mut i32) -> i32 { *input += 5; task_yield(); return *input }
+fn drive<life a>(give original: Task<i32, &'a mut i32>) -> i32 {
+    var task = give original
+    var answer = 0
+    loop {
+        match task_poll(&mut task) {
+            .ok(p) => { match p { Poll.Pending() => { continue }, Poll.Ready(v) => { answer = v; break } } },
+            .err(_) => { break }
+        }
+    }
+    task_request_cancel(&mut task)
+    loop { match task_poll_close(&mut task) { Poll.Pending() => { continue }, Poll.Ready(_) => { break } } }
+    task_finish_destroy(give task)
+    return answer
+}
+fn keep_first<life a, life b>(give original: Task<i32, &'a mut i32>, give second: Task<i32, &'b mut i32>) -> impl FnOnce() -> Managed<Task<i32, &'a mut i32>> {
+    return move () => { drive(give second); return give original }
+}
+fn main() -> TaskCreateError!i32 {
+    var number = 37
+    var other = 41
+    let original = task_create(worker, &mut number)?
+    let second = task_create(worker, &mut other)?
+    let cb = keep_first(give original, give second)
+    let restored = cb()
+    number = 9
+    return drive(give restored)
+}
+"#,
+    )
+    .expect("write neg_task_conflict.zil");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&neg_task, &verify_opts);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "mutating number while restored still borrows number must be rejected"
+    );
+    let msg: String = report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        msg.contains("LoanConflict"),
+        "expected LoanConflict, got: {msg}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn owned_dyn_vtable_dispatch_drop_oom_cleanup_and_multi_unit_execution() {
+    let root = repo_root();
+    let dir = temp_dir("batch3-owned-dyn");
+    let fixture =
+        root.join("tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil");
+
+    // 1. Positive execution across Clang & LLVM-API, O0 & O2, plus 4-unit LLVM-API build.
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("dyn-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&fixture, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(42),
+                "owned_dyn ({backend:?}, {opt:?}) unexpected exit: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"ABC",
+                "owned_dyn ({backend:?}, {opt:?}) unexpected drop trace: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+    if cfg!(feature = "llvm-api") {
+        let exe_u4 = dir.join("dyn-llvmapi-o2-u4");
+        let (code, stdout, actual_u, _) = build_and_run(
+            &fixture,
+            &exe_u4,
+            NativeBackend::LlvmApi,
+            Optimization::O2,
+            4,
+            b"",
+        );
+        assert_eq!(code, 42);
+        assert_eq!(stdout.as_slice(), b"ABC");
+        assert!(actual_u > 1, "expected multi-unit build, got {actual_u}");
+    }
+
+    // 2. Allocation failure cleanup: C probe forces calloc() to return NULL;
+    //    OwnedDynCreate must drop the concrete `A { mark: Token { code: 65 } }`
+    //    exactly once (printing 'A') and return DynCreateError -> exit code 99.
+    let oom_probe = dir.join("oom_calloc_probe.c");
+    std::fs::write(
+        &oom_probe,
+        r#"
+#include <stddef.h>
+void *calloc(size_t nmemb, size_t size) {
+    (void)nmemb;
+    (void)size;
+    return NULL;
+}
+"#,
+    )
+    .expect("write oom_calloc_probe.c");
+    let extra = vec![oom_probe];
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("dyn-oom-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw_with_c(&fixture, &exe, backend, opt, &extra);
+            assert_eq!(
+                out.status.code(),
+                Some(99),
+                "owned_dyn OOM ({backend:?}, {opt:?}) expected rc=99, got status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"A",
+                "owned_dyn OOM ({backend:?}, {opt:?}) must drop concrete A exactly once: stdout={:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn ct_first_class_type_and_const_generics_execute_natively() {
+    let root = repo_root();
+    let dir = temp_dir("batch4-ct-type-const-generics");
+
+    // 1. Existing ct-type-control.zil fixture executes natively on dual backends O0/O2.
+    let ct_fixture = root.join("tests/language-readiness/controls/ct-type-control.zil");
+
+    // 2. Comprehensive program: branching CT Type selection + Type equality +
+    //    integer const generic functions (explicit & inferred N) + const generic struct.
+    let src = dir.join("main.zil");
+    std::fs::write(
+        &src,
+        r#"
+fn pick(wide: bool) -> Type {
+    if wide { return i64 }
+    return i32
+}
+
+fn is_i32(t: Type) -> bool {
+    return t == i32
+}
+
+struct FixedBuf<T, #N: usize> {
+    data: [T; N]
+}
+
+fn sum_arr<#N: usize>(a: &[i32; N]) -> i32 {
+    var total = 0
+    for i in 0..N {
+        total += (*a)[i]
+    }
+    return total
+}
+
+fn buf_first_plus_last<#N: usize>(b: &FixedBuf<i32, N>) -> i32 {
+    return (*b).data[0] + (*b).data[N - 1]
+}
+
+fn main() -> i32 {
+    // First-class Type CT
+    let small: #(pick(false)) = 15
+    let big: #(pick(true)) = 27
+    if !#(is_i32(pick(false))) { return 1 }
+    if #(is_i32(pick(true))) { return 2 }
+
+    // Const generic function with inferred N and explicit N
+    let a4: [i32; 4] = [1, 2, 3, 4]
+    let a2: [i32; 2] = [10, 20]
+    if sum_arr::<4>(&a4) != 10 { return 3 }
+    if sum_arr(&a2) != 30 { return 4 }
+
+    // Const generic struct with distinct N instantiations
+    let b3 = FixedBuf::<i32, 3> { data: [5, 10, 15] }
+    let b2 = FixedBuf::<i32, 2> { data: [7, 8] }
+    if buf_first_plus_last(&b3) != 20 { return 5 }
+    if buf_first_plus_last(&b2) != 15 { return 6 }
+
+    return small + i32(big) - 42
+}
+"#,
+    )
+    .expect("write main.zil");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe1 = dir.join(format!("ct-fixture-{}-{opt:?}", backend.name()));
+            let out1 = build_and_run_raw(&ct_fixture, &exe1, backend, opt);
+            assert_eq!(
+                out1.status.code(),
+                Some(0),
+                "ct-type-control ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out1.status,
+                String::from_utf8_lossy(&out1.stderr)
+            );
+
+            let exe2 = dir.join(format!("batch4-{}-{opt:?}", backend.name()));
+            let out2 = build_and_run_raw(&src, &exe2, backend, opt);
+            assert_eq!(
+                out2.status.code(),
+                Some(0),
+                "batch4 ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                out2.status,
+                String::from_utf8_lossy(&out2.stderr)
+            );
+        }
+    }
+
+    // 3. Negative check: non-Type expression in `#(...)` type position must be rejected.
+    let neg_ct = dir.join("neg_ct_type.zil");
+    std::fs::write(
+        &neg_ct,
+        r#"
+fn not_a_type() -> i32 { return 42 }
+fn main() -> i32 {
+    let x: #(not_a_type()) = 1
+    return x
+}
+"#,
+    )
+    .expect("write neg_ct_type.zil");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&neg_ct, &verify_opts);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "non-Type CT expression in type position must be rejected"
+    );
+    let msg: String = report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        msg.contains("E-TYPE-MISMATCH"),
+        "expected E-TYPE-MISMATCH, got: {msg}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn defer_control_flow_boundaries_reject_escapes_and_allow_local_control() {
+    let dir = temp_dir("defer-control-flow");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+
+    // Negative 1: `return` out of `defer` must be rejected cleanly without recursive unwinding.
+    let neg_cases: [(&str, &str, &str); 6] = [
+        (
+            "defer_return.zil",
+            r#"
+fn f() -> i32 {
+    defer { return 1 }
+    return 2
+}
+fn main() -> i32 { return f() }
+"#,
+            "cannot `return` out of a `defer` block",
+        ),
+        (
+            "defer_outer_break.zil",
+            r#"
+fn main() -> i32 {
+    loop {
+        defer { break }
+        break
+    }
+    return 0
+}
+"#,
+            "outside a loop",
+        ),
+        (
+            "defer_outer_continue.zil",
+            r#"
+fn main() -> i32 {
+    loop {
+        defer { continue }
+        break
+    }
+    return 0
+}
+"#,
+            "outside a loop",
+        ),
+        (
+            "defer_try.zil",
+            r#"
+fn fail_one() -> i32!i32 { return .err(7) }
+fn f() -> i32!i32 {
+    defer {
+        let _ = fail_one()?
+    }
+    return .ok(0)
+}
+fn main() -> i32 {
+    match f() { .ok(v) => { return v }, .err(e) => { return e } }
+}
+"#,
+            "cannot propagate errors with `?` out of a `defer` block",
+        ),
+        (
+            "defer_nested.zil",
+            r#"
+fn main() -> i32 {
+    defer {
+        defer { let _ = 1 }
+    }
+    return 0
+}
+"#,
+            "nested `defer` inside a `defer` block is not allowed",
+        ),
+        (
+            "defer_task_yield.zil",
+            r#"
+fn worker(x: i32) -> i32 {
+    defer { task_yield() }
+    return x
+}
+fn main() -> i32 { return worker(0) }
+"#,
+            "cannot suspend with `task_yield` inside a `defer` block",
+        ),
+    ];
+
+    for (name, code, expected_substr) in neg_cases {
+        let p = dir.join(name);
+        std::fs::write(&p, code).expect("write negative defer case");
+        let report = session.compile_path(&p, &verify_opts);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name} must be rejected, got {:?}",
+            report.status
+        );
+        let msg: String = report
+            .diagnostics
+            .iter()
+            .map(|d| format!("{}: {}", d.code, d.message))
+            .collect::<Vec<_>>()
+            .join("; ");
+        assert!(
+            msg.contains(expected_substr),
+            "{name}: expected diagnostic containing `{expected_substr}`, got: {msg}"
+        );
+    }
+
+    // Positive: local loop (`break`/`continue`) and local closure (`return`) inside `defer`
+    // are strictly contained within the defer block and must compile and execute on both backends.
+    let pos_src = dir.join("defer_local_control.zil");
+    std::fs::write(
+        &pos_src,
+        r#"
+extern "C" fn putchar(value: i32) -> i32;
+
+fn work() -> i32 {
+    defer {
+        var i: i32 = 0
+        var sum: i32 = 0
+        loop {
+            i = i + 1
+            if i == 2 { continue }
+            sum = sum + i
+            if i >= 4 { break }
+        }
+        // sum = 1 + 3 + 4 = 8
+        let f = () -> i32 => {
+            return sum + 57
+        }
+        // 8 + 57 = 65 ('A')
+        unsafe { putchar(f()) }
+    }
+    unsafe { putchar(66) }
+    return 0
+}
+
+fn main() -> i32 {
+    return work()
+}
+"#,
+    )
+    .expect("write positive defer case");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("defer-pos-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&pos_src, &exe, backend, opt);
+            assert_eq!(
+                (out.status.code(), out.stdout.as_slice()),
+                (Some(0), b"BA".as_slice()),
+                "defer positive ({backend:?}, {opt:?}) failed: stderr={}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn forged_dyn_slot_impl_role_is_rejected_by_ast_fidelity_checker() {
+    use zil_base::FileId;
+    use zil_check::check_fidelity;
+    use zil_ir::body::{FnId, FnRole, decode_module, encode_module};
+
+    let src = r#"
+trait Read {
+    fn read(self: &Self) -> i32;
+}
+
+trait Other {
+    fn read(self: &Self) -> i32;
+}
+
+struct A { v: i32 }
+struct B { v: i32 }
+
+impl Read for A {
+    fn read(self: &Self) -> i32 { return (*self).v }
+}
+
+impl Read for B {
+    fn read(self: &Self) -> i32 { return (*self).v + 10 }
+}
+
+impl Other for A {
+    fn read(self: &Self) -> i32 { return (*self).v + 20 }
+}
+
+fn spoof(a: &A) -> i32 {
+    return (*a).v + 999
+}
+
+fn call_read(x: OwnedDyn<dyn Read>) -> i32 {
+    return x.read()
+}
+
+fn call_other(x: OwnedDyn<dyn Other>) -> i32 {
+    return x.read()
+}
+
+fn run() -> DynCreateError!i32 {
+    let a0 = A { v: 1 }
+    let _ = spoof(&a0)
+    let ra = owned_dyn::<dyn Read>(A { v: 1 })?
+    let rb = owned_dyn::<dyn Read>(B { v: 2 })?
+    let oa = owned_dyn::<dyn Other>(A { v: 3 })?
+    return call_read(ra) + call_read(rb) + call_other(oa) - 36
+}
+
+fn main() -> i32 {
+    match run() {
+        .ok(v) => { return v },
+        .err(_) => { return 99 }
+    }
+}
+"#;
+    let unit = zil_base::SourceUnit {
+        file_id: FileId(0),
+        module_id: zil_base::ModuleId(0),
+        path: "forged_dyn_ast.zil".to_string(),
+        text: src.to_string(),
+    };
+    let parsed = zil_syntax::parse(&unit);
+    assert!(
+        parsed.diagnostics.is_empty(),
+        "parse diagnostics: {:?}",
+        parsed.diagnostics
+    );
+    let lowered = zil_typeck::lower_source("forged_dyn_ast.zil", src).expect("lowers");
+
+    // Honest module + AST passes check_fidelity.
+    check_fidelity(&lowered.module, &lowered.source_map, &[&parsed.module])
+        .expect("honest module passes AST fidelity");
+
+    let honest = decode_module(&encode_module(&lowered.module)).expect("wire roundtrip");
+    let spoof_id = honest
+        .functions
+        .iter()
+        .enumerate()
+        .find_map(|(i, f)| {
+            (f.name == "spoof" && f.sig.role == FnRole::Normal).then_some(FnId::from_index(i))
+        })
+        .expect("spoof function");
+    let read_a_idx = honest
+        .dyn_impls
+        .iter()
+        .position(|di| {
+            let d = honest.tys.dyn_def(di.dyn_id);
+            let cname = match honest.tys.get(di.concrete_ty) {
+                Some(zil_ir::body::TyKind::Adt { adt, .. }) => honest.tys.adt(*adt).name.as_str(),
+                _ => "",
+            };
+            d.name.ends_with("Read") && cname.ends_with('A')
+        })
+        .expect("Read for A DynImpl");
+    let read_b_idx = honest
+        .dyn_impls
+        .iter()
+        .position(|di| {
+            let d = honest.tys.dyn_def(di.dyn_id);
+            let cname = match honest.tys.get(di.concrete_ty) {
+                Some(zil_ir::body::TyKind::Adt { adt, .. }) => honest.tys.adt(*adt).name.as_str(),
+                _ => "",
+            };
+            d.name.ends_with("Read") && cname.ends_with('B')
+        })
+        .expect("Read for B DynImpl");
+    let other_a_idx = honest
+        .dyn_impls
+        .iter()
+        .position(|di| {
+            let d = honest.tys.dyn_def(di.dyn_id);
+            let cname = match honest.tys.get(di.concrete_ty) {
+                Some(zil_ir::body::TyKind::Adt { adt, .. }) => honest.tys.adt(*adt).name.as_str(),
+                _ => "",
+            };
+            d.name.ends_with("Other") && cname.ends_with('A')
+        })
+        .expect("Other for A DynImpl");
+
+    let read_a_fn = honest.dyn_impls[read_a_idx].methods[0];
+    let read_a_role = honest.functions[read_a_fn.index()].sig.role;
+    let read_b_fn = honest.dyn_impls[read_b_idx].methods[0];
+    let other_a_fn = honest.dyn_impls[other_a_idx].methods[0];
+
+    // Attack 1: Wire swaps FnRole::DynSlotImpl onto same-signature normal function `spoof`.
+    let mut forged1 = honest.clone();
+    forged1.functions[read_a_fn.index()].sig.role = FnRole::Normal;
+    forged1.functions[spoof_id.index()].sig.role = read_a_role;
+    forged1.dyn_impls[read_a_idx].methods[0] = spoof_id;
+    let fw1 = decode_module(&encode_module(&forged1)).expect("fw1");
+    let err1 = check_fidelity(&fw1, &lowered.source_map, &[&parsed.module])
+        .expect_err("forged DynSlotImpl role on normal function must be rejected");
+    assert_eq!(err1.function, spoof_id);
+
+    // Attack 2 (Joint Wire + SourceMap tampering): attacker ALSO forges `spoof`'s
+    // SourceMap.declaration to point to the real `impl Read for A::read` offset.
+    // Must still be rejected because `spoof`'s instruction spans lie outside `impl Read for A::read`.
+    let mut forged_sm = lowered.source_map.clone();
+    let real_decl = forged_sm
+        .functions
+        .iter()
+        .find(|f| f.function == read_a_fn)
+        .expect("read_a_fn source map")
+        .declaration;
+    forged_sm
+        .functions
+        .iter_mut()
+        .find(|f| f.function == spoof_id)
+        .expect("spoof source map")
+        .declaration = real_decl;
+    let err2 = check_fidelity(&fw1, &forged_sm, &[&parsed.module])
+        .expect_err("joint Wire + SourceMap.declaration spoofing must be rejected");
+    assert_eq!(err2.function, spoof_id);
+    assert!(
+        err2.reason.contains("outside"),
+        "expected span containment error, got: {}",
+        err2.reason
+    );
+
+    // Attack 3 (Different Concrete type): Wire relabels `impl Read for B::read` with
+    // `concrete_ty = A`. Must be rejected because AST `impl` target is `B`, not `A`.
+    let mut forged3 = honest.clone();
+    forged3.functions[read_a_fn.index()].sig.role = FnRole::Normal;
+    forged3.functions[read_b_fn.index()].sig.role = read_a_role;
+    forged3.dyn_impls[read_a_idx].methods[0] = read_b_fn;
+    let fw3 = decode_module(&encode_module(&forged3)).expect("fw3");
+    let err3 = check_fidelity(&fw3, &lowered.source_map, &[&parsed.module])
+        .expect_err("cross-concrete-type impl Read for B masquerading as A must be rejected");
+    assert_eq!(err3.function, read_b_fn);
+
+    // Attack 4 (Different Trait with same method name): Wire relabels `impl Other for A::read`
+    // as `impl Read for A::read`. Must be rejected because AST trait is `Other`, not `Read`.
+    let mut forged4 = honest.clone();
+    forged4.functions[read_a_fn.index()].sig.role = FnRole::Normal;
+    forged4.functions[other_a_fn.index()].sig.role = read_a_role;
+    forged4.dyn_impls[read_a_idx].methods[0] = other_a_fn;
+    let fw4 = decode_module(&encode_module(&forged4)).expect("fw4");
+    let err4 = check_fidelity(&fw4, &lowered.source_map, &[&parsed.module])
+        .expect_err("different trait impl Other for A masquerading as Read must be rejected");
+    assert_eq!(err4.function, other_a_fn);
+}
+
+#[test]
+fn suspend_effect_and_task_context_eligibility_rejects_all_escapes() {
+    let dir = temp_dir("suspend-eligibility");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+
+    let neg_cases: [(&str, &str); 7] = [
+        // 1. Minimal counterexample: direct `task_yield()` in `main` (no Task context).
+        (
+            "main_direct_yield.zil",
+            r#"
+fn main() -> i32 {
+    task_yield()
+    return 0
+}
+"#,
+        ),
+        // 2. Transitive `main -> helper -> task_yield()`.
+        (
+            "main_indirect_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn main() -> i32 {
+    helper()
+    return 0
+}
+"#,
+        ),
+        // 3. Transitive `DynSlotImpl.read() -> helper() -> task_yield()`.
+        (
+            "dyn_slot_indirect_yield.zil",
+            r#"
+trait Read { fn read(self: &Self) -> i32; }
+struct A { v: i32 }
+fn helper() { task_yield() }
+impl Read for A {
+    fn read(self: &Self) -> i32 {
+        helper()
+        return (*self).v
+    }
+}
+fn run() -> DynCreateError!i32 {
+    let x = owned_dyn::<dyn Read>(A { v: 7 })?
+    return x.read()
+}
+fn main() -> i32 {
+    match run() { .ok(v) => { return v }, .err(_) => { return 1 } }
+}
+"#,
+        ),
+        // 4. Transitive `defer { helper() }` inside an otherwise valid Task worker.
+        (
+            "defer_indirect_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn worker(x: i32) -> i32 {
+    defer { helper() }
+    return x
+}
+fn main() -> i32 {
+    match task_create(worker, 5) {
+        .ok(t) => {
+            var task = give t
+            let _ = task_poll(&mut task)
+            task_finish_destroy(give task)
+            return 0
+        },
+        .err(_) => { return 1 }
+    }
+}
+"#,
+        ),
+        // 5. Transitive `main -> Drop::drop -> helper -> task_yield()` (outside Task context).
+        (
+            "drop_indirect_yield_in_main.zil",
+            r#"
+fn helper() { task_yield() }
+resource Guard { id: i32 }
+impl Drop for Guard {
+    fn drop(self: Self) { helper() }
+}
+fn main() -> i32 {
+    let g = Guard { id: 0 }
+    return g.id
+}
+"#,
+        ),
+        // 6. Suspending function escaping via function pointer (`let f = helper; f()`).
+        (
+            "fn_ptr_escape_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn main() -> i32 {
+    let f = helper
+    f()
+    return 0
+}
+"#,
+        ),
+        // 7. `thread_scope` callback invoking suspending helper (bare OS thread has no Task frame).
+        (
+            "thread_scope_callback_yield.zil",
+            r#"
+fn helper() { task_yield() }
+fn w(x: i32) -> i32 { return x + 1 }
+fn main() -> i32 {
+    let (ok, a, b) = thread_scope(w, 1, () -> i32 => { helper(); return 2 })
+    if !ok { return 1 }
+    return a + b - 4
+}
+"#,
+        ),
+    ];
+
+    for (name, code) in neg_cases {
+        let p = dir.join(name);
+        std::fs::write(&p, code).expect("write negative suspend case");
+        let report = session.compile_path(&p, &verify_opts);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name} must be SafeReject, got {:?} (diags: {:?})",
+            report.status,
+            report.diagnostics
+        );
+    }
+
+    // Positive control: `worker -> helper -> task_yield()` launched via `task_create`
+    // is a legitimate Task context and must compile and run natively on both backends.
+    let pos_src = dir.join("task_transitive_yield_ok.zil");
+    std::fs::write(
+        &pos_src,
+        r#"
+fn helper(x: i32) -> i32 {
+    task_yield()
+    return x + 10
+}
+
+fn worker(x: i32) -> i32 {
+    return helper(x) + 2
+}
+
+fn main() -> i32 {
+    match task_create(worker, 30) {
+        .ok(t) => {
+            var task = give t
+            match task_poll(&mut task) {
+                .ok(p) => { match p { Poll.Pending() => {}, Poll.Ready(_) => { return 11 } } },
+                .err(_) => { return 12 }
+            }
+            var res: i32 = -1
+            match task_poll(&mut task) {
+                .ok(p) => { match p { Poll.Ready(v) => { res = v }, Poll.Pending() => { return 13 } } },
+                .err(_) => { return 14 }
+            }
+            match task_poll_close(&mut task) {
+                Poll.Ready(_) => {},
+                Poll.Pending() => { return 15 }
+            }
+            task_finish_destroy(give task)
+            return res - 42
+        },
+        .err(_) => { return 10 }
+    }
+}
+"#,
+    )
+    .expect("write positive task transitive yield");
+
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("task-ok-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&pos_src, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "task_transitive_yield_ok ({backend:?}, {opt:?}) failed: stderr={}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

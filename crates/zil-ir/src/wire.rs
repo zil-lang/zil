@@ -10,9 +10,11 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 47;
+pub const WIRE_VERSION: u32 = 50;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
+#[path = "dynamic_recipes_wire.rs"]
+mod dynamic_recipes;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
 const MODULE_MAGIC: &[u8; 8] = b"ZILMODP\0";
 const CT_CLAIMS: &[u8; 4] = b"CERT";
@@ -232,7 +234,8 @@ pub fn decode_module_candidate(
 pub fn encode_ct_program(program: &CtProgram, limits: &Limits) -> CompileResult<Vec<u8>> {
     public((|| {
         let mut writer = Writer::new(limits);
-        writer.header(b"ZILCTPG\0")?;
+        writer.header(b"ZILCTP2\0")?;
+        writer.ct_frozen_context(program.frozen_context.as_ref())?;
         writer.u32(program.entry.0)?;
         writer.u64(program.max_steps)?;
         if program.max_call_depth > limits.max_call_depth
@@ -256,7 +259,8 @@ pub fn encode_ct_program(program: &CtProgram, limits: &Limits) -> CompileResult<
 pub fn decode_ct_program(bytes: &[u8], limits: &Limits) -> CompileResult<CtProgram> {
     public((|| {
         let mut reader = Reader::new(bytes, limits)?;
-        reader.header(b"ZILCTPG\0")?;
+        reader.header(b"ZILCTP2\0")?;
+        let frozen_context = reader.ct_frozen_context()?;
         let entry = FunctionId(reader.u32()?);
         let max_steps = reader.u64()?;
         if max_steps > limits.max_ct_steps {
@@ -274,6 +278,7 @@ pub fn decode_ct_program(bytes: &[u8], limits: &Limits) -> CompileResult<CtProgr
         let plan = reader.plan()?;
         reader.finish()?;
         Ok(CtProgram {
+            frozen_context,
             module,
             plan,
             entry,
@@ -290,6 +295,43 @@ struct Writer<'a> {
     nodes: usize,
 }
 impl<'a> Writer<'a> {
+    pub(super) fn storage_source(
+        &mut self,
+        source: &StorageSource,
+        depth: usize,
+    ) -> WireResult<()> {
+        if depth >= self.limits.max_call_depth {
+            return Err(quota("storage source depth exceeded"));
+        }
+        self.charge(1)?;
+        match source {
+            StorageSource::Exact(position) => {
+                self.u8(0)?;
+                self.storage_position(position)
+            }
+            StorageSource::PlaceAddress { place, mode } => {
+                self.u8(1)?;
+                self.storage_position(place)?;
+                self.u8(*mode as u8)
+            }
+            StorageSource::OwnedView { head, leaf, mode } => {
+                self.u8(2)?;
+                self.storage_position(head)?;
+                self.ty(leaf, depth + 1)?;
+                self.u8(*mode as u8)
+            }
+            StorageSource::ReborrowedLeaf { source, head } => {
+                self.u8(3)?;
+                self.storage_position(source)?;
+                self.storage_position(head)
+            }
+            StorageSource::Static { leaf, mode } => {
+                self.u8(4)?;
+                self.ty(leaf, depth + 1)?;
+                self.u8(*mode as u8)
+            }
+        }
+    }
     fn new(limits: &'a Limits) -> Self {
         Self {
             output: Vec::new(),
@@ -497,6 +539,7 @@ impl<'a> Writer<'a> {
                 self.u32(i)?;
             }
             StorageBase::Result => self.u8(2)?,
+            StorageBase::Receiver => self.u8(3)?,
         }
         self.count(position.path.len(), self.limits.max_call_depth)?;
         for step in &position.path {
@@ -511,6 +554,10 @@ impl<'a> Writer<'a> {
                 }
                 ContractProjection::RetainedClass(i) => {
                     self.u8(2)?;
+                    self.u32(*i)?;
+                }
+                ContractProjection::Capture(i) => {
+                    self.u8(3)?;
                     self.u32(*i)?;
                 }
             }
@@ -578,6 +625,10 @@ impl<'a> Writer<'a> {
             self.storage_position(&binding.position)?;
             self.storage_binder(&binding.binder)?;
         }
+        self.count(contract.static_bindings.len(), self.limits.max_nodes)?;
+        for position in &contract.static_bindings {
+            self.storage_position(position)?;
+        }
         self.count(contract.classes.len(), self.limits.max_nodes)?;
         for binding in &contract.classes {
             match binding.position.base {
@@ -590,6 +641,7 @@ impl<'a> Writer<'a> {
                     self.u32(i)?;
                 }
                 StorageBase::Result => self.u8(2)?,
+                StorageBase::Receiver => self.u8(3)?,
             }
             self.life_type_path(&binding.position.path)?;
             self.u32(binding.position.class)?;
@@ -639,6 +691,11 @@ impl<'a> Writer<'a> {
             self.count(instance.arguments.len(), self.limits.max_nodes)?;
             for argument in &instance.arguments {
                 match argument {
+                    LifeNominalActual::QualifiedType { ty, life } => {
+                        self.u8(3)?;
+                        self.ty(ty, 0)?;
+                        self.storage_shape(life)?;
+                    }
                     LifeNominalActual::Type(ty) => {
                         self.u8(0)?;
                         self.ty(ty, 0)?;
@@ -972,6 +1029,10 @@ impl<'a> Writer<'a> {
         self.fingerprint(module.source_fingerprint)?;
         self.target(&module.target)?;
         self.life_inventory(&module.life_declarations, &module.life_instances)?;
+        self.boolean(module.semantic.is_some())?;
+        if let Some(semantic) = &module.semantic {
+            self.semantic_module(semantic, 0)?;
+        }
         self.count(module.dyn_declarations.len(), self.limits.max_nodes)?;
         for row in &module.dyn_declarations {
             self.dyn_declaration(row)?;
@@ -1100,7 +1161,24 @@ impl<'a> Writer<'a> {
         })
     }
     fn function(&mut self, function: &TypedFunction) -> WireResult<()> {
+        self.boolean(function.dyn_instance.is_some())?;
+        if let Some(instance) = &function.dyn_instance {
+            self.dyn_function_instance(instance, 0)?;
+        }
+
+        self.boolean(function.retained_return_sources.is_some())?;
+        if let Some(bindings) = &function.retained_return_sources {
+            self.count(bindings.len(), self.limits.max_nodes)?;
+            for binding in bindings {
+                self.storage_position(&binding.position)?;
+                self.count(binding.sources.len(), self.limits.max_nodes)?;
+                for source in &binding.sources {
+                    self.storage_source(source, 0)?;
+                }
+            }
+        }
         self.u8(function.call_kind as u8)?;
+        self.u8(function.resume_bound as u8)?;
         self.storage_contract(&function.storage_life)?;
         self.boolean(function.reference_return_bound.is_some())?;
         if let Some(bound) = &function.reference_return_bound {
@@ -1111,6 +1189,19 @@ impl<'a> Writer<'a> {
         }
         self.boolean(function.callable_return_contract.is_some())?;
         if let Some(c) = &function.callable_return_contract {
+            self.storage_contract(&c.life)?;
+            self.boolean(c.capture_sources.is_some())?;
+            if let Some(bindings) = &c.capture_sources {
+                self.count(bindings.len(), self.limits.max_nodes)?;
+                for binding in bindings {
+                    self.storage_position(&binding.position)?;
+                    self.count(binding.sources.len(), self.limits.max_nodes)?;
+                    for source in &binding.sources {
+                        self.storage_source(source, 0)?;
+                    }
+                }
+            }
+
             match c.source {
                 CallableReturnSource::Fresh => self.u8(0)?,
                 CallableReturnSource::Parameter(parameter) => {
@@ -1131,8 +1222,8 @@ impl<'a> Writer<'a> {
         if let Some(contract) = &function.callable_contract {
             self.callable_contract(contract)?;
         }
-        self.boolean(function.protocol_contract.is_some())?;
-        if let Some(contract) = &function.protocol_contract {
+        self.count(function.protocol_contracts.len(), self.limits.max_locals)?;
+        for contract in &function.protocol_contracts {
             self.u8(match contract.protocol {
                 ProtocolKind::AsyncRegistrationV1 => 0,
             })?;
@@ -1162,6 +1253,7 @@ impl<'a> Writer<'a> {
                 self.u32(*parameter)?;
             }
             self.boolean(foreign.static_callbacks)?;
+            self.boolean(foreign.thread_driver_transfer)?;
             self.u8(scoped_callback_role_tag(foreign.scoped_callback))?;
         }
         self.boolean(function.environment.is_some())?;
@@ -1676,8 +1768,19 @@ impl<'a> Writer<'a> {
                 worker,
                 arguments,
                 port_bindings,
+            }
+            | InstructionKind::TaskCreateOwned {
+                worker,
+                arguments,
+                port_bindings,
             } => {
-                self.u8(128)?;
+                self.u8(
+                    if matches!(instruction.kind, InstructionKind::TaskCreateOwned { .. }) {
+                        151
+                    } else {
+                        128
+                    },
+                )?;
                 self.u32(worker.0)?;
                 self.count(arguments.len(), self.limits.max_values)?;
                 for argument in arguments {
@@ -2359,6 +2462,33 @@ struct Reader<'a> {
     nodes: usize,
 }
 impl<'a> Reader<'a> {
+    pub(super) fn storage_source(&mut self, depth: usize) -> WireResult<StorageSource> {
+        if depth >= self.limits.max_call_depth {
+            return Err(quota("storage source depth exceeded"));
+        }
+        self.charge(1)?;
+        Ok(match self.u8()? {
+            0 => StorageSource::Exact(self.storage_position()?),
+            1 => StorageSource::PlaceAddress {
+                place: self.storage_position()?,
+                mode: self.stored_borrow_mode()?,
+            },
+            2 => StorageSource::OwnedView {
+                head: self.storage_position()?,
+                leaf: self.ty(depth + 1)?,
+                mode: self.stored_borrow_mode()?,
+            },
+            3 => StorageSource::ReborrowedLeaf {
+                source: self.storage_position()?,
+                head: self.storage_position()?,
+            },
+            4 => StorageSource::Static {
+                leaf: self.ty(depth + 1)?,
+                mode: self.stored_borrow_mode()?,
+            },
+            _ => return Err(malformed("E-WIRE-TAG", "unknown storage source atom")),
+        })
+    }
     fn new(input: &'a [u8], limits: &'a Limits) -> WireResult<Self> {
         if input.len() > limits.max_source_bytes {
             return Err(quota("candidate wire byte quota exceeded"));
@@ -2615,6 +2745,7 @@ impl<'a> Reader<'a> {
             0 => StorageBase::Parameter(self.u32()?),
             1 => StorageBase::Capture(self.u32()?),
             2 => StorageBase::Result,
+            3 => StorageBase::Receiver,
             _ => return Err(malformed("E-WIRE-TAG", "unknown storage contract base")),
         };
         let n = self.count(self.limits.max_call_depth, 3)?;
@@ -2624,6 +2755,7 @@ impl<'a> Reader<'a> {
                 0 => ContractProjection::Place(self.storage_step()?),
                 1 => ContractProjection::RetainedPort(self.u32()?),
                 2 => ContractProjection::RetainedClass(self.u32()?),
+                3 => ContractProjection::Capture(self.u32()?),
                 _ => return Err(malformed("E-WIRE-TAG", "unknown contract projection")),
             });
         }
@@ -2712,6 +2844,11 @@ impl<'a> Reader<'a> {
                 binder: self.storage_binder()?,
             });
         }
+        let n = self.count(self.limits.max_nodes, 5)?;
+        let mut static_bindings = Vec::with_capacity(n);
+        for _ in 0..n {
+            static_bindings.push(self.storage_position()?);
+        }
         let n = self.count(self.limits.max_nodes, 14)?;
         let mut classes = Vec::with_capacity(n);
         for _ in 0..n {
@@ -2719,6 +2856,7 @@ impl<'a> Reader<'a> {
                 0 => StorageBase::Parameter(self.u32()?),
                 1 => StorageBase::Capture(self.u32()?),
                 2 => StorageBase::Result,
+                3 => StorageBase::Receiver,
                 _ => return Err(malformed("E-WIRE-TAG", "unknown semantic class base")),
             };
             classes.push(SignatureLifeClassBinding {
@@ -2731,6 +2869,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(StorageLifeContract {
+            static_bindings,
             fixed_binder_count,
             invocation_binder_count,
             bindings,
@@ -2787,6 +2926,10 @@ impl<'a> Reader<'a> {
             let mut arguments = Vec::with_capacity(n);
             for _ in 0..n {
                 arguments.push(match self.u8()? {
+                    3 => LifeNominalActual::QualifiedType {
+                        ty: self.ty(0)?,
+                        life: self.storage_shape()?,
+                    },
                     0 => LifeNominalActual::Type(self.ty(0)?),
                     1 => LifeNominalActual::Const(self.constant()?),
                     2 => LifeNominalActual::Lifetime(self.u32()?),
@@ -3277,6 +3420,11 @@ impl<'a> Reader<'a> {
         let source_fingerprint = self.fingerprint()?;
         let target = self.target()?;
         let (life_declarations, life_instances) = self.life_inventory()?;
+        let semantic = if self.boolean()? {
+            Some(self.semantic_module(0)?)
+        } else {
+            None
+        };
         let n = self.count(self.limits.max_nodes, 1)?;
         let mut dyn_declarations = Vec::with_capacity(n);
         for _ in 0..n {
@@ -3346,6 +3494,7 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedModule {
+            semantic,
             dyn_declarations,
             dyn_interfaces,
             dyn_vtables,
@@ -3497,10 +3646,37 @@ impl<'a> Reader<'a> {
         }
     }
     fn function(&mut self) -> WireResult<TypedFunction> {
+        let dyn_instance = if self.boolean()? {
+            Some(self.dyn_function_instance(0)?)
+        } else {
+            None
+        };
+
+        let retained_return_sources = if self.boolean()? {
+            let count = self.count(self.limits.max_nodes, 9)?;
+            let mut bindings = Vec::with_capacity(count);
+            for _ in 0..count {
+                let position = self.storage_position()?;
+                let count = self.count(self.limits.max_nodes, 3)?;
+                let mut sources = Vec::with_capacity(count);
+                for _ in 0..count {
+                    sources.push(self.storage_source(0)?);
+                }
+                bindings.push(StorageSourceBinding { position, sources });
+            }
+            Some(bindings)
+        } else {
+            None
+        };
         let call_kind = match self.u8()? {
             0 => CallKind::Direct,
             1 => CallKind::Suspend,
             _ => return Err(malformed("E-WIRE-TAG", "unknown function call kind")),
+        };
+        let resume_bound = match self.u8()? {
+            0 => TaskResumeBound::Local,
+            1 => TaskResumeBound::Transfer,
+            _ => return Err(malformed("E-WIRE-TAG", "unknown Task resume bound")),
         };
         let storage_life = self.storage_contract()?;
         let reference_return_bound = if self.boolean()? {
@@ -3510,6 +3686,24 @@ impl<'a> Reader<'a> {
         };
         let callable_return_contract = if self.boolean()? {
             Some(CallableReturnContract {
+                life: self.storage_contract()?,
+                capture_sources: if self.boolean()? {
+                    let count = self.count(self.limits.max_nodes, 9)?;
+                    let mut bindings = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        let position = self.storage_position()?;
+                        let count = self.count(self.limits.max_nodes, 3)?;
+                        let mut sources = Vec::with_capacity(count);
+                        for _ in 0..count {
+                            sources.push(self.storage_source(0)?);
+                        }
+                        bindings.push(StorageSourceBinding { position, sources });
+                    }
+                    Some(bindings)
+                } else {
+                    None
+                },
+
                 source: match self.u8()? {
                     0 => CallableReturnSource::Fresh,
                     1 => CallableReturnSource::Parameter(self.u32()?),
@@ -3531,7 +3725,12 @@ impl<'a> Reader<'a> {
         } else {
             None
         };
-        let protocol_contract = if self.boolean()? {
+        // Even a semantically invalid empty role occupies kind/parameter and
+        // both vector headers (13 bytes). Bound the complete row count before
+        // allocating; validation independently requires nonempty real states.
+        let contract_count = self.count(self.limits.max_locals, 13)?;
+        let mut protocol_contracts = Vec::with_capacity(contract_count);
+        for _ in 0..contract_count {
             let protocol = match self.u8()? {
                 0 => ProtocolKind::AsyncRegistrationV1,
                 _ => return Err(malformed("E-WIRE-TAG", "unknown protocol kind")),
@@ -3542,7 +3741,7 @@ impl<'a> Reader<'a> {
             for _ in 0..count {
                 entry.push(self.protocol_state()?);
             }
-            let count = self.count(self.limits.max_nodes, 3)?;
+            let count = self.count(self.limits.max_nodes, 6)?;
             let mut exits = Vec::with_capacity(count);
             for _ in 0..count {
                 let input = self.protocol_state()?;
@@ -3565,15 +3764,13 @@ impl<'a> Reader<'a> {
                     output,
                 });
             }
-            Some(FunctionProtocolContract {
+            protocol_contracts.push(FunctionProtocolContract {
                 protocol,
                 parameter,
                 entry,
                 exits,
-            })
-        } else {
-            None
-        };
+            });
+        }
         let id = FunctionId(self.u32()?);
         let name = self.text()?;
         let foreign = if self.boolean()? {
@@ -3582,6 +3779,7 @@ impl<'a> Reader<'a> {
                 symbol: self.text()?,
                 noescape_parameters: self.callable_indices()?,
                 static_callbacks: self.boolean()?,
+                thread_driver_transfer: self.boolean()?,
                 scoped_callback: match self.u8()? {
                     0 => None,
                     1 => Some(ScopedCallbackRole::Register),
@@ -3664,12 +3862,15 @@ impl<'a> Reader<'a> {
             });
         }
         Ok(TypedFunction {
+            dyn_instance,
+            retained_return_sources,
             storage_life,
             call_kind,
+            resume_bound,
             reference_return_bound,
             callable_return_contract,
             callable_contract,
-            protocol_contract,
+            protocol_contracts,
             result_mode,
             foreign,
             id,
@@ -4502,7 +4703,7 @@ impl<'a> Reader<'a> {
                     arguments,
                 }
             }
-            128 => {
+            tag @ (128 | 151) => {
                 let worker = FunctionId(self.u32()?);
                 let count = self.count(self.limits.max_values, 4)?;
                 let mut arguments = Vec::with_capacity(count);
@@ -4514,10 +4715,18 @@ impl<'a> Reader<'a> {
                 for _ in 0..count {
                     port_bindings.push(self.retained_port_binding()?);
                 }
-                InstructionKind::TaskCreate {
-                    worker,
-                    arguments,
-                    port_bindings,
+                if tag == 151 {
+                    InstructionKind::TaskCreateOwned {
+                        worker,
+                        arguments,
+                        port_bindings,
+                    }
+                } else {
+                    InstructionKind::TaskCreate {
+                        worker,
+                        arguments,
+                        port_bindings,
+                    }
                 }
             }
             100 => InstructionKind::TaskYield,
@@ -4698,3 +4907,18 @@ mod owned_sum_tests;
 
 #[cfg(test)]
 mod retained_tests;
+
+#[cfg(test)]
+#[path = "wire/storage_source_tests.rs"]
+mod storage_source_tests;
+
+#[cfg(test)]
+#[path = "wire/static_borrow_tests.rs"]
+mod static_borrow_tests;
+
+#[cfg(test)]
+#[path = "wire/semantic_scope_tests.rs"]
+mod semantic_scope_tests;
+
+#[path = "wire/ct_frozen.rs"]
+mod ct_frozen;

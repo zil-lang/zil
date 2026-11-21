@@ -1,7 +1,7 @@
 //! Test-only loading of structurally transcoded historical candidate records.
 //! Frozen Input40 source lineage: 28b3e37bb4d8a1fe8b146c72cf891fc99de32440:tools/migrate-impl253-wire40.py. Old v32/v34/v37/v40
 //! bytes stay immutable. This frozen v40 subset lacks the V44
-//! function.protocol_contract field; the restricted walker inserts None at parsed
+//! function.protocol_contracts field; the restricted walker inserts an empty role count at parsed
 //! function boundaries. New TaskCreate port bindings never occur in this subset.
 //! This adapter decodes the restricted frozen old structure,
 //! updates both schema fields and module identity, then fully re-encodes it.
@@ -50,7 +50,7 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
     assert!(FROZEN_SHA256.contains(&zil_base::Fingerprint::of(bytes).to_hex().as_str()));
     assert_eq!(&bytes[..8], b"ZILMODP\0");
     assert_eq!(&bytes[8..12], &40u32.to_le_bytes());
-    const CURRENT_LAYOUT: u32 = 47;
+    const CURRENT_LAYOUT: u32 = 48;
     assert_eq!(zil_ir::wire::WIRE_VERSION, CURRENT_LAYOUT);
     assert_eq!(zil_base::SCHEMA_VERSION, CURRENT_LAYOUT);
     // The production decoder still rejects every old transport envelope. Only

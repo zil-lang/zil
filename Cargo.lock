@@ -89,9 +89,9 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "1.16.4"
+version = "1.16.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0d5d4b1981b8bbbb7aed204cae5726d683d5d6ac7e74ec54122ea28f315e7c8"
+checksum = "3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59"
 
 [[package]]
 name = "typenum"
@@ -100,21 +100,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
-name = "zil-analyze"
-version = "0.1.0"
-dependencies = [
- "zil-base",
- "zil-ir",
-]
-
-[[package]]
 name = "zil-backend-llvm"
 version = "0.1.0"
 dependencies = [
  "zil-base",
+ "zil-check",
  "zil-ir",
  "zil-llvm-api",
- "zil-verify",
 ]
 
 [[package]]
@@ -126,20 +118,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "zil-check"
+version = "0.1.0"
+dependencies = [
+ "zil-base",
+ "zil-ir",
+ "zil-semantics",
+ "zil-syntax",
+]
+
+[[package]]
 name = "zil-cli"
 version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-driver",
-]
-
-[[package]]
-name = "zil-ct"
-version = "0.1.0"
-dependencies = [
- "zil-base",
- "zil-ir",
- "zil-verify",
 ]
 
 [[package]]
@@ -153,26 +146,15 @@ dependencies = [
 name = "zil-driver"
 version = "0.1.0"
 dependencies = [
- "zil-analyze",
  "zil-backend-llvm",
  "zil-base",
- "zil-ct",
+ "zil-check",
  "zil-db",
- "zil-expand",
+ "zil-interp",
  "zil-ir",
- "zil-lower",
+ "zil-solve",
  "zil-syntax",
- "zil-types",
- "zil-verify",
-]
-
-[[package]]
-name = "zil-expand"
-version = "0.1.0"
-dependencies = [
- "zil-base",
- "zil-ir",
- "zil-syntax",
+ "zil-typeck",
 ]
 
 [[package]]
@@ -181,6 +163,16 @@ version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-driver",
+]
+
+[[package]]
+name = "zil-interp"
+version = "0.1.0"
+dependencies = [
+ "zil-base",
+ "zil-check",
+ "zil-ir",
+ "zil-solve",
 ]
 
 [[package]]
@@ -195,12 +187,31 @@ name = "zil-llvm-api"
 version = "0.1.0"
 
 [[package]]
-name = "zil-lower"
+name = "zil-safety-cases"
+version = "0.1.0"
+dependencies = [
+ "zil-base",
+ "zil-check",
+ "zil-interp",
+ "zil-ir",
+ "zil-solve",
+ "zil-typeck",
+]
+
+[[package]]
+name = "zil-semantics"
 version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-ir",
- "zil-verify",
+]
+
+[[package]]
+name = "zil-solve"
+version = "0.1.0"
+dependencies = [
+ "zil-ir",
+ "zil-semantics",
 ]
 
 [[package]]
@@ -211,18 +222,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "zil-types"
+name = "zil-typeck"
 version = "0.1.0"
 dependencies = [
  "zil-base",
  "zil-ir",
  "zil-syntax",
-]
-
-[[package]]
-name = "zil-verify"
-version = "0.1.0"
-dependencies = [
- "zil-base",
- "zil-ir",
 ]

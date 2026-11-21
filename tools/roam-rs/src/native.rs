@@ -1,5 +1,5 @@
 //! Real source-to-native observation with independent, tool-local models.
-use crate::{byte_buffer, domain, host, protocol, resource_closure, scalar};
+use crate::{byte_buffer, callable_composition, domain, host, protocol, resource_closure, scalar};
 use serde_json::{Value, json};
 use std::{
     fs::{self, File},
@@ -10,7 +10,7 @@ use std::{
     time::{Duration, Instant},
 };
 use zil_base::{FileId, Fingerprint, ModuleId, SourceUnit};
-use zil_driver::{CompileOptions, Optimization, Stage};
+use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage};
 
 static SERIAL: AtomicU64 = AtomicU64::new(0);
 pub const EVIDENCE_LIMIT: usize = 64 * 1024;
@@ -58,6 +58,24 @@ fn resolve_clang() -> Result<PathBuf, String> {
     };
     fs::canonicalize(path).map_err(|e| format!("resolve clang: {e}"))
 }
+
+// Toolchain executables are inputs to the oracle, not Roam worker snapshots.
+// Pin their exact bytes while bounding the stream independently of the snapshot cap.
+fn clang_digest(path: &Path) -> Result<String, String> {
+    host::digest_with_limit(path, 512 * 1024 * 1024).map_err(|error| format!("hash clang: {error}"))
+}
+
+fn check_toolchain(toolchain: &Value) -> Result<(), String> {
+    let clang = Path::new(toolchain["path"].as_str().ok_or("invalid clang identity")?);
+    if resolve_clang()? != clang || clang_digest(clang)? != toolchain["sha256"] {
+        return Err("clang changed during native execution".into());
+    }
+    Ok(())
+}
+
+pub(crate) const CLANG_TIMEOUT_MS: u64 = 5_000;
+pub(crate) const PROGRAM_TIMEOUT_MS: u64 = 3_000;
+pub(crate) const CALLABLE_ANALYSIS_STEPS: usize = 64_000_000;
 
 /// File capture bounds memory throughout execution, and a live size/deadline
 /// check terminates the direct child. The owning host subsequently kills any
@@ -108,24 +126,45 @@ fn capture(
     })
 }
 
+fn task_frame_observer(fail: bool) -> String {
+    format!(
+        "#define FAIL_FRAME {}\n{}",
+        u8::from(fail),
+        include_str!("task_frame_observer.c")
+    )
+}
+
 /// The compiler invokes this same snapshot as a strictly-shaped clang proxy.
 /// Actual clang output is bounded before the existing backend's output() sees it.
 pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     use std::io::Write;
-    if std::env::var("ZIL_QC_SUPERVISED").as_deref() != Ok("owned-process-group/1")
-        || args.len() != 7
-        || args[0] != "--target=x86_64-unknown-linux-gnu"
-        || args[1] != "-x"
-        || args[2] != "ir"
-        || !["-O0", "-O2"].contains(&args[3].as_str())
-        || args[5] != "-o"
-    {
+    let (input_index, output_index) = match args {
+        [target, x, ir, level, _, out, _]
+            if target == "--target=x86_64-unknown-linux-gnu"
+                && x == "-x"
+                && ir == "ir"
+                && ["-O0", "-O2"].contains(&level.as_str())
+                && out == "-o" =>
+        {
+            (4, 6)
+        }
+        [target, level, object, out, _]
+            if target == "--target=x86_64-unknown-linux-gnu"
+                && ["-O0", "-O2"].contains(&level.as_str())
+                && out == "-o"
+                && Path::new(object).extension().is_some_and(|ext| ext == "o") =>
+        {
+            (2, 4)
+        }
+        _ => return Err("invalid supervised clang proxy invocation".into()),
+    };
+    if std::env::var("ZIL_QC_SUPERVISED").as_deref() != Ok("owned-process-group/1") {
         return Err("invalid supervised clang proxy invocation".into());
     }
     let root =
         fs::canonicalize(std::env::var_os("ZIL_QC_NATIVE_ROOT").ok_or("missing native root")?)
             .map_err(|e| e.to_string())?;
-    let input = fs::canonicalize(&args[4]).map_err(|e| e.to_string())?;
+    let input = fs::canonicalize(&args[input_index]).map_err(|e| e.to_string())?;
     let relative = input
         .strip_prefix(&root)
         .map_err(|_| "clang input is outside owned root")?;
@@ -134,16 +173,27 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     // The byte profile builds each optimization in its own owned subdirectory.
     // Existing scalar/resource paths retain their original single-step layout.
     if let Some(variant) = relative.components().nth(1)
-        && matches!(variant.as_os_str().to_str(), Some("zil-O0" | "zil-O2"))
+        && matches!(
+            variant.as_os_str().to_str(),
+            Some("zil-O0" | "zil-O2" | "llvm-O0" | "llvm-O2")
+        )
     {
         dir.push(variant.as_os_str());
     }
     let output_parent = fs::canonicalize(
-        Path::new(&args[6])
+        Path::new(&args[output_index])
             .parent()
             .ok_or("missing output parent")?,
     )
     .map_err(|e| e.to_string())?;
+    if input_index == 2
+        && !matches!(
+            dir.file_name().and_then(|n| n.to_str()),
+            Some("llvm-O0" | "llvm-O2")
+        )
+    {
+        return Err("object link is outside owned LLVM API variant".into());
+    }
     if !output_parent.starts_with(&dir) {
         return Err("clang output is outside owned step".into());
     }
@@ -151,12 +201,16 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
     let clang = PathBuf::from(pinned["path"].as_str().ok_or("missing pinned clang path")?);
     if !clang.is_absolute()
         || resolve_clang()? != clang
-        || host::digest(&clang)? != pinned["sha256"]
+        || clang_digest(&clang)? != pinned["sha256"]
     {
         return Err("clang proxy identity drift before compilation".into());
     }
     let mut actual_args = args.to_vec();
     let observer = dir.join("byte-observer.json");
+    let frame_observer = dir.join("task-frame-observer.json");
+    if observer.exists() && frame_observer.exists() {
+        return Err("two allocation observers select one native program".into());
+    }
     let observer_pin = if observer.exists() {
         let config = host::read_json_file(&observer, EVIDENCE_LIMIT)?;
         let fail = protocol::integer(&config["failAt"])
@@ -178,21 +232,41 @@ pub fn clang_proxy(args: &[String]) -> Result<u8, String> {
             "-Wl,--wrap=realloc".into(),
             "-Wl,--wrap=free".into(),
         ]);
-        Some((path, config))
+        Some(("byteObserver", path, config))
+    } else if frame_observer.exists() {
+        let config = host::read_json_file(&frame_observer, EVIDENCE_LIMIT)?;
+        let fail = config["failFrame"]
+            .as_bool()
+            .ok_or("invalid Task allocation observation")?;
+        let path = dir.join("task-frame-observer.c");
+        if config["model"] != crate::task_results::CONTRACT
+            || fs::read(&path).map_err(|e| e.to_string())? != task_frame_observer(fail).as_bytes()
+            || config["sha256"] != host::digest(&path)?
+        {
+            return Err("Task frame observer differs from frozen worker implementation".into());
+        }
+        actual_args.extend([
+            "-x".into(),
+            "c".into(),
+            path.to_string_lossy().into_owned(),
+            "-Wl,--wrap=calloc".into(),
+            "-Wl,--wrap=free".into(),
+        ]);
+        Some(("taskFrameObserver", path, config))
     } else {
         None
     };
     let mut command = Command::new(&clang);
     command.args(&actual_args).current_dir(&dir);
-    let run = capture(&mut command, &dir, "clang", 5_000);
+    let run = capture(&mut command, &dir, "clang", CLANG_TIMEOUT_MS);
     let mut recorded = json!({"argv":std::iter::once(clang.to_string_lossy().into_owned()).chain(actual_args).collect::<Vec<_>>(),"clangSha256":pinned["sha256"]});
-    if let Some((path, config)) = observer_pin {
+    if let Some((label, path, config)) = observer_pin {
         if host::digest(&path)? != config["sha256"] {
-            return Err("byte observer changed during compilation".into());
+            return Err("allocation observer changed during compilation".into());
         }
-        recorded["byteObserver"] = config;
+        recorded[label] = config;
     }
-    if host::digest(&clang)? != pinned["sha256"] {
+    if clang_digest(&clang)? != pinned["sha256"] {
         recorded["error"] = json!("clang proxy identity drift during compilation");
         host::durable(&dir.join("clang-process.json"), &recorded)?;
         return Err("clang proxy identity drift during compilation".into());
@@ -227,7 +301,7 @@ pub fn identity() -> Result<Value, String> {
     {
         use std::os::unix::process::CommandExt;
         let clang = resolve_clang()?;
-        let hash = host::digest(&clang)?;
+        let hash = clang_digest(&clang)?;
         let root = std::env::temp_dir().join(format!(
             "zil-native-identity-{}-{}",
             std::process::id(),
@@ -318,16 +392,15 @@ fn observe(
     toolchain: &Value,
     resource_model: bool,
     optimization: Optimization,
+    backend: NativeBackend,
+    rule_composition: bool,
 ) -> Result<(Value, Value), String> {
     let input_path = root.join("input.zil");
     fs::write(&input_path, source).map_err(|e| e.to_string())?;
-    let clang = PathBuf::from(toolchain["path"].as_str().ok_or("invalid clang identity")?);
-    if host::digest(&clang)? != toolchain["sha256"] {
-        return Err("clang changed before compilation".into());
-    }
     host::durable(&root.join("clang-identity.json"), toolchain)?;
     let input = SourceUnit::new(FileId(0), ModuleId(0), input_path.to_string_lossy(), source);
-    let options = CompileOptions {
+    let mut options = CompileOptions {
+        backend,
         stop_after: Stage::Build,
         output: Some(root.join("program")),
         entry: if resource_model {
@@ -339,7 +412,17 @@ fn observe(
         optimization,
         ..CompileOptions::default()
     };
+    if rule_composition {
+        // Same effective limit as CLI alpha-64m-v2.
+        options.limits.max_analysis_steps = CALLABLE_ANALYSIS_STEPS;
+    }
     let report = zil_driver::compile_source(&input, &options);
+    if rule_composition {
+        host::durable(
+            &root.join("compiler-returned.json"),
+            &json!({"phase":report.phase.as_str(),"status":report.status.as_str()}),
+        )?;
+    }
     let compile: Value = serde_json::from_str(&report.to_json()).map_err(|e| e.to_string())?;
     let mut detail = json!({"source":source,"sourceSha256":Fingerprint::of(source.as_bytes()).to_hex(),"compile":compile});
     if root.join("clang-process.json").exists() {
@@ -366,6 +449,21 @@ fn observe(
         };
         return Ok((observed, detail));
     }
+    // A successful native build must have a receipt from its own proxy.
+    // The proxy checks the full executable digest before and after invoking
+    // Clang. Rehashing here would repeat the same check in the parent.
+    if detail["clangProcess"]["clangSha256"] != toolchain["sha256"]
+        || protocol::integer(&detail["clangProcess"]["exit"]) != Some(0)
+    {
+        return Err("successful native compile lacks its checked clang process".into());
+    }
+    if rule_composition
+        && (report.verification_runs != 1
+            || compile["native_codegen"]["backend"] != backend.name()
+            || !compile["native_codegen"]["fallback"].is_null())
+    {
+        return Ok((json!({"kind":"incomplete-verification-or-codegen"}), detail));
+    }
     let executable = report
         .artifacts
         .get("executable")
@@ -381,7 +479,7 @@ fn observe(
     // supervisor enforces the real deadline even if compiler/native code hangs.
     let mut command = Command::new(executable);
     command.current_dir(root);
-    let run = capture(&mut command, root, "runtime", 3_000)?;
+    let run = capture(&mut command, root, "runtime", PROGRAM_TIMEOUT_MS)?;
     #[cfg(unix)]
     let signal = {
         use std::os::unix::process::ExitStatusExt;
@@ -391,6 +489,12 @@ fn observe(
     let signal: Option<i32> = None;
     let stdout = String::from_utf8_lossy(&run.stdout).to_string();
     let stderr = String::from_utf8_lossy(&run.stderr).to_string();
+    if rule_composition {
+        host::durable(
+            &root.join("runtime-returned.json"),
+            &json!({"exit":run.status.code(),"signal":signal}),
+        )?;
+    }
     detail["run"] = json!({"argv":[executable],"exit":run.status.code(),"signal":signal,"stdout":stdout,"stderr":stderr});
     if root.join("byte-observer.json").exists()
         && run.status.code() == Some(95)
@@ -415,9 +519,6 @@ fn observe(
     } else {
         json!({"kind":"unexpected-runtime","run":detail["run"]})
     };
-    if host::digest(&clang)? != toolchain["sha256"] {
-        return Err("clang changed during compilation".into());
-    }
     Ok((observed, detail))
 }
 
@@ -428,7 +529,7 @@ fn observe_c(
     level: &str,
 ) -> Result<(Value, Value), String> {
     let clang = PathBuf::from(toolchain["path"].as_str().ok_or("invalid clang identity")?);
-    if resolve_clang()? != clang || host::digest(&clang)? != toolchain["sha256"] {
+    if resolve_clang()? != clang || clang_digest(&clang)? != toolchain["sha256"] {
         return Err("C reference toolchain identity drift".into());
     }
     let input = root.join("reference.c");
@@ -468,7 +569,7 @@ fn observe_c(
     #[cfg(not(unix))]
     let signal: Option<i32> = None;
     let observation = json!({"kind":"lifecycle","stdout":String::from_utf8_lossy(&run.stdout),"stderr":String::from_utf8_lossy(&run.stderr),"exit":run.status.code()});
-    if host::digest(&clang)? != toolchain["sha256"] {
+    if clang_digest(&clang)? != toolchain["sha256"] {
         return Err("C reference toolchain changed during execution".into());
     }
     let detail = json!({"compile":compile,"sourceSha256":Fingerprint::of(source.as_bytes()).to_hex(),"executableSha256":host::digest(&executable)?,"run":{"argv":[executable],"signal":signal,"observation":observation}});
@@ -504,7 +605,15 @@ fn observe_bytes(
                     details["byteObserverSource"] = json!(source);
                 }
                 let (observation, mut detail) = if language == "zil" {
-                    observe(source, &dir, toolchain, true, level)?
+                    observe(
+                        source,
+                        &dir,
+                        toolchain,
+                        true,
+                        level,
+                        NativeBackend::Clang,
+                        false,
+                    )?
                 } else {
                     observe_c(reference, &dir, toolchain, name)?
                 };
@@ -526,6 +635,64 @@ fn observe_bytes(
     Ok((observations, details))
 }
 
+fn observe_composition(
+    source: &str,
+    root: &Path,
+    toolchain: &Value,
+    expected: &Value,
+    task_program: Option<&Value>,
+) -> Result<(Value, Value), String> {
+    if expected["kind"] == "safe-reject" {
+        let (observation, detail) = observe(
+            source,
+            root,
+            toolchain,
+            true,
+            Optimization::O0,
+            NativeBackend::Clang,
+            true,
+        )?;
+        return Ok((
+            if task_program.is_some() {
+                crate::task_results::observed(expected, observation, &detail["compile"])
+            } else {
+                callable_composition::observed(expected, observation, &detail["compile"])
+            },
+            detail,
+        ));
+    }
+    let mut observations = json!({});
+    let mut detail = json!({"source":source,"variants":{}});
+    for (label, backend) in [
+        ("zil", NativeBackend::Clang),
+        ("llvm", NativeBackend::LlvmApi),
+    ] {
+        for (name, level) in [("O0", Optimization::O0), ("O2", Optimization::O2)] {
+            let key = format!("{label}-{name}");
+            let dir = root.join(&key);
+            fs::create_dir(&dir).map_err(|e| e.to_string())?;
+            if let Some(program) = task_program {
+                let fail = program["exit"] == "allocation-error";
+                let path = dir.join("task-frame-observer.c");
+                fs::write(&path, task_frame_observer(fail)).map_err(|e| e.to_string())?;
+                host::durable(
+                    &dir.join("task-frame-observer.json"),
+                    &json!({"model":crate::task_results::CONTRACT,"failFrame":fail,"sha256":host::digest(&path)?}),
+                )?;
+            }
+            let (observed, mut variant) =
+                observe(source, &dir, toolchain, true, level, backend, true)?;
+            variant
+                .as_object_mut()
+                .expect("observe returns an object")
+                .remove("source");
+            observations[&key] = observed;
+            detail["variants"][&key] = variant;
+        }
+    }
+    Ok((observations, detail))
+}
+
 pub fn execute(
     trace: &Value,
     options: &domain::Options,
@@ -539,6 +706,8 @@ pub fn execute(
         |n, reason| json!({"status":"incomplete","steps":n,"issues":[],"reason":reason});
     let start = Instant::now();
     let resource_model = trace["contract"] == resource_closure::CONTRACT;
+    let task_model = trace["contract"] == crate::task_results::CONTRACT;
+    let composition_model = task_model || trace["contract"] == callable_composition::CONTRACT;
     let owned_byte_model = trace["contract"] == byte_buffer::owned::CONTRACT;
     let byte_model = trace["contract"] == byte_buffer::CONTRACT || owned_byte_model;
     let (validate, expected_program, source_program, property): ModelFunctions = if owned_byte_model
@@ -555,6 +724,20 @@ pub fn execute(
             byte_buffer::expected,
             byte_buffer::source,
             byte_buffer::PROPERTY,
+        )
+    } else if task_model {
+        (
+            crate::task_results::validate,
+            crate::task_results::expected,
+            crate::task_results::source,
+            crate::task_results::PROPERTY,
+        )
+    } else if composition_model {
+        (
+            callable_composition::validate,
+            callable_composition::expected,
+            callable_composition::source,
+            callable_composition::PROPERTY,
         )
     } else if resource_model {
         (
@@ -651,18 +834,16 @@ pub fn execute(
     let mut evidence = Vec::new();
     let mut history = Vec::new();
     let mut steps = 0;
+    let profile = match crate::profile::Profile::for_case(trace) {
+        Ok(profile) => profile,
+        Err(message) => return protocol::issue("invalid", 0, "native-init", -1, "Error", &message),
+    };
     for (i, action) in actions.iter().enumerate() {
         if start.elapsed() >= Duration::from_millis(options.budget_ms) {
             result = incomplete(steps, "time-budget");
             break;
         }
-        if steps
-            >= options.max_steps.min(if byte_model {
-                byte_buffer::MAX_PROGRAMS
-            } else {
-                scalar::MAX_PROGRAMS
-            })
-        {
+        if steps >= options.max_steps.min(profile.max_steps()) {
             result = incomplete(steps, "step-budget");
             break;
         }
@@ -683,8 +864,10 @@ pub fn execute(
         let model = expected_program(&action["program"]).unwrap();
         let expected = if byte_model {
             json!({"zil-O0":model,"zil-O2":model,"c-O0":model,"c-O2":model})
+        } else if composition_model && model["kind"] == "lifecycle" {
+            json!({"zil-O0":model,"zil-O2":model,"llvm-O0":model,"llvm-O2":model})
         } else {
-            model
+            model.clone()
         };
         let source = source_program(&action["program"], options.fault).unwrap();
         if let Err(e) = before(i, action) {
@@ -710,8 +893,24 @@ pub fn execute(
                     &toolchain,
                     owned_byte_model.then_some(&action["program"]),
                 )
+            } else if composition_model {
+                observe_composition(
+                    &source,
+                    &dir,
+                    &toolchain,
+                    &model,
+                    task_model.then_some(&action["program"]),
+                )
             } else {
-                observe(&source, &dir, &toolchain, resource_model, Optimization::O0)
+                observe(
+                    &source,
+                    &dir,
+                    &toolchain,
+                    resource_model,
+                    Optimization::O0,
+                    NativeBackend::Clang,
+                    false,
+                )
             }
         })();
         let (observed, mut detail) = match real {
@@ -756,10 +955,40 @@ pub fn execute(
                 .push(json!({"phase":"complete","step":i,"expected":expected,"observed":observed}));
         }
         if expected != observed {
-            result = protocol::failure(property, steps, i as i64, expected, observed);
+            let rule = if task_model {
+                crate::task_results::property(&action["program"])
+            } else if composition_model {
+                callable_composition::property(&action["program"])
+            } else {
+                property
+            };
+            result = protocol::failure(rule, steps, i as i64, expected, observed);
+            if composition_model {
+                let mismatch =
+                    crate::bounded_campaign::first_compile_failure(evidence.last().unwrap())
+                        .map(crate::bounded_campaign::compile_location)
+                        .unwrap_or_else(
+                            || json!({"phase":"runtime","code":"observation-mismatch"}),
+                        );
+                result["failure"]["firstMismatch"] = mismatch;
+            }
             break;
         }
         result["steps"] = json!(steps);
+    }
+    // The initial identity anchors the worker, each proxy authenticates its
+    // own compile, and the final check covers the complete observed execution.
+    if matches!(result["status"].as_str(), Some("pass" | "fail"))
+        && let Err(error) = check_toolchain(&toolchain)
+    {
+        result = protocol::issue(
+            "error",
+            steps,
+            "native-toolchain",
+            -1,
+            "IdentityMismatch",
+            &error,
+        );
     }
     if result["status"] == "pass" && start.elapsed() >= Duration::from_millis(options.budget_ms) {
         result = incomplete(steps, "time-budget");
@@ -782,6 +1011,33 @@ pub fn execute(
     result
 }
 
+/// Last observable boundary of this one-step ordered campaign. A supervisor
+/// timeout alone cannot identify a compiler stage. Retain the actual evidence
+/// available after the process group has been reaped, before scratch cleanup.
+pub(crate) fn last_callable_boundary(root: &Path) -> Option<Value> {
+    let step = root.join("step-0000");
+    let (config, dir) = ["llvm-O2", "llvm-O0", "zil-O2", "zil-O0"]
+        .iter()
+        .find_map(|label| {
+            let dir = step.join(label);
+            dir.is_dir().then_some((Some(*label), dir))
+        })
+        .unwrap_or((None, step));
+    for (file, phase) in [
+        ("runtime-returned.json", "program-returned"),
+        ("runtime.stdout", "program-invocation"),
+        ("compiler-returned.json", "compiler-returned"),
+        ("clang-process.json", "external-compiler-returned"),
+        ("clang.stdout", "external-compiler-invocation"),
+        ("clang-identity.json", "compiler-preparation"),
+        ("pending.json", "step-started"),
+    ] {
+        if dir.join(file).is_file() {
+            return Some(json!({"configuration":config, "lastObserved":phase}));
+        }
+    }
+    None
+}
 /// Recover bounded source/expected records when the worker died mid-action.
 pub(crate) fn pending(root: &Path) -> Vec<Value> {
     (0..scalar::MAX_PROGRAMS)

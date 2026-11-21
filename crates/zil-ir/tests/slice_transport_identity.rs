@@ -16,6 +16,7 @@ fn raw() -> TypedModule {
         }),
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
@@ -29,8 +30,11 @@ fn raw() -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            dyn_instance: None,
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
+            resume_bound: crate::TaskResumeBound::Local,
             reference_return_bound: None,
             id: FunctionId(0),
             name: "transport_only".into(),
@@ -39,7 +43,7 @@ fn raw() -> TypedModule {
             return_type: Type::Unit,
             result_mode: PassingMode::Infer,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             callable_return_contract: None,
             foreign: None,
             locals: vec![],

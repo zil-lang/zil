@@ -6,7 +6,7 @@ pub fn make<F: FnMut(&mut i32) -> i32>(callback: F, next: i32) -> State<F> {
     return State::<F> { observed: bytes_new(), callback: callback, next: next, count: 0 }
 }
 
-pub fn run<F: FnMut(&mut i32) -> i32>(state: State<F>, count: i64) -> i32 {
+pub fn run<F: FnMut(&mut i32) -> i32 + SyncDrop>(state: State<F>, count: i64) -> i32 {
     var current = state
     while current.count < count {
         let callback = &mut current.callback

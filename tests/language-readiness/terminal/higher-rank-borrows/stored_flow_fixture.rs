@@ -56,12 +56,15 @@ fn function(
     result: u32,
 ) -> TypedFunction {
     TypedFunction {
+        dyn_instance: None,
+        retained_return_sources: None,
         storage_life: None,
         call_kind: CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         id: FunctionId(id),
         name: format!("function{id}"),
         foreign: None,
@@ -127,13 +130,23 @@ pub(super) fn module() -> TypedModule {
         2,
     );
     make.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 1,
-        bindings: vec![row(
-            StorageBase::Parameter(0),
-            vec![],
-            StorageBinder::Invocation(0),
-        )],
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            // Returning the carrier transfers this physical borrowed slot;
+            // the separate Result class row preserves its complete domain.
+            row(
+                StorageBase::Result,
+                vec![PlaceProjection::Field(0)],
+                StorageBinder::Invocation(0),
+            ),
+        ],
         classes: vec![SignatureLifeClassBinding {
             position: SignatureLifeClass {
                 base: StorageBase::Result,
@@ -162,6 +175,7 @@ pub(super) fn module() -> TypedModule {
         1,
     );
     get.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: 1,
         bindings: vec![
@@ -278,6 +292,7 @@ pub(super) fn module() -> TypedModule {
         0,
     );
     TypedModule {
+        semantic: None,
         schema_version: SCHEMA_VERSION,
         module_id: ModuleId(0),
         source_fingerprint: Fingerprint::ZERO,
@@ -468,6 +483,16 @@ pub(super) fn shared_two_slots() -> TypedModule {
         mode: StoredBorrowMode::SharedAddress,
     });
     replace_carrier(&mut module, &old, &new);
+    module.functions[0]
+        .storage_life
+        .as_mut()
+        .unwrap()
+        .bindings
+        .push(row(
+            StorageBase::Result,
+            vec![PlaceProjection::Field(1)],
+            StorageBinder::Invocation(0),
+        ));
     let InstructionKind::MakeAggregate { fields } =
         &mut module.functions[0].blocks[0].instructions[2].kind
     else {
@@ -688,6 +713,7 @@ pub(super) fn phantom_class_calls(indirect: bool, reuse: bool) -> TypedModule {
         0,
     );
     require.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: 0,
         bindings: vec![],
@@ -697,6 +723,7 @@ pub(super) fn phantom_class_calls(indirect: bool, reuse: bool) -> TypedModule {
         ],
     });
     let pointer_life = StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 1,
         bindings: vec![],
@@ -767,6 +794,7 @@ pub(super) fn phantom_class_calls(indirect: bool, reuse: bool) -> TypedModule {
     }
     let mut caller = function(1, vec![marker.clone(), marker], Type::I32, values, body, 6);
     caller.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 2,
         invocation_binder_count: 0,
         bindings: vec![],
@@ -805,6 +833,7 @@ pub(super) fn rich_marker_pointer(wrong_actual: bool, wrong_target: bool) -> Typ
         0,
     );
     target.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: 1,
         bindings: vec![
@@ -821,6 +850,7 @@ pub(super) fn rich_marker_pointer(wrong_actual: bool, wrong_target: bool) -> Typ
         parameters: vec![tag.clone(), number.clone()],
         result: Box::new(Type::I32),
         life: StorageLifeContract {
+            static_bindings: Vec::new(),
             fixed_binder_count: 0,
             invocation_binder_count: 2,
             bindings: vec![
@@ -867,6 +897,7 @@ pub(super) fn rich_marker_pointer(wrong_actual: bool, wrong_target: bool) -> Typ
         3,
     );
     caller.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: if wrong_actual { 2 } else { 1 },
         bindings: vec![
@@ -1006,14 +1037,13 @@ pub(super) fn unbound_fixed_pointer() -> TypedModule {
 pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedModule {
     let mut m = rich_marker_pointer(false, false);
     let target = &mut m.functions[0];
-    target.storage_life = None;
     target.environment = Some(ClosureId(0));
     let parameters = target
         .parameters
         .iter()
         .map(|p| target.locals[p.0 as usize].ty.clone())
         .collect::<Vec<_>>();
-    let definition = ClosureDefinition {
+    let mut definition = ClosureDefinition {
         storage_life: None,
         id: ClosureId(0),
         function: FunctionId(0),
@@ -1025,6 +1055,7 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
     };
     let env = address(Type::Closure(ClosureId(0)), false);
     let role_life = StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 0,
         invocation_binder_count: 2,
         bindings: vec![
@@ -1048,6 +1079,15 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
             binder: StorageBinder::Invocation(if wrong_role { 0 } else { 1 }),
         }],
     };
+    // This concrete environment has no captures and no free Fixed classes.
+    // Its two invocation parameters still carry the complete relation:
+    // &Tag<'b> has an outer Invocation(0), while its real nominal class and
+    // the second Address share Invocation(1). Keep the actual entry relation
+    // independent of the hostile role mutation below; None is not Known0.
+    let mut concrete_life = role_life.clone();
+    concrete_life.classes[0].binder = StorageBinder::Invocation(1);
+    m.functions[0].storage_life = Some(concrete_life.clone());
+    definition.storage_life = Some(concrete_life);
     let mut helper = function(
         1,
         vec![env.clone(), parameters[0].clone(), parameters[1].clone()],
@@ -1069,6 +1109,7 @@ pub(super) fn qualified_fn_role(wrong_actual: bool, wrong_role: bool) -> TypedMo
         3,
     );
     helper.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: if wrong_actual { 3 } else { 2 },
         bindings: vec![
@@ -1173,6 +1214,7 @@ pub(super) fn qualified_two_fn_roles(wrong_second: bool) -> TypedModule {
         5,
     );
     helper.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 1,
         invocation_binder_count: 3,
         bindings: vec![
@@ -1229,7 +1271,15 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
     let d = &mut m.closures[0];
     d.parameters[1] = mutable.clone();
     d.parameters.push(mutable.clone());
+    let life = d.storage_life.as_mut().unwrap();
+    life.invocation_binder_count = 3;
+    life.bindings.push(row(
+        StorageBase::Parameter(2),
+        vec![],
+        StorageBinder::Invocation(2),
+    ));
     let entry = &mut m.functions[0];
+    entry.storage_life = d.storage_life.clone();
     entry.locals[1].ty = mutable.clone();
     entry.locals.push(LocalDecl {
         id: LocalId(2),
@@ -1297,6 +1347,7 @@ pub(super) fn captured_fixed(kind: CallableKind, wrong_actual: bool) -> TypedMod
         binder,
     };
     let life = StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 2,
         invocation_binder_count: 1,
         bindings: vec![
@@ -1426,6 +1477,7 @@ pub(super) fn captured_fixed(kind: CallableKind, wrong_actual: bool) -> TypedMod
         span: s(),
     });
     caller.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 2,
         invocation_binder_count: 2,
         bindings: vec![
@@ -1555,6 +1607,7 @@ pub(super) fn captured_fixed_helper(kind: CallableKind, wrong_actual: bool) -> T
         2,
     );
     helper.storage_life = Some(StorageLifeContract {
+        static_bindings: Vec::new(),
         fixed_binder_count: 2,
         invocation_binder_count: if once { 1 } else { 2 },
         bindings: if once {

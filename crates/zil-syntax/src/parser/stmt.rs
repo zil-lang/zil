@@ -14,6 +14,7 @@ impl Parser<'_> {
             let closing = Span::new(body.span.file, body.span.end - 1, body.span.end - 1);
             let Some(last) = body.statements.last_mut() else {
                 body.statements.push(Stmt {
+                    semantic: Default::default(),
                     kind: StmtKind::Return(None),
                     span: closing,
                 });
@@ -48,6 +49,7 @@ impl Parser<'_> {
             // expression or changing the ordinary block tail rules.
             if !p.closure_path_ends(last)? {
                 body.statements.push(Stmt {
+                    semantic: Default::default(),
                     kind: StmtKind::Return(None),
                     span: closing,
                 });
@@ -118,6 +120,7 @@ impl Parser<'_> {
                         Span::new(statement.span.file, statement.span.end, statement.span.end);
                     *else_body = Some(ElseBranch::Block(Block {
                         statements: vec![Stmt {
+                            semantic: Default::default(),
                             kind: StmtKind::Return(None),
                             span,
                         }],
@@ -174,6 +177,7 @@ impl Parser<'_> {
             self.quote_hole(QuoteHoleKind::StmtList)?;
             self.end()?;
             return Ok(Stmt {
+                semantic: Default::default(),
                 kind: StmtKind::Expression(self.quote_dummy(self.span_from(start))),
                 span: self.span_from(start),
             });
@@ -219,7 +223,34 @@ impl Parser<'_> {
             StmtKind::Continue
         } else if self.eat_word("defer") {
             self.newlines();
-            StmtKind::Defer(self.block(false)?)
+            let body = self.block(false)?;
+            let span = body.span;
+            // §7.1. The registration owns an ordinary lexical closure. Its
+            // expression receives the same declaration and capture coordinates
+            // as any authored closure. Do not turn its last statement into a return.
+            self.synthetic_nodes(3, span)?;
+            let action = Expr {
+                kind: ExprKind::Closure {
+                    context: Default::default(),
+                    move_capture: false,
+                    params: Vec::new(),
+                    return_type: Some(TypeRef {
+                        kind: TypeKind::Tuple(Vec::new()),
+                        span,
+                    }),
+                    body: ArrowBody::Block(body),
+                },
+                span,
+                semantic: Default::default(),
+            };
+            StmtKind::Defer(Block {
+                statements: vec![Stmt {
+                    kind: StmtKind::Expression(action),
+                    span,
+                    semantic: Default::default(),
+                }],
+                span,
+            })
         } else if self.eat_word("if") {
             let condition = self.condition()?;
             self.newlines();
@@ -328,6 +359,7 @@ impl Parser<'_> {
             result
         };
         Ok(Stmt {
+            semantic: Default::default(),
             kind,
             span: self.span_from(start),
         })

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Checks Cargo workspace dependency declarations, not Rust use statements or semantics.
+// Checks Cargo workspace dependency declarations and module-scoped Rust path references
+// (policy.module_scoped_dependencies); it does not check semantics.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,7 +77,46 @@ export function checkMetadata(meta, policy) {
     }
   }
   errors.push(...graphCycles(graph));
+  errors.push(...checkScopedUses(members, policy));
   return { ok:errors.length===0, errors, checkedCrates:members.length, checkedEdges };
+}
+
+function rustFiles(dir) {
+  const out = [];
+  if (!fs.existsSync(dir)) return out;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) out.push(...rustFiles(p));
+    else if (e.name.endsWith('.rs')) out.push(p);
+  }
+  return out;
+}
+
+export function checkScopedUses(members, policy) {
+  const errors = [];
+  const scoped = policy.module_scoped_dependencies ?? {};
+  for (const [crate, deps] of Object.entries(scoped)) {
+    if (crate === 'description') continue;
+    if (!Object.hasOwn(policy.crates, crate)) { errors.push(`module scope for unknown crate ${crate}`); continue; }
+    const pkg = members.find(p => p.name === crate);
+    if (!pkg) continue;
+    if (typeof pkg.manifest_path !== 'string') { errors.push(`manifest_path missing for ${crate}`); continue; }
+    const root = path.dirname(pkg.manifest_path);
+    for (const [dep, allowed] of Object.entries(deps)) {
+      if (!(policy.crates[crate] ?? []).includes(dep)) errors.push(`module scope for undeclared edge ${crate} -> ${dep}`);
+      const ident = new RegExp(`\\b${dep.replace(/-/g, '_')}\\b`);
+      for (const f of ['src', 'tests', 'benches', 'examples', 'build.rs'].flatMap(d => {
+        const p = path.join(root, d);
+        return d.endsWith('.rs') ? (fs.existsSync(p) ? [p] : []) : rustFiles(p);
+      })) {
+        const rel = path.relative(root, f).split(path.sep).join('/');
+        const ok = allowed.some(a => rel === a || rel === `${a}.rs` || rel.startsWith(`${a}/`));
+        if (!ok && ident.test(fs.readFileSync(f, 'utf8')))
+          errors.push(`module-scoped dependency ${crate} -> ${dep} referenced outside ${allowed.join(', ')}: ${rel}`);
+      }
+    }
+  }
+  return errors;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -26,7 +26,7 @@ LLVM verifier只负责LLVM约束，不能替代每次请求的独立ZIL Verify�
 
 ## 安装与构建
 
-支持的构建环境为 Linux x86_64 宿主、Rust 1.99.1、LLVM/Clang/LLD 23.1.4。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo依赖仅workspace。源码包不携带工具链。
+支持的构建环境为 Linux x86_64 宿主、Rust 1.100.0、LLVM/Clang/LLD 23.1.4。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo依赖仅workspace。源码包不携带工具链。
 
 ```sh
 export ZIL_LLVM_LIB_DIR=/opt/llvm-23.1.4/lib
@@ -51,7 +51,7 @@ cargo build --locked --offline --release -p zil-cli --no-default-features
 生成`env.sh`和记录静态组件、系统运行库及链接命令的安装收据。
 需要Python 3.11+、tar、zstd、binutils和Ubuntu 24.04的C++/zlib/zstd/libxml2运行环境。
 先按`rust-toolchain.toml`准备Rust，加载安装前缀的`env.sh`后执行checker。
-历史LLVM17证据仍属于旧profile；Rust自身LLVM23.1.1不替代ZIL独立DSO。
+历史LLVM17证据仍属于旧profile；Rust自身LLVM23.1.5不替代ZIL独立DSO。
 
 ## 实际程序
 
@@ -111,6 +111,8 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
   --clang "$ZIL_CLANG" --out out/api-consumer-new --source-commit <交付提交>
 ```
 
+lint 与格式范围：新管线 crate（`zil-semantics`、`zil-solve`、`zil-check`、`zil-typeck`、`zil-interp`、`zil-safety-cases` 及 `zil-ir::body`）执行工作区 lint 与 `cargo fmt` 全量检查。待删除的冻结 crate（`zil-types`、`zil-expand`、`zil-analyze`、`zil-verify`、`zil-ct`）和待移植的 `zil-driver`、`zil-backend-llvm` 在各自 `Cargo.toml` 中显式放行 Rust 1.100 新增 lint，只保留 `unsafe_code = "forbid"`；这些 crate 的格式不做整体重排，`fmt --check` 只对新管线 crate 执行：`cargo fmt -p zil-semantics -p zil-solve -p zil-check -p zil-typeck -p zil-interp -p zil-safety-cases -- --check` 加 `rustfmt --edition 2024 --check crates/zil-ir/src/body/*.rs`。移植完成后恢复 `[lints] workspace = true`。
+
 `--out`必须不存在；无Git源码快照用交付清单提供的提交身份，该身份不冒充现场Git查询。消费者探针包装的是API生成的对象，不把旁置`.ll`重新用Clang编译。
 
 `tools/research/compiler-differential/differential.py` 对登记的编译入口做 O0/O2、单/多 CGU 原生差分；`no-parser.c` 是旧文本解析路径的失败正控制。测完整构建时冻结二进制和工作负载，分别保留首次失败和修正后结果。
@@ -123,3 +125,21 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
 - LLVM前后结构核验、对象生成和链接均可失败，任何失败都停止发布。
 - 显式可信本地对象缓存；稳定符号/匿名项身份、按项查询、ThinLTO仍属于后续专项。
 - 新性能结果仅适用于冻结场景、工具链和资源；没有完成产品级性能门、非作者独立审核或远端CI。
+
+## 有界编译工作配置
+
+`check`、`build`、`run`、`test`以及显式resident会话可用`--work-profile standard|alpha`。
+CLI默认`alpha`选择冻结的`alpha-64m-v2`，`max_analysis_steps`为64,000,000；
+显式`--work-profile standard`保留10,000,000步配额，供资源压力及缓存隔离对照。
+两者只有`max_analysis_steps`不同，其余所有`Limits`不变，CT执行步数仍为1,000,000。
+例如`zil check tests/integers/complete-domains.zil --json`使用默认Alpha配置，
+`zil check tests/integers/complete-domains.zil --work-profile standard --json`显式选择标准配额；
+`zil check app --resident --json`后逐行发送`compile`、`quit`也使用默认Alpha配置。
+重复或未知配置是命令行用法错误；耗尽配额仍返回`ResourceLimit`，不自动提高配额或重试。
+SDK的`CompileOptions::default()`与`zil_base::Limits::default()`仍使用标准10M配额。
+
+JSON 编译报告给出 `work_profile`、`work_profile_revision` 和 `effective_limits`。完成独立 Verify 后，`verification_usage` 给出函数、基本块、指令、局部变量、SSA 值的数量，物理类型预检访问的节点数、最大嵌套深度，以及求解存储借用和资源责任时分别访问的基本块次数。聚合与 Sum 的固定点访问、最终逐块复核分别由 `sum_cfg_visits` 和 `sum_replay_visits` 计数。同一块在环或合流处可以多次访问。嵌套深度从根的零开始计数，每次对实际类型的预检单独执行节点上限。当前物理类型深度使用 `max_call_depth` 配置，编译期执行另有 `max_ct_steps`。
+
+累计工作耗尽时，诊断给出阶段、已用步骤、剩余步骤、下一笔请求和已观测到的结构与求解计数。此时没有已验证模块。`work_steps` 的单位由当前实现定义。比较版本的性能还需要在同一输入上测实际运行时间与峰值内存。
+
+验收要求合法原程序在承诺的默认入口完成编译和所要求的原生运行，非法对照到达约定的语义规则。受限输入入口还要证明超额时安全停止。历史精确步数和显式压力档用于定位成本变化。两种配置下，每次完整编译都须通过当前独立 Verify。[Alpha 资源合同](../../validation/language-alpha-resource-profile.json)

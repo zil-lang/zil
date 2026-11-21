@@ -24,12 +24,15 @@ pub fn module() -> TypedModule {
         inner: Box::new(package),
     };
     let function = TypedFunction {
+        dyn_instance: None,
+        retained_return_sources: None,
         storage_life: None,
         call_kind: CallKind::Direct,
+        resume_bound: zil_ir::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         id: FunctionId(0),
         name: "replace".into(),
         foreign: None,
@@ -84,6 +87,7 @@ pub fn module() -> TypedModule {
         span: Span::default(),
     };
     TypedModule {
+        semantic: None,
         dyn_declarations: vec![],
         dyn_interfaces: vec![],
         dyn_vtables: vec![],

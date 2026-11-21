@@ -32,7 +32,7 @@ fn both<F: FnMut(&mut [u8]) -> i32>(
     return 0
 }
 
-pub fn drive<T: Copy, G: FnMut(&mut [u8]) -> i32>(
+pub fn drive<T: Copy, G: FnMut(&mut [u8]) -> i32 + SyncDrop>(
     state: State<T,G>, values: &mut [u8], count: i32
 ) -> (i32, T) {
     var current = relay(state)

@@ -295,21 +295,61 @@ fn raw_and_wire_distinguish_same_typed_store_fields_in_the_parent_loan_chain() {
 
 #[test]
 fn borrowed_sibling_store_windows_keep_the_existing_explicit_precision_boundary() {
-    let raw = raw_source(BORROWED_SIBLINGS);
-    let errors = zil_analyze::analyze(&raw, &Limits::default()).unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .all(|d| d.category == ResultCategory::SafeReject),
-        "{errors:?}"
-    );
-    assert!(
-        errors.iter().any(|d| d
-            .message
-            .contains("actual borrowed resource access conflicts")),
-        "{errors:?}"
-    );
-    println!("borrowed sibling Store fields remain outside this increment: {errors:?}");
+    // Keep the original SDK selector. Disjoint actual fields are legal even
+    // through a borrowed package. Changing only the field must create a conflict.
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let loop_call = BORROWED_SIBLINGS
+        .replace("fn inspect(", "fn write(value:&mut i64) { *value=22 }\nfn inspect(")
+        .replace(
+            "    let right=store_at_mut(pair.right,0)\n    *right=22",
+            "    var remaining:i64=1\n    while remaining>0 {\n        let right=store_at_mut(pair.right,0)\n        write(right)\n        remaining=remaining-1\n    }",
+        );
+    for text in [BORROWED_SIBLINGS, loop_call.as_str()] {
+        let mut raw = raw_source(text);
+        let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+        let same_field = text.replace("store_at_mut(pair.right,0)", "store_at_mut(pair.left,0)");
+        let analyzed_source = zil_analyze::analyze(&raw_source(&same_field), &limits).unwrap_err();
+        let mut edits = 0;
+        for instruction in raw
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+        {
+            if let InstructionKind::AddressField { index, .. } = &mut instruction.kind
+                && *index == 1
+            {
+                *index = 0;
+                edits += 1;
+            }
+        }
+        assert_eq!(edits, 1);
+        plan.module_fingerprint = raw.fingerprint();
+        let analyzed_raw = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        let verified =
+            zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap_err();
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let decoded = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        for errors in [analyzed_source, analyzed_raw, verified, decoded] {
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.category == ResultCategory::SafeReject),
+                "{errors:?}"
+            );
+            assert!(
+                errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"
+                    || d.message
+                        .contains("actual borrowed resource access conflicts")),
+                "{errors:?}"
+            );
+        }
+    }
 }
 
 const GENERATION: &str = include_str!("growing-hash-collections/store-descriptor-generation.zil");
@@ -326,6 +366,24 @@ fn a_saved_store_descriptor_cannot_gain_a_rebound_pointer_generations_authority(
         "    pointer=&mut holder\n    let child=store_at(old,0)\n    let value=*child",
     );
     assert_ne!(attacked, GENERATION);
+    // The full source entry retains the original binding and its address
+    // generation for independent original-body and executable verification.
+    let dir = directory("store-descriptor-generations");
+    let main_path = dir.join("main.zil");
+    let options = CompileOptions { stop_after: Stage::Verify, ..CompileOptions::default() };
+    let dereferenced = GENERATION.replace("old=pointer.items", "old=(*pointer).items");
+    let shared = GENERATION.replace("pointer=&mut holder", "pointer=&holder");
+    for program in [GENERATION, &dereferenced, &shared] {
+        fs::write(&main_path, program).unwrap();
+        let good = CompilationSession::default().compile_path(&main_path, &options);
+        assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+        assert_eq!(good.verification_runs, 1);
+    }
+    fs::write(&main_path, &attacked).unwrap();
+    let bad = CompilationSession::default().compile_path(&main_path, &options);
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert!(bad.diagnostics.iter().any(|d| d.code == "E-BORROW-CONFLICT"
+        || d.message.contains("actual borrowed resource access conflicts")), "{}", bad.to_json());
     let rejected = raw_source(&attacked);
     let errors = zil_analyze::analyze(&rejected, &limits).unwrap_err();
     println!("Desc-first rebound-pointer Source: {errors:?}");
@@ -424,30 +482,68 @@ fn a_saved_store_descriptor_cannot_gain_a_rebound_pointer_generations_authority(
     }
 }
 
+// The frozen SDK selector covers a synchronous captured Product head. An
+// exclusive reborrow permits replacement and retires the old Store descriptor.
 #[test]
 fn callback_borrow_of_a_store_package_keeps_its_existing_type_boundary() {
     let text = include_str!("growing-hash-collections/callback-store-address-boundary.zil");
-    let dir = directory("callback-store-address-boundary");
-    fs::write(dir.join("main.zil"), text).unwrap();
-    let report = CompilationSession::default().compile_path(
-        &dir.join("main.zil"),
-        &CompileOptions {
-            stop_after: Stage::Types,
-            ..CompileOptions::default()
-        },
+    let mut raw = raw_source(text);
+    let [action] = raw.closures.as_slice() else { panic!("expected one callback") };
+    assert_eq!(action.kind, zil_ir::CallableKind::FnMut);
+    assert!(matches!(action.captures.as_slice(), [zil_ir::Type::Address { mutable: true, inner }]
+        if matches!(inner.as_ref(), zil_ir::Type::Package { .. })));
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let competing = text.replace(
+        "forward(&mut action)",
+        "let competing:Store<i64>=store_new()\n    replace(target,give competing)\n    forward(&mut action)",
     );
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
+    let errors = zil_analyze::analyze(&raw_source(&competing), &limits).unwrap_err();
     assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("ordinary Package Product requires")),
-        "{}",
-        report.to_json()
+        errors.iter().any(|d| d.category == ResultCategory::SafeReject
+            && d.code == "E-BORROW-CONFLICT"),
+        "{errors:?}"
     );
+
+    // Substitute the old (still dominating) descriptor for the fresh one in
+    // the original caller. Both describe the same Store field and root.
+    let main = raw.functions.iter_mut()
+        .find(|f| f.locals.iter().any(|l| l.name == "old"))
+        .unwrap();
+    let old = main.locals.iter().find(|l| l.name == "old").unwrap().id;
+    let descriptor = main.blocks.iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::Store { local, value } if local == old => Some(value),
+            _ => None,
+        })
+        .unwrap();
+    let mut edits = 0;
+    for i in main.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+        if let InstructionKind::OwnedStoreBorrow { store, .. } = &mut i.kind {
+            assert_ne!(*store, descriptor);
+            assert_eq!(main.values[store.0 as usize], main.values[descriptor.0 as usize]);
+            *store = descriptor;
+            edits += 1;
+        }
+    }
+    assert_eq!(edits, 1);
+    plan.module_fingerprint = raw.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    for (entry, errors) in [
+        ("Analyze", zil_analyze::analyze(&raw, &limits).unwrap_err()),
+        ("Verify", zil_verify::verify_module(raw, plan, &target, &limits).unwrap_err()),
+        ("Wire", zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err()),
+    ] {
+        assert!(
+            errors.iter().any(|d| d.category == ResultCategory::SafeReject
+                && (d.code == "E-BORROW-CONFLICT" || d.message.contains("retir"))),
+            "{entry}: {errors:?}"
+        );
+    }
 }

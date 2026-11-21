@@ -74,7 +74,7 @@ fn ordinary_primitive_and_enum_impls_do_not_require_a_generic_caller() {
         "trait Identity{type Item:Copy;fn identity(self:&Self)->Self.Item;}impl Identity for i64{type Item=i64;fn identity(self:&Self)->i64{return *self}}fn read<T:Identity>(v:&T)->T.Item{return v.identity()}fn main()->i32{let n:i64=42;return i32(read(&n))}",
         "trait Cast<T:Copy>{fn value(self:&Self,witness:T)->T;}impl Cast<i32> for i64{fn value(self:&Self,witness:i32)->i32{return witness}}fn read<T:Cast<i32>>(v:&T)->i32{return v.value(42)}fn main()->i32{let n:i64=1;return read(&n)}",
         "trait Increment{fn advance(self:&mut Self)->i64;}impl Increment for i64{fn advance(self:&mut Self)->i64{*self+=1;return *self}}fn main()->i32{var n:i64=41;return i32(n.advance())}",
-        "trait Value{fn number(self:Self)->i32;}impl Value for bool{fn number(self:Self)->i32{if self{return 42}return 0}}fn main()->i32{let flag=true;return flag.number()}",
+        "trait Number{fn number(self:Self)->i32;}impl Number for bool{fn number(self:Self)->i32{if self{return 42}return 0}}fn main()->i32{let flag=true;return flag.number()}",
         "enum Color{Red,Blue}trait Read{fn read(self:&Self)->i32;}impl Read for Color{fn read(self:&Self)->i32{match *self{Color.Red()=>{return 2},Color.Blue()=>{return 42}}}}fn main()->i32{let v=Color.Blue();return v.read()}",
     ] {
         let input = SourceUnit::new(FileId(0), ModuleId(0), "value-host.zil", source);
@@ -92,6 +92,31 @@ fn ordinary_primitive_and_enum_impls_do_not_require_a_generic_caller() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn compiler_bound_names_cannot_be_implemented_as_ordinary_traits() {
+    // Keep the original value-host source as the reserved-bound negative.
+    let original = "trait Value{fn number(self:Self)->i32;}impl Value for bool{fn number(self:Self)->i32{if self{return 42}return 0}}fn main()->i32{let flag=true;return flag.number()}";
+    for source in [original.to_string(), original.replace("Value", "SyncDrop")] {
+        let input = SourceUnit::new(FileId(0), ModuleId(0), "reserved-bound.zil", source);
+        let report = compile_source(&input, &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-GENERIC-ARGUMENT"),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
     }
 }
 

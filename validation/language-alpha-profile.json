@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "purpose": "Core-language Alpha functional acceptance contract. This file declares requirements and does not assert a passing candidate or a published release.",
+  "target": "Linux x86_64 native applications and libraries",
+  "authority": [
+    "_zil_design.md",
+    "spec/",
+    "validation/language-release-gates.json",
+    "validation/product-gates.json"
+  ],
+  "functional_capability_refs": [
+    "values-and-patterns",
+    "generic-libraries",
+    "ownership-composition",
+    "dynamic-abstraction",
+    "resource-graphs",
+    "async-ownership",
+    "threads-and-synchronization",
+    "foreign-lifecycle",
+    "standard-library",
+    "project-workflow",
+    "native-delivery"
+  ],
+  "compile_time_programming": "Ordinary source generation and immutable ready-stage type queries preserve full current type, scope, dependency and budget identities; unavailable stages reject rather than fabricate an empty type domain.",
+  "acceptance_unit": "One real cross-module Source program and its relevant error, cleanup and nearest safety-negative cases complete the entire compiler and execution chain in the same exact candidate. Compiler-stage components or separately passing branches do not constitute a delivered feature.",
+  "required_chain": [
+    "Source elaboration preserving original semantic declarations and actual emission identities",
+    "Types materialization into complete canonical Typed types and real instructions",
+    "Analyze derivation",
+    "Independent Verify of current raw/Wire input and actual capability obligations",
+    "Lower and native code generation",
+    "Clang and LLVM API execution at O0 and O2",
+    "Observable results, failure handling and exact resource cleanup"
+  ],
+  "joint_coverage": [
+    "Type/Const/Life generics and associated/default methods combined with ordinary owned and borrowed values",
+    "Closures, captures, helpers and container iteration preserving complete type and lifetime domains",
+    "Actual selected heterogeneous providers and their real sources, effects and teardown",
+    "Task inputs/results/captures through Pending, Ready, replacement, cancellation and close",
+    "Language-defined collections, text and I/O used through the ordinary project workflow"
+  ],
+  "rule_coverage": {
+    "state_store_application": "Run tools/research/native-api-validation/validate.py on the published State/Store example. Require its original 16 LLVM API configurations and 128 business observations, including 56 injected allocation failures. The historical unbounded sources in tests/fixtures/state-store-without-sync-drop must reject at the scope exit that destroys the callback. The runnable example publishes SyncDrop on that generic function.",
+    "workspace_review": "Review the complete workspace alongside bounded campaigns. Classify failures of supported ordinary Source programs against their specifications, preserving their inputs, diagnostics and outcomes. Report aborted targets and historical work-count calibration separately. Include ordinary reference returns, captured mutable holders, named Record patterns and lending iterators in the daily Source regression evidence.",
+    "fixed_projects": "Run validation/inputs/fixed-projects/manifest.json in full. Retain all 196 historical rows and report executed matches and the required denominator separately. The manifest identifies 44 rows sharing one lost stdin. While its bytes are unavailable these rows are archival. An authenticated copy restores all 44 to required execution. All other observations, source checks and native builds remain required.",
+    "report": "For each rule family, pin its public premises, operation grammar, depth, state and exit boundaries, independent expected behavior, selected/completed counts and the first observed failure. Record admitted and boundary probes explicitly.",
+    "bounded_campaign": "Build tools/roam-rs with llvm-api and run roam callable-combinations at the same source commit as the candidate. Enumerate seven ordered generic helper and field projection paths to depth two, four exits per path and two reason-preserving Source controls per path. All 28 positive observations and 14 paired Source controls are required by §8.1.2.2. Report unsupported, budget-exhausted and unreached cases separately. A native backend or optimization level supplies observations for a case, not another case. Broader families require their own declared bounds and independent observations.",
+    "task_results": "Run roam task-result-combinations on the candidate. Enumerate compact and complete worker contexts with direct creation or one owner relay and four exits (Ready, cancellation before start, cancellation after Pending, allocation failure). Require 16 legal observations, 8 paired source rejections and the independent Raw/Wire controls for original result sources. Compare frame allocation and release, result selection and worker output in both native backends at O0 and O2.",
+    "same_candidate": "Rule exploration, real projects, raw/Wire controls and native behavior are jointly reported for the same source commit. Sampling and infrastructure failures do not count as completed coverage."
+  },
+  "safety": {
+    "accepted_safe_ub": 0,
+    "independent_verifier_required": true,
+    "unproved_semantic_input_is_rejected": true,
+    "default_budget_increase_is_a_fix": false,
+    "unsupported_or_zero_execution_is_pass": false,
+    "scalar_seam_or_function_splitting_replaces_required_composition": false,
+    "resource_acceptance": "Use validation/language-alpha-resource-profile.json for functional, resource-safety and calibration criteria. Preserve every supported entrance and original functional observation."
+  },
+  "compatibility": "No positive compatibility obligation for historical schema, internal IR or unreleased APIs. The current format rejects unknown/obsolete versions. Historical evidence remains archived; current safety counterexamples and real Source inputs remain required.",
+  "delivery": "A single exact source candidate with non-author review, complete nonzero functional coverage, reproducible build/run/test instructions and a clean independent restoration is required before publishing Alpha.",
+  "separate_claims": "Alpha functional acceptance does not claim complete 1.0 generalization, Rust-relative performance ratification, ZUI/GPU/IME completion or native execution on untested platforms. Their existing gates remain in force."
+}

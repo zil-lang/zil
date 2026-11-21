@@ -31,6 +31,7 @@ impl Wire for StorageBase {
                 i.encode(e)
             }
             Self::Result => 2u8.encode(e),
+            Self::Receiver => 3u8.encode(e),
         }
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
@@ -38,6 +39,7 @@ impl Wire for StorageBase {
             0 => Self::Parameter(u32::decode(d)?),
             1 => Self::Capture(u32::decode(d)?),
             2 => Self::Result,
+            3 => Self::Receiver,
             _ => return Err(WireError::NonCanonical),
         })
     }
@@ -59,6 +61,10 @@ impl Wire for ContractProjection {
                 2u8.encode(e)?;
                 i.encode(e)
             }
+            Self::Capture(i) => {
+                3u8.encode(e)?;
+                i.encode(e)
+            }
         }
     }
     fn decode(d: &mut Decoder<'_>) -> Result<Self> {
@@ -66,6 +72,7 @@ impl Wire for ContractProjection {
             0 => Self::Place(crate::PlaceProjection::decode(d)?),
             1 => Self::RetainedPort(u32::decode(d)?),
             2 => Self::RetainedClass(u32::decode(d)?),
+            3 => Self::Capture(u32::decode(d)?),
             _ => return Err(WireError::NonCanonical),
         })
     }
@@ -82,6 +89,7 @@ impl Wire for StorageLifeContract {
             self.fixed_binder_count.encode(e)?;
             self.invocation_binder_count.encode(e)?;
             self.bindings.encode(e)?;
+            self.static_bindings.encode(e)?;
             self.classes.encode(e)
         })
     }
@@ -95,6 +103,7 @@ impl Wire for StorageLifeContract {
                 fixed_binder_count,
                 invocation_binder_count,
                 bindings: Vec::<StorageLifeBinding>::decode(d)?,
+                static_bindings: Vec::<StoragePosition>::decode(d)?,
                 classes: Vec::<SignatureLifeClassBinding>::decode(d)?,
             })
         })

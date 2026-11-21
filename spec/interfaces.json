@@ -9,8 +9,12 @@
     "validation/product-gates.json",
     "policy/dependencies.json",
     "spec/interfaces.json",
-    "spec/diagnostics.json"
+    "spec/diagnostics.json",
+    "spec/semantic-scopes.md",
+    "spec/semantic-kernel.md",
+    "spec/source-lowering.md"
   ],
+  "independence_interpretation": "Per-record independence text means Verify does not trust candidate conclusions and checks every certificate obligation (spec/semantic-kernel.md section 6) using the single OpSpec and semantic kernel; it does not require a second implementation of the same rule.",
   "normative_hash_algorithm": "SHA256 of concatenated sorted path + NUL + SHA256(file bytes) + LF, UTF-8. spec_hash separately hashes _zil_design.md bytes.",
   "shared_change_owner": "integrator; consumers submit an interface-change request with affected producers/consumers and nearest counterexample; root Cargo, shared schema and registry files are single-writer",
   "implementation_profiles": {
@@ -689,12 +693,12 @@
         "Closing",
         "Closed"
       ],
-      "function_field": "CoreFunction.protocol_contract / TypedFunction.protocol_contract: Option<FunctionProtocolContract>",
+      "function_field": "CoreFunction.protocol_contracts / TypedFunction.protocol_contracts: Vec<FunctionProtocolContract>; ordered unique actual parameter roles; empty means no declared relation, never a closed-owner proof",
       "contract": {
         "protocol": "ProtocolKind",
         "parameter": "u32 actual parameter index",
         "entry": "canonical nonempty ordered unique Vec<ProtocolState>",
-        "exits": "Vec<ProtocolTransition{input:ProtocolState,exit:ProtocolExit,output:Vec<ProtocolState>}>; unique canonical (input,exit), nonempty ordered output"
+        "exits": "Vec<ProtocolTransition{input:ProtocolState,exit:ProtocolExit,output:Vec<ProtocolState>}>; unique canonical (input,exit); borrowed outputs are nonempty ordered states, owning Give roles have empty retired output"
       },
       "exit_selectors": [
         "Return",
@@ -703,12 +707,18 @@
         "PollPending",
         "PollReady"
       ],
-      "source": "requires(state(r,Closing,Closed)); provides(on_pending(state(r,Closing)),on_ready(state(r,Closed))); on a single actual &mut AsyncRegistration<F> parameter; F keeps its actual FnMut/ClosedEnvironment qualification.",
+      "source": "requires(state(r,Closing,Closed)); provides(on_pending(state(r,Closing)),on_ready(state(r,Closed))); on actual &mut AsyncRegistration<F> roles, or requires(state(a,Open,Closing,Closed),state(b,Open,Closing,Closed)); provides(retired(a),retired(b)); for distinct actual Give owners; every F keeps its actual FnMut/ClosedEnvironment qualification.",
       "checked_finish": "AsyncRegistrationFinishDestroyChecked{registration:ValueId}; opcode140; actual owner must be proved Closed. Existing AsyncRegistrationFinishDestroy retains its runtime CLOSED guard.",
       "proof": "Actual Poll/root/generation and nominal result selector; invalidate all stale SSA/local result and condition origins on root mutation. Independent bounded worklists and caller checks, including unannotated callers. Unknown effects/calls never mean empty state effects.",
       "definition": "Unused finite borrowed helper definitions are checked symbolically without fabricated F environments; currently straight-line real primitives, local aliases and returns. Other template control flow/forwarding is Unsupported; caller retry loops are supported.",
-      "transport": "Preserve complete contracts through CT/source reconstruction, module specialization, public interface and fingerprint; legacy None identities remain unchanged with a disjoint protocol extension discriminator. Wire44 rejects old envelope.",
-      "boundary": "Sealed registration protocol only; no general user protocols, multiple roles, arbitrary projections or indirect/foreign protocol helper authority."
+      "transport": "Preserve complete contracts through CT/source reconstruction, module specialization, public interface and fingerprint; the ordered role inventory and every transition bind identity before hashing; every role row is bounded and prepaid. The current transport rejects historical envelopes.",
+      "boundary": "Sealed registration protocol only; no general user protocols, arbitrary projections or indirect/foreign protocol helper authority. Equal types never merge actual roots, phases, loans or cleanup flags."
+    },
+    "lexical_semantic_program": {
+      "authority": "spec/semantic-scopes.md",
+      "representation": "Runtime/Wire50, Typed identity V50 and CT10 complete untrusted lexical semantic program; deferred Core types and full actual recipes must be entirely materialized before Typed execution.",
+      "independence": "Source original emission ledger; Types complete resolution and WF; Analyze and Verify independent original recipe, rigid/partition, actual site and full value/resource flow checks. Unknown or unresolved inputs never become an empty proven domain.",
+      "acceptance": "Exact Source, raw/Wire and actual native consumers with nearest identity/class/source/cycle/cleanup negatives and unchanged default budget boundaries. Public transport success alone grants no capability."
     }
   },
   "schemas": [
@@ -910,7 +920,7 @@
         "T07",
         "T09"
       ],
-      "trust": "Backend obeys the checked target profile; no default noalias or host Rust reference semantics for Desc. C/LLVM profiles cannot exchange assumptions."
+      "trust": "Backend obeys the checked target profile; no default noalias or host Rust reference semantics for Desc. C/LLVM profiles cannot exchange assumptions. Public LirModule/LirView retain verified CFG data, not machine-readiness authority. Backend first binds every retained field to the immutable VerifiedModule, then prepares actual layouts, ABI, helper dependencies and every operation into the existing shared machine representation. Preparation publishes only a complete result; neither a layout nor a ready flag grants new source permissions. The two LLVM paths consume the same prepared decisions without separate high-level shape admission."
     },
     {
       "id": "QueryResult",
@@ -1891,17 +1901,17 @@
   "owned_dyn_storage": {
     "proposal": "spec/owned-dyn-storage.md",
     "normative": "_zil_design.md §9.4",
-    "schema_version": 46,
-    "wire_version": 46,
+    "schema_version": 48,
+    "wire_version": 48,
     "type": "OwnedDyn{interface} tag40; affine two-pointer owner, distinct from unsized Dyn and Address<Dyn>",
     "instructions": {
       "148": "MakeDynOwned{interface,vtable,source,route:Heap} -> DynCreateError!OwnedDyn",
-      "149": "BorrowDynOwned{local,mutable} -> Address<Dyn>",
+      "149": "BorrowDynOwned{local,mutable} -> Address<Dyn>; local is a live owner or initialized actual Address<OwnedDyn>, preserving sources/parents and permission",
       "150": "DropDynOwned{local}"
     },
     "vtable": "CoreDynVtable and DynVtable append owned_storage:Option<DynOwnedStorage>; None=0, Heap=1. Existing cleanup ordinary entry is not the owning payload destructor.",
     "machine": "Owner pair {payload ptr, table ptr}; table method entries followed by compiler-derived void(ptr concrete_payload) glue on owning tables; payload cleanup precedes same-route Heap free. DynCreateError has exact Allocation variant.",
-    "trust": "Source and all independent kernels prove actual complete recursive Package Self, sealed ByteBuffer-only owned leaves and closed Copy companions, whole owner transfer and loans. User Drop and other Managed reject until a separate whole-owner cleanup effect bound exists. Raw metadata and tags grant no permission. No implicit box, GC/RC, retained borrows, async close, Guard, Transfer or Share."
+    "trust": "Source and all independent kernels prove actual complete recursive Package Self, sealed ByteBuffer, canonical synchronous user Drop and recursive Store owned leaves and closed Copy companions, whole owner transfer and loans. The independent whole-owner cleanup bound covers real complete teardown; None remains Unknown. Moved Fn/FnMut entries borrow actual owner capture storage repeatedly, FnOnce may transfer it, and all normal exits retain or discharge the single environment debt. Raw metadata and tags grant no permission. No implicit box, GC/RC, retained borrows, async close, Guard, Transfer or Share."
   },
   "affine_mutex": {
     "source": "_zil_design.md §§8,11; spec/affine-mutex.md",
@@ -1933,6 +1943,21 @@
     "machine": "Threaded site uses atomic combined admission/invocation gate and a driver covering provider calls and final cleanup; publication and invocation/cleanup use acquire/release. Same-thread sites retain their original non-atomic path.",
     "reclamation": "ClosingIdle is insufficient. Provider no-future/drain must include every raw pre-entry/rejected/retained user and provider access; only complete drain and driver ownership allow one environment cleanup, then Closed, then finish free. Failed registration must synchronously withdraw and drain before returning null.",
     "trust": "Transport, premise bools, same-named declarations and active=0 are never proofs. Unsupported environments or graphs fail closed; runtime white-box self-close/reentry controls do not grant source owner access."
+  },
+  "returned_capture_and_owner_cleanup": {
+    "runtime_schema_version": 48,
+    "wire_version": 48,
+    "authority": "spec/returned-capture-provenance.md",
+    "capture_sources": "Option<Vec<StorageSourceBinding>>; None=Unknown; each actual external environment leaf requires independent CFG-derived parameter sources and parent loans",
+    "nested_capture_projection": "ContractProjection::Capture(u32) is metadata only, never a physical address or permission",
+    "owning_cleanup": "DynInterface.owning_cleanup:Option<DynCleanupContract>; independent whole concrete owner teardown bound, not method cleanup",
+    "acceptance": [
+      "Source positive and nearest source/parent-loan/cleanup negatives",
+      "independent raw/Wire derivation",
+      "Unknown/empty/actual-path identity separation",
+      "construction failure, early exit and exact once cleanup",
+      "default request budgets, cold/warm/fresh boundaries"
+    ]
   },
   "complete_integer_domains": {
     "authority": "_zil_design.md §2.4",

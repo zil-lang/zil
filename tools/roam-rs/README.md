@@ -6,7 +6,7 @@
 
 原适配器每条路径经过 Node supervisor → Node worker → Rust TSV bridge。原生版本只启动同一 Rust 可执行文件的一个 worker，worker 直接持有长驻会话，并为每次检查创建独立冷会话。模型状态转换与真实驱动分别实现；热、冷语义比较及独立源码 oracle 的责任保持原样。
 
-`tools/roam-rs` 是独立 Cargo workspace，包名 `roam`，不再增加编译器生产 crate。锁定 `serde_json = 1.0.154` 和独立 `Cargo.lock`，使用成熟 JSON 库；摘要复用 `zil-base::Fingerprint`。根 Cargo 和生产依赖不改变。Rust 1.99.1 / edition 2024 实测；Windows 尚未执行平台验收。
+`tools/roam-rs` 是独立 Cargo workspace，包名 `roam`，不再增加编译器生产 crate。锁定 `serde_json = 1.0.154` 和独立 `Cargo.lock`，使用成熟 JSON 库；摘要复用 `zil-base::Fingerprint`。根 Cargo 和生产依赖不改变。Rust 1.100.0 / edition 2024 实测；Windows 尚未执行平台验收。
 
 ## 开始运行
 
@@ -22,13 +22,32 @@ cargo run --locked --offline --manifest-path tools/roam-rs/Cargo.toml --bin roam
 
 命令退出 0 表示声明的有限 campaign 全部满足条件；退出 1 为 campaign 未满足条件。独立重放退出 0/1/2 分别表示 pass、同一执行报告中的 property fail、invalid/error/unsupported/incomplete 或宿主错误。不能把“非零”一概当作没有复现。
 
+## 可调用值的组合验收
+
+```sh
+cargo build --locked --offline --manifest-path tools/roam-rs/Cargo.toml --features llvm-api --bin roam
+tools/roam-rs/target/debug/roam callable-combinations --commit="$(git rev-parse HEAD)" --out=out/runs/callable-combinations
+```
+
+同一入口使用 `--depth=3` 时，枚举至多三层的 15 种有序包装，包括 60 项合法行为和 30 项配对反例。新增的八种三层包装占 32 项合法行为和 16 项反例。共享同一个可执行模型、原生观察和拒绝原因检查。
+
+当使用 `CARGO_TARGET_DIR` 时从该目录运行 Roam。这个有限 campaign 全选两种组合操作在深度 0 至 2 的七种有序路径。各路径观察提前正常返回、成功替换、解码错误和替换右侧错误，同时配共享接收者与同布局不同名义错误类型两个单项反例。独立模型预测返回状态和析构顺序。正例运行 Clang 与 LLVM API 的 O0 和 O2；反例要求预期的拒绝且对应正例成立。按 §8.1.2.2，`hp` 验证同步借入持有者后取字段，`pp` 验证嵌套 child 的指定字段。七种形态均计入验收。每行保留 `roam/1` case 与实际结果，可单独重放及缩减；随机 `hunt --profile=callable-composition-native` 只算探索样本。
+
+`targetSpace` 汇总全部 28 个正向观察项和 14 个 Source 反例。只有全部 42 项符合独立预期时，`status` 为 `pass`，`targetSpace.complete` 为真。每条记录链接到[组合规则](../../spec/semantic-scopes.md#可调用值与失败出口的组合)，列明改动的前提、对应合法用例、预期、实际证据及首个失配阶段。预算耗尽、未到达、未支持及观测不符各有独立结果。缩减须保留原规则、首个失配阶段及诊断类别和代码。独立 Raw/Wire 的近邻反例由 `zil-driver` 的 `direct_callback_field_calls_callback_place_raw` 检查同型字段串换，单独报告其覆盖。
+
+## Task 返回借用值的组合验收
+
+同一个已构建的 Roam 可执行文件支持 `task-result-combinations --commit=<提交> --out=<新目录>`。紧凑或完整的 worker 上下文分别经过直接创建或一次所有权转发，得到四种形态。每种形态观察 Ready、启动前取消、Pending 后取消、帧分配失败四个出口，共 16 个正例。独立模型预先给出选中的输入、worker 输出、退出值和帧释放事件。执行时使用两个后端各自的 O0/O2，并用 C 观察器记录实际成功分配、失败及释放。
+
+每种形态另配两个 Ready 对照，分别替换声明的结果来源、在占用期间写入实际输入，共 8 个最近反例。只有对应 Ready 正例已通过且原诊断相符时才计入通过数。每项的独立预期、原源码和四次原生运行记录可从输出目录逐项回查。
+
 ## 协议与行为
 
 - `steps` 的具体动作是重放权威，seed 只记录生成来源。Mulberry32 与原 TS 动作表顺序一致。
 - worker 发 `before`；host 逐条写 journal 并 `sync_all` 后才排入 ACK；有界独立 writer 写 stdin，主监督循环继续计时，超时先终止并回收 worker，再收口 writer/stdout/stderr 三个线程；真实动作结束才发 `after`。模型检查失败仍保留已完成动作计数。错误 ACK 阻止该动作执行。
 - 六态为 `pass / fail / invalid / error / unsupported / incomplete`。未知动作、过期契约、非空 schedule、配额耗尽、缺失结果、重复终态、错帧、超时都不能成为 pass。非空 schedule 无论是否有同名能力声明都拒绝。
 - 每次冷检查禁用磁盘缓存并使用独立取消令牌；Verify 到达时必须实际执行，不可从缓存复用。每步结束检查活动查询归零。
-- case 1 MiB、单帧和总输出 4 MiB、默认 256 步、worker 10 秒、host 10 秒；case/manifest 文件先按限额加一字节有界读取，再解析，不能先整文件分配后拒绝。API 构造的 case 同样检查编码大小；JSON 库还保留自身深度界限。可执行摘要使用独立 128 MiB 文件上限，该限额与 JSON 配额分别计算。负零、非有限数和非安全整数 seed 拒绝。Rust JSON 字符串必须是 Unicode 标量序列，不能表示 JavaScript 孤立 UTF-16 surrogate；超出该互操作子集安全拒绝。
+- case 1 MiB、单帧和总输出 4 MiB、默认 256 步、worker 10 秒、host 10 秒；case/manifest 文件先按限额加一字节有界读取，再解析，不能先整文件分配后拒绝。API 构造的 case 同样检查编码大小；JSON 库还保留自身深度界限。可执行摘要使用独立 128 MiB 文件上限，启用 LLVM API 时为 192 MiB，该限额与 JSON 配额分别计算。负零、非有限数和非安全整数 seed 拒绝。Rust JSON 字符串必须是 Unicode 标量序列，不能表示 JavaScript 孤立 UTF-16 surrogate；超出该互操作子集安全拒绝。
 - 显式默认 `initial` 以对象结构和值比较，JSON 属性排列不是状态语义。原 TS 会话适配器的 `JSON.stringify(initial)` 比较对键序敏感；本工具不继承该偶然限制，不宣称任意 JS 对象级行为逐字节等价。
 - 正常退出尝试清理会话临时目录。清理失败会把 pass 改为 error；原 property failure 保留。强制终止的 worker 可能留下带本进程标识的临时目录，主机不能把这种路径当成已清理成功。
 - `session` worker 不启动 clang；`scalar-native` worker 会启动 clang、链接器及生成程序。Linux host 只为自己启动的 worker 建立独立进程组，native 正常结束、错误、超时与协议失败均终止残留组成员并回收直接子进程；不向 case 或队列提供的 PID 发信号。这是受信开发工具的进程生命周期管理，不是任意外部程序的安全沙箱。
@@ -99,7 +118,7 @@ claim 使用原子记录与 token，只用于合作进程协调，不是权限�
 
 claim 不自动超时，长期修复不会被另一个进程抢走；持 token 者可显式 release。进程异常终止释放的是短期操作锁，未完成的业务 claim 和 incoming 暂存件仍保留，不自动声称修复完成。旧试验版本的目录锁须在全部旧进程停止后显式清理或换用新通道；两种锁实现不能混用活跃队列。当前锁文件不需要清理，恢复/复制队列也应先停止所有持有者，避免替换仍被锁定的 inode。平台或文件系统不支持文件锁时明确失败，不回退到无锁。本片没有跨机器租约、自动杀死修复者、自动恢复分布式服务或整个 OS 的密封快照。队列是受信工作区中的可执行复现材料，不应直接执行来历不明的外部队列。
 
-标准库合同见 [`File::try_lock`](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock) 和 [`TryLockError`](https://doc.rust-lang.org/std/fs/enum.TryLockError.html)。文件锁 API 自 Rust 1.89 稳定；本项目按 1.99.1 实测，不引入额外锁依赖。
+标准库合同见 [`File::try_lock`](https://doc.rust-lang.org/std/fs/struct.File.html#method.try_lock) 和 [`TryLockError`](https://doc.rust-lang.org/std/fs/enum.TryLockError.html)。文件锁 API 自 Rust 1.89 稳定；本项目按 1.100.0 实测，不引入额外锁依赖。
 
 ## 独立 scalar-native 语义探索
 

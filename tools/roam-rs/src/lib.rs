@@ -1,4 +1,7 @@
+pub mod bounded_campaign;
+pub mod task_results;
 pub mod byte_buffer;
+pub mod callable_composition;
 pub mod campaign;
 pub mod domain;
 pub mod host;

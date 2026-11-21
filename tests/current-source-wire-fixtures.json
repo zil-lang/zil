@@ -1,0 +1,51 @@
+{
+  "producer_commit": "fc6d2eac35444f9f0893d1d20fc817797d63bb61",
+  "generator": "crates/zil-driver/tests/current_source_wire_fixtures.rs",
+  "generator_source_sha256": "951f384ccfa547cf83be716ffe1951a30645529f8dff70a2972b29bda627ae17",
+  "source_generator_status": "Incomplete",
+  "source_generator_case_count": 12,
+  "schema": 50,
+  "wire": 50,
+  "authority": "UntrustedSourceAndProducerCandidates; independent raw/Wire verification required",
+  "records": [
+    {
+      "source": "tests/returned-environment-sources/two-addresses.zil",
+      "source_sha256": "59eac5e66f33ad2fdd899ed621728555debc92f12eec5d478cf0a16a8e4356ec",
+      "unmodified_module_fingerprint": "f67d30ddc99d6889b6ded4989b1011e81160dfee678ee54e5c11fb445e3dca80",
+      "semantic_definitions": 3,
+      "functions": 3,
+      "closures": 1,
+      "outputs": [
+        {
+          "path": "tests/returned-environment-sources/two-addresses.wire",
+          "kind": "UnmodifiedCandidate",
+          "sha256": "c1e55d307005da5583d93ccbb83a3d083005d12a00b9aa841f81dba625170091",
+          "bytes": 6604,
+          "previous_archived_sha256": "0f715dc719fc29c9e6f58a600003194e60875bd4a5ec7e88796385a7cd52b604"
+        }
+      ]
+    },
+    {
+      "source": "tests/borrowed-callable-arguments/loan_control.zil",
+      "source_sha256": "cd9bdafe93e913a176f9ddf63e81edd3f03237d0444dacc8c5f72e4d59b2cbc0",
+      "unmodified_module_fingerprint": "a22733b4f90b686344b41ae7ef8376722836092680163c0fd28190679f32a4fa",
+      "semantic_definitions": 3,
+      "functions": 2,
+      "closures": 1,
+      "outputs": [
+        {
+          "path": "tests/borrowed-callable-arguments/loan_control.candidate.wire",
+          "kind": "UnmodifiedCandidate",
+          "sha256": "7014854b4d9621fddabdadb69474c4733069811ba8f58d5cf73f68dce31fb55b",
+          "bytes": 9805
+        },
+        {
+          "path": "tests/borrowed-callable-arguments/loan_revival.candidate.wire",
+          "kind": "SingleActualTakeLocalOwnerForSiblingMutation",
+          "sha256": "1c3f410db827ea3478855185381ede64aa6d006a77619847cbc7794730163882",
+          "bytes": 9805
+        }
+      ]
+    }
+  ]
+}

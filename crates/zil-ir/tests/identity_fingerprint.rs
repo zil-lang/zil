@@ -6,7 +6,7 @@ use zil_ir::*;
 
 #[path = "support/identity_instruction_cases.rs"]
 mod cases;
-#[path = "support/identity_reference_v34.rs"]
+#[path = "support/identity_reference_v50.rs"]
 mod legacy;
 
 fn types(flag: bool) -> Vec<Type> {
@@ -143,6 +143,8 @@ fn contract(flow: bool) -> CallableParameterContract {
 }
 fn return_contract(kind: CallableKind) -> CallableReturnContract {
     CallableReturnContract {
+        life: None,
+        capture_sources: Some(Vec::new()),
         source: zil_ir::CallableReturnSource::Fresh,
         closure: ClosureId(11),
         kind,
@@ -268,12 +270,15 @@ fn module(flag: bool) -> TypedModule {
             Terminator::Unreachable,
         ];
         TypedFunction {
+            dyn_instance: None,
+            retained_return_sources: None,
             storage_life: None,
             call_kind: CallKind::Direct,
+            resume_bound: crate::TaskResumeBound::Local,
             reference_return_bound: None,
             callable_return_contract: flag.then(|| return_contract(kinds()[i % 4])),
             callable_contract: flag.then(|| contract(i % 2 == 0)),
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             id: FunctionId(i as u32),
             name: format!("function-{i}-λ"),
             foreign: flag.then(|| ForeignDeclaration {
@@ -281,6 +286,7 @@ fn module(flag: bool) -> TypedModule {
                 symbol: "foreign-名".into(),
                 noescape_parameters: vec![2, 5],
                 static_callbacks: i % 2 == 0,
+                thread_driver_transfer: false,
                 scoped_callback: None,
             }),
             environment: flag.then_some(ClosureId(i as u32)),
@@ -314,6 +320,7 @@ fn module(flag: bool) -> TypedModule {
     })
     .collect();
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
@@ -892,5 +899,200 @@ fn higher_rank_and_suspend_fields_match_independent_reference() {
         }
         equal(&changed);
         assert_ne!(input.fingerprint(), changed.fingerprint());
+    }
+}
+
+#[test]
+fn returned_capture_sources_bind_identity_including_unknown_empty_and_actual_paths() {
+    use zil_ir::{
+        ContractProjection, PlaceProjection, StorageBase, StoragePosition, StorageSourceBinding,
+    };
+    let mut contract = return_contract(CallableKind::Fn);
+    let empty = zil_ir::callable_return_contract_fingerprint(&contract);
+    contract.capture_sources = None;
+    assert_ne!(
+        empty,
+        zil_ir::callable_return_contract_fingerprint(&contract)
+    );
+    contract.capture_sources = Some(vec![StorageSourceBinding {
+        position: StoragePosition {
+            base: StorageBase::Capture(0),
+            path: vec![ContractProjection::Capture(1)],
+        },
+        sources: (vec![StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![ContractProjection::Place(PlaceProjection::Field(0))],
+        }])
+        .into_iter()
+        .map(zil_ir::StorageSource::Exact)
+        .collect(),
+    }]);
+    let actual = zil_ir::callable_return_contract_fingerprint(&contract);
+    assert_ne!(empty, actual);
+    exact_source_mut(&mut contract.capture_sources.as_mut().unwrap()[0].sources[0]).base =
+        StorageBase::Parameter(1);
+    assert_ne!(
+        actual,
+        zil_ir::callable_return_contract_fingerprint(&contract)
+    );
+}
+
+#[test]
+fn returned_source_wire_preserves_minimal_positions_unknown_and_empty() {
+    let limits = zil_base::Limits::default();
+    for sources in [
+        None,
+        Some(vec![]),
+        Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            sources: (vec![StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            }])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
+        }]),
+        Some(vec![StorageSourceBinding {
+            position: StoragePosition {
+                base: StorageBase::Capture(0),
+                path: vec![ContractProjection::Capture(1)],
+            },
+            sources: (vec![StoragePosition {
+                base: StorageBase::Parameter(1),
+                path: vec![ContractProjection::Place(PlaceProjection::Field(2))],
+            }])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
+        }]),
+    ] {
+        // Transport controls deliberately assert no semantic kernel admission.
+        let mut raw = module(false);
+        let mut c = return_contract(CallableKind::Fn);
+        c.capture_sources = sources;
+        raw.functions[0].callable_return_contract = Some(c);
+        let plan = CandidatePlan::empty_for(&raw);
+        let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        let decoded = wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert_eq!(raw, decoded.0);
+        assert!(wire::decode_module_candidate(&bytes[..bytes.len() - 1], &limits).is_err());
+        let mut previous = bytes.clone();
+        previous[8..12].copy_from_slice(&47u32.to_le_bytes());
+        assert!(wire::decode_module_candidate(&previous, &limits).is_err());
+    }
+}
+
+#[test]
+fn receiver_head_has_distinct_identity_and_lossless_raw_transport() {
+    let limits = zil_base::Limits::default();
+    let position = |base| StoragePosition {
+        base,
+        path: Vec::new(),
+    };
+    let mut life = StorageLifeContract {
+        static_bindings: Vec::new(),
+        fixed_binder_count: 0,
+        invocation_binder_count: 1,
+        bindings: vec![StorageLifeBinding {
+            position: position(StorageBase::Receiver),
+            binder: StorageBinder::Invocation(0),
+        }],
+        classes: Vec::new(),
+    };
+    assert!(life.to_flat(0).is_none());
+    let receiver = life.fingerprint();
+    for base in [
+        StorageBase::Parameter(0),
+        StorageBase::Capture(0),
+        StorageBase::Result,
+    ] {
+        life.bindings[0].position.base = base;
+        assert_ne!(receiver, life.fingerprint());
+    }
+    life.bindings[0].position.base = StorageBase::Receiver;
+    // Transport is intentionally untrusted and does not assert admission.
+    let mut raw = module(false);
+    use zil_ir::ct_artifact::{CtScalarTy, CtTypeNode, CtTypeNodeId, CtTypeRef, CtValue};
+    let ct = CtValue::Type(CtTypeRef {
+        scoped_catalogue: None,
+        ambient_classes: Vec::new(),
+        nodes: vec![
+            CtTypeNode::Primitive(CtScalarTy::I32),
+            CtTypeNode::BorrowedFunctionPointer {
+                parameters: Vec::new(),
+                result: CtTypeNodeId(0),
+                life: life.clone(),
+            },
+        ],
+        root: CtTypeNodeId(1),
+    });
+    let ct_bytes = zil_ir::ct_wire::encode_value(&ct, &limits).unwrap();
+    assert_eq!(
+        zil_ir::ct_wire::decode_value(&ct_bytes, &limits).unwrap(),
+        ct
+    );
+    raw.functions[0].storage_life = Some(life);
+    raw.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
+        position: position(StorageBase::Result),
+        sources: (vec![position(StorageBase::Receiver)])
+            .into_iter()
+            .map(zil_ir::StorageSource::Exact)
+            .collect(),
+    }]);
+    let plan = CandidatePlan::empty_for(&raw);
+    let bytes = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert_eq!(
+        wire::decode_module_candidate(&bytes, &limits).unwrap().0,
+        raw
+    );
+}
+
+#[test]
+fn callable_return_expected_life_is_distinct_and_lossless() {
+    let limits = zil_base::Limits::default();
+    let mut raw = module(false);
+    let mut returned = return_contract(CallableKind::FnOnce);
+    let absent = callable_return_contract_fingerprint(&returned);
+    let relation = StorageLifeContract {
+        static_bindings: Vec::new(),
+        fixed_binder_count: 2,
+        invocation_binder_count: 0,
+        bindings: vec![StorageLifeBinding {
+            position: StoragePosition {
+                base: StorageBase::Result,
+                path: vec![],
+            },
+            binder: StorageBinder::Fixed(1),
+        }],
+        classes: vec![],
+    };
+    returned.life = Some(relation);
+    let present = callable_return_contract_fingerprint(&returned);
+    assert_ne!(absent, present);
+    assert_eq!(
+        present,
+        legacy::callable_return_contract_fingerprint(&returned)
+    );
+    for binder in [StorageBinder::Fixed(0), StorageBinder::Invocation(0)] {
+        let mut forged = returned.clone();
+        forged.life.as_mut().unwrap().bindings[0].binder = binder;
+        assert_ne!(present, callable_return_contract_fingerprint(&forged));
+    }
+    raw.functions[0].callable_return_contract = Some(returned);
+    let candidate = CandidatePlan::empty_for(&raw);
+    let bytes = wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let (decoded, _) = wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert_eq!(raw, decoded);
+    assert!(wire::decode_module_candidate(&bytes[..bytes.len() - 1], &limits).is_err());
+}
+
+fn exact_source_mut(source: &mut zil_ir::StorageSource) -> &mut zil_ir::StoragePosition {
+    match source {
+        zil_ir::StorageSource::Exact(position) => position,
+        _ => panic!("fixture requires an exact source"),
     }
 }

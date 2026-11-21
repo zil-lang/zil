@@ -757,6 +757,17 @@ impl Module {
     pub fn to_text(&self) -> String {
         render_module(self)
     }
+    /// Seal a complete machine module using the same type/symbol/ABI/SSA/CFG
+    /// preflight as native generation. Call before splitting into codegen units.
+    /// The caller's request ledger pays traversals, including fixed-point work;
+    /// exhaustion returns immediately and does not publish a prepared module.
+    /// This establishes no ZIL ownership, lifetime or VerifiedModule capability.
+    pub fn validate_complete(
+        &self,
+        charge: impl FnMut(usize) -> Result<(), String>,
+    ) -> Result<(), String> {
+        crate::preflight::validate_charged(self, charge)
+    }
 }
 
 // Text is an exact diagnostic/reference rendering of the same owned model.

@@ -5,7 +5,7 @@ pub fn result() -> i64 {
     let row = model.Row::<i64> { value: 5000000000, weight: 40 }
     let value: model.MaybeRow = model.some(row)
     let score = process.convert(value)
-    let unused: model.Option<i64> = model.empty()
+    let unused: model.LegacyOption<i64> = model.empty()
     let opaque = #(model.secret(0))
     let extra = model.unwrap(unused, opaque.visible) + model.read(opaque)
     match score {

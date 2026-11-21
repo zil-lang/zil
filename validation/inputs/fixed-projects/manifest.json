@@ -1,0 +1,831 @@
+{
+  "schema_version": 1,
+  "frozen_source_commit": "32c89775179d85351bf885b8f21185fc3a25c017",
+  "historical_contract": {
+    "compiler": "365ee0748469ac073b0f39786d5f768a343d2050",
+    "goal_commit": "4ba44662cff0ab1bfe9b1867bb9269542a9ffce3",
+    "record": "records/language-alpha-projects-and-callable-rules-365ee07.json",
+    "archive_if_stdin_unavailable": {
+      "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24": 44
+    }
+  },
+  "target": "Linux x86_64",
+  "configurations": [
+    [
+      "clang",
+      "O0"
+    ],
+    [
+      "clang",
+      "O2"
+    ],
+    [
+      "llvm-api",
+      "O0"
+    ],
+    [
+      "llvm-api",
+      "O2"
+    ]
+  ],
+  "fixed_totals": {
+    "projects": 21,
+    "native_builds": 60,
+    "native_comparisons": 196
+  },
+  "additional_native_totals": {
+    "native_builds": 12,
+    "native_comparisons": 56
+  },
+  "inputs": {
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+      "hex": ""
+    },
+    "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880": {
+      "byte_range": 256
+    },
+    "5ffdfcc2179ddc22c66debcce5861bb646beb718b6d7298908bcd157ca568fe2": {
+      "hex": "3020",
+      "repeat": 1001
+    },
+    "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3": {
+      "hex": "5a696c20416c70686120615a2031320a"
+    },
+    "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24": null
+  },
+  "projects": [
+    {
+      "label": "ascii-uppercase-filter",
+      "tree": "320ea0c18f8fc8dcb0358e2301dce45626bc5902",
+      "source_sha256": "cbfd8cf336a4ad0d96554d436ef178327f66ccd3bb110257a74ce8f719b3ddb5",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "e79dfe179b248af588c52a28e47f913ebc891e83bf9ffe257c486dee3c77fc8d"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 3,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 0,
+            "expected_stdout": "e2545a7ed254517087f7fe0c1fab25bcd5a48acfe1d54fcd5aa85b2555cf6545"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 2,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 0,
+            "expected_stdout": "f6f65ee0e517e84e5eacd8847b00da75c4bc75a1479017cac08ef56675f2ca28"
+          }
+        ]
+      }
+    },
+    {
+      "label": "function-pointer-pipeline",
+      "tree": "a97143f96ca1117ef29263fa19f0921532e6a8ba",
+      "source_sha256": "02d744a1a5db7af5b74bd051db993592da1524eb6b0882fcb80180d29d26dfdd",
+      "reference": {
+        "path": "reference.rs",
+        "sha256": "c288226104a76a4a760da75aadfd0ccd5c83aee4bf8bb51c155a320cff0edaca"
+      },
+      "native": {
+        "entry": "result",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "283da6ff5665b3257ce055bc2c22d756be5341588d736c1205d5ed31eaf05f3d"
+          }
+        ]
+      }
+    },
+    {
+      "label": "generic-alias-loop",
+      "tree": "a2b46e3ed2b737aac507189cf1e0c2dec8c0e6d0",
+      "source_sha256": "2716fc53ad88714755c4cf9ac1975a242731bf6ebd7a3d4020efba4d9ee05930",
+      "reference": {
+        "path": "oracle.rs",
+        "sha256": "425b630680773735c31822fdf38691efa5ee3d7bd67aec7eeff7e210deac13e4"
+      },
+      "native": {
+        "entry": "result",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "084c799cd551dd1d8d5c5f9a5d593b2e931f5e36122ee5c793c1d08a19839cc0"
+          }
+        ]
+      }
+    },
+    {
+      "label": "generic-module-enums",
+      "tree": "b3dafaebc18a10ccea86a8267149063ad42ee089",
+      "source_sha256": "e3c08c2826701268013b38cceac2bc9e95af5abf231ec637fbe66a7cda03fe5b",
+      "reference": {
+        "path": "oracle.rs",
+        "sha256": "6ce5f919e77a9b9191065df7eec6e57a78db6f9991714b694b7552727331a5e5"
+      },
+      "expected_rejection": {
+        "phase": "expand",
+        "code": "E-GENERIC-ARGUMENT",
+        "message": "Option is a reserved built-in type family",
+        "file": "model.zil"
+      },
+      "control": {
+        "source_commit": "33450fa4efe078457d253a388814219b1ef5868e",
+        "tree": "b6f040e0685640ead1e159f307a74874db7b279d",
+        "obligation": "Give the user enum its own name and prove formation and cleanup in each original generic definition.",
+        "entry": "result",
+        "cases": [
+          {
+            "stdin_hex": "",
+            "expected_exit": 0,
+            "expected_stdout": "283da6ff5665b3257ce055bc2c22d756be5341588d736c1205d5ed31eaf05f3d"
+          }
+        ]
+      },
+      "normalized_example_tree": "b6f040e0685640ead1e159f307a74874db7b279d"
+    },
+    {
+      "label": "generic-option-result",
+      "tree": "099d5c9ba31d44fc7dcfb0e22fb00bf5160823cf",
+      "source_sha256": "df16a9bdf7bc181216e36198441dcf03133a9eabaed3620710471d60a0191822",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "d2d1e13e13e8f3fa8a70fb905b1c564b101c0d3945809a765bcd283d401c4f4a"
+      },
+      "expected_rejection": {
+        "phase": "types",
+        "code": "E-ORIGINAL-CLEANUP",
+        "message": "live original value has no independent SyncDrop proof",
+        "file": "main.zil"
+      },
+      "control": {
+        "source_commit": "33450fa4efe078457d253a388814219b1ef5868e",
+        "tree": "ab54f5d03083f7a716641d13bd9227771dcbb9f0",
+        "obligation": "Prove ordinary formation with Value and independent cleanup of the live fallback on the payload-success exit with SyncDrop.",
+        "entry": "answer",
+        "cases": [
+          {
+            "stdin_hex": "",
+            "expected_exit": 0,
+            "expected_stdout": "283da6ff5665b3257ce055bc2c22d756be5341588d736c1205d5ed31eaf05f3d"
+          }
+        ]
+      },
+      "normalized_example_tree": "ab54f5d03083f7a716641d13bd9227771dcbb9f0"
+    },
+    {
+      "label": "mainline/app",
+      "tree": "a638e14da322b49412115417ce85d541bd98897c",
+      "source_sha256": "fd683cb866844325a9c8474f374580a36bddb953da1d42d361bdea8ddfe4c011",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "bb592f1996ab773892b02c3d63429977e317c1432fb32f51302cd8231d7c2e90"
+      },
+      "additional_native": [
+        {
+          "entry": "main",
+          "rust_args": [
+            "--check"
+          ],
+          "cases": [
+            {
+              "stdin_hex": "",
+              "expected_exit": 0,
+              "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          ]
+        },
+        {
+          "entry": "result",
+          "rust_args": [],
+          "cases": [
+            {
+              "stdin_hex": "",
+              "expected_exit": 0,
+              "expected_stdout": "d8596566dec0edc8cc941ccaf8e55955b5b7498fae6cfbddbd6e2a07ec23557a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "mainline/byte_buffer",
+      "tree": "507206f2913cc0f02e0d71339ad97019f3268e0b",
+      "source_sha256": "7f5c31626124ad018cd70f42892c9367e2f0fc51131bd8b0a5a99643abeccb64",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "db3aab699a4a6e40a71f83d3559858b012bfcd1873438ecf68e37e5237fcecd4"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 0,
+            "expected_stdout": "e2545a7ed254517087f7fe0c1fab25bcd5a48acfe1d54fcd5aa85b2555cf6545"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 0,
+            "expected_stdout": "8985a5a84f72643f92031c52cc557992ad6b42f7975223ea98bea822c7665294"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 0,
+            "expected_stdout": "f6f65ee0e517e84e5eacd8847b00da75c4bc75a1479017cac08ef56675f2ca28"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/byte_buffer_owned",
+      "tree": "3eb08becb677ebb59aad1d6c0c2013b2d67cd7d3",
+      "source_sha256": "f6bc3af455251f202ac3c332add80dfe7a70ee6675f59fab06a7b30a67dfb7a8",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "3483b2e4b69b09ba1804a1c2dc51537d590cfc567f54df7cd66c74f8d145ceda"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 0,
+            "expected_stdout": "dcd3f4a3e8f9646399c5b05f4308abf2e64a842304ef682734249991ea4eb8e8"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 0,
+            "expected_stdout": "1d96a06e6d72b511512f3cd59f102166bc0115f1037b1b2ce8be301596d6f658"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 0,
+            "expected_stdout": "6246fbcaabfefc933de208f98a68c7383ef5519c16a463cfb1004db1cdb86f80"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/byte_io",
+      "tree": "5831a7d1eed45571428f1550453fd48a311895ed",
+      "source_sha256": "e52ef18e5502b5f1523913f2a28dbbbcf7d1d4934e23247e481c4219edf6833e",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "9e9b431cd9bb608162eac59d9f7816b47d2bd4ddcda286662661df12e60c2638"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 0,
+            "expected_stdout": "e2545a7ed254517087f7fe0c1fab25bcd5a48acfe1d54fcd5aa85b2555cf6545"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 0,
+            "expected_stdout": "8985a5a84f72643f92031c52cc557992ad6b42f7975223ea98bea822c7665294"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 0,
+            "expected_stdout": "f6f65ee0e517e84e5eacd8847b00da75c4bc75a1479017cac08ef56675f2ca28"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/error_cleanup",
+      "tree": "f796e081bd2dbce4d9f19aee278714369716c42d",
+      "source_sha256": "c39867ea2eedbda442e0444667af2cf9460fd01c916b866050df1b75d47a48b1",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "e400fcf947a9c60b62915c64671af304e6900cc0268926eaccbda616101aa775"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 1,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 1,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 1,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 1,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/helper_ui",
+      "tree": "be6f581317b51c57a69da23a8d109c70b2c360f6",
+      "source_sha256": "ed3ce80958dbbb5a31476c84ac35dffeaa24c02c043223bfb3c8f80bf11f6c2b",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "e8471e3d45b141c08087e4a2c37eca54ba3091a924a4d78e4b23b2b7e9f01827"
+      },
+      "expected_rejection": {
+        "phase": "types",
+        "code": "E-ORIGINAL-CLEANUP",
+        "message": "live original value has no independent SyncDrop proof",
+        "file": "helpers.zil"
+      },
+      "control": {
+        "source_commit": "32c89775179d85351bf885b8f21185fc3a25c017",
+        "tree": "be6f581317b51c57a69da23a8d109c70b2c360f6",
+        "obligation": "Prove independent SyncDrop for the uncalled by-value callback on the false edge.",
+        "entry": "main",
+        "replacements": {
+          "helpers.zil": {
+            "edits": [
+              [
+                "pub fn run_if<F: FnOnce() -> i32>",
+                "pub fn run_if<F: FnOnce() -> i32 + SyncDrop>"
+              ]
+            ],
+            "sha256": "47fa3458d8ea14abd372a318bb74ae8bedf2400de2e6fa3151812fcbd418bdce"
+          }
+        },
+        "cleanup_control": true,
+        "cases": [
+          {
+            "stdin_hex": "",
+            "expected_exit": 0,
+            "expected_stdout": "d9d3e408dfec95350be3e1b50d6cdaaec6a56ed9bfa38057df2da222cd71aa0b"
+          },
+          {
+            "stdin_hex": "2b2b71",
+            "expected_exit": 0,
+            "expected_stdout": "8374d6547c737eec8c6df55580b9535a6de92e1f77a0b209e74cf25d8c4972dc"
+          },
+          {
+            "stdin_hex": "3f",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          },
+          {
+            "stdin_hex": "2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b",
+            "expected_exit": 1,
+            "expected_stdout": "4c3cbd9b79b210cc5408f336053a4f14122fc3439ec00fe2b91d3ef053f905d1"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/owned_component",
+      "tree": "af7a05cdc57f19f6c0e78b62f7fd83795a91d8b4",
+      "source_sha256": "726d3f97326c1d505f97dfd67b1086b22b6a510e5b2f492c99031380f265e488",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "d980ea2549c86ab2a6d6139769011ae9f982489903af4b5e2c5c6f4413daef1e"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "d9d3e408dfec95350be3e1b50d6cdaaec6a56ed9bfa38057df2da222cd71aa0b"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/package_ui",
+      "tree": "b7c9bb8fdd8bd983ba944f8bc1acc1da95ef3463",
+      "source_sha256": "ed3ce80958dbbb5a31476c84ac35dffeaa24c02c043223bfb3c8f80bf11f6c2b",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "53cf1905d34d94221a2bb7fa3269bedf5273997a1dd1c66a00c9b767c9a29cd4"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "d9d3e408dfec95350be3e1b50d6cdaaec6a56ed9bfa38057df2da222cd71aa0b"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/resource_closures",
+      "tree": "7aec36073b6cd5eb3eddd3d8f838642e786da73f",
+      "source_sha256": "76ebf368ce2308e03c14e77fc5c1ad63a9010c834571a9967dd5db8f92b7d9f3",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "baf0c3cb98fb3c4cce8f58a081f8f890b126e66abc40116b361b1d581175dc00"
+      },
+      "additional_native": [
+        {
+          "entry": "main",
+          "rust_args": [],
+          "cases": [
+            {
+              "stdin_hex": "44",
+              "expected_exit": 0,
+              "expected_stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d"
+            },
+            {
+              "stdin_hex": "53",
+              "expected_exit": 0,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "55",
+              "expected_exit": 0,
+              "expected_stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+            },
+            {
+              "stdin_hex": "4f",
+              "expected_exit": 0,
+              "expected_stdout": "bf7b0ead279760f89777a5c87858171765a95d66f0265006b9e992a2154401e9"
+            },
+            {
+              "stdin_hex": "4d",
+              "expected_exit": 0,
+              "expected_stdout": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d"
+            },
+            {
+              "stdin_hex": "45",
+              "expected_exit": 7,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "54",
+              "expected_exit": 0,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "4c",
+              "expected_exit": 0,
+              "expected_stdout": "38164fbd17603d73f696b8b4d72664d735bb6a7c88577687fd2ae33fd6964153"
+            },
+            {
+              "stdin_hex": "30",
+              "expected_exit": 1,
+              "expected_stdout": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd"
+            },
+            {
+              "stdin_hex": "31",
+              "expected_exit": 2,
+              "expected_stdout": "296d71a7f66e75b751c597094536329dcf2cf484f83e475d91f7aea1ff4c9738"
+            },
+            {
+              "stdin_hex": "32",
+              "expected_exit": 3,
+              "expected_stdout": "322f7db21cbf1b6f634dc9aaa6a16ceb38ff220e2d9ae9986f45446f1ca936ab"
+            },
+            {
+              "stdin_hex": "33",
+              "expected_exit": 0,
+              "expected_stdout": "322f7db21cbf1b6f634dc9aaa6a16ceb38ff220e2d9ae9986f45446f1ca936ab"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "label": "mainline/resources",
+      "tree": "7969e8aa952fe2f682ba7cb5c76448fe95487df3",
+      "source_sha256": "c9a24cfc5bc07b056f7edd6de5e573dd7b983e10acfa3fdba3c7adbbbff2c18c",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "d61cfc5481159a4203abd558091983c6949d784955481256eed568a4498a071b"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "71ca973671e57240c93720ba09e5dfc9969fc8602b1f06f700ce93f4c6df573d"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 0,
+            "expected_stdout": "71ca973671e57240c93720ba09e5dfc9969fc8602b1f06f700ce93f4c6df573d"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 0,
+            "expected_stdout": "71ca973671e57240c93720ba09e5dfc9969fc8602b1f06f700ce93f4c6df573d"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 0,
+            "expected_stdout": "71ca973671e57240c93720ba09e5dfc9969fc8602b1f06f700ce93f4c6df573d"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/retained_ui",
+      "tree": "3de176cc1a1e90ae5e10c332a2b8168f3c4eb0b1",
+      "source_sha256": "7c3b9cac48a7d1d3d883d6c5e966caa99f65448649997654f10ce4a21afe2d7f",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "72d7d207f5297d6c62a032fcb13e97bfcad60383b045f033ad7edfaead33f097"
+      },
+      "expected_rejection": {
+        "phase": "types",
+        "code": "E-ORIGINAL-CLEANUP",
+        "message": "live original value has no independent SyncDrop proof",
+        "file": "helpers.zil"
+      },
+      "control": {
+        "source_commit": "32c89775179d85351bf885b8f21185fc3a25c017",
+        "tree": "3de176cc1a1e90ae5e10c332a2b8168f3c4eb0b1",
+        "obligation": "Prove independent SyncDrop for the uncalled by-value callback on the false edge and mark the two mutated owned roots as var.",
+        "entry": "main",
+        "replacements": {
+          "helpers.zil": {
+            "edits": [
+              [
+                "pub fn run_if<F: FnOnce() -> i32>",
+                "pub fn run_if<F: FnOnce() -> i32 + SyncDrop>"
+              ]
+            ],
+            "sha256": "41bf93f50694cf2d22a61c0c0de2ac77965ae7279805c4e9c754edbf2858ddfc"
+          },
+          "factories.zil": {
+            "edits": [
+              [
+                "let token = Token { code: 65",
+                "var token = Token { code: 65"
+              ],
+              [
+                "let token = Token { code: 69",
+                "var token = Token { code: 69"
+              ]
+            ],
+            "sha256": "c7b2b99f06f4487652219642643b6cd49fb92ea2c760d38ad58027be6cf6b7e4"
+          }
+        },
+        "cleanup_control": true,
+        "cases": [
+          {
+            "stdin_hex": "30",
+            "expected_exit": 0,
+            "expected_stdout": "3ff1863f73cfb6ede9fc194a8e9d59c4b2e886637fd24327c66a7d65d29c59d0"
+          },
+          {
+            "stdin_hex": "31",
+            "expected_exit": 0,
+            "expected_stdout": "7fdca53b0d177ecb5b1b8dbf2736f606867926f6bba027357b6181d9d1a1a352"
+          },
+          {
+            "stdin_hex": "70",
+            "expected_exit": 1,
+            "expected_stdout": "4c24e619f66103ebee3659844a8b9320c84d87c343c588e01cf9f7fd749f0bb1"
+          },
+          {
+            "stdin_hex": "50",
+            "expected_exit": 0,
+            "expected_stdout": "0d1667734b271d8f928eb5d73df05160754e9f42147afe31cfbc7bafebb49ad8"
+          },
+          {
+            "stdin_hex": "65",
+            "expected_exit": 1,
+            "expected_stdout": "ab61fa17231fe8fe9e1cd7d274f55e33e5b518348cded84fd6b67badcdd00b47"
+          },
+          {
+            "stdin_hex": "66",
+            "expected_exit": 1,
+            "expected_stdout": "90413ac81310f0681f768b86c6ab7649daa786faf4127a92c8e1ad628e0a7231"
+          },
+          {
+            "stdin_hex": "45",
+            "expected_exit": 0,
+            "expected_stdout": "d339474fa57517d6e085093f0eca666f61760e6ddb27f5c1ee854028a704ec5c"
+          },
+          {
+            "stdin_hex": "6c2b2b71",
+            "expected_exit": 0,
+            "expected_stdout": "67e73612695ae3e980387377dada40fe57e92e6e4213eba5dfe5a03bcd1cd578"
+          },
+          {
+            "stdin_hex": "3f",
+            "expected_exit": 1,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/slices",
+      "tree": "ebc0e56bea1cf52204cd2e29f873f337a7a27008",
+      "source_sha256": "0e9fa649bfed26a3368e71196d3d1351d2a816c5f6f3aa80a1b86d7cc806ef58",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "82e044ce3380ef81657125101c57f593996df96c186c827781dd836a126ef064"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 0,
+            "expected_stdout": "e2545a7ed254517087f7fe0c1fab25bcd5a48acfe1d54fcd5aa85b2555cf6545"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 0,
+            "expected_stdout": "8985a5a84f72643f92031c52cc557992ad6b42f7975223ea98bea822c7665294"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 0,
+            "expected_stdout": "f6f65ee0e517e84e5eacd8847b00da75c4bc75a1479017cac08ef56675f2ca28"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/stream",
+      "tree": "2c7b19e521cd24205292ae717f8774986f81c1f7",
+      "source_sha256": "a3c2cb97017c05273bb3ae692e65de8dd75854502b37c26f6de82d4ca2fc4ba4",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "cf1c136501b228278627c7e02164fb599b7505e89dbaa84bd51896ea73908cc9"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "a17138988e1387532b5cb0bd7a23f18a11d537123873e67154dada3c6359e53e"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 0,
+            "expected_stdout": "eec42193a22cbdfd8fe3aefa80a746f9bc88883d2186814ae498a1acc39c4299"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 0,
+            "expected_stdout": "fe9360115bb59ea680f18eef0d697aeb246e57c81ad3cd9b3772ec4fc71a3a9c"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 0,
+            "expected_stdout": "124fab0a63ba932ad518b38f63e5d0ee4b6275de30da5d6cc687552014362fc0"
+          },
+          {
+            "stdin_sha256": "5ffdfcc2179ddc22c66debcce5861bb646beb718b6d7298908bcd157ca568fe2",
+            "expected_exit": 2,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mainline/update_ui",
+      "tree": "64cebfbe9213ab478685ba0767467ac7adb13edd",
+      "source_sha256": "afdd544516f87c0964f650bab7afd2380fbf234a050e0af55474437d674cf6ff",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "59f069d9b8aff4feeb418ed1e809a5e2919ca8ef5d9a63845559d4558cc8c512"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "d9d3e408dfec95350be3e1b50d6cdaaec6a56ed9bfa38057df2da222cd71aa0b"
+          },
+          {
+            "stdin_sha256": "cf58981e4df28fa8f0ffd12b84d60c73d62457f896299b059896b456420569a3",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          },
+          {
+            "stdin_sha256": "40aff2e9d2d8922e47afd4648e6967497158785fbd1da870e7110266bf944880",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          },
+          {
+            "stdin_sha256": "136762bbd8fe45d62a5cb1e48c1343594e80999dacc01eed11ee11a75ca88d24",
+            "expected_exit": 1,
+            "expected_stdout": "6595ff637b026131c58e79f6b907463800aea445b53cd485d57ef37c7793fd1a"
+          }
+        ]
+      }
+    },
+    {
+      "label": "mixed-captures",
+      "tree": "d801fe888cb3d1b9d77a2871d00ada444292d3af",
+      "source_sha256": "88487fe5980b19b9f7e51e033e313a271e3cf85136805a59fb92665ef35b2f8c",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "be4b7f6bb8313fb3f86d2853cbf8989811c3c8f79d2eb09d301808b9886f068a"
+      },
+      "native": {
+        "entry": "main",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ]
+      }
+    },
+    {
+      "label": "owned-state-closure",
+      "tree": "b3755029761b406b89f86c70fcb132244d201694",
+      "source_sha256": "17260094c2fc009fc7b02f9e92ee92e7c8eadf75e598e80aa712c9adf87a4837",
+      "reference": {
+        "path": "main.rs",
+        "sha256": "d8ce81387d4a2b15c3a70d99d924bb0de8f94e5a86c30afb87beead6007e1f95"
+      },
+      "native": {
+        "entry": "answer",
+        "runs": [
+          {
+            "stdin_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expected_exit": 0,
+            "expected_stdout": "a8c9b2455255450c40bb64f6f02950f438755017a137e999821bfab4a97d2723"
+          }
+        ]
+      }
+    }
+  ]
+}

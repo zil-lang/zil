@@ -189,6 +189,7 @@ impl Parser<'_> {
             );
         };
         Ok(Function {
+            semantic: Default::default(),
             name,
             generics,
             params,

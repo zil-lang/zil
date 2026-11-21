@@ -11,7 +11,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[3]
 HISTORY = ROOT / "validation/inputs/language-readiness/language-gaps-baseline.json"
-HISTORY_SHA256 = "ce3aadadfba28d9d5299a698e36664b7b4316a38d0ebd4a4e8bf39871ea125b0"
+HISTORY_SHA256 = "f3e84afa9474e5314209461e7f1defb9ab5bdad6fdb7b2db5d436fb10b7857f2"
 
 
 def sha(data):

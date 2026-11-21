@@ -1,4 +1,11 @@
 #![forbid(unsafe_code)]
+// Legacy schema modules predate Rust 1.100 lints; `body` re-enables them.
+#![allow(
+    clippy::result_large_err,
+    clippy::deref_addrof,
+    clippy::large_enum_variant,
+    clippy::manual_is_multiple_of
+)]
 
 //! Public, untrusted compiler schemas. Constructing these records never grants
 //! safety authority. Only `zil-verify` can produce an immutable verified wrapper.
@@ -8,14 +15,39 @@ use zil_base::{
 };
 
 mod closure_context;
+mod ct_frozen;
+mod original_capture_syntax;
+mod original_pattern_rows;
+mod original_reaching;
+mod semantic_scopes;
+mod value_operands;
+pub use ct_frozen::*;
+pub use original_capture_syntax::{
+    CaptureUse, NamedPlaceRoot, exclusive_place_root, original_capture_use,
+};
+pub use original_pattern_rows::*;
+pub use original_reaching::OriginalSlotWrite;
+pub use semantic_scopes::*;
+mod storage_sources;
+pub use storage_sources::*;
 pub mod ct_artifact;
 pub mod ct_wire;
 pub use closure_context::*;
 mod dynamic;
 mod dynamic_fingerprint;
+mod dynamic_recipes;
+mod dynamic_recipes_fingerprint;
+mod dynamic_recipes_visit;
 pub use dynamic::*;
 use dynamic_fingerprint::*;
+pub use dynamic_recipes::*;
+use dynamic_recipes_fingerprint::*;
+pub use dynamic_recipes_visit::*;
+mod pod_extent;
+pub use pod_extent::PodExtent;
+pub mod body;
 mod program;
+pub mod source_projection;
 pub mod wire;
 pub use program::*;
 
@@ -41,7 +73,8 @@ identity!(
     ClosureId,
     OriginId,
     ScopeId,
-    ReservationId
+    ReservationId,
+    SemanticSiteId
 );
 
 /// Raw callable ABI/effect selection. Both kernels rebuild actual reachable effects.
@@ -50,6 +83,15 @@ identity!(
 pub enum CallKind {
     Direct = 0,
     Suspend = 1,
+}
+
+/// Raw request for the threads on which a stable Task may resume. Each kernel
+/// independently proves the actual frame, reachable execution and cleanup.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TaskResumeBound {
+    #[default]
+    Local = 0,
+    Transfer = 1,
 }
 
 /// Sealed native cell kind; this raw tag grants no permission.
@@ -131,6 +173,8 @@ pub struct LifeDeclarationId {
     pub compiler: bool,
 }
 
+pub mod builtin_life;
+
 /// One nested carrier CLASS maps once into its enclosing fixed domain. Several
 /// actual ports may share this class; they are not independently freshened.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -191,6 +235,8 @@ pub struct StorageLifeShape {
 pub enum StorageBase {
     Parameter(u32),
     Capture(u32),
+    /// Actual borrowed closure invocation head; no physical field or Fixed domain.
+    Receiver,
     Result,
 }
 /// Contract-only selection; retained ports/classes never authorize byte access.
@@ -201,11 +247,20 @@ pub enum ContractProjection {
     RetainedPort(u32),
     /// Fixed class selection for binding only, never read/write/manage access.
     RetainedClass(u32),
+    /// Metadata selecting a nested closure capture; never a physical GEP.
+    Capture(u32),
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StoragePosition {
     pub base: StorageBase,
     pub path: Vec<ContractProjection>,
+}
+/// Untrusted physical result-leaf to actual input-source relation.
+/// Lifetimes alone never establish these roots or their parent loans.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StorageSourceBinding {
+    pub position: StoragePosition,
+    pub sources: Vec<StorageSource>,
 }
 /// Existing Fixed classes cannot be narrowed or freshened by an invocation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -236,6 +291,9 @@ pub struct StorageLifeContract {
     pub fixed_binder_count: u32,
     pub invocation_binder_count: u32,
     pub bindings: Vec<StorageLifeBinding>,
+    /// Complete constant program-static borrow occurrences. These positions
+    /// introduce no variable binder and never replace nominal/phantom classes.
+    pub static_bindings: Vec<StoragePosition>,
     pub classes: Vec<SignatureLifeClassBinding>,
 }
 impl StorageLifeContract {
@@ -270,6 +328,7 @@ impl StorageLifeContract {
             fixed_binder_count: 0,
             invocation_binder_count: life.binder_count,
             bindings,
+            static_bindings: Vec::new(),
             classes: Vec::new(),
         })
     }
@@ -279,6 +338,7 @@ impl StorageLifeContract {
     /// arity and independently checks the actual complete signature afterward.
     pub fn to_flat(&self, parameters: usize) -> Option<FunctionLifeContract> {
         if self.fixed_binder_count != 0
+            || !self.static_bindings.is_empty()
             || !self.classes.is_empty()
             || parameters > u32::MAX as usize
         {
@@ -310,7 +370,7 @@ impl StorageLifeContract {
                     saw_result = true;
                     &mut result_life
                 }
-                StorageBase::Capture(_) => return None,
+                StorageBase::Capture(_) | StorageBase::Receiver => return None,
             };
             if slot.replace(index).is_some() {
                 return None;
@@ -374,13 +434,19 @@ pub struct LifeNominalDeclaration {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum LifeNominalActual {
     Type(Type),
+    QualifiedType {
+        ty: Type,
+        life: StorageLifeShape,
+    },
     Const(Constant),
     /// The instance type's OWN qualified fixed scope, not an enclosing numeric
     /// class coincidentally having this ordinal. Outer maps explicitly compose.
     Lifetime(u32),
 }
-/// Complete semantic instance descriptor. Unique exact qualified Type mapping;
-/// duplicate type -> different declaration/actual vectors must reject.
+/// Complete semantic instance descriptor with a unique exact Type mapping.
+/// A plain nominal requires an independently proved complete N=0 domain;
+/// nonzero/unknown domains cannot omit qualification, and existing BS0 stays.
+/// Duplicate type -> different declaration/actual vectors must reject.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LifeNominalInstance {
     pub declaration: LifeDeclarationId,
@@ -396,9 +462,104 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V46\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V48\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
+}
+
+/// Exact byte count of the same versioned identity encoder. Callers bound the
+/// raw trees first, then reserve the measured encoding/hash work. This uses no
+/// temporary encoding buffer and confers no nominal or lifetime authority.
+pub fn life_inventory_encoded_len(
+    declarations: &[LifeNominalDeclaration],
+    instances: &[LifeNominalInstance],
+) -> Option<usize> {
+    struct Length(Option<usize>);
+    impl FingerprintSink for Length {
+        fn push(&mut self, _: u8) {
+            self.0 = self.0.and_then(|length| length.checked_add(1));
+        }
+        fn extend_from_slice(&mut self, bytes: &[u8]) {
+            self.0 = self.0.and_then(|length| length.checked_add(bytes.len()));
+        }
+    }
+    let mut length = Length(Some(0));
+    length.extend_from_slice(b"ZIL-LIFE-INVENTORY-V48\0");
+    encode_life_inventory(&mut length, declarations, instances);
+    length.0
+}
+
+#[cfg(test)]
+mod life_inventory_encoding_tests {
+    use super::*;
+
+    #[test]
+    fn measured_inventory_uses_the_exact_versioned_identity_encoding() {
+        let id = LifeDeclarationId {
+            module: ModuleId(7),
+            declaration: zil_base::NodeId(11),
+            compiler: false,
+        };
+        let declarations = vec![LifeNominalDeclaration {
+            id,
+            identity: LifeDeclarationIdentity {
+                package: "p".into(),
+                module_path: vec!["模块".into()],
+                declaration_path: vec!["Record".into()],
+                generation_path: vec![0, 9],
+            },
+            kind: LifeNominalKind::Record,
+            parameters: vec![
+                LifeParameterKind::Type,
+                LifeParameterKind::Lifetime,
+                LifeParameterKind::Const(Type::CWideString),
+            ],
+        }];
+        // Raw identity data exercises all actual kinds and phantom metadata;
+        // this encoder test does not assert any formation or permission fact.
+        let instances = vec![LifeNominalInstance {
+            declaration: id,
+            ty: Type::Record {
+                name: "Record<长>".into(),
+                fields: vec![(
+                    "bytes".into(),
+                    Type::Array {
+                        element: Box::new(Type::U8),
+                        length: 3,
+                    },
+                )],
+            },
+            arguments: vec![
+                LifeNominalActual::Type(Type::I64),
+                LifeNominalActual::Lifetime(1),
+                LifeNominalActual::Const(Constant::WideString(vec![0, 0x20ac, 0xffff])),
+                LifeNominalActual::QualifiedType {
+                    ty: Type::I32,
+                    life: StorageLifeShape {
+                        binder_count: 2,
+                        slots: vec![],
+                        retained: vec![],
+                        nominal_arguments: vec![],
+                    },
+                },
+            ],
+        }];
+        for (declarations, instances) in [
+            (&[][..], &[][..]),
+            (declarations.as_slice(), instances.as_slice()),
+        ] {
+            let mut bytes = b"ZIL-LIFE-INVENTORY-V48\0".to_vec();
+            encode_life_inventory(&mut bytes, declarations, instances);
+            assert_eq!(
+                life_inventory_encoded_len(declarations, instances),
+                Some(bytes.len())
+            );
+            assert_eq!(
+                life_inventory_fingerprint(declarations, instances),
+                Fingerprint::of(&bytes)
+            );
+        }
+    }
 }
 
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
@@ -542,6 +703,38 @@ pub enum Type {
     Unsupported(String),
 }
 impl Type {
+    /// Candidate physical cell for a reassignable source binding. A consumer
+    /// must separately prove its declaration, unique initializer, actual use
+    /// and storage epoch. A user product with this shape is still a product.
+    pub fn binding_cell_element(&self) -> Option<(&Type, LifeTypeProjection)> {
+        match self {
+            Type::Array { element, length: 1 } if matches!(element.as_ref(), Type::Closure(_)) => {
+                Some((element, LifeTypeProjection::Element))
+            }
+            Type::Package { fields, .. } => match fields.as_slice() {
+                [(_, element @ Type::Managed(_))] => Some((
+                    element,
+                    LifeTypeProjection::Place(PlaceProjection::Field(0)),
+                )),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub fn binding_cell_input(&self, operation: &InstructionKind) -> Option<ValueId> {
+        self.binding_cell_element()?;
+        let inputs = match (self, operation) {
+            (Type::Array { .. }, InstructionKind::MakeOwnedArray { elements }) => elements,
+            (Type::Package { .. }, InstructionKind::MakePackage { fields }) => fields,
+            _ => return None,
+        };
+        match inputs.as_slice() {
+            [input] => Some(*input),
+            _ => None,
+        }
+    }
+
     /// Raw structural identity, never a proof of type or access validity.
     /// Table-bearing forms (Dyn and qualified nominal life inventory) require
     /// a context-aware semantic key for exports/cross-request caches. Raw table
@@ -549,7 +742,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V46\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V48\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -600,7 +793,7 @@ impl Type {
     /// bounds, liveness, permissions and the supported target profile.
     pub fn is_address_pointee(&self) -> bool {
         self.is_copy_value()
-            || matches!(self, Self::Dyn { .. })
+            || matches!(self, Self::Dyn { .. } | Self::OwnedDyn { .. })
             || matches!(self, Self::Slice { element } if element.is_copy_value())
     }
     /// Structural eligibility for a shared actual user-resource header. This
@@ -628,7 +821,101 @@ impl Type {
     pub fn is_slice_address(&self) -> bool {
         matches!(self, Self::Address { inner, .. } if matches!(inner.as_ref(), Self::Slice { .. }))
     }
+    /// An inline scalar product copies only its logical numeric, bool or unit
+    /// leaves. It carries no loan, capability, variant state or cleanup duty.
+    /// An indirect assignment still has to prove the selected source and
+    /// destination and their live permissions at the actual write.
+    pub fn is_inline_scalar_product<E>(
+        &self,
+        visit: &mut impl FnMut() -> Result<(), E>,
+    ) -> Result<bool, E> {
+        visit()?;
+        match self {
+            Self::Unit
+            | Self::Bool
+            | Self::I8
+            | Self::I16
+            | Self::I32
+            | Self::I64
+            | Self::U8
+            | Self::U16
+            | Self::U32
+            | Self::U64
+            | Self::Usize
+            | Self::Isize
+            | Self::F32
+            | Self::F64 => Ok(true),
+            Self::Array { element, .. } => element.is_inline_scalar_product(visit),
+            Self::Record { fields, .. } => {
+                for (_, field) in fields {
+                    if !field.is_inline_scalar_product(visit)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Self::Tuple(fields) => {
+                for field in fields {
+                    if !field.is_inline_scalar_product(visit)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Self::Dyn { .. }
+            | Self::OwnedDyn { .. }
+            | Self::BorrowedStorage { .. }
+            | Self::ByteBuffer
+            | Self::OwnedStore { .. }
+            | Self::ForeignHandle
+            | Self::SyncCell(_)
+            | Self::Mutex { .. }
+            | Self::MutexGuard { .. }
+            | Self::Registration { .. }
+            | Self::AsyncRegistration { .. }
+            | Self::TaskI32
+            | Self::Task { .. }
+            | Self::CWideString
+            | Self::ForeignCallback { .. }
+            | Self::Slice { .. }
+            | Self::Named(_)
+            | Self::Package { .. }
+            | Self::Enum { .. }
+            | Self::ErrorUnion { .. }
+            | Self::Address { .. }
+            | Self::Managed(_)
+            | Self::Desc(_)
+            | Self::FunctionPointer { .. }
+            | Self::BorrowedFunctionPointer { .. }
+            | Self::Closure(_)
+            | Self::Opaque { .. }
+            | Self::Unsupported(_) => Ok(false),
+        }
+    }
+
     pub fn is_copy_value(&self) -> bool {
+        match self.copy_value_with(&mut || Ok::<(), std::convert::Infallible>(())) {
+            Ok(copy) => copy,
+            Err(never) => match never {},
+        }
+    }
+
+    /// Classify the logical value. Visit each examined constructor and each
+    /// examined variant row, including empty variants. Copying code addresses
+    /// has no ownership effect on a future invocation's input or result.
+    pub fn copy_value_with<E>(&self, visit: &mut impl FnMut() -> Result<(), E>) -> Result<bool, E> {
+        fn all<'a, E>(
+            fields: impl IntoIterator<Item = &'a Type>,
+            visit: &mut impl FnMut() -> Result<(), E>,
+        ) -> Result<bool, E> {
+            for field in fields {
+                if !field.copy_value_with(visit)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        visit()?;
         match self {
             Self::Unit
             | Self::Bool
@@ -646,21 +933,49 @@ impl Type {
             | Self::U32
             | Self::ForeignHandle
             | Self::CWideString
-            | Self::ForeignCallback { .. } => true,
-            Self::Tuple(fields) => fields.iter().all(Self::is_copy_value),
-            Self::Array { element, .. } => element.is_copy_value(),
-            Self::Record { fields, .. } => fields.iter().all(|(_, ty)| ty.is_copy_value()),
-            Self::Enum { variants, .. } => variants
-                .iter()
-                .all(|(_, fields)| fields.iter().all(Self::is_copy_value)),
-            Self::ErrorUnion { error, result } => error.is_copy_value() && result.is_copy_value(),
+            | Self::ForeignCallback { .. } => Ok(true),
+            Self::Tuple(fields) => all(fields, visit),
+            Self::Array { element, .. } => element.copy_value_with(visit),
+            Self::Record { fields, .. } => all(fields.iter().map(|(_, field)| field), visit),
+            Self::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    visit()?;
+                    if !all(fields, visit)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Self::ErrorUnion { error, result } => {
+                Ok(error.copy_value_with(visit)? && result.copy_value_with(visit)?)
+            }
             Self::FunctionPointer { parameters, result } => {
-                parameters.iter().all(Self::is_copy_value) && result.is_copy_value()
+                Ok(all(parameters, visit)? && result.copy_value_with(visit)?)
             }
             // Copying the code address never copies its invocation payload.
             // Signature and relation eligibility must be validated separately.
-            Self::BorrowedFunctionPointer { .. } => true,
-            _ => false,
+            Self::BorrowedFunctionPointer { .. } => Ok(true),
+            Self::Dyn { .. }
+            | Self::OwnedDyn { .. }
+            | Self::BorrowedStorage { .. }
+            | Self::ByteBuffer
+            | Self::OwnedStore { .. }
+            | Self::SyncCell(_)
+            | Self::Mutex { .. }
+            | Self::MutexGuard { .. }
+            | Self::Registration { .. }
+            | Self::AsyncRegistration { .. }
+            | Self::TaskI32
+            | Self::Task { .. }
+            | Self::Slice { .. }
+            | Self::Named(_)
+            | Self::Package { .. }
+            | Self::Address { .. }
+            | Self::Managed(_)
+            | Self::Desc(_)
+            | Self::Closure(_)
+            | Self::Opaque { .. }
+            | Self::Unsupported(_) => Ok(false),
         }
     }
     pub fn aggregate_fields(&self) -> Option<Vec<&Type>> {
@@ -818,6 +1133,8 @@ pub struct UnsupportedFeature {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreModule {
+    /// Untrusted lexical ghost program; None remains unknown.
+    pub semantic: Option<SemanticModule>,
     pub dyn_declarations: Vec<DynDeclaration>,
     pub dyn_interfaces: Vec<DynInterface>,
     pub dyn_vtables: Vec<CoreDynVtable>,
@@ -841,6 +1158,10 @@ pub struct CoreModule {
 /// A compiler-reserved source bound. This raw declaration grants no permission.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CoreTypeBound {
+    /// Complete ordinary inline value; no Copy, Store or cleanup authority.
+    Value,
+    /// Separate synchronous cleanup premise; never implied by Value.
+    SyncDrop,
     StoreElement,
 }
 
@@ -856,6 +1177,8 @@ pub struct CoreTypeParameter {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreAggregateTemplate {
     pub id: NodeId,
+    /// Original family collected at its declaration, when Source minted it.
+    pub source_declaration: Option<LifeDeclarationId>,
     pub name: String,
     /// Declared order; each bounded value parameter has its own dense index.
     pub parameters: Vec<CoreTypeParameter>,
@@ -912,6 +1235,9 @@ pub struct CoreTaskPortRecipe {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreAggregateApplication {
     pub aggregate: NodeId,
+    /// The original nominal declaration attached to this concrete mint. The
+    /// physical template below has its own Core node identity.
+    pub source_declaration: Option<LifeDeclarationId>,
     pub template_module: ModuleId,
     pub template: NodeId,
     pub owner: Option<CoreAggregateOwner>,
@@ -931,10 +1257,17 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Retained result upper sources; None is unknown and grants no origins.
+    pub dyn_instance: Option<DynFunctionInstance>,
+    pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
+    /// Original Definition scope copied from actual Source/Origins for this owner.
+    /// This is identity/position data, never a borrowing or builtin capability.
+    pub source_scope: Option<CoreFunctionSourceScope>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
     /// Source declaration, or None for body-derived selection. Never an effect proof.
     pub call_kind: Option<CallKind>,
+    pub resume_bound: TaskResumeBound,
     /// Source-declared lexical life bindings. Raw metadata, never a proof.
     pub life: Option<CoreLifeContract>,
     /// Retained ordinary template metadata; only a checked full instance may run.
@@ -943,7 +1276,9 @@ pub struct CoreFunction {
     /// This raw table grants neither call authority nor ownership.
     pub state_parameters: Vec<CoreStateParameter>,
     /// Raw finite state relation. A declaration grants no transition authority.
-    pub protocol_contract: Option<FunctionProtocolContract>,
+    /// Ordered distinct actual parameter roles. Empty declares no phase
+    /// relation; it is never evidence that an unknown owner is retired.
+    pub protocol_contracts: Vec<FunctionProtocolContract>,
     /// Source-declared opaque callable result; still untrusted and unresolved.
     pub callable_return: Option<CoreCallableReturn>,
     pub id: NodeId,
@@ -970,6 +1305,10 @@ pub struct CoreLifeContract {
 /// Source-declared bound for a finite, self-contained callable factory result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableReturn {
+    /// Untrusted bound Parameter/Result relation, before environment canonicalization.
+    pub life: Option<StorageLifeContract>,
+    /// Original declaration and actual creator-header selectors; never a proof.
+    pub source_life: Option<CoreCallableReturnLifeContext>,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
@@ -1011,6 +1350,10 @@ pub struct CoreStateParameter {
 /// Declaration order is independent of Package field order and ClosureId.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreStateBinding {
+    /// Complete original callback P/R relation, identical to a direct role.
+    pub life: Option<StorageLifeContract>,
+    /// Original declaration/full generic inverse; never an environment proof.
+    pub source_life: Option<CoreCallableLifeContext>,
     pub generic_index: u32,
     pub generic_name: String,
     pub kind: CallableKind,
@@ -1083,6 +1426,62 @@ pub enum ScopedCallbackRole {
     ThreadAsyncPollDrain,
 }
 
+/// Source operand roles for the three operations that take static callback
+/// providers. The caller must resolve the primitive in its lexical scope and
+/// independently check every provider declaration and callback.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CallbackRegistration {
+    Scoped,
+    Owned,
+    AsyncOwned,
+}
+
+impl CallbackRegistration {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "c_with_callback" => Some(Self::Scoped),
+            "c_register" => Some(Self::Owned),
+            "c_register_async" => Some(Self::AsyncOwned),
+            _ => None,
+        }
+    }
+
+    pub fn provider_roles(self, threaded: bool) -> &'static [ScopedCallbackRole] {
+        use ScopedCallbackRole::*;
+        match (self, threaded) {
+            (Self::AsyncOwned, true) => &[
+                ThreadAsyncRegister,
+                ThreadAsyncRequestClose,
+                ThreadAsyncPollDrain,
+            ],
+            (Self::AsyncOwned, false) => &[AsyncRegister, AsyncRequestClose, AsyncPollDrain],
+            _ => &[Register, Close],
+        }
+    }
+
+    /// Split declaration selectors from the runtime callback and, for the
+    /// scoped operation, its body. Reject an extra or missing operand.
+    pub fn operands<T>(self, args: &[T]) -> Option<CallbackRegistrationOperands<'_, T>> {
+        let (providers, values) = args.split_at_checked(self.provider_roles(false).len())?;
+        let (callback, body) = match (self, values) {
+            (Self::Scoped, [callback, body]) => (callback, Some(body)),
+            (Self::Owned | Self::AsyncOwned, [callback]) => (callback, None),
+            _ => return None,
+        };
+        Some(CallbackRegistrationOperands {
+            providers,
+            callback,
+            body,
+        })
+    }
+}
+
+pub struct CallbackRegistrationOperands<'a, T> {
+    pub providers: &'a [T],
+    pub callback: &'a T,
+    pub body: Option<&'a T>,
+}
+
 fn scoped_callback_role_tag(role: Option<ScopedCallbackRole>) -> u8 {
     match role {
         None => 0,
@@ -1107,6 +1506,10 @@ pub struct ForeignDeclaration {
     pub noescape_parameters: Vec<u32>,
     /// Explicit external promise allowing only the finite static callback profile.
     pub static_callbacks: bool,
+    /// Unsafe provider promise: initialized registration records and all three
+    /// role operations support transfer between exclusive driver threads.
+    /// Callback ThreadCallable alone does not establish this promise.
+    pub thread_driver_transfer: bool,
     pub scoped_callback: Option<ScopedCallbackRole>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1119,9 +1522,9 @@ pub struct CoreParameter {
 /// A source closure parameter may await a unique type constraint. An absent
 /// annotation is not an unsupported type and must not reach final typed IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreClosureParameter {
+pub struct CoreClosureParameter<Annotation = Type> {
     pub name: String,
-    pub ty: Option<Type>,
+    pub ty: Option<Annotation>,
     pub mode: PassingMode,
     pub span: Span,
 }
@@ -1143,42 +1546,56 @@ pub struct CoreEnum {
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CorePattern {
-    pub kind: CorePatternKind,
+pub struct CorePattern<Annotation = Type> {
+    pub kind: CorePatternKind<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CorePatternKind {
+pub enum CorePatternKind<Annotation = Type> {
     Name(String),
     Wildcard,
-    Tuple(Vec<CorePattern>),
+    Tuple(Vec<CorePattern<Annotation>>),
     /// Named fields retain their labels and nominal source type until Types
     /// checks the actual record layout. Core input is never authority alone.
     Record {
-        ty: Type,
-        fields: Vec<(String, CorePattern)>,
+        ty: Annotation,
+        fields: Vec<(String, CorePattern<Annotation>)>,
     },
     Reference {
         mutable: bool,
-        pattern: Box<CorePattern>,
+        pattern: Box<CorePattern<Annotation>>,
     },
     /// Explicit ErrorUnion tag selection; never a nominal-name authority.
     ErrorArm {
         is_error: bool,
-        pattern: Box<CorePattern>,
+        pattern: Box<CorePattern<Annotation>>,
     },
     Variant {
-        ty: Type,
+        ty: Annotation,
         variant: String,
-        fields: Vec<CorePattern>,
+        fields: Vec<CorePattern<Annotation>>,
     },
     Integer(String),
     Bool(bool),
+    /// Source omitted type arguments. The subject supplies constraints; an
+    /// omitted owner is contextual syntax, never a guessed nominal identity.
+    Constructor {
+        definition: Option<SemanticDefinitionId>,
+        variant: String,
+        fields: Vec<CorePattern<Annotation>>,
+    },
+    RecordConstructor {
+        definition: Option<SemanticDefinitionId>,
+        fields: Vec<(String, CorePattern<Annotation>)>,
+    },
+    Float(String),
+    String(String),
+    Character(String),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreMatchArm {
-    pub pattern: CorePattern,
-    pub body: CoreBlock,
+pub struct CoreMatchArm<Annotation = Type> {
+    pub pattern: CorePattern<Annotation>,
+    pub body: CoreBlock<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1197,122 +1614,175 @@ pub struct CoreField {
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreBlock {
-    pub statements: Vec<CoreStatement>,
+pub struct CoreBlock<Annotation = Type> {
+    pub statements: Vec<CoreStatement<Annotation>>,
     pub span: Span,
 }
+impl<Annotation> CoreBlock<Annotation> {
+    /// Select the actual closure operand of a synchronous defer registration.
+    /// The consumer checks the result annotation in its own type domain.
+    pub fn deferred_action(&self) -> Option<(&CoreExpr<Annotation>, &Annotation, &Self)> {
+        let [
+            CoreStatement {
+                kind: CoreStatementKind::Expression(action),
+                ..
+            },
+        ] = self.statements.as_slice()
+        else {
+            return None;
+        };
+        let CoreExprKind::Closure {
+            move_capture: false,
+            parameters,
+            return_type: Some(result),
+            body,
+        } = &action.kind
+        else {
+            return None;
+        };
+        parameters.is_empty().then_some((action, result, body))
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreStatement {
+pub struct CoreStatement<Annotation = Type> {
     pub id: NodeId,
-    pub kind: CoreStatementKind,
+    pub kind: CoreStatementKind<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CoreStatementKind {
+pub enum CoreStatementKind<Annotation = Type> {
     Binding {
         name: String,
         mutable: bool,
-        ty: Option<Type>,
-        initializer: Option<CoreExpr>,
+        ty: Option<Annotation>,
+        initializer: Option<CoreExpr<Annotation>>,
     },
     /// Untrusted irrefutable tuple pattern; Types must check exact shape and
     /// Copy eligibility before introducing any of its lexical bindings.
     TupleBinding {
-        pattern: CorePattern,
+        pattern: CorePattern<Annotation>,
         mutable: bool,
-        ty: Option<Type>,
-        initializer: CoreExpr,
+        ty: Option<Annotation>,
+        initializer: CoreExpr<Annotation>,
     },
     Assign {
-        target: CoreExpr,
-        value: CoreExpr,
+        target: CoreExpr<Annotation>,
+        value: CoreExpr<Annotation>,
     },
-    Expression(CoreExpr),
-    Return(Option<CoreExpr>),
+    Expression(CoreExpr<Annotation>),
+    Return(Option<CoreExpr<Annotation>>),
     If {
-        condition: CoreExpr,
-        then_body: CoreBlock,
-        else_body: Option<CoreBlock>,
+        condition: CoreExpr<Annotation>,
+        then_body: CoreBlock<Annotation>,
+        else_body: Option<CoreBlock<Annotation>>,
     },
     IfLet {
-        pattern: CorePattern,
-        value: CoreExpr,
-        then_body: CoreBlock,
-        else_body: Option<CoreBlock>,
+        pattern: CorePattern<Annotation>,
+        value: CoreExpr<Annotation>,
+        then_body: CoreBlock<Annotation>,
+        else_body: Option<CoreBlock<Annotation>>,
     },
     While {
-        condition: CoreExpr,
-        body: CoreBlock,
+        condition: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
     },
     WhileLet {
-        pattern: CorePattern,
-        value: CoreExpr,
-        body: CoreBlock,
+        pattern: CorePattern<Annotation>,
+        value: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
     },
+    /// Evaluate the two integer endpoints once, in order, outside the binding.
+    /// The strict upper-bound test introduces an immutable body-local copy
+    /// of the current integer for this iteration. Fallthrough and continue
+    /// advance the hidden counter once. Break and return leave the loop,
+    /// retiring body-local owners along their actual exit edge.
     ForRange {
         name: String,
-        start: CoreExpr,
-        end: CoreExpr,
-        body: CoreBlock,
+        start: CoreExpr<Annotation>,
+        end: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
     },
     Match {
-        value: CoreExpr,
-        arms: Vec<CoreMatchArm>,
+        value: CoreExpr<Annotation>,
+        arms: Vec<CoreMatchArm<Annotation>>,
     },
-    Block(CoreBlock),
-    /// Register an ordinary synchronous cleanup body at this declaration point.
-    Defer(CoreBlock),
-    Unsafe(CoreBlock),
+    Block(CoreBlock<Annotation>),
+    /// §7.1. The block contains the single lexical closure expression for
+    /// this registration. Construct that environment once at the statement,
+    /// register its local after initialization, then consume it once on each
+    /// reached scope exit. Its body owns its original operation coordinates.
+    Defer(CoreBlock<Annotation>),
+    Unsafe(CoreBlock<Annotation>),
     Break,
     Continue,
     Unsupported(String),
+    /// Original iteration before its checked iterator-protocol elaboration.
+    /// Executable Core consumers must reject a residual unelaborated loop.
+    ForEach {
+        pattern: CorePattern<Annotation>,
+        iterator: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
+    },
+    CompoundAssign {
+        target: CoreExpr<Annotation>,
+        op: BinaryOp,
+        value: CoreExpr<Annotation>,
+    },
+    Yield(CoreExpr<Annotation>),
+    Loop(CoreBlock<Annotation>),
+    With {
+        name: String,
+        value: CoreExpr<Annotation>,
+        body: CoreBlock<Annotation>,
+    },
+    CompileTime(Box<CoreStatement<Annotation>>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CoreExpr {
+pub struct CoreExpr<Annotation = Type> {
     pub id: NodeId,
-    pub kind: CoreExprKind,
+    pub kind: CoreExprKind<Annotation>,
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CoreExprKind {
+pub enum CoreExprKind<Annotation = Type> {
     /// Source is an actual borrowed concrete Self address, evaluated once.
     MakeDynBorrow {
         interface: DynInterfaceId,
         vtable: DynVtableId,
-        source: Box<CoreExpr>,
+        source: Box<CoreExpr<Annotation>>,
         mutable: bool,
     },
     /// Explicit fallible Heap erasure, consuming one complete concrete owner.
     MakeDynOwned {
         interface: DynInterfaceId,
         vtable: DynVtableId,
-        source: Box<CoreExpr>,
+        source: Box<CoreExpr<Annotation>>,
         route: DynOwnedStorage,
     },
     /// Callee is evaluated once before nonreceiver arguments and supplies arg0.
     CallDynSlot {
-        callee: Box<CoreExpr>,
+        callee: Box<CoreExpr<Annotation>>,
         interface: DynInterfaceId,
         slot: u32,
-        arguments: Vec<CoreExpr>,
+        arguments: Vec<CoreExpr<Annotation>>,
     },
     /// Compiler-normalized static foreign literal; still untrusted Core data.
     Literal(Constant),
     /// Internal value type context; ordinary checking must validate its child.
     Ascribed {
-        ty: Type,
-        value: Box<CoreExpr>,
+        ty: Annotation,
+        value: Box<CoreExpr<Annotation>>,
     },
     Integer(String),
     Float(String),
     /// Numeric conversion with numeric endpoints before Types resolves the operand.
     NumericConvert {
-        value: Box<CoreExpr>,
-        target: Type,
+        value: Box<CoreExpr<Annotation>>,
+        target: Annotation,
     },
     IntegerConvert {
-        value: Box<CoreExpr>,
-        target: Type,
+        value: Box<CoreExpr<Annotation>>,
+        target: Annotation,
     },
     Bool(bool),
     String(String),
@@ -1320,73 +1790,182 @@ pub enum CoreExprKind {
     Name(String),
     Unary {
         op: UnaryOp,
-        operand: Box<CoreExpr>,
+        operand: Box<CoreExpr<Annotation>>,
     },
     Binary {
         op: BinaryOp,
-        left: Box<CoreExpr>,
-        right: Box<CoreExpr>,
+        left: Box<CoreExpr<Annotation>>,
+        right: Box<CoreExpr<Annotation>>,
     },
     /// Untrusted complete type constraints, legal only at a static Call callee.
     TypeApply {
-        callee: Box<CoreExpr>,
-        type_arguments: Vec<Type>,
+        callee: Box<CoreExpr<Annotation>>,
+        type_arguments: Vec<Annotation>,
     },
     Call {
-        callee: Box<CoreExpr>,
-        arguments: Vec<CoreExpr>,
+        callee: Box<CoreExpr<Annotation>>,
+        arguments: Vec<CoreExpr<Annotation>>,
     },
-    Tuple(Vec<CoreExpr>),
-    Array(Vec<CoreExpr>),
+    Tuple(Vec<CoreExpr<Annotation>>),
+    Array(Vec<CoreExpr<Annotation>>),
     Index {
-        object: Box<CoreExpr>,
-        index: Box<CoreExpr>,
+        object: Box<CoreExpr<Annotation>>,
+        index: Box<CoreExpr<Annotation>>,
     },
     /// A source range place. Only a borrow may turn it into a slice address.
     Slice {
-        object: Box<CoreExpr>,
-        start: Option<Box<CoreExpr>>,
-        end: Option<Box<CoreExpr>>,
+        object: Box<CoreExpr<Annotation>>,
+        start: Option<Box<CoreExpr<Annotation>>>,
+        end: Option<Box<CoreExpr<Annotation>>>,
     },
     Member {
-        object: Box<CoreExpr>,
+        object: Box<CoreExpr<Annotation>>,
         member: String,
         /// A reflected field binds its complete nominal owner, including all
         /// generic arguments. This constrains selection without changing the
         /// receiver's value, place, ownership or address permissions.
-        owner: Option<Type>,
+        owner: Option<Annotation>,
     },
     ReceiverMember(String),
     Record {
-        ty: Type,
-        fields: Vec<(String, CoreExpr)>,
+        ty: Annotation,
+        fields: Vec<(String, CoreExpr<Annotation>)>,
     },
     RecordUpdate {
-        ty: Option<Type>,
-        base: Box<CoreExpr>,
-        fields: Vec<(String, CoreExpr)>,
+        ty: Option<Annotation>,
+        base: Box<CoreExpr<Annotation>>,
+        fields: Vec<(String, CoreExpr<Annotation>)>,
     },
     /// Ordered hygienic temporaries. Names use `$`, which source identifiers cannot contain.
     Sequence {
-        bindings: Vec<(String, CoreExpr)>,
-        value: Box<CoreExpr>,
+        bindings: Vec<(String, CoreExpr<Annotation>)>,
+        value: Box<CoreExpr<Annotation>>,
     },
     /// Unevaluated source CT expression; it must enter VerifiedCTIR before use.
-    CompileTime(Box<CoreExpr>),
+    CompileTime(Box<CoreExpr<Annotation>>),
     /// Single evaluation with propagation along the actual error edge.
-    Try(Box<CoreExpr>),
+    Try(Box<CoreExpr<Annotation>>),
     Closure {
         move_capture: bool,
-        parameters: Vec<CoreClosureParameter>,
-        return_type: Option<Type>,
-        body: CoreBlock,
+        parameters: Vec<CoreClosureParameter<Annotation>>,
+        return_type: Option<Annotation>,
+        body: CoreBlock<Annotation>,
     },
     If {
-        condition: Box<CoreExpr>,
-        then_value: Box<CoreExpr>,
-        else_value: Box<CoreExpr>,
+        condition: Box<CoreExpr<Annotation>>,
+        then_value: Box<CoreExpr<Annotation>>,
+        else_value: Box<CoreExpr<Annotation>>,
     },
     Unsupported(String),
+    /// Original argument expansion; legal only in its complete call context.
+    /// It must be resolved before executable Core reaches ordinary Types.
+    Spread(Box<CoreExpr<Annotation>>),
+    Group(Box<CoreExpr<Annotation>>),
+    Character(String),
+    Range {
+        start: Box<CoreExpr<Annotation>>,
+        end: Box<CoreExpr<Annotation>>,
+    },
+    Pipeline {
+        input: Box<CoreExpr<Annotation>>,
+        target: Box<CoreExpr<Annotation>>,
+    },
+    RecordConstructor {
+        definition: Option<SemanticDefinitionId>,
+        fields: Vec<(String, CoreExpr<Annotation>)>,
+    },
+    Splice(Box<CoreExpr<Annotation>>),
+    CompileTimeBlock(CoreBlock<Annotation>),
+    SyntaxQuote {
+        category: CoreSyntaxCategory,
+        template: CoreQuoteTemplate<Annotation>,
+    },
+    SyntaxIsland {
+        path: Vec<String>,
+        tree: CoreSyntaxTree,
+    },
+    /// Original written mixed arguments; the call's declared scheme supplies
+    /// kinds and inference positions before runtime elaboration.
+    GenericApply {
+        callee: Box<CoreExpr<Annotation>>,
+        arguments: Vec<CoreGenericArgument<Annotation>>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreGenericArgument<Annotation = Type> {
+    Type(Annotation),
+    Const(CoreExpr<Annotation>),
+    Lifetime(String),
+}
+
+/// Original syntax payloads remain structured and untrusted. Quoting, holes
+/// and islands grant no scope, hygiene, stage readiness or execution rights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreSyntaxCategory {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreSyntaxDelimiter {
+    Parenthesis,
+    Bracket,
+    Brace,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreQuoteNameNamespace {
+    Value,
+    Type,
+    Member,
+    Module,
+    Label,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreQuoteNameRole {
+    Binding,
+    Reference,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CoreQuoteHoleKind {
+    Expr,
+    Type,
+    StmtList,
+    ItemList,
+    Ident {
+        namespace: CoreQuoteNameNamespace,
+        role: CoreQuoteNameRole,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreQuoteHole<Annotation = Type> {
+    pub kind: CoreQuoteHoleKind,
+    pub value: Box<CoreExpr<Annotation>>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreQuoteTemplate<Annotation = Type> {
+    pub tree: CoreSyntaxTree,
+    pub holes: Vec<CoreQuoteHole<Annotation>>,
+    pub name_sites: Vec<CoreQuoteNameSite>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CoreQuoteNameSite {
+    pub span: Span,
+    pub token_index: u32,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreSyntaxTree {
+    pub delimiter: CoreSyntaxDelimiter,
+    pub children: Vec<CoreSyntaxTreeEntry>,
+    pub span: Span,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CoreSyntaxTreeEntry {
+    Token { text: String, span: Span },
+    Tree(CoreSyntaxTree),
+    Hole { index: u32, span: Span },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1485,6 +2064,11 @@ pub struct CallableRole {
 /// self-contained concrete environment with no external Hold/Call dependencies.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableReturnContract {
+    /// Expected signature in the actual returned closure's complete Fixed domain.
+    /// Capture grounding and actual return provenance are independently checked.
+    pub life: Option<StorageLifeContract>,
+    /// None is unknown. Some(empty) still requires proof of no external leaves.
+    pub capture_sources: Option<Vec<StorageSourceBinding>>,
     /// Untrusted result provenance; each reachable return must prove this relation.
     pub source: CallableReturnSource,
     pub closure: ClosureId,
@@ -1571,6 +2155,8 @@ pub enum CallableFlowNext {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedModule {
+    /// Complete original semantic program and actual CFG sites, never proof.
+    pub semantic: Option<SemanticModule>,
     pub dyn_declarations: Vec<DynDeclaration>,
     pub dyn_interfaces: Vec<DynInterface>,
     pub dyn_vtables: Vec<DynVtable>,
@@ -1613,10 +2199,14 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Retained result upper sources; None is unknown and grants no origins.
+    pub dyn_instance: Option<DynFunctionInstance>,
+    pub retained_return_sources: Option<Vec<StorageSourceBinding>>,
     /// Raw relation; each kernel separately checks complete actual CFG/targets.
     pub storage_life: Option<StorageLifeContract>,
     /// Raw ABI/effect selection; actual reachable effects are checked independently.
     pub call_kind: CallKind,
+    pub resume_bound: TaskResumeBound,
     /// Raw declared upper bound for a shared or mutable reference result; sorted unique
     /// source parameter indices. Each kernel checks the actual CFG separately.
     /// None preserves body-derived origins for unannotated functions.
@@ -1626,7 +2216,9 @@ pub struct TypedFunction {
     /// Raw finite helper relation, independently reconstructed by Verify.
     pub callable_contract: Option<CallableParameterContract>,
     /// Raw per-result resource relation, checked from the actual CFG by both kernels.
-    pub protocol_contract: Option<FunctionProtocolContract>,
+    /// Ordered distinct actual parameter roles. Empty declares no phase
+    /// relation; it is never evidence that an unknown owner is retired.
+    pub protocol_contracts: Vec<FunctionProtocolContract>,
     pub id: FunctionId,
     pub name: String,
     /// A foreign declaration has parameter locals but no executable CFG.
@@ -1803,7 +2395,11 @@ pub enum InstructionKind {
     ByteBufferCapacity {
         buffer: ValueId,
     },
-    /// A fresh loan of the initialized prefix, rooted in the real carrier.
+    /// Borrow the initialized prefix of the buffer selected by the actual
+    /// descriptor. The loan keeps its owner's generation and ordered field
+    /// path. A returned view may shorten the loan within that owner's lifetime.
+    /// An exclusive view also requires exclusive access to the selected manager.
+    /// The manager retains responsibility for the buffer on every exit.
     ByteBufferBorrow {
         buffer: ValueId,
         mutable: bool,
@@ -1906,7 +2502,9 @@ pub enum InstructionKind {
         local: LocalId,
         index: u32,
     },
-    /// Borrow the actual resource header at this package field position.
+    /// Observe the live managed field selected by `index` in this exact Package local.
+    /// The result describes that field's resource header. The Package keeps its owner
+    /// and cleanup duty. A subsequent ReadDesc resolves its field relative to this header.
     DescribePackageField {
         local: LocalId,
         index: u32,
@@ -1959,6 +2557,8 @@ pub enum InstructionKind {
     DescribeAddress {
         address: ValueId,
     },
+    /// Read this Copy payload field through the live descriptor. Preserve its actual
+    /// header origin and field ordinal when checking the enclosing source expression.
     ReadDesc {
         desc: ValueId,
         index: u32,
@@ -2012,6 +2612,11 @@ pub enum InstructionKind {
     ReadAddress {
         address: ValueId,
     },
+    /// Commit a value to the live writable place denoted by `address` (§15.2).
+    /// A scalar assignment evaluates its destination and RHS once. Preparing
+    /// a single-use destination may precede RHS reads of the same place.
+    /// At commit the root, projection, owner generation and exclusive access
+    /// must still hold. An exit during RHS evaluation leaves the old value live.
     WriteAddress {
         address: ValueId,
         value: ValueId,
@@ -2163,6 +2768,13 @@ pub enum InstructionKind {
         arguments: Vec<ValueId>,
         /// Maps each retained port to an actual constructor input. A binding is
         /// checked against the worker and the executable borrow provenance.
+        port_bindings: Vec<RetainedPortBinding>,
+    },
+    /// Fallible construction retaining all original inputs in the error arm.
+    /// No input cleanup, poll, close, or frame publication occurs on failure.
+    TaskCreateOwned {
+        worker: FunctionId,
+        arguments: Vec<ValueId>,
         port_bindings: Vec<RetainedPortBinding>,
     },
     /// A source suspension point. Its live scalar state is spilled in the SABI frame.
@@ -2485,6 +3097,45 @@ pub enum InstructionKind {
     },
     Unsupported(String),
 }
+impl InstructionKind {
+    /// The operand is the entire initialized inline carrier. A field drop has
+    /// its own place and cannot discharge the enclosing carrier. At a Suspend
+    /// boundary the owner remains live until every active owned leaf is ready.
+    pub fn whole_aggregate_drop(&self) -> Option<LocalId> {
+        match *self {
+            Self::DropTuple { local }
+            | Self::DropEnum { local }
+            | Self::DropPackage { local }
+            | Self::DropErrorUnion { local }
+            | Self::DropOwnedArray { local } => Some(local),
+            _ => None,
+        }
+    }
+
+    /// The declaration, including nominal or lifetime qualification, comes
+    /// from the actual local. Only its storage head selects the drop opcode.
+    pub fn aggregate_drop(local: LocalId, ty: &Type) -> Option<Self> {
+        let storage = match ty {
+            Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+            other => other,
+        };
+        Some(match storage {
+            Type::Tuple(_) => Self::DropTuple { local },
+            Type::Enum { .. } => Self::DropEnum { local },
+            Type::Package { .. } => Self::DropPackage { local },
+            Type::ErrorUnion { .. } => Self::DropErrorUnion { local },
+            Type::Array { .. } => Self::DropOwnedArray { local },
+            _ => return None,
+        })
+    }
+
+    pub fn drops_aggregate_storage(&self, ty: &Type) -> bool {
+        self.whole_aggregate_drop()
+            .and_then(|local| Self::aggregate_drop(local, ty))
+            .as_ref()
+            == Some(self)
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Terminator {
     Return(Option<ValueId>),
@@ -2525,9 +3176,12 @@ pub struct ValueHold {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum HoldRoot {
-    /// A position in the enclosing function. Names are not identities.
+    /// A position owned by the current activation, indexed by LocalId.
     Local(LocalId),
-    /// An incoming shared address environment field, held by the caller.
+    /// The actual environment field, indexed by its declaration ordinal.
+    /// BindPackageCapture lends a local view of this cell until its End;
+    /// borrows through that view retain this root for public Hold. Exact
+    /// permission, projection and liveness remain operation-specific.
     Capture(u32),
     /// Target of an incoming shared reference, indexed by source parameter order.
     Parameter(u32),
@@ -2567,8 +3221,9 @@ pub enum ResponsibilityState {
     Moved,
 }
 
-/// B0 lowering retains the checked scalar CFG exactly. Backends must receive the
-/// matching VerifiedModule and compare these public fields before code emission.
+/// Retained checked CFG data, not a machine-ready representation or authority.
+/// Backends must bind these public fields to the matching VerifiedModule, then
+/// complete target layout, ABI, operation and cleanup preparation before emission.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LirModule {
     pub schema_version: u32,
@@ -2648,6 +3303,9 @@ pub struct ScalarLayout {
 /// as the ordinary control-flow/type/provenance invariants before execution.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtProgram {
+    /// A request requiring the complete immutable source view at verification.
+    /// Its digest never supplies that view or enables background execution.
+    pub frozen_context: Option<CtFrozenContext>,
     pub module: TypedModule,
     pub plan: CandidatePlan,
     pub entry: FunctionId,
@@ -2786,12 +3444,16 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V46\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V50\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
     encode_text(bytes, &module.target.to_json());
     encode_life_inventory(bytes, &module.life_declarations, &module.life_instances);
+    bytes.push(u8::from(module.semantic.is_some()));
+    if let Some(semantic) = &module.semantic {
+        encode_semantic_module(bytes, semantic);
+    }
     encode_len(bytes, module.dyn_declarations.len());
     for row in &module.dyn_declarations {
         encode_dyn_declaration(bytes, row);
@@ -2992,6 +3654,7 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
             encode_u32(b, i)
         }
         StorageBase::Result => b.push(2),
+        StorageBase::Receiver => b.push(3),
     }
     encode_len(b, position.path.len());
     for step in &position.path {
@@ -3008,6 +3671,40 @@ fn encode_storage_position(b: &mut impl FingerprintSink, position: &StoragePosit
                 b.push(2);
                 encode_u32(b, *i)
             }
+            ContractProjection::Capture(i) => {
+                b.push(3);
+                encode_u32(b, *i)
+            }
+        }
+    }
+}
+
+fn encode_storage_source(b: &mut impl FingerprintSink, source: &StorageSource) {
+    match source {
+        StorageSource::Exact(position) => {
+            b.push(0);
+            encode_storage_position(b, position);
+        }
+        StorageSource::PlaceAddress { place, mode } => {
+            b.push(1);
+            encode_storage_position(b, place);
+            b.push(*mode as u8);
+        }
+        StorageSource::OwnedView { head, leaf, mode } => {
+            b.push(2);
+            encode_storage_position(b, head);
+            encode_type(b, leaf);
+            b.push(*mode as u8);
+        }
+        StorageSource::ReborrowedLeaf { source, head } => {
+            b.push(3);
+            encode_storage_position(b, source);
+            encode_storage_position(b, head);
+        }
+        StorageSource::Static { leaf, mode } => {
+            b.push(4);
+            encode_type(b, leaf);
+            b.push(*mode as u8);
         }
     }
 }
@@ -3048,6 +3745,10 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
         encode_storage_position(b, &binding.position);
         encode_storage_binder(b, &binding.binder);
     }
+    encode_len(b, contract.static_bindings.len());
+    for position in &contract.static_bindings {
+        encode_storage_position(b, position);
+    }
     encode_len(b, contract.classes.len());
     for binding in &contract.classes {
         match binding.position.base {
@@ -3060,6 +3761,7 @@ fn encode_required_storage_contract(b: &mut impl FingerprintSink, contract: &Sto
                 encode_u32(b, i);
             }
             StorageBase::Result => b.push(2),
+            StorageBase::Receiver => b.push(3),
         }
         encode_life_type_path(b, &binding.position.path);
         encode_u32(b, binding.position.class);
@@ -3103,6 +3805,11 @@ fn encode_life_inventory(
         encode_len(b, instance.arguments.len());
         for argument in &instance.arguments {
             match argument {
+                LifeNominalActual::QualifiedType { ty, life } => {
+                    b.push(3);
+                    encode_type(b, ty);
+                    encode_storage_shape(b, life);
+                }
                 LifeNominalActual::Type(ty) => {
                     b.push(0);
                     encode_type(b, ty)
@@ -3301,7 +4008,23 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     }
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
+    b.push(u8::from(f.dyn_instance.is_some()));
+    if let Some(instance) = &f.dyn_instance {
+        encode_dyn_function_instance(b, instance);
+    }
+    b.push(u8::from(f.retained_return_sources.is_some()));
+    if let Some(bindings) = &f.retained_return_sources {
+        encode_len(b, bindings.len());
+        for binding in bindings {
+            encode_storage_position(b, &binding.position);
+            encode_len(b, binding.sources.len());
+            for source in &binding.sources {
+                encode_storage_source(b, source);
+            }
+        }
+    }
     b.push(f.call_kind as u8);
+    b.push(f.resume_bound as u8);
     encode_storage_contract(b, &f.storage_life);
     b.push(u8::from(f.reference_return_bound.is_some()));
     if let Some(bound) = &f.reference_return_bound {
@@ -3320,9 +4043,11 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
     }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
-    if let Some(contract) = &f.protocol_contract {
-        b.push(2); // distinct from the following legacy foreign presence bit
-        encode_text(b, "ZIL-FUNCTION-PROTOCOL-1");
+    // A finite ordered role inventory. Empty means no declared transition;
+    // it does not prove any unknown protocol owner closed or retired.
+    encode_text(b, "ZIL-FUNCTION-PROTOCOLS-2");
+    encode_len(b, f.protocol_contracts.len());
+    for contract in &f.protocol_contracts {
         encode_protocol_contract(b, contract);
     }
     b.push(u8::from(f.foreign.is_some()));
@@ -3334,6 +4059,7 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
             encode_u32(b, *parameter);
         }
         b.push(u8::from(foreign.static_callbacks));
+        b.push(u8::from(foreign.thread_driver_transfer));
         b.push(scoped_callback_role_tag(foreign.scoped_callback));
     }
     b.push(u8::from(f.environment.is_some()));
@@ -3966,8 +4692,17 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             worker,
             arguments,
             port_bindings,
+        }
+        | InstructionKind::TaskCreateOwned {
+            worker,
+            arguments,
+            port_bindings,
         } => {
-            b.push(128);
+            b.push(if matches!(i, InstructionKind::TaskCreateOwned { .. }) {
+                151
+            } else {
+                128
+            });
             encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {
@@ -4522,8 +5257,22 @@ pub fn callable_contract_fingerprint(contract: &CallableParameterContract) -> Fi
     Fingerprint::of(&bytes)
 }
 /// Deterministic identity only; this hash never grants verification authority.
+pub fn retained_return_sources_fingerprint(bindings: &[StorageSourceBinding]) -> Fingerprint {
+    let mut bytes = FingerprintStream::new();
+    bytes.extend_from_slice(b"ZIL-RETAINED-RETURN-SOURCES-1\0");
+    encode_len(&mut bytes, bindings.len());
+    for binding in bindings {
+        encode_storage_position(&mut bytes, &binding.position);
+        encode_len(&mut bytes, binding.sources.len());
+        for source in &binding.sources {
+            encode_storage_source(&mut bytes, source);
+        }
+    }
+    bytes.finish()
+}
+
 pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -> Fingerprint {
-    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-3\0".to_vec();
+    let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-4\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
 }
@@ -4568,6 +5317,19 @@ fn protocol_exit_tag(s: ProtocolExit) -> u8 {
     }
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
+    encode_storage_contract(b, &c.life);
+    b.push(u8::from(c.capture_sources.is_some()));
+    if let Some(bindings) = &c.capture_sources {
+        encode_len(b, bindings.len());
+        for binding in bindings {
+            encode_storage_position(b, &binding.position);
+            encode_len(b, binding.sources.len());
+            for source in &binding.sources {
+                encode_storage_source(b, source);
+            }
+        }
+    }
+
     match c.source {
         CallableReturnSource::Fresh => b.push(0),
         CallableReturnSource::Parameter(parameter) => {
@@ -4659,3 +5421,6 @@ fn encode_callable_exit(b: &mut impl FingerprintSink, exit: CallableExit) {
         CallableExit::Trap => 1,
     });
 }
+
+#[cfg(test)]
+mod dynamic_recipe_stack;

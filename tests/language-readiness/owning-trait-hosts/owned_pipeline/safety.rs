@@ -25,10 +25,25 @@ fn owning_pipeline_keeps_the_parent_loan_and_affine_fresh_results() {
         "{}",
         report.to_json()
     );
-    for action in [
-        "library.next_tagged(&mut cursor,9)",
-        "store_reserve(cursor.items,3)",
-        "let moved=cursor",
+    for (action, phase, code, relation) in [
+        (
+            "library.next_tagged(&mut cursor,9)",
+            Phase::Analyze,
+            "E-BORROW-CONFLICT",
+            "actual stored target/parent loan",
+        ),
+        (
+            "store_reserve(cursor.items,3)",
+            Phase::Analyze,
+            "E-BORROW-CONFLICT",
+            "actual stored target/parent loan",
+        ),
+        (
+            "let moved=cursor",
+            Phase::Types,
+            "E-SEMANTIC-ORIGINAL",
+            "original place was already transferred",
+        ),
     ] {
         let changed = MODEL.replacen(
             "let copy:Item=original.duplicate()",
@@ -43,9 +58,12 @@ fn owning_pipeline_keeps_the_parent_loan_and_affine_fresh_results() {
             "{action}: {}",
             report.to_json()
         );
-        assert_eq!(
-            report.phase,
-            Phase::Analyze,
+        assert_eq!(report.phase, phase, "{action}: {}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == code && d.message.contains(relation)),
             "{action}: {}",
             report.to_json()
         );
@@ -60,6 +78,47 @@ fn owning_pipeline_keeps_the_parent_loan_and_affine_fresh_results() {
     assert_eq!(
         report.status,
         ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert_eq!(report.phase, Phase::Types);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-SEMANTIC-ORIGINAL"
+                && d.message
+                    .contains("reads a value after its affine whole-type transfer")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn moving_the_lending_cursor_depends_on_the_last_use_of_its_item() {
+    let (prefix, _) = MODEL
+        .split_once("            let copy:Item=original.duplicate()")
+        .unwrap();
+    let branch = |operations| format!("{prefix}            {operations}\n        }}\n    }}\n}}\n");
+    let after = branch("let b=byte(original);let moved=cursor;return i32(b)-65");
+    super::super::native_both(&files(&after));
+
+    let before = branch("let moved=cursor;let b=byte(original);return i32(b)-65");
+    let report = compile_project(&project(&files(&before)), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"
+                && d.message.contains("actual stored target/parent loan")),
         "{}",
         report.to_json()
     );

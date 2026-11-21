@@ -255,7 +255,17 @@ impl Parser<'_> {
             let mut args = Vec::new();
             loop {
                 let start = p.peek().span;
-                if p.peek().kind == TokenKind::Lifetime {
+                if p.eat_word("const") {
+                    let member = p.qualified_kind(QuoteNameNamespace::Member)?;
+                    p.expect(Symbol::Colon)?;
+                    let ty = p.ty()?;
+                    p.expect(Symbol::Eq)?;
+                    let value = p.associated_const_expression()?;
+                    args.push(GenericArg::AssociatedBinding(DynBinding {
+                        kind: DynBindingKind::Constant { member, ty, value },
+                        span: p.span_from(start),
+                    }));
+                } else if p.peek().kind == TokenKind::Lifetime {
                     let token = p.bump();
                     args.push(GenericArg::Lifetime(p.text(&token)[1..].to_owned()));
                 } else if p.eat(Symbol::Minus) {
@@ -270,6 +280,7 @@ impl Parser<'_> {
                         }
                     };
                     args.push(GenericArg::Const(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Literal(value),
                         span: p.span_from(start),
                     }));
@@ -279,11 +290,37 @@ impl Parser<'_> {
                 {
                     let value = p.literal().expect("literal type argument checked above");
                     args.push(GenericArg::Const(Expr {
+                        semantic: Default::default(),
                         kind: ExprKind::Literal(value),
                         span: p.span_from(start),
                     }));
                 } else {
-                    args.push(GenericArg::Type(p.ty()?));
+                    let argument = p.ty()?;
+                    if p.eat(Symbol::Eq) {
+                        let TypeKind::Named {
+                            path: member,
+                            args: parameters,
+                        } = argument.kind
+                        else {
+                            return p.fail(
+                                "E-PARSE-ASSOCIATED-BINDING",
+                                "associated type equation needs a member path",
+                            );
+                        };
+                        if !parameters.is_empty() {
+                            return p.fail(
+                                "E-PARSE-ASSOCIATED-BINDING",
+                                "associated type equation member cannot have arguments",
+                            );
+                        }
+                        let value = p.ty()?;
+                        args.push(GenericArg::AssociatedBinding(DynBinding {
+                            kind: DynBindingKind::Type { member, value },
+                            span: p.span_from(start),
+                        }));
+                    } else {
+                        args.push(GenericArg::Type(argument));
+                    }
                 }
                 if !p.eat(Symbol::Comma) || p.at_angle_close() {
                     break;

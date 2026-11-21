@@ -199,7 +199,19 @@ pub fn failure_key(value: &Value) -> Option<Value> {
     if value["status"] == "pass" {
         None
     } else if value["status"] == "fail" {
-        Some(json!(["fail", value["failure"]["propertyId"]]))
+        let failure = &value["failure"];
+        let mismatch = &failure["firstMismatch"];
+        if mismatch.is_object() {
+            Some(json!([
+                "fail",
+                failure["propertyId"],
+                mismatch["phase"],
+                mismatch["code"],
+                mismatch["category"]
+            ]))
+        } else {
+            Some(json!(["fail", failure["propertyId"]]))
+        }
     } else {
         Some(json!([
             value["status"],

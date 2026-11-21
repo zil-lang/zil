@@ -6,6 +6,7 @@ use zil_ir::*;
 fn candidate() -> TypedModule {
     let span = Span::new(FileId(0), 0, 1);
     TypedModule {
+        semantic: None,
         dyn_declarations: Vec::new(),
         dyn_interfaces: Vec::new(),
         dyn_vtables: Vec::new(),
@@ -23,15 +24,18 @@ fn candidate() -> TypedModule {
         closures: vec![],
         unsupported: vec![],
         functions: vec![TypedFunction {
+            dyn_instance: None,
+            retained_return_sources: None,
             storage_life: None,
             call_kind: zil_ir::CallKind::Direct,
+            resume_bound: crate::TaskResumeBound::Local,
             reference_return_bound: None,
             id: FunctionId(0),
             name: "raw".into(),
             foreign: None,
             environment: None,
             callable_contract: None,
-            protocol_contract: None,
+            protocol_contracts: Vec::new(),
             callable_return_contract: None,
             parameters: vec![],
             return_type: Type::Unit,
@@ -222,9 +226,9 @@ fn each_byte_storage_operand_mutability_and_definition_bind_identity() {
 #[test]
 fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
-    assert_eq!(SCHEMA_VERSION, 47);
-    assert_eq!(wire::WIRE_VERSION, 47);
-    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 7);
+    assert_eq!(SCHEMA_VERSION, 50);
+    assert_eq!(wire::WIRE_VERSION, 50);
+    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 10);
     let limits = Limits::default();
     let mut raw = candidate();
     raw.functions[0].foreign = Some(ForeignDeclaration {
@@ -232,6 +236,7 @@ fn scoped_foreign_callback_wire32_fields_and_boundaries() {
         symbol: "unique_scoped_callback_marker".into(),
         noescape_parameters: vec![],
         static_callbacks: true,
+        thread_driver_transfer: false,
         scoped_callback: None,
     });
     let kind = InstructionKind::WithForeignCallback {

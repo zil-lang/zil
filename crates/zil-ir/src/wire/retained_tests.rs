@@ -3,8 +3,8 @@ use crate::*;
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 #[test]
 fn retained_context_and_ct_transport_preserves_context_and_budgets() {
-    assert_eq!(SCHEMA_VERSION, 47);
-    assert_eq!(wire::WIRE_VERSION, 47);
+    assert_eq!(SCHEMA_VERSION, 50);
+    assert_eq!(wire::WIRE_VERSION, 50);
     let shape = StorageLifeShape {
         binder_count: 1,
         slots: vec![StorageLifeSlot {
@@ -53,6 +53,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         inner: Box::new(stored.clone()),
     };
     let contract = StorageLifeContract {
+        static_bindings: Vec::new(),
         classes: vec![SignatureLifeClassBinding {
             position: SignatureLifeClass {
                 base: StorageBase::Parameter(0),
@@ -97,12 +98,15 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         binder: StorageBinder::Fixed(0),
     });
     let f = TypedFunction {
+        dyn_instance: None,
+        retained_return_sources: None,
         storage_life: Some(contract.clone()),
         call_kind: CallKind::Direct,
+        resume_bound: crate::TaskResumeBound::Local,
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
-        protocol_contract: None,
+        protocol_contracts: Vec::new(),
         id: FunctionId(0),
         name: "probe".into(),
         foreign: None,
@@ -235,6 +239,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         result_mode: PassingMode::Infer,
         call_kind: CallKind::Direct,
         storage_life: Some(StorageLifeContract {
+            static_bindings: Vec::new(),
             classes: vec![SignatureLifeClassBinding {
                 position: SignatureLifeClass {
                     base: StorageBase::Capture(0),
@@ -265,10 +270,19 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         contract: contract_dyn,
     };
     let interface = DynInterface {
+        context: None,
+        owning_cleanup: None,
         id: dyn_id,
         application,
         inherited: vec![],
         associated_types: vec![DynAssociatedType {
+            life: StorageLifeShape {
+                binder_count: 0,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+            classes: vec![],
             member,
             ty: Type::I64,
         }],
@@ -289,6 +303,14 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         slots: vec![slot],
     };
     let dyn_declaration = DynDeclaration {
+        implicit_lifetimes: None,
+        direct_supertraits: None,
+        requirements: None,
+        associated_definitions: None,
+        method_signatures: None,
+        method_definitions: None,
+        self_pattern: None,
+        implemented_trait: None,
         id: trait_id,
         identity: LifeDeclarationIdentity {
             package: "probe".into(),
@@ -304,6 +326,9 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         }],
     };
     let vtable = DynVtable {
+        self_life: None,
+        implementation_witnesses: None,
+        self_classes: vec![],
         id: DynVtableId {
             module: ModuleId(0),
             index: 0,
@@ -316,15 +341,15 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             compiler: false,
         },
         actuals: vec![],
-        ports: vec![RetainedPortBinding {
+        ports: vec![DynRetainedPortBinding {
             port: 0,
-            source: StoragePosition {
+            sources: vec![StoragePosition {
                 base: StorageBase::Parameter(0),
                 path: vec![
                     ContractProjection::Place(PlaceProjection::Field(0)),
                     ContractProjection::RetainedPort(0),
                 ],
-            },
+            }],
         }],
         entries: vec![DynEntry {
             slot: 0,
@@ -334,6 +359,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         owned_storage: None,
     };
     let module = TypedModule {
+        semantic: None,
         dyn_declarations: vec![dyn_declaration],
         dyn_interfaces: vec![interface],
         dyn_vtables: vec![vtable],
@@ -359,6 +385,45 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     };
 
     let mut module = module;
+    module.dyn_vtables[0].self_classes = vec![StorageBinder::Fixed(0)];
+    module.dyn_interfaces[0].context = Some(stored.clone());
+    module.dyn_interfaces[0]
+        .retained_life
+        .ports
+        .push(RetainedBorrowPort {
+            leaf: Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            mode: StoredBorrowMode::SharedAddress,
+            binder: 0,
+        });
+    module.dyn_vtables[0].ports[0]
+        .sources
+        .push(StoragePosition {
+            base: StorageBase::Parameter(1),
+            path: vec![],
+        });
+    module.dyn_vtables[0].ports.push(DynRetainedPortBinding {
+        port: 1,
+        sources: vec![],
+    });
+    module.functions[0].retained_return_sources = Some(vec![StorageSourceBinding {
+        position: StoragePosition {
+            base: StorageBase::Result,
+            path: vec![ContractProjection::RetainedPort(0)],
+        },
+        sources: (vec![StoragePosition {
+            base: StorageBase::Parameter(0),
+            path: vec![
+                ContractProjection::Capture(0),
+                ContractProjection::Place(PlaceProjection::Field(0)),
+            ],
+        }])
+        .into_iter()
+        .map(StorageSource::Exact)
+        .collect(),
+    }]);
     let retained = RetainedLifeShape {
         binder_count: 1,
         ports: vec![RetainedBorrowPort {
@@ -511,7 +576,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             }
             1 => changed.dyn_interfaces[0].retained_life.retained[0].class = 1,
             _ => {
-                changed.dyn_vtables[0].ports[0].source.path =
+                changed.dyn_vtables[0].ports[0].sources[0].path =
                     vec![ContractProjection::RetainedClass(0)]
             }
         };
@@ -539,6 +604,34 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         wire::encode_module_candidate(&copy, &p, &Limits::default()).unwrap(),
         bytes
     );
+
+    for n in 0..8 {
+        let mut changed = module.clone();
+        match n {
+            0 => changed.dyn_interfaces[0].context = None,
+            1 => changed.dyn_vtables[0].ports[0]
+                .sources
+                .pop()
+                .map(|_| ())
+                .unwrap(),
+            2 => {
+                changed.dyn_vtables[0].ports.pop();
+            }
+            3 => changed.functions[0].retained_return_sources = Some(vec![]),
+            4 => changed.functions[0].retained_return_sources = None,
+            5 => changed.dyn_vtables[0].self_classes.clear(),
+            6 => changed.dyn_vtables[0].self_classes[0] = StorageBinder::Fixed(1),
+            _ => changed.dyn_vtables[0].self_classes[0] = StorageBinder::Invocation(0),
+        }
+        assert_ne!(changed.fingerprint(), module.fingerprint());
+        let bytes = wire::encode_module_candidate(&changed, &plan, &Limits::default()).unwrap();
+        assert_eq!(
+            wire::decode_module_candidate(&bytes, &Limits::default())
+                .unwrap()
+                .0,
+            changed
+        );
+    }
 
     for n in 0..5 {
         let mut changed = module.clone();
@@ -627,8 +720,9 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     old[8..12].copy_from_slice(&38u32.to_le_bytes());
     assert!(wire::decode_module_candidate(&old, &Limits::default()).is_err());
     use ct_artifact::*;
-    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 7);
+    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 10);
     let value = CtValue::Type(CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
@@ -689,6 +783,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         }
         assert!(wire::encode_module_candidate(&long, &plan, &Limits::default()).is_err());
         let mut long = CtValue::Type(CtTypeRef {
+            scoped_catalogue: None,
             ambient_classes: Vec::new(),
             nodes: vec![
                 CtTypeNode::Primitive(CtScalarTy::I64),
@@ -719,6 +814,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         generation_path: None,
     };
     let context = CtTypeRef {
+        scoped_catalogue: None,
         ambient_classes: Vec::new(),
         nodes: vec![
             CtTypeNode::Primitive(CtScalarTy::I64),
@@ -757,6 +853,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         name: symbol.clone(),
         life_context: None,
         arguments: vec![CtSchemaArgument::Type(CtTypeRef {
+            scoped_catalogue: None,
             ambient_classes: Vec::new(),
             nodes: vec![CtTypeNode::Primitive(CtScalarTy::I64)],
             root: CtTypeNodeId(0),
@@ -797,6 +894,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         span: Span::default(),
     };
     let program = CtArtifactProgram {
+        dynamic_catalogue: None,
         ambient_life_scopes: Vec::new(),
         schema_version: CT_ARTIFACT_SCHEMA_VERSION,
         target_pointer_width: 64,
@@ -812,6 +910,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             tokens: vec![],
         },
         snapshot: CtSnapshotRequest {
+            stage: None,
             fingerprint: Fingerprint::ZERO,
             ready: CtReadyStage::Shape,
             target_fingerprint: None,

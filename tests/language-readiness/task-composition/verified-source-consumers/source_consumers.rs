@@ -40,7 +40,7 @@ fn complete_enum_real_source_reaches_analyze() {
 }
 
 #[test]
-fn complete_enum_scope_fences_stay_closed() {
+fn complete_enum_common_result_and_input_combinations() {
     let copy_error_result = OWNED_ENUM_SOURCE
         .replace(
             "fn worker(give token:Token)->i32",
@@ -54,26 +54,20 @@ fn complete_enum_scope_fences_stay_closed() {
             "task_create(worker,give input)",
             "task_create(worker,Packet.Item(give input))",
         );
-    for (input, phase) in [
-        (include_str!("owned-enum-task.zil"), zil_base::Phase::Expand),
-        (
-            include_str!("owned-result-task.zil"),
-            zil_base::Phase::Expand,
-        ),
-        (copy_error_result.as_str(), zil_base::Phase::Analyze),
-        (enum_input.as_str(), zil_base::Phase::Analyze),
+    for input in [
+        include_str!("owned-enum-task.zil"),
+        include_str!("owned-result-task.zil"),
+        copy_error_result.as_str(),
+        enum_input.as_str(),
     ] {
         let report = compile_source(&source(input), &CompileOptions::default());
-        assert!(
-            matches!(
-                report.status,
-                ResultCategory::SafeReject | ResultCategory::Unsupported
-            ),
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
             "{}",
             report.to_json()
         );
-        assert_eq!(report.phase, phase, "{}", report.to_json());
-        assert_eq!(report.verification_runs, 0);
+        assert_eq!(report.verification_runs, 1);
     }
 }
 

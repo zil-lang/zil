@@ -1,0 +1,5 @@
+[package]
+root = "main.zil"
+tests = ["checks.zil"]
+[dependencies]
+model = "../model"

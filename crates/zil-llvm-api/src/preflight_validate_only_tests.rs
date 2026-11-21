@@ -185,6 +185,7 @@ fn borrowed_result_types_preserve_aggregate_projection_and_gep() {
         unreachable!()
     };
     let world = World {
+        meter: Meter::default(),
         named: BTreeMap::from([(name.as_str(), fields)]),
         symbols: BTreeMap::new(),
         valid_named: RefCell::new(BTreeMap::new()),
@@ -590,6 +591,7 @@ fn first_error_follows_original_function_order_in_mixed_reachability_modules() {
 
 fn scratch_world(module: &Module) -> World<'_> {
     World {
+        meter: Meter::default(),
         named: BTreeMap::new(),
         symbols: module
             .items

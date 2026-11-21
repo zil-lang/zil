@@ -73,3 +73,234 @@ pub struct CoreCallableLifeContext {
     /// Actual helper data-header selectors; no guessed capture slots.
     pub inputs: Vec<CoreClosureInputAnchor>,
 }
+
+/// The real function owner's original Definition scope. Instances preserve the
+/// original declaration and full mixed formals through their actual elaboration
+/// ledger. `inputs` is the complete inverse map of original input occurrences;
+/// it is formed independently of a returned-callable bound proposal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreFunctionSourceScope {
+    pub declaration: LifeDeclarationId,
+    pub identity: LifeDeclarationIdentity,
+    pub parameters: Vec<LifeParameterKind>,
+    pub inputs: Vec<CoreClosureInputAnchor>,
+}
+
+/// Structural transport reservation, excluding recursive Const type carriers.
+/// Consumers must independently bound those types before any deep snapshot.
+pub fn core_function_scope_metadata_cost(
+    scope: &CoreFunctionSourceScope,
+    max_nodes: usize,
+    max_depth: usize,
+    remaining_work: usize,
+) -> Option<(usize, usize)> {
+    let mut nodes = 1usize;
+    let mut work = 4usize;
+    if work > remaining_work || nodes > max_nodes {
+        return None;
+    }
+    for count in [
+        scope.parameters.len(),
+        scope.inputs.len(),
+        scope.identity.module_path.len(),
+        scope.identity.declaration_path.len(),
+        scope.identity.generation_path.len(),
+    ] {
+        nodes = nodes.checked_add(count)?;
+        work = work.checked_add(count.checked_mul(8)?)?;
+        if nodes > max_nodes || work > remaining_work {
+            return None;
+        }
+    }
+    work = work.checked_add(scope.identity.package.len())?;
+    if work > remaining_work {
+        return None;
+    }
+    for text in scope
+        .identity
+        .module_path
+        .iter()
+        .chain(&scope.identity.declaration_path)
+    {
+        work = work.checked_add(text.len())?;
+        if work > remaining_work {
+            return None;
+        }
+    }
+    for input in &scope.inputs {
+        let depth = match &input.position {
+            CoreClosureHeaderPosition::Borrow(p) => p.path.len(),
+            CoreClosureHeaderPosition::Class(p) => p.path.len(),
+        };
+        if depth > max_depth {
+            return None;
+        }
+        nodes = nodes.checked_add(depth)?;
+        work = work.checked_add(depth.checked_mul(2)?)?;
+        if nodes > max_nodes || work > remaining_work {
+            return None;
+        }
+    }
+    Some((nodes, work))
+}
+
+/// A bound-local Fixed class selected from the real creator header.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreCallableReturnFixed {
+    pub fixed: u32,
+    pub input: CoreClosureInputAnchor,
+}
+
+/// Untrusted original declaration bridge for an opaque callable result.
+/// Fixed indices are local to the source bound; Types must resolve each actual
+/// header selector and map it into the complete inferred environment domain.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreCallableReturnLifeContext {
+    pub declaration: LifeDeclarationId,
+    pub identity: LifeDeclarationIdentity,
+    /// Complete original mixed formal order, including unused parameters.
+    pub parameters: Vec<LifeParameterKind>,
+    pub fixed: Vec<CoreCallableReturnFixed>,
+}
+
+/// Structural work reservation only. This function checks sizes and paths;
+/// it neither resolves declarations nor validates lifetime permissions.
+pub fn storage_relation_metadata_work(
+    life: &StorageLifeContract,
+    max_nodes: usize,
+    max_depth: usize,
+    remaining_work: usize,
+) -> Option<usize> {
+    let rows = life
+        .bindings
+        .len()
+        .checked_add(life.classes.len())?
+        .checked_add(life.static_bindings.len())?;
+    if rows > max_nodes
+        || life.fixed_binder_count as usize > max_nodes
+        || life.invocation_binder_count as usize > max_nodes
+    {
+        return None;
+    }
+    let add = |work: usize, cost: usize| work.checked_add(cost).filter(|n| *n <= remaining_work);
+    // Reserve all row visits before inspecting any row payload.
+    let mut work = add(0, rows.checked_mul(8)?.checked_add(4)?)?;
+    work = add(work, life.fixed_binder_count as usize)?;
+    work = add(work, life.invocation_binder_count as usize)?;
+    for depth in life
+        .bindings
+        .iter()
+        .map(|r| r.position.path.len())
+        .chain(life.classes.iter().map(|r| r.position.path.len()))
+        .chain(life.static_bindings.iter().map(|p| p.path.len()))
+    {
+        if depth > max_depth {
+            return None;
+        }
+        work = add(work, depth.checked_mul(2)?)?;
+    }
+    Some(work)
+}
+
+/// Size reservation for new return-bound metadata before cloning. Const
+/// carriers are deliberately not traversed here: each caller must run its own
+/// bounded type visitor over every `LifeParameterKind::Const` before copying.
+/// No declaration, binder, selector or permission is accepted by this walk.
+pub fn callable_return_metadata_work(
+    bound: &CoreCallableReturn,
+    max_nodes: usize,
+    max_depth: usize,
+    remaining_work: usize,
+) -> Option<usize> {
+    let add = |work: usize, cost: usize| work.checked_add(cost).filter(|n| *n <= remaining_work);
+    let mut work = 0usize;
+    if let Some(life) = &bound.life {
+        work = storage_relation_metadata_work(life, max_nodes, max_depth, remaining_work)?;
+    }
+    if let Some(context) = &bound.source_life {
+        for count in [
+            context.parameters.len(),
+            context.fixed.len(),
+            context.identity.module_path.len(),
+            context.identity.declaration_path.len(),
+            context.identity.generation_path.len(),
+        ] {
+            if count > max_nodes {
+                return None;
+            }
+            work = add(work, count.checked_mul(8)?.checked_add(1)?)?;
+        }
+        work = add(work, context.identity.package.len().checked_add(8)?)?;
+        for text in context
+            .identity
+            .module_path
+            .iter()
+            .chain(&context.identity.declaration_path)
+        {
+            work = add(work, text.len().checked_add(1)?)?;
+        }
+        for row in &context.fixed {
+            let depth = match &row.input.position {
+                CoreClosureHeaderPosition::Borrow(position) => position.path.len(),
+                CoreClosureHeaderPosition::Class(position) => position.path.len(),
+            };
+            if depth > max_depth {
+                return None;
+            }
+            work = add(work, depth.checked_mul(2)?)?;
+        }
+    }
+    Some(work)
+}
+
+/// Bounded transport of a direct or stored callback's complete source relation.
+/// This computes copy work only. Const type carriers still require the caller's
+/// bounded type walk, and all original declaration/class checks remain separate.
+pub fn callable_context_metadata_work(
+    life: Option<&StorageLifeContract>,
+    context: Option<&CoreCallableLifeContext>,
+    max_nodes: usize,
+    max_depth: usize,
+    remaining_work: usize,
+) -> Option<usize> {
+    let add = |work: usize, count: usize| work.checked_add(count).filter(|n| *n <= remaining_work);
+    let mut work = match life {
+        Some(life) => storage_relation_metadata_work(life, max_nodes, max_depth, remaining_work)?,
+        None => 0,
+    };
+    if let Some(context) = context {
+        for count in [
+            context.parameters.len(),
+            context.named_fixed.len(),
+            context.inputs.len(),
+            context.identity.module_path.len(),
+            context.identity.declaration_path.len(),
+            context.identity.generation_path.len(),
+        ] {
+            if count > max_nodes {
+                return None;
+            }
+            work = add(work, count.checked_mul(8)?.checked_add(1)?)?;
+        }
+        work = add(work, context.identity.package.len().checked_add(8)?)?;
+        for text in context
+            .identity
+            .module_path
+            .iter()
+            .chain(&context.identity.declaration_path)
+        {
+            work = add(work, text.len().checked_add(1)?)?;
+        }
+        for input in &context.inputs {
+            let depth = match &input.position {
+                CoreClosureHeaderPosition::Borrow(position) => position.path.len(),
+                CoreClosureHeaderPosition::Class(position) => position.path.len(),
+            };
+            if depth > max_depth {
+                return None;
+            }
+            work = add(work, depth.checked_mul(2)?)?;
+        }
+    }
+    Some(work)
+}

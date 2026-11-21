@@ -42,6 +42,9 @@ pub struct Import {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
+    /// Request-local original/specialized Source owner. Parser and raw CTAST
+    /// leave this absent; only the actual specialization ledger consumes it.
+    pub semantic: SemanticContextMarker,
     pub name: String,
     pub generics: Vec<GenericParam>,
     pub params: Vec<Param>,
@@ -156,6 +159,8 @@ pub struct DynBinding {
     pub span: Span,
 }
 #[derive(Clone, Debug, PartialEq)]
+// Variants are parser output consumed once; boxing would ripple through the parser.
+#[allow(clippy::large_enum_variant)]
 pub enum DynBindingKind {
     Type {
         member: Vec<String>,
@@ -178,6 +183,9 @@ pub enum GenericArg {
     Lifetime(String),
     Type(TypeRef),
     Const(Expr),
+    /// A trait-application premise, never an ordinary Type/Const/Life actual.
+    /// Only type equations and explicitly typed constant equations are legal.
+    AssociatedBinding(DynBinding),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -315,6 +323,8 @@ pub struct Block {
 pub struct Stmt {
     pub kind: StmtKind,
     pub span: Span,
+    /// Request-local production token; absent in parsed/original syntax.
+    pub semantic: SemanticContextMarker,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -439,6 +449,32 @@ pub struct RecordPatternField {
 pub struct Expr {
     pub kind: ExprKind,
     pub span: Span,
+    /// A linear owner/role event bundle consumed at the real Core emission.
+    /// This transport token is never a semantic or Source-fidelity proof.
+    pub semantic: SemanticContextMarker,
+}
+
+/// General expression/declaration production address. Syntax equality ignores
+/// request-local transport, so every consumer must check the raw ledger slot.
+#[derive(Clone, Copy, Debug)]
+pub struct SemanticContextMarker(u32);
+impl Default for SemanticContextMarker {
+    fn default() -> Self {
+        Self(u32::MAX)
+    }
+}
+impl SemanticContextMarker {
+    pub fn untrusted(index: u32) -> Self {
+        Self(index)
+    }
+    pub fn raw_index(self) -> Option<u32> {
+        (self.0 != u32::MAX).then_some(self.0)
+    }
+}
+impl PartialEq for SemanticContextMarker {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
 }
 
 /// A request-local relocation reference, not source syntax or a semantic claim.

@@ -72,6 +72,62 @@ fn growing_pod_hash_map_source_completes_independent_verification() {
 #[path = "growing_callable_effects.rs"]
 mod callable_effects;
 
+#[test]
+fn borrowed_store_fields_and_callbacks_run_from_the_original_source() {
+    let sources = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/library-and-ui/growing-hash-collections");
+    let output = directory("store-field-programs");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for name in [
+        "borrowed-store-sibling-window",
+        "callable-store-context",
+        "callable-store-field-refill",
+        "callback-helper-replacement",
+        "callback-store-address-boundary",
+        "store-descriptor-generation",
+        "store-owned-field-windows",
+        "store-parent-delegation",
+    ] {
+        let source = sources.join(format!("{name}.zil"));
+        for &backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let label = format!("{name}-{backend:?}-{optimization:?}");
+                let report = CompilationSession::default().compile_path(
+                    &source,
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        output: Some(output.join(&label)),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{label}: {}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1, "{label}");
+                let codegen = report.native_codegen.as_ref().unwrap();
+                assert_eq!(codegen.backend, backend, "{label}");
+                assert!(codegen.fallback.is_none(), "{label}");
+                let run = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(run.status.code(), Some(0), "{label}: {run:?}");
+                assert!(
+                    run.stdout.is_empty() && run.stderr.is_empty(),
+                    "{label}: {run:?}"
+                );
+            }
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn growing_map_set_native_rehash_and_every_allocation_failure_preserve_owners() {

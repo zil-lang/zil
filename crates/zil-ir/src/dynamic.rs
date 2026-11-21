@@ -17,11 +17,111 @@ pub struct DynVtableId {
 /// nominal life inventory. Keys and stable identities must be jointly unique.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynDeclaration {
+    pub implicit_lifetimes: Option<Vec<DynImplicitLifeDeclaration>>,
+    /// Original declaration scope; absence is Unknown, never an empty graph.
+    pub direct_supertraits: Option<Vec<DynSelfPattern>>,
+    pub requirements: Option<Vec<DynObligation>>,
+    pub associated_definitions: Option<Vec<DynAssociatedDefinition>>,
+    pub method_signatures: Option<Vec<DynMethodRecipe>>,
+    pub method_definitions: Option<Vec<DynDefinitionDeclaration>>,
+    /// Impl Self recipe in original formal order. None is unknown for a
+    /// generic borrowing impl; it never means an empty lifetime relation.
+    pub self_pattern: Option<DynTypePattern>,
+    /// Complete implemented trait application in this impl's original formal
+    /// scope. Every used provider must prove it; None remains unknown.
+    pub implemented_trait: Option<DynSelfPattern>,
     pub id: LifeDeclarationId,
     pub identity: LifeDeclarationIdentity,
     pub kind: DynDeclarationKind,
     pub parameters: Vec<LifeParameterKind>,
     pub members: Vec<DynMemberDeclaration>,
+}
+/// Source-authenticated nominal header recipe. Raw recipes remain untrusted.
+/// Every actual position survives, including phantom and equal life actuals.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynSelfPattern {
+    pub declaration: LifeDeclarationId,
+    pub arguments: Vec<DynPatternActual>,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynPatternActual {
+    Type(DynTypePattern),
+    Const(DynConstPattern),
+    /// Full ordinal in DynDeclaration.parameters, never a Self class index.
+    Life(DynLifePattern),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynConstPattern {
+    /// Original untyped source literal, evaluated under the recipe's real
+    /// substituted carrier; preserves generic width and exact float rounding.
+    IntegerLiteral(String),
+    FloatLiteral(String),
+    MethodParameter(u32),
+    Unary {
+        op: UnaryOp,
+        value: Box<DynConstPattern>,
+        ty: Box<DynTypePattern>,
+    },
+    Binary {
+        op: BinaryOp,
+        left: Box<DynConstPattern>,
+        right: Box<DynConstPattern>,
+        ty: Box<DynTypePattern>,
+    },
+    Convert {
+        value: Box<DynConstPattern>,
+        ty: Box<DynTypePattern>,
+    },
+    AssociatedProjection {
+        receiver: Box<DynTypePattern>,
+        application: Box<DynSelfPattern>,
+        member: u32,
+    },
+    Value(Constant),
+    Parameter(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DynTypePattern {
+    /// Valid only after establishing the actual receiver. Forbidden in the
+    /// implementation's own Self pattern, where it would be circular.
+    SelfType,
+    MethodParameter(u32),
+    AssociatedProjection {
+        receiver: Box<DynTypePattern>,
+        application: Box<DynSelfPattern>,
+        member: u32,
+    },
+    /// Complete closed semantic type; Named placeholders are not executable.
+    Concrete(Type),
+    Parameter(u32),
+    Nominal(Box<DynSelfPattern>),
+    Address {
+        mutable: bool,
+        lifetime: Option<DynLifePattern>,
+        inner: Box<DynTypePattern>,
+    },
+    Tuple(Vec<DynTypePattern>),
+    Array {
+        element: Box<DynTypePattern>,
+        length: DynConstPattern,
+    },
+    Slice(Box<DynTypePattern>),
+    Managed(Box<DynTypePattern>),
+    Desc {
+        lifetime: Option<DynLifePattern>,
+        inner: Box<DynTypePattern>,
+    },
+    OwnedStore(Box<DynTypePattern>),
+    ErrorUnion {
+        error: Box<DynTypePattern>,
+        result: Box<DynTypePattern>,
+    },
+    /// Complete original type grammar in the exact owner-bound semantic scope.
+    /// This bridge supplies no substitution, well-formedness or permission.
+    Semantic {
+        scope: SemanticDefinitionId,
+        ty: Box<SemanticTypeRecipe>,
+    },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DynDeclarationKind {
@@ -36,12 +136,14 @@ pub struct DynMemberDeclaration {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynMemberKind {
     Type,
-    Constant(Type),
+    Constant,
     Method(Vec<LifeParameterKind>),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynGenericActual {
+    /// Only an independently proved complete zero-domain type.
     Type(Type),
+    QualifiedType(DynTypeValue),
     Const(Constant),
     Life(StorageBinder),
 }
@@ -60,6 +162,8 @@ pub struct DynMember {
 pub struct DynAssociatedType {
     pub member: DynMember,
     pub ty: Type,
+    pub life: StorageLifeShape,
+    pub classes: Vec<StorageBinder>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynAssociatedConstant {
@@ -94,6 +198,11 @@ pub struct DynSlot {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynInterface {
+    /// Complete compile-time retained dependency envelope. None denotes the
+    /// closed empty envelope; concrete nonempty contexts must match retained_life.
+    pub context: Option<Type>,
+    /// Whole erased-owner cleanup upper bound; None is unknown.
+    pub owning_cleanup: Option<DynCleanupContract>,
     pub id: DynInterfaceId,
     pub application: DynTraitApplication,
     pub inherited: Vec<DynTraitApplication>,
@@ -113,14 +222,29 @@ pub struct DynEntry {
     pub slot: u32,
     pub function: FunctionId,
 }
+/// One explicit row for every public port. Empty sources prove that this
+/// provider does not use that upper-bound port; an omitted row is unknown.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DynRetainedPortBinding {
+    pub port: u32,
+    pub sources: Vec<StoragePosition>,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreDynVtable {
+    /// Complete local Self domain. None is Unknown for any consumer requiring
+    /// a separate outer type domain; embedded qualified domains remain exact.
+    pub self_life: Option<StorageLifeShape>,
+    /// Complete finite obligation graph. Missing never supplies a witness.
+    pub implementation_witnesses: Option<Vec<DynImplementationWitness>>,
+    /// Complete persistent Self-class order mapped into the interface Context.
+    /// Untrusted: includes phantom classes; only actual Fixed mappings qualify.
+    pub self_classes: Vec<StorageBinder>,
     pub id: DynVtableId,
     pub interface: DynInterfaceId,
     pub self_type: Type,
     pub implementation: LifeDeclarationId,
     pub actuals: Vec<DynGenericActual>,
-    pub ports: Vec<RetainedPortBinding>,
+    pub ports: Vec<DynRetainedPortBinding>,
     pub entries: Vec<CoreDynEntry>,
     pub cleanup: Option<CoreDynEntry>,
     /// Explicit storage route for an owning erased payload. Ordinary cleanup
@@ -129,12 +253,19 @@ pub struct CoreDynVtable {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynVtable {
+    /// Complete local Self domain. None is Unknown for any consumer requiring
+    /// a separate outer type domain; embedded qualified domains remain exact.
+    pub self_life: Option<StorageLifeShape>,
+    /// Complete finite obligation graph. Missing never supplies a witness.
+    pub implementation_witnesses: Option<Vec<DynImplementationWitness>>,
+    /// Complete persistent Self-class order mapped into the interface Context.
+    pub self_classes: Vec<StorageBinder>,
     pub id: DynVtableId,
     pub interface: DynInterfaceId,
     pub self_type: Type,
     pub implementation: LifeDeclarationId,
     pub actuals: Vec<DynGenericActual>,
-    pub ports: Vec<RetainedPortBinding>,
+    pub ports: Vec<DynRetainedPortBinding>,
     pub entries: Vec<DynEntry>,
     pub cleanup: Option<DynEntry>,
     pub owned_storage: Option<DynOwnedStorage>,
@@ -157,6 +288,10 @@ pub enum DynRequirement {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynGuarantee {
+    /// Post-call retained source upper, not an exact assignment. Parameter(0)
+    /// sources select the call-before snapshot. Complete rows preserve all
+    /// parents; conservative old+argument uppers may prolong the old borrow.
+    StorageSources(StorageSourceBinding),
     ManageResult,
     State {
         position: StoragePosition,
@@ -188,7 +323,7 @@ pub enum DynResultSource {
     Create,
     Give,
     Borrow {
-        sources: Vec<StoragePosition>,
+        sources: Vec<StorageSource>,
         mutable: bool,
     },
 }

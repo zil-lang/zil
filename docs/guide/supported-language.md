@@ -1,6 +1,6 @@
 # ZIL 语言初稿开发预览
 
-状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.99.1、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](../../validation/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
+状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.100.0、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](../../validation/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
 
 数值文本、拥有哈希集合、缓冲 I/O 与资源图的冻结源码、独立复核和完整 CI 范围见[标准库验收](../../validation/library-foundations.json)。
 
@@ -16,11 +16,13 @@
 
 普通整数包括 `u8/u16/u32/u64/usize/i8/i16/i32/i64/isize`；同型运算、checked 转换、显式 wrapping、目标位宽 CT、泛型 const 和聚合保留精确类型；完整整数和f32/f64进入已核 C参数/结果、地址Record与静态回调ABI。`isize` 与 `i64`、`usize` 与 `u64` 在 x64 上各同宽而类型不同。真实输入见[整数消费者](../../tests/integers/complete-domains.zil)及[C ABI消费者](../../tests/integers/ffi.zil)。
 
+普通拥有迭代支持 `std.iter` 的惰性 `map`/`filter`、可增长 `collect`、拥有 fold 和每次调用借入的 callback 消费者；source/callback 的 `Value` 与同步 `SyncDrop` 义务独立于真正 StoreElement，见[普通值与同步迭代合同](../../spec/ordinary-values-and-cleanup.md)。
+
 ## 支持矩阵
 
 | 能力簇 | 预览支持范围 | 验证范围 | 边界 |
 | --- | --- | --- | --- |
-| 拥有组合与动态派发 | 有限拥有父形状、捕获和递归 Package 模式；借入 dyn 的共享/独占标量及 Unit 槽；自含 ByteBuffer Package 的显式 `OwnedDyn` Heap 路线 | 真实双 provider、跨模块调用、字段访问、分配失败/一次 cleanup、raw/Wire、缓存与四机器配置 | owned dyn 尚不接受 user Drop、Store/借入 provider 或闭包捕获；借入结果及一般关联/泛型槽未开放，未知合同仍拒绝 |
+| 拥有组合与动态派发 | 有限拥有父形状、捕获和递归 Package 模式；借入 dyn 的共享/独占值槽、Panic 合同及共享字段地址结果；闭合 ByteBuffer/普通 user Drop/Store provider 的 `OwnedDyn` Heap 路线与 moved Fn/FnMut/FnOnce 捕获、实际拥有地址 helper 与重复调用 | 真实双 provider、跨模块调用、字段访问、分配失败/一次 cleanup、raw/Wire、缓存与四机器配置 | owned dyn 尚不接受借入 provider、非移动拥有捕获或未选择的 owner 错误联合捕获；非接收者借入来源及一般关联/泛型槽未开放，未知合同仍拒绝 |
 | 普通集合、文本与 I/O | 完整 POD Tuple/Array/Record/标量 Store；[可增长 POD HashMap 和 Copy Set](../../spec/pod-hash-collections.md)；[普通 owning K/V 哈希 Map 与 owning Set](../../spec/owning-hash-collections.md)、拥有 Entry 的整库转交；UTF8 String、排序、文件/流 I/O | 真实普通库、私有跨模块 Key、增长/rehash 准备失败保留、拥有键值返还、活动 get 窗口、逐分配点清理、Source/raw/Wire 与四机器配置 | owning 哈希容器要求实际 StoreElement 与稳定 KeyEq/KeyHash；get 保留真实 manager；删除保序且可分配 suffix；完整 Unicode 排版仍有缺口 |
 | 数值文本与缓冲 I/O | [十种整数十进制、浮点解析格式化与固定容量 Reader/Writer](../../spec/numeric-text-and-buffered-io.md) | binary32/64 位模式 roundtrip、边界与舍入、locale 失败清理；短读写、EOF、失败后精确 suffix 重试与关闭一次；两核默认和 N/N−1 预算 | 浮点文本当前为 Linux/glibc 普通固定签名适配；roundtrip 使用 round-to-nearest，其他外部舍入模式仍生效；Writer 需显式 flush/finish 观察输出错误 |
 | 拥有资源图 | [runtime-sized 循环／共享边图、逻辑删除、回收与有界 ticket 复用](../../spec/checked-resource-graph.md) | 真实 ByteBuffer payload 与分配失败返还、循环遍历、重复删除／collect／take／clear、旧 ticket 失效、两图同号边界与四机器配置 | NodeKey 是接收 Graph 的相对 namespace 值；运行时检查实际节点，不提供跨图 generative 来源证明或稳定地址；历史 metadata 容量固定 |

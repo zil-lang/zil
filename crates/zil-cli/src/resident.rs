@@ -1,5 +1,6 @@
 //! Explicit, single-project stdio requests over the existing raw session.
 //! No listener, watcher, cached Verify authority, program execution or JIT.
+use super::work_profile::WorkProfile;
 use std::io::{self, BufRead, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -11,6 +12,7 @@ use zil_driver::{
 };
 
 pub(super) struct Config {
+    pub work_profile: WorkProfile,
     pub capacity: usize,
     pub reset_after: usize,
     pub timeout: Option<Duration>,
@@ -19,6 +21,7 @@ pub(super) struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            work_profile: WorkProfile::default(),
             capacity: 32,
             reset_after: 64,
             timeout: None,
@@ -148,8 +151,12 @@ fn serve(
                 requests += 1;
                 let start = Instant::now();
                 let report = match refresh(input_path, options, config) {
-                    Ok((path, current)) => session.compile_path(&path, &current).to_json(),
-                    Err(errors) => failed_report(&errors),
+                    Ok((path, current)) => config
+                        .work_profile
+                        .report_json(&session.compile_path(&path, &current), &current.limits),
+                    Err(errors) => config
+                        .work_profile
+                        .annotate_json(&failed_report(&errors), &options.limits),
                 };
                 let elapsed = start.elapsed().as_secs_f64() * 1000.0;
                 retained += 1;

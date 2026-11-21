@@ -13,9 +13,61 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_declaration(&mut self, value: &DynDeclaration) -> WireResult<()> {
+        self.boolean(value.implicit_lifetimes.is_some())?;
+        if let Some(rows) = &value.implicit_lifetimes {
+            self.count(rows.len(), self.limits.max_nodes)?;
+            for row in rows {
+                self.dyn_implicit_life_declaration(row, 0)?;
+            }
+        }
+
+        let depth = 0;
+        self.boolean(value.direct_supertraits.is_some())?;
+        if let Some(item) = &value.direct_supertraits {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_self_pattern(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.requirements.is_some())?;
+        if let Some(item) = &value.requirements {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_obligation(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.associated_definitions.is_some())?;
+        if let Some(item) = &value.associated_definitions {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_associated_definition(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.method_signatures.is_some())?;
+        if let Some(item) = &value.method_signatures {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_method_recipe(item, depth + 1)?;
+            }
+        }
+        self.boolean(value.method_definitions.is_some())?;
+        if let Some(item) = &value.method_definitions {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_definition_declaration(item, depth + 1)?;
+            }
+        }
         self.declaration_id(&value.id)?;
         self.declaration_identity(&value.identity)?;
         self.dyn_declaration_kind(&value.kind)?;
+        self.boolean(value.self_pattern.is_some())?;
+        if let Some(pattern) = &value.self_pattern {
+            self.dyn_type_pattern(pattern, 0)?;
+        }
+        self.boolean(value.implemented_trait.is_some())?;
+        if let Some(pattern) = &value.implemented_trait {
+            self.dyn_self_pattern(pattern, 0)?;
+        }
         self.count(value.parameters.len(), self.limits.max_nodes)?;
         for value in &value.parameters {
             self.parameter_kind(value, 0)?;
@@ -26,6 +78,7 @@ impl Writer<'_> {
         }
         Ok(())
     }
+
     pub(super) fn dyn_member_declaration(
         &mut self,
         value: &DynMemberDeclaration,
@@ -50,6 +103,11 @@ impl Writer<'_> {
     pub(super) fn dyn_associated_type(&mut self, value: &DynAssociatedType) -> WireResult<()> {
         self.dyn_member(&value.member)?;
         self.ty(&value.ty, 0)?;
+        self.storage_shape(&value.life)?;
+        self.count(value.classes.len(), self.limits.max_nodes)?;
+        for class in &value.classes {
+            self.storage_binder(class)?;
+        }
         Ok(())
     }
     pub(super) fn dyn_associated_constant(
@@ -92,6 +150,15 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_interface(&mut self, value: &DynInterface) -> WireResult<()> {
+        self.boolean(value.context.is_some())?;
+        if let Some(context) = &value.context {
+            self.ty(context, 0)?;
+        }
+        self.boolean(value.owning_cleanup.is_some())?;
+        if let Some(cleanup) = &value.owning_cleanup {
+            self.dyn_cleanup_contract(cleanup)?;
+        }
+
         self.dyn_interface_id(&value.id)?;
         self.dyn_trait_application(&value.application)?;
         self.count(value.inherited.len(), self.limits.max_nodes)?;
@@ -119,9 +186,25 @@ impl Writer<'_> {
         Ok(())
     }
     pub(super) fn dyn_vtable(&mut self, value: &DynVtable) -> WireResult<()> {
+        let depth = 0;
+        self.boolean(value.self_life.is_some())?;
+        if let Some(item) = &value.self_life {
+            self.storage_shape(item)?;
+        }
+        self.boolean(value.implementation_witnesses.is_some())?;
+        if let Some(item) = &value.implementation_witnesses {
+            self.count((item).len(), self.limits.max_nodes)?;
+            for item in item {
+                self.dyn_implementation_witness(item, depth + 1)?;
+            }
+        }
         self.dyn_vtable_id(&value.id)?;
         self.dyn_interface_id(&value.interface)?;
         self.ty(&value.self_type, 0)?;
+        self.count(value.self_classes.len(), self.limits.max_nodes)?;
+        for binder in &value.self_classes {
+            self.storage_binder(binder)?;
+        }
         self.declaration_id(&value.implementation)?;
         self.count(value.actuals.len(), self.limits.max_nodes)?;
         for value in &value.actuals {
@@ -129,7 +212,11 @@ impl Writer<'_> {
         }
         self.count(value.ports.len(), self.limits.max_nodes)?;
         for value in &value.ports {
-            self.retained_port_binding(value)?;
+            self.u32(value.port)?;
+            self.count(value.sources.len(), self.limits.max_nodes)?;
+            for source in &value.sources {
+                self.storage_position(source)?;
+            }
         }
         self.count(value.entries.len(), self.limits.max_nodes)?;
         for value in &value.entries {
@@ -244,9 +331,8 @@ impl Writer<'_> {
             DynMemberKind::Type => {
                 self.u8(0)?;
             }
-            DynMemberKind::Constant(value_0) => {
+            DynMemberKind::Constant => {
                 self.u8(1)?;
-                self.ty(value_0, 0)?;
             }
             DynMemberKind::Method(value_0) => {
                 self.u8(2)?;
@@ -260,6 +346,10 @@ impl Writer<'_> {
     }
     pub(super) fn dyn_generic_actual(&mut self, value: &DynGenericActual) -> WireResult<()> {
         match value {
+            DynGenericActual::QualifiedType(value) => {
+                self.u8(3)?;
+                self.dyn_type_value(value, 0)?;
+            }
             DynGenericActual::Type(value_0) => {
                 self.u8(0)?;
                 self.ty(value_0, 0)?;
@@ -309,6 +399,14 @@ impl Writer<'_> {
     }
     pub(super) fn dyn_guarantee(&mut self, value: &DynGuarantee) -> WireResult<()> {
         match value {
+            DynGuarantee::StorageSources(binding) => {
+                self.u8(2)?;
+                self.storage_position(&binding.position)?;
+                self.count(binding.sources.len(), self.limits.max_nodes)?;
+                for source in &binding.sources {
+                    self.storage_source(source, 0)?;
+                }
+            }
             DynGuarantee::ManageResult => {
                 self.u8(0)?;
             }
@@ -377,7 +475,7 @@ impl Writer<'_> {
                 self.u8(3)?;
                 self.count(sources.len(), self.limits.max_nodes)?;
                 for value in sources {
-                    self.storage_position(value)?;
+                    self.storage_source(value, 0)?;
                 }
                 self.boolean(*mutable)?;
             }
@@ -451,10 +549,92 @@ impl Reader<'_> {
         })
     }
     pub(super) fn dyn_declaration(&mut self) -> WireResult<DynDeclaration> {
+        let depth = 0;
         Ok(DynDeclaration {
+            implicit_lifetimes: if self.boolean()? {
+                let count = self.count(self.limits.max_nodes, 1)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.dyn_implicit_life_declaration(0)?);
+                }
+                Some(rows)
+            } else {
+                None
+            },
+
+            direct_supertraits: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_self_pattern(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            requirements: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_obligation(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            associated_definitions: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_associated_definition(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            method_signatures: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_method_recipe(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
+            method_definitions: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_definition_declaration(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
             id: self.declaration_id()?,
             identity: self.declaration_identity()?,
             kind: self.dyn_declaration_kind()?,
+            self_pattern: if self.boolean()? {
+                Some(self.dyn_type_pattern(0)?)
+            } else {
+                None
+            },
+            implemented_trait: if self.boolean()? {
+                Some(self.dyn_self_pattern(0)?)
+            } else {
+                None
+            },
             parameters: {
                 let count = self.count(self.limits.max_nodes, 1)?;
                 let mut values_1 = Vec::with_capacity(count);
@@ -473,6 +653,7 @@ impl Reader<'_> {
             },
         })
     }
+
     pub(super) fn dyn_member_declaration(&mut self) -> WireResult<DynMemberDeclaration> {
         Ok(DynMemberDeclaration {
             name: self.text()?,
@@ -502,6 +683,15 @@ impl Reader<'_> {
         Ok(DynAssociatedType {
             member: self.dyn_member()?,
             ty: self.ty(0)?,
+            life: self.storage_shape()?,
+            classes: {
+                let count = self.count(self.limits.max_nodes, 5)?;
+                let mut rows = Vec::with_capacity(count);
+                for _ in 0..count {
+                    rows.push(self.storage_binder()?);
+                }
+                rows
+            },
         })
     }
     pub(super) fn dyn_associated_constant(&mut self) -> WireResult<DynAssociatedConstant> {
@@ -558,6 +748,16 @@ impl Reader<'_> {
     }
     pub(super) fn dyn_interface(&mut self) -> WireResult<DynInterface> {
         Ok(DynInterface {
+            context: if self.boolean()? {
+                Some(self.ty(0)?)
+            } else {
+                None
+            },
+            owning_cleanup: if self.boolean()? {
+                Some(self.dyn_cleanup_contract()?)
+            } else {
+                None
+            },
             id: self.dyn_interface_id()?,
             application: self.dyn_trait_application()?,
             inherited: {
@@ -602,10 +802,36 @@ impl Reader<'_> {
         })
     }
     pub(super) fn dyn_vtable(&mut self) -> WireResult<DynVtable> {
+        let depth = 0;
         Ok(DynVtable {
+            self_life: if self.boolean()? {
+                Some(self.storage_shape()?)
+            } else {
+                None
+            },
+            implementation_witnesses: if self.boolean()? {
+                Some({
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut rows = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        rows.push(self.dyn_implementation_witness(depth + 1)?);
+                    }
+                    rows
+                })
+            } else {
+                None
+            },
             id: self.dyn_vtable_id()?,
             interface: self.dyn_interface_id()?,
             self_type: self.ty(0)?,
+            self_classes: {
+                let count = self.count(self.limits.max_nodes, 5)?;
+                let mut binders = Vec::with_capacity(count);
+                for _ in 0..count {
+                    binders.push(self.storage_binder()?);
+                }
+                binders
+            },
             implementation: self.declaration_id()?,
             actuals: {
                 let count = self.count(self.limits.max_nodes, 1)?;
@@ -616,10 +842,16 @@ impl Reader<'_> {
                 values_11
             },
             ports: {
-                let count = self.count(self.limits.max_nodes, 1)?;
+                let count = self.count(self.limits.max_nodes, 8)?;
                 let mut values_12 = Vec::with_capacity(count);
                 for _ in 0..count {
-                    values_12.push(self.retained_port_binding()?);
+                    let port = self.u32()?;
+                    let count = self.count(self.limits.max_nodes, 1)?;
+                    let mut sources = Vec::with_capacity(count);
+                    for _ in 0..count {
+                        sources.push(self.storage_position()?);
+                    }
+                    values_12.push(DynRetainedPortBinding { port, sources });
                 }
                 values_12
             },
@@ -778,7 +1010,7 @@ impl Reader<'_> {
     pub(super) fn dyn_member_kind(&mut self) -> WireResult<DynMemberKind> {
         Ok(match self.u8()? {
             0 => DynMemberKind::Type,
-            1 => DynMemberKind::Constant(self.ty(0)?),
+            1 => DynMemberKind::Constant,
             2 => DynMemberKind::Method({
                 let count = self.count(self.limits.max_nodes, 1)?;
                 let mut values_22 = Vec::with_capacity(count);
@@ -792,6 +1024,7 @@ impl Reader<'_> {
     }
     pub(super) fn dyn_generic_actual(&mut self) -> WireResult<DynGenericActual> {
         Ok(match self.u8()? {
+            3 => DynGenericActual::QualifiedType(self.dyn_type_value(0)?),
             0 => DynGenericActual::Type(self.ty(0)?),
             1 => DynGenericActual::Const(self.constant()?),
             2 => DynGenericActual::Life(self.storage_binder()?),
@@ -820,6 +1053,15 @@ impl Reader<'_> {
                 ty: self.ty(0)?,
                 variant: self.u32()?,
             },
+            2 => {
+                let position = self.storage_position()?;
+                let count = self.count(self.limits.max_nodes, 5)?;
+                let mut sources = Vec::with_capacity(count);
+                for _ in 0..count {
+                    sources.push(self.storage_source(0)?);
+                }
+                DynGuarantee::StorageSources(StorageSourceBinding { position, sources })
+            }
             _ => return Err(malformed("E-WIRE-TAG", "unknown DynGuarantee tag")),
         })
     }
@@ -848,7 +1090,7 @@ impl Reader<'_> {
                     let count = self.count(self.limits.max_nodes, 1)?;
                     let mut values_23 = Vec::with_capacity(count);
                     for _ in 0..count {
-                        values_23.push(self.storage_position()?);
+                        values_23.push(self.storage_source(0)?);
                     }
                     values_23
                 },

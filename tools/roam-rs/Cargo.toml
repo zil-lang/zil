@@ -2,7 +2,7 @@
 name = "roam"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.99"
+rust-version = "1.100"
 publish = false
 
 [workspace]
@@ -13,6 +13,9 @@ serde_json = "=1.0.154"
 zil-base = { path = "../../crates/zil-base" }
 zil-db = { path = "../../crates/zil-db" }
 zil-driver = { path = "../../crates/zil-driver" }
+
+[features]
+llvm-api = ["zil-driver/llvm-api"]
 
 [lints.rust]
 unsafe_code = "forbid"

@@ -1285,7 +1285,8 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             b.push(255);
             encode_text(b, s);
         }
-        InstructionKind::SyncInteger { .. }
+        InstructionKind::TaskCreateOwned { .. }
+        | InstructionKind::SyncInteger { .. }
         | InstructionKind::SyncIntegerCompareExchange { .. } => {
             panic!("V34 identity reference cannot encode V45 operations")
         }
@@ -1429,6 +1430,7 @@ fn encode_closed_relation(bytes: &mut Vec<u8>, life: &StorageLifeContract) {
                 encode_u32(bytes, index);
             }
             StorageBase::Result => bytes.push(2),
+            StorageBase::Receiver => bytes.push(3),
         }
         encode_len(bytes, 0);
         match row.binder {

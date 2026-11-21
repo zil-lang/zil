@@ -1,0 +1,10 @@
+
+# Callable source scopes
+
+`CoreFunction.source_scope` records the actual owner's original Definition identity, complete mixed formal order and complete inverse directory of source input occurrences. Source forms this directory from the original AST and the consumed elaboration/instantiation ledger independently of `CoreCallableReturn.source_life`. An instantiated function retains its real original declaration; a newly allocated Core node number, spelling, span or callable-bound ordinal does not identify that declaration.
+
+Every returned-bound source context must match that actual owner's declaration, full identity and all original formal kinds, including unused formals. Every bound Fixed anchor must be an exact member of the original input directory, including its full source-formal ordinal, actual parameter, header selector and header binder. The directory must separately cover every actual concrete Parameter Borrow/Class header position exactly once. Named lifetime ordinals select actual Lifetime formals; anonymous input domains have no invented source formal. A same-typed second parameter cannot replace the first parameter while retaining the first parameter's source lifetime ordinal.
+
+After checking this bridge, Types maps bound Fixed classes through the actual creator Result class directory into the returned closure's complete canonical Fixed domain. Extra captured classes remain present and rigid. Invocation classes are related through actual Parameter/Result/Receiver positions rather than coincidental numeric labels. The independent kernels still reconstruct every concrete signature, capture source, ownership obligation and parent loan. Source scope metadata supplies none of those permissions and never supplies builtin, trait, resource or visibility authority.
+
+Every metadata copy pays for the full directory, identity text and selector paths before cloning. Const formal types require an independent bounded type walk. CT snapshots preserve the complete source scope and charge against the current remaining node and work budgets. A missing or inconsistent original scope cannot satisfy a context-bearing returned bound.
