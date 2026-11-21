@@ -109,6 +109,7 @@ pub fn aggregate_module() -> Module {
             initializer: Some(Val::Array(vec![a(Ty::Ptr, Val::Global("answer".into()))])),
             constant: true,
             unnamed_addr: false,
+            thread_local: false,
             alignment: 8,
         }),
         Item::Function(f(

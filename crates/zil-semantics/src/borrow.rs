@@ -1105,4 +1105,324 @@ impl Kernel<'_> {
         }
         Some(out)
     }
+
+    fn loans_overlap(&self, a: &BitSet, b: &BitSet) -> Option<OpLocation> {
+        for id_a in a.iter() {
+            for id_b in b.iter() {
+                if id_a == id_b {
+                    if let Some(la) = self.loans.get(id_a) {
+                        return Some(la.origin);
+                    }
+                } else if let (Some(la), Some(lb)) = (self.loans.get(id_a), self.loans.get(id_b))
+                    && la.place.root == lb.place.root
+                    && la.place.relation(&lb.place) != PlaceRelation::Disjoint
+                {
+                    return Some(la.origin);
+                }
+            }
+        }
+        None
+    }
+
+    fn closure_def_of_place(
+        &self,
+        place: &Place,
+    ) -> Option<(zil_ir::body::ClosureId, zil_ir::body::ArgsId)> {
+        let cx = self.body.cx(self.tys);
+        type_place(place, &cx).ok().and_then(|t| {
+            let ty = t.ty();
+            if let zil_ir::body::TyKind::Closure { def, args } = self.tys.kind(ty) {
+                Some((*def, *args))
+            } else if let zil_ir::body::TyKind::Managed(inner)
+            | zil_ir::body::TyKind::Ref { pointee: inner, .. } = self.tys.kind(ty)
+            {
+                if let zil_ir::body::TyKind::Closure { def, args } = self.tys.kind(*inner) {
+                    Some((*def, *args))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+    }
+
+    fn add_closure_mutated_loans(
+        &self,
+        state: &State,
+        closure: &Place,
+        mutated: &mut BitSet,
+    ) -> u64 {
+        let csum = self.closure_def_of_place(closure).and_then(|(def, _)| {
+            self.sigs
+                .return_summaries
+                .and_then(|ms| ms.iter().find(|s| s.closure == Some(def)))
+        });
+        let cmut = csum.map_or(u64::MAX, |s| s.mutating_captures);
+        if cmut != 0 {
+            let mut used_fields = false;
+            if closure.projections.is_empty()
+                && let PlaceRoot::Local(rl) = closure.root
+                && let Some(rfields) = state.carries.fields_of(rl)
+            {
+                let max_bit = if rfields.len() >= 64 {
+                    u64::MAX
+                } else {
+                    (1u64 << rfields.len()) - 1
+                };
+                if (cmut & !max_bit) == 0 {
+                    used_fields = true;
+                    for (ci, fl) in rfields.iter().enumerate() {
+                        if (cmut & (1u64 << ci)) != 0 {
+                            mutated.union_with(fl);
+                        }
+                    }
+                }
+            }
+            if !used_fields {
+                mutated.union_with(&self.reach(state, closure.root));
+            }
+        }
+        csum.map_or(u64::MAX, |s| s.mutating_params)
+    }
+
+    fn check_place_ref_conflict(
+        &self,
+        state: &State,
+        place: &Place,
+        mutated: &BitSet,
+        skip_caps: u64,
+    ) -> Result<(), ViolationKind> {
+        let cx = self.body.cx(self.tys);
+        let Ok(typing) = type_place(place, &cx) else {
+            return Ok(());
+        };
+        let ty = typing.ty();
+        if !crate::ty_holds_reference(self.tys, ty) {
+            return Ok(());
+        }
+        if place.projections.is_empty()
+            && let Some((def, subst)) = self.closure_def_of_place(place)
+            && let Some(cdef) = self.tys.closure(def)
+        {
+            let has_unskipped_ref_cap = cdef.captures.iter().enumerate().any(|(ci, cap_ty)| {
+                let skipped = ci < 64 && (skip_caps & (1u64 << ci)) != 0;
+                if skipped {
+                    return false;
+                }
+                let concrete = self.tys.subst_lookup(*cap_ty, subst).unwrap_or(*cap_ty);
+                crate::ty_holds_reference(self.tys, concrete)
+            });
+            if !has_unskipped_ref_cap {
+                return Ok(());
+            }
+            if let PlaceRoot::Local(l) = place.root
+                && let Some(rfields) = state.carries.fields_of(l)
+                && cdef.captures.len() == rfields.len()
+            {
+                for (ci, (cap_ty, fl)) in cdef.captures.iter().zip(rfields.iter()).enumerate() {
+                    if ci < 64 && (skip_caps & (1u64 << ci)) != 0 {
+                        continue;
+                    }
+                    let concrete = self.tys.subst_lookup(*cap_ty, subst).unwrap_or(*cap_ty);
+                    if crate::ty_holds_reference(self.tys, concrete)
+                        && let Some(loan) = self.loans_overlap(fl, mutated)
+                    {
+                        return Err(ViolationKind::LoanConflict {
+                            place: place.clone(),
+                            loan,
+                        });
+                    }
+                }
+                return Ok(());
+            }
+        }
+        let loans = self.reach(state, place.root);
+        if let Some(loan) = self.loans_overlap(&loans, mutated) {
+            return Err(ViolationKind::LoanConflict {
+                place: place.clone(),
+                loan,
+            });
+        }
+        Ok(())
+    }
+
+    /// Rejects any call that may structurally mutate a `Store` or `ByteBuffer`
+    /// (`store_reserve`/`store_push`/`store_pop`/`bytes_reserve`/`bytes_push`/
+    /// `bytes_truncate`, directly or transitively through helpers, closures, or
+    /// `thread_scope` callbacks) while a reference borrowing from overlapping
+    /// storage is live or passed concurrently into the same call.
+    pub(crate) fn check_store_mutation_conflict(
+        &self,
+        state: &State,
+        term: &Terminator,
+        at: OpLocation,
+    ) -> Result<(), ViolationKind> {
+        use zil_ir::body::{Callee, IntrinsicOp, Operand};
+        let Terminator::Call {
+            callee, args, dest, ..
+        } = term
+        else {
+            return Ok(());
+        };
+        let mut mutated = self.empty_loans();
+        let mut thread_parent_mut_caps = 0u64;
+        let mut closure_mut_caps = 0u64;
+        let mut mutated_arg_mask = 0u64;
+        match callee {
+            Callee::Intrinsic(op) if crate::is_structural_mutation(*op) => {
+                mutated_arg_mask = 1u64;
+                if let Some(Operand::Copy(p) | Operand::Move(p)) = args.first() {
+                    mutated.union_with(&self.reach(state, p.root));
+                }
+            }
+            Callee::Intrinsic(IntrinsicOp::ThreadScope) => {
+                if let Some(Operand::Copy(p) | Operand::Move(p)) = args.get(2) {
+                    thread_parent_mut_caps = self
+                        .closure_def_of_place(p)
+                        .and_then(|(def, _)| {
+                            self.sigs
+                                .return_summaries
+                                .and_then(|ms| ms.iter().find(|s| s.closure == Some(def)))
+                        })
+                        .map_or(0, |s| s.mutating_captures);
+                    let _ = self.add_closure_mutated_loans(state, p, &mut mutated);
+                }
+                if let Some(Operand::Copy(p) | Operand::Move(p)) = args.get(1) {
+                    let cx = self.body.cx(self.tys);
+                    if type_place(p, &cx).map_or(true, |t| {
+                        crate::ty_holds_store_or_bytes_desc(self.tys, t.ty())
+                    }) {
+                        mutated_arg_mask |= 1u64 << 1;
+                        mutated.union_with(&self.reach(state, p.root));
+                    }
+                }
+            }
+            Callee::Direct(g) => {
+                let gmut = self
+                    .sigs
+                    .return_summaries
+                    .and_then(|ms| ms.get(g.index()))
+                    .map_or(0, |s| s.mutating_params);
+                mutated_arg_mask = gmut;
+                for (ai, arg) in args.iter().enumerate() {
+                    if (ai >= 64 || (gmut & (1u64 << ai)) != 0)
+                        && let Operand::Copy(p) | Operand::Move(p) = arg
+                    {
+                        mutated.union_with(&self.reach(state, p.root));
+                    }
+                }
+            }
+            Callee::Closure { closure, .. } => {
+                closure_mut_caps = self
+                    .closure_def_of_place(closure)
+                    .and_then(|(def, _)| {
+                        self.sigs
+                            .return_summaries
+                            .and_then(|ms| ms.iter().find(|s| s.closure == Some(def)))
+                    })
+                    .map_or(0, |s| s.mutating_captures);
+                let pmut = self.add_closure_mutated_loans(state, closure, &mut mutated);
+                mutated_arg_mask = pmut;
+                for (ai, arg) in args.iter().enumerate() {
+                    if (ai >= 64 || (pmut & (1u64 << ai)) != 0)
+                        && let Operand::Copy(p) | Operand::Move(p) = arg
+                    {
+                        mutated.union_with(&self.reach(state, p.root));
+                    }
+                }
+            }
+            Callee::Indirect(_) | Callee::DynSlot { .. } | Callee::Foreign(_) => {
+                let cx = self.body.cx(self.tys);
+                for (ai, arg) in args.iter().enumerate() {
+                    if let Operand::Copy(p) | Operand::Move(p) = arg
+                        && type_place(p, &cx).map_or(true, |t| {
+                            crate::ty_holds_store_or_bytes_desc(self.tys, t.ty())
+                        })
+                    {
+                        if ai < 64 {
+                            mutated_arg_mask |= 1u64 << ai;
+                        }
+                        mutated.union_with(&self.reach(state, p.root));
+                    }
+                }
+            }
+            Callee::Intrinsic(_) => {}
+        }
+
+        if mutated.is_empty() {
+            return Ok(());
+        }
+
+        // 1. Live references surviving past this call cannot alias the mutated store.
+        let live_after = self.live.after(at);
+        let overwritten_local = if dest.projections.is_empty() {
+            dest.as_local()
+        } else {
+            None
+        };
+        let self_closure_skip = match callee {
+            Callee::Intrinsic(IntrinsicOp::ThreadScope) => match args.get(2) {
+                Some(Operand::Copy(p) | Operand::Move(p)) if p.projections.is_empty() => {
+                    p.as_local().map(|l| (l, thread_parent_mut_caps))
+                }
+                _ => None,
+            },
+            Callee::Closure { closure, .. } if closure.projections.is_empty() => {
+                closure.as_local().map(|l| (l, closure_mut_caps))
+            }
+            Callee::Direct(_)
+            | Callee::Indirect(_)
+            | Callee::Closure { .. }
+            | Callee::DynSlot { .. }
+            | Callee::Foreign(_)
+            | Callee::Intrinsic(_) => None,
+        };
+        let mut mutated_arg_locals: Vec<Local> = Vec::new();
+        for (ai, arg) in args.iter().enumerate() {
+            if (ai >= 64 || (mutated_arg_mask & (1u64 << ai)) != 0)
+                && let Operand::Copy(p) | Operand::Move(p) = arg
+                && p.projections.is_empty()
+                && let Some(l) = p.as_local()
+            {
+                mutated_arg_locals.push(l);
+            }
+        }
+        for l_idx in live_after.iter() {
+            let l = Local::from_index(l_idx);
+            if Some(l) == overwritten_local || mutated_arg_locals.contains(&l) {
+                continue;
+            }
+            let skip = match self_closure_skip {
+                Some((cl, mask)) if cl == l => mask,
+                _ => 0,
+            };
+            self.check_place_ref_conflict(state, &Place::local(l), &mutated, skip)?;
+        }
+
+        // 2. Reference arguments passed into this call (e.g., `run(p, s)` or
+        //    `thread_scope(read, p, body)`) cannot alias the mutated store.
+        for (ai, arg) in args.iter().enumerate() {
+            if ai < 64 && (mutated_arg_mask & (1u64 << ai)) != 0 {
+                continue;
+            }
+            if let Operand::Copy(p) | Operand::Move(p) = arg {
+                let skip =
+                    if matches!(callee, Callee::Intrinsic(IntrinsicOp::ThreadScope)) && ai == 2 {
+                        thread_parent_mut_caps
+                    } else {
+                        0
+                    };
+                self.check_place_ref_conflict(state, p, &mutated, skip)?;
+            }
+        }
+
+        // 3. Reference captures of the invoked closure (e.g., `outer()` capturing
+        //    both `p` and `s`) cannot alias the mutated store.
+        if let Callee::Closure { closure, .. } = callee {
+            self.check_place_ref_conflict(state, closure, &mutated, closure_mut_caps)?;
+        }
+
+        Ok(())
+    }
 }

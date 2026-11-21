@@ -43,6 +43,7 @@ fn complete_module() -> Module {
                 ])),
                 constant: true,
                 unnamed_addr: false,
+                thread_local: false,
                 alignment: 8,
             }),
             function("first", "second"),

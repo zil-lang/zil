@@ -233,6 +233,7 @@ fn write_inst(s: &mut String, i: &Inst) {
             Ok(())
         }
         Op::Freeze(arg) => write!(s, "freeze {arg}"),
+        Op::Select { condition, yes, no } => write!(s, "select i1 {condition}, {yes}, {no}"),
         Op::Phi { ty, incoming } => {
             write!(s, "phi {ty} ").unwrap();
             for (i, (v, b)) in incoming.iter().enumerate() {
@@ -474,6 +475,7 @@ fn every_instruction_and_module_form_matches_original_bytes() {
             initializer: Some(value),
             constant: index % 2 == 0,
             unnamed_addr: index % 3 == 0,
+            thread_local: false,
             alignment: if index % 2 == 0 { 0 } else { u32::MAX },
         }));
     }
@@ -493,6 +495,7 @@ fn every_instruction_and_module_form_matches_original_bytes() {
             initializer: None,
             constant: index % 2 == 0,
             unnamed_addr: index % 2 != 0,
+            thread_local: false,
             alignment: 8,
         }));
         for definition in [false, true] {
