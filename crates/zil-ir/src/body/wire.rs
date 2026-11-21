@@ -13,9 +13,9 @@ use super::ids::{
     ScopeId, StaticId, TyId, VariantIdx,
 };
 use super::inst::{
-    AggregateKind, BinOp, Block, Body, Callee, ClosureCallMode, ConstValue, DropFlag, FnRole,
-    FnSig, ForeignAbi, ForeignDecl, Function, Instruction, InstructionKind, IntrinsicOp, LocalDecl,
-    Module, Operand, Rvalue, ScopeExit, Terminator, TrapKind, UnOp,
+    AggregateKind, BinOp, Block, Body, Callee, ClosureCallMode, ConstValue, DropFlag, DynImpl,
+    FnRole, FnSig, ForeignAbi, ForeignDecl, Function, Instruction, InstructionKind, IntrinsicOp,
+    LocalDecl, Module, Operand, Rvalue, ScopeExit, Terminator, TrapKind, UnOp,
 };
 use super::place::{FieldRef, Place, PlaceRoot, Projection};
 use super::source_map::OpLocation;
@@ -58,7 +58,25 @@ pub fn encode_module(module: &Module) -> Vec<u8> {
     w.vec(&module.functions, encode_function);
     w.vec(&module.foreigns, encode_foreign_decl);
     w.vec(&module.statics, |w, b| w.byte_vec(b));
+    w.vec(&module.dyn_impls, encode_dyn_impl);
     w.out
+}
+
+fn encode_dyn_impl(w: &mut Writer, d: &DynImpl) {
+    w.u32(d.dyn_id.0);
+    w.u32(d.concrete_ty.0);
+    w.vec(&d.methods, |w, f| w.u32(f.0));
+}
+
+fn decode_dyn_impl(r: &mut Reader<'_>) -> Result<DynImpl, WireError> {
+    let dyn_id = DynId(r.u32()?);
+    let concrete_ty = TyId(r.u32()?);
+    let methods = r.vec(|r| Ok(FnId(r.u32()?)))?;
+    Ok(DynImpl {
+        dyn_id,
+        concrete_ty,
+        methods,
+    })
 }
 
 pub fn decode_module(bytes: &[u8]) -> Result<Module, WireError> {
@@ -73,12 +91,14 @@ pub fn decode_module(bytes: &[u8]) -> Result<Module, WireError> {
     let functions = r.vec(decode_function)?;
     let foreigns = r.vec(decode_foreign_decl)?;
     let statics = r.vec(|r| r.byte_vec())?;
+    let dyn_impls = r.vec(decode_dyn_impl)?;
     r.finish()?;
     Ok(Module {
         tys: TyTable::from_raw_parts(kinds, args, adts, closures, dyns),
         functions,
         foreigns,
         statics,
+        dyn_impls,
     })
 }
 

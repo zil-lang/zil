@@ -98,6 +98,7 @@ impl ModuleBuilder {
             functions: self.functions,
             foreigns: Vec::new(),
             statics: Vec::new(),
+            dyn_impls: Vec::new(),
         };
         let cert = zil_solve::solve_module(&module, zil_solve::Budget { steps: 1_000_000 })
             .unwrap_or_else(|e| panic!("solver rejected the test program: {e:?}"));

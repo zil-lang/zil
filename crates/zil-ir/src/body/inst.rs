@@ -6,8 +6,8 @@
 //! normal, error and cancellation edges use the same terminator.
 
 use super::ids::{
-    AdtId, ArgsId, BlockId, ClosureId, ConstId, FnId, ForeignId, Local, ScopeId, StaticId, TyId,
-    VariantIdx,
+    AdtId, ArgsId, BlockId, ClosureId, ConstId, DynId, FnId, ForeignId, Local, ScopeId, StaticId,
+    TyId, VariantIdx,
 };
 use super::place::{Place, PlaceTypes};
 use super::ty::{FloatTy, IntTy, Mutability, ParamEnv, Region, TyTable};
@@ -549,6 +549,15 @@ pub struct Function {
     pub body: Body,
 }
 
+/// A concrete vtable implementation mapping `(dyn_id, concrete_ty)` to
+/// the ordered list of method `FnId`s matching `DynDef.slots`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynImpl {
+    pub dyn_id: DynId,
+    pub concrete_ty: TyId,
+    pub methods: Vec<FnId>,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Module {
     pub tys: TyTable,
@@ -557,6 +566,8 @@ pub struct Module {
     pub foreigns: Vec<ForeignDecl>,
     /// Static UTF-8 byte literals, indexed by [`StaticId`].
     pub statics: Vec<Vec<u8>>,
+    /// Concrete `dyn Trait` vtable implementations verified by `zil-check`.
+    pub dyn_impls: Vec<DynImpl>,
 }
 
 impl Module {

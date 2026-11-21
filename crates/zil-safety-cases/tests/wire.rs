@@ -169,3 +169,65 @@ fn sum(p: Point) -> i32 {
     bad_fn.functions[0].function = FnId(777);
     assert!(check_fidelity(&lowered.module, &bad_fn, &[]).is_err());
 }
+
+#[test]
+fn forged_dyn_impl_in_wire_is_rejected_by_checker() {
+    let src = include_str!(
+        "../../../tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil"
+    );
+    let lowered =
+        zil_typeck::lower_source("dyn-owned-user-drop-store.zil", src).expect("dyn fixture lowers");
+    assert!(
+        lowered.module.dyn_impls.len() >= 2,
+        "expected at least 2 concrete DynImpls"
+    );
+    let cert =
+        solve_module(&lowered.module, zil_solve::Budget { steps: 1_000_000 }).expect("solves");
+
+    // Honest wire roundtrip must be admitted.
+    let wire_bytes = encode_module(&lowered.module);
+    let decoded = decode_module(&wire_bytes).expect("decode honest module");
+    check_module(decoded.clone(), &cert, CheckBudget { steps: 1_000_000 })
+        .expect("honest decoded module must be admitted");
+
+    // Tamper 1: truncated method list.
+    let mut t1 = decoded.clone();
+    t1.dyn_impls[0].methods.clear();
+    let d1 = decode_module(&encode_module(&t1)).expect("decode t1");
+    assert!(
+        check_module(d1, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "truncated dyn_impl methods must be rejected"
+    );
+
+    // Tamper 2: wrong method FnId (mismatched signature / Drop entry).
+    let mut t2 = decoded.clone();
+    let other_fn = (0..t2.functions.len())
+        .map(FnId::from_index)
+        .find(|&fid| fid != t2.dyn_impls[0].methods[0])
+        .expect("another function");
+    t2.dyn_impls[0].methods[0] = other_fn;
+    let d2 = decode_module(&encode_module(&t2)).expect("decode t2");
+    assert!(
+        check_module(d2, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "mismatched dyn_impl method signature must be rejected"
+    );
+
+    // Tamper 3: out-of-bounds DynId.
+    let mut t3 = decoded.clone();
+    t3.dyn_impls[0].dyn_id = zil_ir::body::DynId(999);
+    let d3 = decode_module(&encode_module(&t3)).expect("decode t3");
+    assert!(
+        check_module(d3, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "unknown DynId must be rejected"
+    );
+
+    // Tamper 4: duplicate (DynId, concrete_ty).
+    let mut t4 = decoded.clone();
+    let dup = t4.dyn_impls[0].clone();
+    t4.dyn_impls.push(dup);
+    let d4 = decode_module(&encode_module(&t4)).expect("decode t4");
+    assert!(
+        check_module(d4, &cert, CheckBudget { steps: 1_000_000 }).is_err(),
+        "duplicate dyn_impl must be rejected"
+    );
+}

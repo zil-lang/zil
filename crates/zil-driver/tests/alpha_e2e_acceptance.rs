@@ -1429,3 +1429,85 @@ fn main() -> TaskCreateError!i32 {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn owned_dyn_vtable_dispatch_drop_oom_cleanup_and_multi_unit_execution() {
+    let root = repo_root();
+    let dir = temp_dir("batch3-owned-dyn");
+    let fixture =
+        root.join("tests/language-readiness/dynamic-dispatch/dyn-owned-user-drop-store.zil");
+
+    // 1. Positive execution across Clang & LLVM-API, O0 & O2, plus 4-unit LLVM-API build.
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("dyn-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw(&fixture, &exe, backend, opt);
+            assert_eq!(
+                out.status.code(),
+                Some(42),
+                "owned_dyn ({backend:?}, {opt:?}) unexpected exit: status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"ABC",
+                "owned_dyn ({backend:?}, {opt:?}) unexpected drop trace: {:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+    if cfg!(feature = "llvm-api") {
+        let exe_u4 = dir.join("dyn-llvmapi-o2-u4");
+        let (code, stdout, actual_u, _) = build_and_run(
+            &fixture,
+            &exe_u4,
+            NativeBackend::LlvmApi,
+            Optimization::O2,
+            4,
+            b"",
+        );
+        assert_eq!(code, 42);
+        assert_eq!(stdout.as_slice(), b"ABC");
+        assert!(actual_u > 1, "expected multi-unit build, got {actual_u}");
+    }
+
+    // 2. Allocation failure cleanup: C probe forces calloc() to return NULL;
+    //    OwnedDynCreate must drop the concrete `A { mark: Token { code: 65 } }`
+    //    exactly once (printing 'A') and return DynCreateError -> exit code 99.
+    let oom_probe = dir.join("oom_calloc_probe.c");
+    std::fs::write(
+        &oom_probe,
+        r#"
+#include <stddef.h>
+void *calloc(size_t nmemb, size_t size) {
+    (void)nmemb;
+    (void)size;
+    return NULL;
+}
+"#,
+    )
+    .expect("write oom_calloc_probe.c");
+    let extra = vec![oom_probe];
+    for backend in dual_backends() {
+        for opt in [Optimization::O0, Optimization::O2] {
+            let exe = dir.join(format!("dyn-oom-{}-{opt:?}", backend.name()));
+            let out = build_and_run_raw_with_c(&fixture, &exe, backend, opt, &extra);
+            assert_eq!(
+                out.status.code(),
+                Some(99),
+                "owned_dyn OOM ({backend:?}, {opt:?}) expected rc=99, got status={:?}, stderr={}",
+                out.status,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            assert_eq!(
+                out.stdout.as_slice(),
+                b"A",
+                "owned_dyn OOM ({backend:?}, {opt:?}) must drop concrete A exactly once: stdout={:?}",
+                String::from_utf8_lossy(&out.stdout)
+            );
+        }
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

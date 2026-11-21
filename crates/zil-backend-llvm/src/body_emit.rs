@@ -225,6 +225,12 @@ done:\n\
                     emit_function_decl(module, func, &syms[idx], &mut out)?;
                 }
             }
+            if unit_idx != 0 {
+                for (i, dimpl) in module.dyn_impls.iter().enumerate() {
+                    let n = dimpl.methods.len() + 1;
+                    let _ = writeln!(out, "@__zil_vtable_{i} = external constant [{n} x ptr]");
+                }
+            }
             out.push('\n');
         }
 
@@ -234,6 +240,11 @@ done:\n\
                 emit_function(module, FnId::from_index(idx), func, &syms[idx], &mut out)?;
                 out.push('\n');
             }
+        }
+
+        // Emit dyn Trait vtables, drop shims, and slot thunks in unit 0.
+        if unit_idx == 0 && !module.dyn_impls.is_empty() {
+            emit_dyn_vtables(module, &syms, &mut out)?;
         }
 
         // Emit C `main()` wrapper in unit 0.
@@ -375,13 +386,11 @@ fn llvm_ty(tys: &TyTable, id: TyId) -> Result<String, BodyEmitError> {
             Some(TyKind::Opaque(OpaqueTy::ByteBuffer | OpaqueTy::OwnedStore { .. })) => {
                 "{ ptr, i64, i64 }".into()
             }
+            Some(TyKind::OwnedDyn(_) | TyKind::Dyn(_)) => "{ ptr, ptr }".into(),
             _ => "ptr".into(),
         },
-        TyKind::Desc(_)
-        | TyKind::FnPtr { .. }
-        | TyKind::Dyn(_)
-        | TyKind::OwnedDyn(_)
-        | TyKind::Opaque(_) => "ptr".into(),
+        TyKind::Dyn(_) | TyKind::OwnedDyn(_) => "{ ptr, ptr }".into(),
+        TyKind::Desc(_) | TyKind::FnPtr { .. } | TyKind::Opaque(_) => "ptr".into(),
         TyKind::Slice(_) => "{ ptr, i64 }".into(),
         TyKind::Array { element, length } => {
             let elem = llvm_storage_ty(tys, *element)?;
@@ -913,6 +922,10 @@ impl<'a> FnEmitter<'a> {
                             writeln!(self.out, "  call void @__zil_task_drop_frame(ptr {handle})");
                         return Ok(());
                     }
+                    Some(TyKind::OwnedDyn(_)) => {
+                        self.emit_owned_dyn_drop(ptr);
+                        return Ok(());
+                    }
                     Some(
                         TyKind::Unit
                         | TyKind::Bool
@@ -929,7 +942,6 @@ impl<'a> FnEmitter<'a> {
                         | TyKind::FnPtr { .. }
                         | TyKind::Closure { .. }
                         | TyKind::Dyn(_)
-                        | TyKind::OwnedDyn(_)
                         | TyKind::Param(_)
                         | TyKind::Opaque(
                             OpaqueTy::SyncCell { .. }
@@ -1052,6 +1064,10 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "{l_ok}:");
                 Ok(())
             }
+            TyKind::OwnedDyn(_) => {
+                self.emit_owned_dyn_drop(ptr);
+                Ok(())
+            }
             TyKind::Unit
             | TyKind::Bool
             | TyKind::Never
@@ -1063,10 +1079,33 @@ impl<'a> FnEmitter<'a> {
             | TyKind::Desc(_)
             | TyKind::FnPtr { .. }
             | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
             | TyKind::Param(_)
             | TyKind::Opaque(_) => Ok(()),
         }
+    }
+
+    fn emit_owned_dyn_drop(&mut self, ptr: &str) {
+        let fat = self.fresh();
+        let data = self.fresh();
+        let vt = self.fresh();
+        let nonnull = self.fresh();
+        let drop_fn = self.fresh();
+        let lbl_drop = format!("od_drop_{}", self.tmp);
+        let lbl_done = format!("od_drop_done_{}", self.tmp);
+        self.tmp += 1;
+        let _ = writeln!(self.out, "  {fat} = load {{ ptr, ptr }}, ptr {ptr}");
+        let _ = writeln!(self.out, "  {data} = extractvalue {{ ptr, ptr }} {fat}, 0");
+        let _ = writeln!(self.out, "  {vt} = extractvalue {{ ptr, ptr }} {fat}, 1");
+        let _ = writeln!(self.out, "  {nonnull} = icmp ne ptr {data}, null");
+        let _ = writeln!(
+            self.out,
+            "  br i1 {nonnull}, label %{lbl_drop}, label %{lbl_done}"
+        );
+        let _ = writeln!(self.out, "{lbl_drop}:");
+        let _ = writeln!(self.out, "  {drop_fn} = load ptr, ptr {vt}");
+        let _ = writeln!(self.out, "  call void {drop_fn}(ptr {data})");
+        let _ = writeln!(self.out, "  br label %{lbl_done}");
+        let _ = writeln!(self.out, "{lbl_done}:");
     }
 
     fn emit_assign(&mut self, dest: &Place, value: &Rvalue) -> Result<(), BodyEmitError> {
@@ -1709,10 +1748,48 @@ impl<'a> FnEmitter<'a> {
                         }
                     }
                     Callee::Intrinsic(op) => self.emit_intrinsic(*op, args, &d_ptr, d_ty)?,
-                    Callee::DynSlot { .. } => {
-                        return Err(BodyEmitError::new(
-                            "Callee::DynSlot native emission not yet implemented",
-                        ));
+                    Callee::DynSlot { object, slot } => {
+                        let (obj_v, obj_lt, _obj_ty) = self.emit_operand(object)?;
+                        let fat = if obj_lt == "ptr" {
+                            let f = self.fresh();
+                            let _ = writeln!(self.out, "  {f} = load {{ ptr, ptr }}, ptr {obj_v}");
+                            f
+                        } else {
+                            obj_v
+                        };
+                        let data = self.fresh();
+                        let vt = self.fresh();
+                        let slot_p = self.fresh();
+                        let fn_p = self.fresh();
+                        let _ =
+                            writeln!(self.out, "  {data} = extractvalue {{ ptr, ptr }} {fat}, 0");
+                        let _ = writeln!(self.out, "  {vt} = extractvalue {{ ptr, ptr }} {fat}, 1");
+                        let slot_idx = (*slot as u64) + 1;
+                        let _ = writeln!(
+                            self.out,
+                            "  {slot_p} = getelementptr inbounds ptr, ptr {vt}, i64 {slot_idx}"
+                        );
+                        let _ = writeln!(self.out, "  {fn_p} = load ptr, ptr {slot_p}");
+                        let mut arg_strs = Vec::with_capacity(1 + args.len());
+                        arg_strs.push(format!("ptr {data}"));
+                        for a in args {
+                            let (v, lt, _) = self.emit_operand(a)?;
+                            if lt != "void" {
+                                arg_strs.push(format!("{lt} {v}"));
+                            }
+                        }
+                        if d_llvm == "void" {
+                            let _ =
+                                writeln!(self.out, "  call void {fn_p}({})", arg_strs.join(", "));
+                        } else {
+                            let r = self.fresh();
+                            let _ = writeln!(
+                                self.out,
+                                "  {r} = call {d_llvm} {fn_p}({})",
+                                arg_strs.join(", ")
+                            );
+                            let _ = writeln!(self.out, "  store {d_llvm} {r}, ptr {d_ptr}");
+                        }
                     }
                 }
                 if let Some(cancel_bb) = cancel {
@@ -3437,6 +3514,115 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "  call void @free(ptr {frame})");
                 Ok(())
             }
+            IntrinsicOp::OwnedDynCreate => {
+                let arg0 = args
+                    .first()
+                    .ok_or_else(|| BodyEmitError::new("OwnedDynCreate missing value operand"))?;
+                let (v0, lt0, concrete_ty_opt) = self.emit_operand(arg0)?;
+                let concrete_ty = concrete_ty_opt
+                    .ok_or_else(|| BodyEmitError::new("OwnedDynCreate missing concrete type"))?;
+                let dyn_id = if let Some(TyKind::ErrorUnion { ok, .. }) = self.tys().get(d_ty) {
+                    if let Some(TyKind::OwnedDyn(id)) = self.tys().get(*ok) {
+                        *id
+                    } else if let Some(TyKind::Managed(inner)) = self.tys().get(*ok)
+                        && let Some(TyKind::OwnedDyn(id)) = self.tys().get(*inner)
+                    {
+                        *id
+                    } else {
+                        return Err(BodyEmitError::new("OwnedDynCreate ok arm is not OwnedDyn"));
+                    }
+                } else {
+                    return Err(BodyEmitError::new(
+                        "OwnedDynCreate destination is not ErrorUnion",
+                    ));
+                };
+                let vt_idx = self
+                    .module
+                    .dyn_impls
+                    .iter()
+                    .position(|d| d.dyn_id == dyn_id && d.concrete_ty == concrete_ty)
+                    .ok_or_else(|| {
+                        BodyEmitError::new(format!(
+                            "OwnedDynCreate missing DynImpl for ({dyn_id:?}, {concrete_ty:?})"
+                        ))
+                    })?;
+                let d_llvm = llvm_ty(self.tys(), d_ty)?;
+                let c_stor = llvm_storage_ty(self.tys(), concrete_ty)?;
+                let tmp_slot = self.fresh();
+                let _ = writeln!(self.out, "  {tmp_slot} = alloca {c_stor}");
+                if lt0 != "void" {
+                    let _ = writeln!(self.out, "  store {lt0} {v0}, ptr {tmp_slot}");
+                }
+                let sz = if lt0 == "void" {
+                    "1".to_string()
+                } else {
+                    let gep = self.fresh();
+                    let sz_raw = self.fresh();
+                    let is_zero = self.fresh();
+                    let sz_nz = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {gep} = getelementptr {c_stor}, ptr null, i32 1"
+                    );
+                    let _ = writeln!(self.out, "  {sz_raw} = ptrtoint ptr {gep} to i64");
+                    let _ = writeln!(self.out, "  {is_zero} = icmp eq i64 {sz_raw}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  {sz_nz} = select i1 {is_zero}, i64 1, i64 {sz_raw}"
+                    );
+                    sz_nz
+                };
+                let mem = self.fresh();
+                let is_null = self.fresh();
+                let l_fail = format!("od_fail_{}", self.tmp);
+                let l_ok = format!("od_ok_{}", self.tmp);
+                let l_done = format!("od_done_{}", self.tmp);
+                self.tmp += 1;
+                let _ = writeln!(self.out, "  {mem} = call ptr @calloc(i64 1, i64 {sz})");
+                let _ = writeln!(self.out, "  {is_null} = icmp eq ptr {mem}, null");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {is_null}, label %{l_fail}, label %{l_ok}"
+                );
+                let _ = writeln!(self.out, "{l_fail}:");
+                // Drop the concrete value on allocation failure so resources never leak.
+                self.emit_drop_ptr(&tmp_slot, concrete_ty)?;
+                let err_val = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {err_val} = insertvalue {d_llvm} zeroinitializer, i1 false, 0"
+                );
+                let _ = writeln!(self.out, "  store {d_llvm} {err_val}, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+                let _ = writeln!(self.out, "{l_ok}:");
+                if lt0 != "void" {
+                    let _ = writeln!(self.out, "  store {lt0} {v0}, ptr {mem}");
+                }
+                let fat1 = self.fresh();
+                let fat2 = self.fresh();
+                let ok1 = self.fresh();
+                let ok2 = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {fat1} = insertvalue {{ ptr, ptr }} undef, ptr {mem}, 0"
+                );
+                let _ = writeln!(
+                    self.out,
+                    "  {fat2} = insertvalue {{ ptr, ptr }} {fat1}, ptr @__zil_vtable_{vt_idx}, 1"
+                );
+                let _ = writeln!(
+                    self.out,
+                    "  {ok1} = insertvalue {d_llvm} zeroinitializer, i1 true, 0"
+                );
+                let _ = writeln!(
+                    self.out,
+                    "  {ok2} = insertvalue {d_llvm} {ok1}, {{ ptr, ptr }} {fat2}, 1"
+                );
+                let _ = writeln!(self.out, "  store {d_llvm} {ok2}, ptr {d_ptr}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+                let _ = writeln!(self.out, "{l_done}:");
+                Ok(())
+            }
             IntrinsicOp::TaskStart
             | IntrinsicOp::RegistrationStart
             | IntrinsicOp::RegistrationValid
@@ -3445,8 +3631,7 @@ impl<'a> FnEmitter<'a> {
             | IntrinsicOp::AsyncRegistrationValid
             | IntrinsicOp::AsyncRegistrationRequestClose
             | IntrinsicOp::AsyncRegistrationPollClose
-            | IntrinsicOp::AsyncRegistrationFinishDestroy
-            | IntrinsicOp::OwnedDynCreate => Err(BodyEmitError::new(format!(
+            | IntrinsicOp::AsyncRegistrationFinishDestroy => Err(BodyEmitError::new(format!(
                 "intrinsic {op:?} native emission not yet implemented"
             ))),
         }
@@ -3544,4 +3729,104 @@ fn emit_block(emitter: &mut FnEmitter<'_>, bi: usize, block: &Block) -> Result<(
         emitter.emit_instruction(&inst.kind)?;
     }
     emitter.emit_terminator(&block.terminator)
+}
+
+fn emit_dyn_vtables(
+    module: &Module,
+    syms: &[String],
+    out: &mut String,
+) -> Result<(), BodyEmitError> {
+    let empty_body = Body {
+        locals: Vec::new(),
+        blocks: Vec::new(),
+        param_count: 0,
+        result: TyId(0),
+        captures: Vec::new(),
+        closure: None,
+        drop_flags: Vec::new(),
+        param_env: zil_ir::body::ParamEnv::default(),
+    };
+    for (idx, dimpl) in module.dyn_impls.iter().enumerate() {
+        let def = module
+            .tys
+            .get_dyn(dimpl.dyn_id)
+            .ok_or_else(|| BodyEmitError::new(format!("missing DynDef {:?}", dimpl.dyn_id)))?;
+        // 1. Drop shim: destruct concrete value and free heap allocation.
+        let drop_sym = format!("__zil_dyn_drop_{idx}");
+        let _ = writeln!(out, "define internal void @{drop_sym}(ptr %data) {{");
+        let _ = writeln!(out, "entry:");
+        let extra_defs = {
+            let mut emitter = FnEmitter {
+                module,
+                fn_id: FnId(0),
+                body: &empty_body,
+                out,
+                extra_defs: String::new(),
+                tmp: 0,
+            };
+            emitter.emit_drop_ptr("%data", dimpl.concrete_ty)?;
+            emitter.extra_defs
+        };
+        let _ = writeln!(out, "  call void @free(ptr %data)");
+        let _ = writeln!(out, "  ret void");
+        let _ = writeln!(out, "}}\n");
+        if !extra_defs.is_empty() {
+            out.push_str(&extra_defs);
+        }
+
+        // 2. Method slot thunks.
+        let mut entries = Vec::with_capacity(1 + dimpl.methods.len());
+        entries.push(format!("ptr @{drop_sym}"));
+        let concrete_llvm = llvm_ty(&module.tys, dimpl.concrete_ty)?;
+        for (slot_idx, (slot, &fn_id)) in def.slots.iter().zip(&dimpl.methods).enumerate() {
+            let thunk_sym = format!("__zil_dyn_slot_{idx}_{slot_idx}");
+            let target_sym = &syms[fn_id.index()];
+            let ret_llvm = llvm_ty(&module.tys, slot.result)?;
+            let mut thunk_params = vec!["ptr %data".to_string()];
+            let mut call_args = Vec::with_capacity(1 + slot.params.len());
+            let mut body_prefix = String::new();
+            if slot.receiver.is_some() {
+                call_args.push("ptr %data".to_string());
+            } else if concrete_llvm != "void" {
+                let _ = writeln!(body_prefix, "  %self_val = load {concrete_llvm}, ptr %data");
+                call_args.push(format!("{concrete_llvm} %self_val"));
+            }
+            for (pi, &pty) in slot.params.iter().enumerate() {
+                let plt = llvm_ty(&module.tys, pty)?;
+                if plt != "void" {
+                    thunk_params.push(format!("{plt} %a{pi}"));
+                    call_args.push(format!("{plt} %a{pi}"));
+                }
+            }
+            let _ = writeln!(
+                out,
+                "define internal {ret_llvm} @{thunk_sym}({}) {{",
+                thunk_params.join(", ")
+            );
+            let _ = writeln!(out, "entry:");
+            out.push_str(&body_prefix);
+            if ret_llvm == "void" {
+                let _ = writeln!(out, "  call void @{target_sym}({})", call_args.join(", "));
+                let _ = writeln!(out, "  ret void");
+            } else {
+                let _ = writeln!(
+                    out,
+                    "  %r = call {ret_llvm} @{target_sym}({})",
+                    call_args.join(", ")
+                );
+                let _ = writeln!(out, "  ret {ret_llvm} %r");
+            }
+            let _ = writeln!(out, "}}\n");
+            entries.push(format!("ptr @{thunk_sym}"));
+        }
+
+        // 3. Static constant vtable global.
+        let n = entries.len();
+        let _ = writeln!(
+            out,
+            "@__zil_vtable_{idx} = constant [{n} x ptr] [{}]\n",
+            entries.join(", ")
+        );
+    }
+    Ok(())
 }

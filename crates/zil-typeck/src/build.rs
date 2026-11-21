@@ -19,11 +19,12 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use zil_base::{Diagnostic, NodeId, Span};
 use zil_ir::body::{
     AdtDef, AdtId, AdtKind, AggregateKind, ArgsId, Block, BlockId, Body, Callee, ClosureDef,
-    ClosureId, ConstValue, DynDef, DynId, DynSlotSig, FieldDef, FieldIdx, FieldRef, FloatTy, FnId,
-    FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId, Function, FunctionSourceMap, GenericArgs,
-    Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module, Mutability,
-    OpLocation, OpaqueTy, Operand, ParamEnv, Place, Projection, Region, Rvalue, SourceMap,
-    SourceRelation, StaticId, Terminator, TyId, TyKind, ValueClass, VariantDef, VariantIdx,
+    ClosureId, ConstValue, DynDef, DynId, DynImpl, DynSlotSig, FieldDef, FieldIdx, FieldRef,
+    FloatTy, FnId, FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId, Function, FunctionSourceMap,
+    GenericArgs, Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module,
+    Mutability, OpLocation, OpaqueTy, Operand, ParamEnv, Place, Projection, Region, Rvalue,
+    SourceMap, SourceRelation, StaticId, Terminator, TyId, TyKind, ValueClass, VariantDef,
+    VariantIdx,
 };
 
 /// Work limits of one lowering request.
@@ -448,6 +449,60 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         let id = self.module.tys.add_dyn(DynDef { name, slots });
         self.dyns.insert(tr, id);
         Some(id)
+    }
+
+    fn ensure_dyn_impl(&mut self, tr: TraitRef, concrete: Ty, span: Span) {
+        let Some(dyn_id) = self.dyn_id(tr, span) else {
+            return;
+        };
+        let Some(concrete_ty) = self.lower_ty(concrete, span) else {
+            return;
+        };
+        if self
+            .module
+            .dyn_impls
+            .iter()
+            .any(|d| d.dyn_id == dyn_id && d.concrete_ty == concrete_ty)
+        {
+            return;
+        }
+        let slot_names: Vec<String> = self
+            .module
+            .tys
+            .dyn_def(dyn_id)
+            .slots
+            .iter()
+            .map(|s| s.name.clone())
+            .collect();
+        let impls = self.items.trait_impls.clone();
+        let mut matched = None;
+        for imp in &impls {
+            if imp.trait_ref != tr {
+                continue;
+            }
+            if let Some(impl_args) = self.items.match_impl(imp, concrete, self.types) {
+                matched = Some((imp.methods.clone(), impl_args));
+                break;
+            }
+        }
+        let Some((imp_methods, impl_args)) = matched else {
+            return;
+        };
+        let mut methods = Vec::with_capacity(slot_names.len());
+        for sname in &slot_names {
+            let Some((_, fn_ref)) = imp_methods.iter().find(|(n, _)| n == sname) else {
+                return;
+            };
+            let Some(fn_id) = self.instance(*fn_ref, impl_args.clone(), span) else {
+                return;
+            };
+            methods.push(fn_id);
+        }
+        self.module.dyn_impls.push(DynImpl {
+            dyn_id,
+            concrete_ty,
+            methods,
+        });
     }
 
     /// Interns a typeck type. Declaration parameters map to `TyKind::Param`;
@@ -1669,6 +1724,17 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 self.cur = target;
             }
             ExprKind::Intrinsic { op, args } => {
+                if *op == IntrinsicOp::OwnedDynCreate
+                    && let [arg0] = args.as_slice()
+                {
+                    let closed_ret = self.closed(e.ty);
+                    if let TyData::ErrorUnion { ok, .. } = *self.mono.types.data(closed_ret)
+                        && let TyData::OwnedDyn(tr) = *self.mono.types.data(ok)
+                    {
+                        let closed_concrete = self.closed(arg0.ty);
+                        self.mono.ensure_dyn_impl(tr, closed_concrete, span);
+                    }
+                }
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
                 let target = self.new_block(span);
                 let cancel = if *op == IntrinsicOp::TaskYield {

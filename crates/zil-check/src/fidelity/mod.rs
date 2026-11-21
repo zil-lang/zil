@@ -574,6 +574,7 @@ mod tests {
             }],
             foreigns: Vec::new(),
             statics: Vec::new(),
+            dyn_impls: Vec::new(),
         };
         (module, field_ref)
     }

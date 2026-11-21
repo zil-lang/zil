@@ -37,6 +37,7 @@ pub fn check_module(
     budget: CheckBudget,
 ) -> Result<VerifiedModule, CheckError> {
     check_drop_bindings(&module)?;
+    check_dyn_impls(&module)?;
     let sccs = validate_scc_contracts(&module).map_err(|e| CheckError {
         function: e.function,
         kind: CheckErrorKind::CertificateShape(e.reason),
@@ -120,6 +121,65 @@ fn check_drop_bindings(module: &Module) -> Result<(), CheckError> {
         let def = tys.adt(adt);
         if def.kind == AdtKind::Resource && def.user_drop && !bound.contains(&adt) {
             return Err(fail(0, "resource with a user drop has no cleanup entry"));
+        }
+    }
+    Ok(())
+}
+
+/// Verifies every concrete `dyn Trait` vtable implementation against its
+/// declared `DynDef` slots so a forged wire module cannot smuggle mismatched
+/// method signatures or out-of-bounds `FnId`s into dynamic dispatch.
+fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
+    let tys = &module.tys;
+    let fail = |f: FnId, reason: &'static str| CheckError {
+        function: f,
+        kind: CheckErrorKind::CertificateShape(reason),
+    };
+    let mut seen: Vec<(zil_ir::body::DynId, zil_ir::body::TyId)> = Vec::new();
+    for dimpl in &module.dyn_impls {
+        let def = tys
+            .get_dyn(dimpl.dyn_id)
+            .ok_or_else(|| fail(FnId(0), "dyn impl references unknown DynId"))?;
+        if tys.get(dimpl.concrete_ty).is_none() {
+            return Err(fail(FnId(0), "dyn impl references unknown concrete type"));
+        }
+        let key = (dimpl.dyn_id, dimpl.concrete_ty);
+        if seen.contains(&key) {
+            return Err(fail(FnId(0), "duplicate dyn impl for (DynId, concrete_ty)"));
+        }
+        seen.push(key);
+        if dimpl.methods.len() != def.slots.len() {
+            return Err(fail(FnId(0), "dyn impl method count does not match slots"));
+        }
+        for (slot, &fn_id) in def.slots.iter().zip(&dimpl.methods) {
+            let func = module
+                .functions
+                .get(fn_id.index())
+                .ok_or_else(|| fail(fn_id, "dyn impl method FnId out of bounds"))?;
+            if func.sig.role != FnRole::Normal {
+                return Err(fail(fn_id, "dyn impl method cannot be a Drop entry"));
+            }
+            if func.sig.params.len() != 1 + slot.params.len() {
+                return Err(fail(fn_id, "dyn impl method arity mismatch"));
+            }
+            let recv_ty = func.sig.params[0];
+            let recv_ok = match slot.receiver {
+                Some(want_mut) => matches!(
+                    tys.get(recv_ty),
+                    Some(TyKind::Ref { mutability, pointee, .. })
+                        if *mutability == want_mut && *pointee == dimpl.concrete_ty
+                ),
+                None => recv_ty == dimpl.concrete_ty,
+            };
+            if !recv_ok {
+                return Err(fail(fn_id, "dyn impl method receiver type mismatch"));
+            }
+            if func.sig.params[1..] != slot.params[..] {
+                return Err(fail(fn_id, "dyn impl method parameter type mismatch"));
+            }
+            if func.sig.result != slot.result {
+                return Err(fail(fn_id, "dyn impl method return type mismatch"));
+            }
         }
     }
     Ok(())

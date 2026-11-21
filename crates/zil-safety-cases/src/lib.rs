@@ -122,6 +122,7 @@ impl ModuleBuilder {
             functions: self.functions,
             foreigns: self.foreigns,
             statics: Vec::new(),
+            dyn_impls: Vec::new(),
         }
     }
 }
