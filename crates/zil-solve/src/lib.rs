@@ -31,10 +31,12 @@ pub enum SolveError {
 /// Solves every function; the first failure of each function is reported.
 pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<SolveError>> {
     let fn_sigs = module.fn_sigs();
+    let return_param_masks = zil_semantics::compute_return_param_masks(module);
     let sigs = Sigs {
         functions: &fn_sigs,
         foreigns: &module.foreigns,
         static_count: module.statics.len(),
+        return_param_masks: Some(&return_param_masks),
     };
     let mut remaining = budget.steps;
     let mut certificate = Certificate::default();

@@ -1143,3 +1143,122 @@ fn main() -> i32 {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn borrowed_enums_positive_native_and_negative_safety_checks() {
+    let root = repo_root();
+    let dir = temp_dir("batch1b-borrowed-enums");
+
+    // 1. Positive fixtures execute natively on both Clang and LLVM-API at O0 and O2.
+    let positives = [
+        "tests/fixtures/borrowed-enums/choice.zil",
+        "tests/fixtures/borrowed-enums/same-life.zil",
+        "tests/fixtures/borrowed-enums/mixed-classes.zil",
+        "tests/fixtures/borrowed-enums/poll.zil",
+        "tests/fixtures/borrowed-enums/error-wrapper.zil",
+    ];
+    for rel in positives {
+        let src = root.join(rel);
+        let stem = src.file_stem().unwrap().to_string_lossy();
+        for backend in dual_backends() {
+            for opt in [Optimization::O0, Optimization::O2] {
+                let exe = dir.join(format!("{stem}-{}-{opt:?}", backend.name()));
+                let out = build_and_run_raw(&src, &exe, backend, opt);
+                assert_eq!(
+                    out.status.code(),
+                    Some(0),
+                    "{rel} ({backend:?}, {opt:?}) failed: status={:?}, stderr={}",
+                    out.status,
+                    String::from_utf8_lossy(&out.stderr)
+                );
+            }
+        }
+    }
+
+    // 2. Negative safety check: returning Mix.Other(&'b i32) as &'a i32 must be rejected.
+    let neg_escape = dir.join("neg_escape.zil");
+    std::fs::write(
+        &neg_escape,
+        r#"
+enum Mix<life a, life b> { First(&'a i32), Other(&'b i32) }
+fn bad<life a, life b>(m: Mix<'a, 'b>) -> &'a i32 {
+    match m {
+        Mix.First(p) => { return p },
+        Mix.Other(q) => { return q }
+    }
+}
+fn main() -> i32 {
+    let x = 1
+    let y = 2
+    let p = bad(Mix::<'_, '_>.Other(&y))
+    return *p + x - 3
+}
+"#,
+    )
+    .expect("write neg_escape.zil");
+    let mut session = CompilationSession::new();
+    let verify_opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let escape_report = session.compile_path(&neg_escape, &verify_opts);
+    assert_ne!(
+        escape_report.status,
+        ResultCategory::Success,
+        "returning Mix.Other(&'b i32) as &'a i32 must be rejected"
+    );
+    let escape_msg: String = escape_report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        escape_msg.contains("RegionEscape") || escape_msg.contains("E-TYPE-MISMATCH"),
+        "expected RegionEscape or type mismatch, got: {escape_msg}"
+    );
+
+    // 3. Negative safety check: mutating `right` while a returned enum still borrows `right` must be rejected.
+    let neg_conflict = dir.join("neg_conflict.zil");
+    std::fs::write(
+        &neg_conflict,
+        r#"
+enum Choice<life a, life b> { Left(&'a i32), Right(&'b i32) }
+fn select_right<life a, life b>(left: &'a i32, right: &'b i32) -> Choice<'a, 'b> {
+    return Choice::<'a, 'b>.Right(right)
+}
+fn read<life a, life b>(c: Choice<'a, 'b>) -> i32 {
+    match c {
+        Choice.Left(p) => { return *p },
+        Choice.Right(p) => { return *p }
+    }
+}
+fn main() -> i32 {
+    let a = 10
+    var b = 20
+    let c = select_right(&a, &b)
+    b = 99
+    return read(c)
+}
+"#,
+    )
+    .expect("write neg_conflict.zil");
+    let conflict_report = session.compile_path(&neg_conflict, &verify_opts);
+    assert_ne!(
+        conflict_report.status,
+        ResultCategory::Success,
+        "mutating borrowed right after select_right must be rejected"
+    );
+    let conflict_msg: String = conflict_report
+        .diagnostics
+        .iter()
+        .map(|d| format!("{}: {}", d.code, d.message))
+        .collect::<Vec<_>>()
+        .join("; ");
+    assert!(
+        conflict_msg.contains("LoanConflict"),
+        "expected LoanConflict, got: {conflict_msg}"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

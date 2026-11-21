@@ -384,7 +384,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 name: decl.name.clone(),
                 kind: decl.kind,
                 type_params: decl.generics.len() as u32,
-                region_params: 0,
+                region_params: decl.region_params,
                 variants,
                 user_drop: decl.user_drop,
             },
@@ -393,14 +393,24 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
     }
 
     fn args_id(&mut self, args: &[Ty], span: Span) -> Option<ArgsId> {
+        self.args_id_with_regions(args, &[], span)
+    }
+
+    fn args_id_with_regions(
+        &mut self,
+        args: &[Ty],
+        regions: &[Option<u32>],
+        span: Span,
+    ) -> Option<ArgsId> {
         let mut tys = Vec::new();
         for a in args {
             tys.push(self.lower_ty(*a, span)?);
         }
-        Some(self.module.tys.intern_args(GenericArgs {
-            tys,
-            regions: Vec::new(),
-        }))
+        let regions = regions
+            .iter()
+            .map(|r| r.map_or(Region::Static, Region::Param))
+            .collect();
+        Some(self.module.tys.intern_args(GenericArgs { tys, regions }))
     }
 
     fn dyn_id(&mut self, tr: TraitRef, span: Span) -> Option<DynId> {
@@ -463,9 +473,9 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 length,
             },
             TyData::Slice(element) => TyKind::Slice(self.lower_ty(element, span)?),
-            TyData::Adt { adt, args } => {
+            TyData::Adt { adt, args, regions } => {
                 let adt = self.adt_id(adt, span)?;
-                let args = self.args_id(&args, span)?;
+                let args = self.args_id_with_regions(&args, &regions, span)?;
                 TyKind::Adt { adt, args }
             }
             TyData::Ref {
@@ -1035,22 +1045,80 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
 
     // ---- places, operands, rvalues ----------------------------------------
 
+    fn place_adt_args(&self, place: &Place, expected_adt: AdtId) -> Option<ArgsId> {
+        let mut ty = match place.root {
+            zil_ir::body::PlaceRoot::Local(l) => self.locals.get(l.index())?.ty,
+            zil_ir::body::PlaceRoot::Capture(i) => *self.captures.get(i as usize)?,
+        };
+        for proj in &place.projections {
+            ty = match proj {
+                Projection::Deref => {
+                    if let TyKind::Ref { pointee, .. } = *self.tys().get(ty)? {
+                        pointee
+                    } else {
+                        return None;
+                    }
+                }
+                Projection::Field(f) => self.tys().field_ty(f.adt, f.variant, f.field, f.args)?,
+                Projection::TupleField(i) => {
+                    if let TyKind::Tuple(ts) = self.tys().get(ty)? {
+                        *ts.get(*i as usize)?
+                    } else {
+                        return None;
+                    }
+                }
+                Projection::Index(_) | Projection::ConstIndex(_) => {
+                    if let TyKind::Array { element, .. } | TyKind::Slice(element) =
+                        *self.tys().get(ty)?
+                    {
+                        element
+                    } else {
+                        return None;
+                    }
+                }
+                Projection::ErrorArm(is_ok) => {
+                    if let TyKind::ErrorUnion { ok, err } = *self.tys().get(ty)? {
+                        if *is_ok { ok } else { err }
+                    } else {
+                        return None;
+                    }
+                }
+            };
+        }
+        loop {
+            if let TyKind::Adt { adt, args } = *self.tys().get(ty)? {
+                return (adt == expected_adt).then_some(args);
+            } else if let TyKind::Managed(inner) | TyKind::Desc(inner) = *self.tys().get(ty)? {
+                ty = inner;
+            } else {
+                return None;
+            }
+        }
+    }
+
     fn field_ref(
         &mut self,
+        base_place: &Place,
         adt: AdtRef,
         variant: u32,
         field: u32,
         args: &[Ty],
         span: Span,
     ) -> Option<FieldRef> {
-        let closed: Vec<Ty> = args.iter().map(|a| self.closed(*a)).collect();
-        let adt = self.mono.adt_id(adt, span)?;
-        let args = self.mono.args_id(&closed, span)?;
+        let adt_id = self.mono.adt_id(adt, span)?;
+        let args_id = if let Some(exact) = self.place_adt_args(base_place, adt_id) {
+            exact
+        } else {
+            let closed: Vec<Ty> = args.iter().map(|a| self.closed(*a)).collect();
+            let reg_n = self.mono.items.adt(adt).region_params as usize;
+            self.mono
+                .args_id_with_regions(&closed, &vec![None; reg_n], span)?
+        };
         Some(FieldRef {
-            adt,
+            adt: adt_id,
             variant: VariantIdx(variant),
             field: FieldIdx(field),
-            args,
+            args: args_id,
         })
     }
 
@@ -1066,7 +1134,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 args,
             } => {
                 let mut p = self.place(base);
-                match self.field_ref(*adt, *variant, *field, args, e.span) {
+                match self.field_ref(&p, *adt, *variant, *field, args, e.span) {
                     Some(f) => p.projections.push(Projection::Field(f)),
                     None => self.failed = true,
                 }
@@ -1201,13 +1269,25 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             } => {
                 let closed: Vec<Ty> = args.iter().map(|a| self.closed(*a)).collect();
                 let operands = self.eval_operands(e.span, fields);
-                let (Some(adt), Some(args)) = (
-                    self.mono.adt_id(*adt, e.span),
-                    self.mono.args_id(&closed, e.span),
-                ) else {
+                let Some(adt_id) = self.mono.adt_id(*adt, e.span) else {
                     self.failed = true;
                     return Rvalue::Use(Operand::Const(ConstValue::Unit));
                 };
+                let tid = self.ty(e.ty, e.span);
+                let args_id = if let Some(TyKind::Adt { adt: a, args }) = self.tys().get(tid)
+                    && *a == adt_id
+                {
+                    Some(*args)
+                } else {
+                    let reg_n = self.mono.items.adt(*adt).region_params as usize;
+                    self.mono
+                        .args_id_with_regions(&closed, &vec![None; reg_n], e.span)
+                };
+                let Some(args) = args_id else {
+                    self.failed = true;
+                    return Rvalue::Use(Operand::Const(ConstValue::Unit));
+                };
+                let adt = adt_id;
                 Rvalue::Aggregate {
                     kind: AggregateKind::Adt {
                         adt,
@@ -2281,7 +2361,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     } if self.mono.items.adt(*adt).kind != AdtKind::Enum => {
                         for (i, p) in fields.iter().enumerate() {
                             let mut sub = place.clone();
-                            match self.field_ref(*adt, *variant, i as u32, args, pat.span) {
+                            match self.field_ref(&place, *adt, *variant, i as u32, args, pat.span) {
                                 Some(f) => sub.projections.push(Projection::Field(f)),
                                 None => self.failed = true,
                             }
@@ -2361,7 +2441,14 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                                 {
                                     for (i, fp) in fields.iter().enumerate() {
                                         let mut sub = test_place.clone();
-                                        match self.field_ref(adt, v, i as u32, &args, span) {
+                                        match self.field_ref(
+                                            &test_place,
+                                            adt,
+                                            v,
+                                            i as u32,
+                                            &args,
+                                            span,
+                                        ) {
                                             Some(f) => sub.projections.push(Projection::Field(f)),
                                             None => self.failed = true,
                                         }

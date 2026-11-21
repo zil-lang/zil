@@ -655,7 +655,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
         let next_call = self.call(&next_callee, &[], iterable.span);
         let next_ty = self.types.shallow(next_call.ty);
         if self.diags.len() == diags_before
-            && let TyData::Adt { adt, args } = self.types.data(next_ty).clone()
+            && let TyData::Adt { adt, args, .. } = self.types.data(next_ty).clone()
             && adt == AdtRef(0)
             && args.len() == 1
         {
@@ -1071,15 +1071,18 @@ impl<'c, 'a> FnCx<'c, 'a> {
     }
 
     fn adt_ty(&mut self, adt: AdtRef, args: &[Ty]) -> Ty {
+        let region_params = self.items.adt(adt).region_params as usize;
         self.types.intern(TyData::Adt {
             adt,
             args: args.to_vec(),
+            regions: vec![None; region_params],
         })
     }
 
     fn field_ty(&mut self, adt: AdtRef, variant: u32, field: u32, args: &[Ty]) -> Ty {
         let declared = self.items.adt(adt).variants[variant as usize].fields[field as usize].ty;
-        self.types.subst(declared, args)
+        let erased = self.types.erase_regions(declared);
+        self.types.subst(erased, args)
     }
 
     /// `Enum.Variant`, `Record`, `mod.Record`, or `mod.Enum.Variant`.
@@ -3022,7 +3025,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                     span,
                 }
             }
-            (ast::MemberName::Name(name), TyData::Adt { adt, args }) => {
+            (ast::MemberName::Name(name), TyData::Adt { adt, args, .. }) => {
                 let decl = self.items.adt(adt);
                 if decl.variants.len() != 1 || decl.kind == AdtKind::Enum {
                     self.error(
@@ -3840,6 +3843,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
             let err = self.types.intern(TyData::Adt {
                 adt: AdtRef(1),
                 args: Vec::new(),
+                regions: Vec::new(),
             });
             let ret = self.types.intern(TyData::ErrorUnion { ok, err });
             return Some(Expr {
@@ -3976,11 +3980,13 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 self.types.intern(TyData::Adt {
                     adt: AdtRef(6),
                     args: vec![inputs_ty],
+                    regions: Vec::new(),
                 })
             } else {
                 self.types.intern(TyData::Adt {
                     adt: AdtRef(3),
                     args: Vec::new(),
+                    regions: Vec::new(),
                 })
             };
             let ret_ty = self.types.intern(TyData::ErrorUnion { ok, err });
@@ -4117,6 +4123,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let err = self.types.intern(TyData::Adt {
                     adt: AdtRef(5),
                     args: Vec::new(),
+                    regions: Vec::new(),
                 });
                 (
                     vec![elem],
@@ -4175,10 +4182,12 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let ok = self.types.intern(TyData::Adt {
                     adt: AdtRef(2),
                     args: vec![res],
+                    regions: Vec::new(),
                 });
                 let err = self.types.intern(TyData::Adt {
                     adt: AdtRef(4),
                     args: Vec::new(),
+                    regions: Vec::new(),
                 });
                 (
                     vec![task_ref],
@@ -4214,6 +4223,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let poll_unit = self.types.intern(TyData::Adt {
                     adt: AdtRef(2),
                     args: vec![unit_ty],
+                    regions: Vec::new(),
                 });
                 (vec![task_ref], poll_unit)
             }
@@ -4272,6 +4282,7 @@ impl<'c, 'a> FnCx<'c, 'a> {
                 let poll_unit = self.types.intern(TyData::Adt {
                     adt: AdtRef(2),
                     args: vec![unit_ty],
+                    regions: Vec::new(),
                 });
                 (vec![reg_ref], poll_unit)
             }
@@ -4723,7 +4734,7 @@ impl Finalizer<'_, '_> {
                 self.is_copy_depth(ok, depth + 1) && self.is_copy_depth(err, depth + 1)
             }
             TyData::Param(i) => self.generics.get(i as usize).is_some_and(|g| g.copy),
-            TyData::Adt { adt, args } => {
+            TyData::Adt { adt, args, .. } => {
                 let decl = self.items.adt(adt);
                 match decl.kind {
                     AdtKind::Record | AdtKind::Enum => {

@@ -137,6 +137,7 @@ pub struct AdtDecl {
     pub name: String,
     pub kind: AdtKind,
     pub generics: Vec<String>,
+    pub region_params: u32,
     pub variants: Vec<VariantDecl>,
     pub user_drop: bool,
 }
@@ -251,12 +252,12 @@ impl<'a> Items<'a> {
                 }
                 types.intern(TyData::Assoc { base, name })
             }
-            TyData::Adt { adt, args } => {
+            TyData::Adt { adt, args, regions } => {
                 let args = args
                     .into_iter()
                     .map(|a| self.normalize_ty_depth(a, types, depth + 1))
                     .collect();
-                types.intern(TyData::Adt { adt, args })
+                types.intern(TyData::Adt { adt, args, regions })
             }
             TyData::Tuple(items) => {
                 let items = items
@@ -407,7 +408,14 @@ fn match_template(template: Ty, concrete: Ty, types: &Types, bindings: &mut [Opt
         };
     }
     match (types.data(template), types.data(concrete)) {
-        (TyData::Adt { adt: a1, args: xs }, TyData::Adt { adt: a2, args: ys }) => {
+        (
+            TyData::Adt {
+                adt: a1, args: xs, ..
+            },
+            TyData::Adt {
+                adt: a2, args: ys, ..
+            },
+        ) => {
             a1 == a2
                 && xs.len() == ys.len()
                 && xs
@@ -560,6 +568,7 @@ pub fn collect_program<'a>(
         name: "Option".to_string(),
         kind: AdtKind::Enum,
         generics: vec!["T".to_string()],
+        region_params: 0,
         variants: vec![
             VariantDecl {
                 name: "None".to_string(),
@@ -584,6 +593,7 @@ pub fn collect_program<'a>(
         name: "DynCreateError".to_string(),
         kind: AdtKind::Enum,
         generics: Vec::new(),
+        region_params: 0,
         variants: vec![VariantDecl {
             name: "Allocation".to_string(),
             shape: VariantShape::Unit,
@@ -597,6 +607,7 @@ pub fn collect_program<'a>(
         name: "Poll".to_string(),
         kind: AdtKind::Enum,
         generics: vec!["T".to_string()],
+        region_params: 0,
         variants: vec![
             VariantDecl {
                 name: "Pending".to_string(),
@@ -621,6 +632,7 @@ pub fn collect_program<'a>(
         name: "TaskCreateError".to_string(),
         kind: AdtKind::Enum,
         generics: Vec::new(),
+        region_params: 0,
         variants: vec![VariantDecl {
             name: "Allocation".to_string(),
             shape: VariantShape::Unit,
@@ -634,6 +646,7 @@ pub fn collect_program<'a>(
         name: "TaskPollState".to_string(),
         kind: AdtKind::Enum,
         generics: Vec::new(),
+        region_params: 0,
         variants: vec![
             VariantDecl {
                 name: "Cancelled".to_string(),
@@ -659,6 +672,7 @@ pub fn collect_program<'a>(
         name: "MutexCreateError".to_string(),
         kind: AdtKind::Enum,
         generics: Vec::new(),
+        region_params: 0,
         variants: vec![VariantDecl {
             name: "Allocation".to_string(),
             shape: VariantShape::Unit,
@@ -669,6 +683,7 @@ pub fn collect_program<'a>(
     let task_create_error_ty = types.intern(TyData::Adt {
         adt: task_create_error_adt,
         args: Vec::new(),
+        regions: Vec::new(),
     });
     let _task_create_owned_failure_adt = AdtRef(6);
     items.adt_kinds.push(AdtKind::Package);
@@ -676,6 +691,7 @@ pub fn collect_program<'a>(
         name: "TaskCreateOwnedFailure".to_string(),
         kind: AdtKind::Package,
         generics: vec!["Inputs".to_string()],
+        region_params: 0,
         variants: vec![VariantDecl {
             name: "TaskCreateOwnedFailure".to_string(),
             shape: VariantShape::Record,
@@ -1374,14 +1390,15 @@ fn collect_adt(
         }
         AdtAst::Enum(e, span) => (&e.name, AdtKind::Enum, &e.generics, span),
     };
-    let (generic_info, _) =
+    let (generic_info, lifetimes) =
         type_generics(mid, generics, modules, mod_by_path, adt_kinds, types, diags);
     let scope: Vec<String> = generic_info.iter().map(|g| g.name.clone()).collect();
     let mut resolve = |t: &ast::TypeRef, diags: &mut Vec<Diagnostic>, types: &mut Types| {
-        resolve_type_in(
+        resolve_type_with_lifetimes(
             t,
             mid,
             &scope,
+            &lifetimes,
             modules,
             mod_by_path,
             adt_kinds,
@@ -1503,6 +1520,7 @@ fn collect_adt(
         name: qualify(&modules[mid.0 as usize].path, name),
         kind,
         generics: scope,
+        region_params: lifetimes.len() as u32,
         variants,
         user_drop: false,
     }
@@ -1921,6 +1939,7 @@ fn collect_impl<'a>(
     let payload_ty = types.intern(TyData::Adt {
         adt: target_adt,
         args: Vec::new(),
+        regions: Vec::new(),
     });
     let self_desc = types.intern(TyData::Desc(payload_ty));
     let p = &f.params[0];
@@ -2455,6 +2474,7 @@ fn resolve_type_with_lifetimes(
             match lookup_item_in(modules, mod_by_path, from, path) {
                 Some(ItemRef::Adt(adt)) => {
                     let mut tys = Vec::new();
+                    let mut regions = Vec::new();
                     for a in args {
                         match a {
                             ast::GenericArg::Type(t) => tys.push(resolve_type_with_lifetimes(
@@ -2469,7 +2489,10 @@ fn resolve_type_with_lifetimes(
                                 None,
                                 types,
                             )?),
-                            ast::GenericArg::Lifetime(_) => {}
+                            ast::GenericArg::Lifetime(lt) => {
+                                let r = lifetimes.iter().position(|l| l == lt).map(|i| i as u32);
+                                regions.push(r);
+                            }
                             ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
                                 return Err(diag::unsupported(
                                     "non-type generic arguments",
@@ -2478,7 +2501,11 @@ fn resolve_type_with_lifetimes(
                             }
                         }
                     }
-                    let adt_ty = types.intern(TyData::Adt { adt, args: tys });
+                    let adt_ty = types.intern(TyData::Adt {
+                        adt,
+                        args: tys,
+                        regions,
+                    });
                     if adt_kinds[adt.0 as usize] == AdtKind::Resource {
                         Ok(types.intern(TyData::Desc(adt_ty)))
                     } else {
@@ -2752,6 +2779,7 @@ fn resolve_type_with_lifetimes(
             Ok(types.intern(TyData::Adt {
                 adt: AdtRef(0),
                 args: vec![elem],
+                regions: Vec::new(),
             }))
         }
         ast::TypeKind::Union(_) => Err(diag::unsupported("anonymous sum types", t.span)),

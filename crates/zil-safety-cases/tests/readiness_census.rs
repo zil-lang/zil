@@ -400,11 +400,11 @@ fn helper_and_readiness_explicit_manifest() {
         // tests/fixtures/borrowed-enums (12)
         (
             "tests/fixtures/borrowed-enums/choice.zil",
-            Expected::Rejected("solve", "RegionEscape"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/borrowed-enums/error-wrapper.zil",
-            Expected::Rejected("solve", "RegionEscape"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/borrowed-enums/generic-selection.zil",
@@ -412,11 +412,11 @@ fn helper_and_readiness_explicit_manifest() {
         ),
         (
             "tests/fixtures/borrowed-enums/mixed-classes.zil",
-            Expected::Rejected("solve", "RegionEscape"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/borrowed-enums/module-api.zil",
-            Expected::Rejected("solve", "RegionEscape"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/borrowed-enums/module-main.zil",
@@ -434,13 +434,10 @@ fn helper_and_readiness_explicit_manifest() {
             "tests/fixtures/borrowed-enums/poll-record.zil",
             Expected::Admitted,
         ),
-        (
-            "tests/fixtures/borrowed-enums/poll.zil",
-            Expected::Rejected("solve", "LoanConflict"),
-        ),
+        ("tests/fixtures/borrowed-enums/poll.zil", Expected::Admitted),
         (
             "tests/fixtures/borrowed-enums/same-life.zil",
-            Expected::Rejected("solve", "RegionEscape"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/borrowed-enums/vacant.zil",

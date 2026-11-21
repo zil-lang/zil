@@ -520,6 +520,10 @@ pub struct Sigs<'a> {
     pub functions: &'a [FnSig],
     pub foreigns: &'a [ForeignDecl],
     pub static_count: usize,
+    /// Per-function sound over-approximation of which parameter indices (`0..64`)
+    /// may flow into the function's return value (independently derived from the
+    /// module's bodies by both solver and checker).
+    pub return_param_masks: Option<&'a [u64]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -57,6 +57,7 @@ pub enum TyData {
     Adt {
         adt: AdtRef,
         args: Vec<Ty>,
+        regions: Vec<Option<u32>>,
     },
     Tuple(Vec<Ty>),
     Array {
@@ -268,7 +269,23 @@ impl Types {
             (TyData::Error, _) | (_, TyData::Error) => Ok(()),
             (TyData::Var(v), _) => self.bind(v, b),
             (_, TyData::Var(v)) => self.bind(v, a),
-            (TyData::Adt { adt: x, args: xa }, TyData::Adt { adt: y, args: ya }) if x == y => {
+            (
+                TyData::Adt {
+                    adt: x,
+                    args: xa,
+                    regions: rx,
+                },
+                TyData::Adt {
+                    adt: y,
+                    args: ya,
+                    regions: ry,
+                },
+            ) if x == y
+                && rx.iter().zip(&ry).all(|(a, b)| match (a, b) {
+                    (Some(a), Some(b)) => a == b,
+                    _ => true,
+                }) =>
+            {
                 self.unify_all(&xa, &ya)
             }
             (TyData::Tuple(xs), TyData::Tuple(ys)) => self.unify_all(&xs, &ys),
@@ -410,12 +427,12 @@ impl Types {
                     t
                 }
             },
-            TyData::Adt { adt, args } => {
+            TyData::Adt { adt, args, regions } => {
                 let args = args
                     .iter()
                     .map(|t| self.zonk(*t))
                     .collect::<Option<Vec<_>>>()?;
-                self.intern(TyData::Adt { adt, args })
+                self.intern(TyData::Adt { adt, args, regions })
             }
             TyData::Tuple(items) => {
                 let items = items
@@ -562,12 +579,20 @@ impl Types {
         match data {
             TyData::SelfParam => self_ty,
             TyData::Param(i) => args.get(i as usize).copied().unwrap_or(ty),
-            TyData::Adt { adt, args: inner } => {
+            TyData::Adt {
+                adt,
+                args: inner,
+                regions,
+            } => {
                 let inner = inner
                     .iter()
                     .map(|t| self.subst_with_self(*t, args, self_ty))
                     .collect();
-                self.intern(TyData::Adt { adt, args: inner })
+                self.intern(TyData::Adt {
+                    adt,
+                    args: inner,
+                    regions,
+                })
             }
             TyData::Tuple(items) => {
                 let items = items
@@ -709,9 +734,17 @@ impl Types {
         let data = self.data(ty).clone();
         match data {
             TyData::Param(i) => args.get(i as usize).copied().unwrap_or(ty),
-            TyData::Adt { adt, args: inner } => {
+            TyData::Adt {
+                adt,
+                args: inner,
+                regions,
+            } => {
                 let inner = inner.iter().map(|t| self.subst(*t, args)).collect();
-                self.intern(TyData::Adt { adt, args: inner })
+                self.intern(TyData::Adt {
+                    adt,
+                    args: inner,
+                    regions,
+                })
             }
             TyData::Tuple(items) => {
                 let items = items.iter().map(|t| self.subst(*t, args)).collect();
@@ -842,9 +875,10 @@ impl Types {
         let ty = self.shallow(ty);
         let data = self.data(ty).clone();
         match data {
-            TyData::Adt { adt, args } => {
+            TyData::Adt { adt, args, regions } => {
                 let args = args.iter().map(|t| self.erase_regions(*t)).collect();
-                self.intern(TyData::Adt { adt, args })
+                let regions = vec![None; regions.len()];
+                self.intern(TyData::Adt { adt, args, regions })
             }
             TyData::Tuple(items) => {
                 let items = items.iter().map(|t| self.erase_regions(*t)).collect();

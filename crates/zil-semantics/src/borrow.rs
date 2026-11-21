@@ -245,9 +245,25 @@ impl Kernel<'_> {
         accesses: impl Iterator<Item = (OperandRole, PlaceAccess, &'p Place)>,
     ) -> BitSet {
         let mut loans = self.empty_loans();
+        let cx = self.body.cx(self.tys);
         for (role, access, place) in accesses {
             if flows_value(role, access) {
-                loans.union_with(&self.reach(state, place.root));
+                let mut r = self.reach(state, place.root);
+                if !place.projections.is_empty()
+                    && let Ok(typing) = type_place(place, &cx)
+                {
+                    let allowed = self.tys.regions_in(typing.ty());
+                    if !allowed.is_empty() {
+                        for id in r.clone().iter() {
+                            if let Some(reg) = self.loans.loan_region(id)
+                                && !allowed.contains(&reg)
+                            {
+                                r.remove(id);
+                            }
+                        }
+                    }
+                }
+                loans.union_with(&r);
             }
         }
         loans
@@ -448,16 +464,23 @@ impl Kernel<'_> {
                     if ret_regions.is_empty() {
                         self.empty_loans()
                     } else {
+                        let param_mask = self
+                            .sigs
+                            .return_param_masks
+                            .and_then(|ms| ms.get(f.index()).copied())
+                            .unwrap_or(u64::MAX);
                         let matching = accesses.iter().filter(|a| {
                             let OperandRole::Arg(idx) = a.role else {
                                 return false;
                             };
-                            sig.params.get(idx as usize).is_some_and(|pt| {
-                                self.tys
-                                    .regions_in(*pt)
-                                    .iter()
-                                    .any(|r| ret_regions.contains(r))
-                            })
+                            let bit_ok = idx >= 64 || (param_mask & (1u64 << idx)) != 0;
+                            bit_ok
+                                && sig.params.get(idx as usize).is_some_and(|pt| {
+                                    self.tys
+                                        .regions_in(*pt)
+                                        .iter()
+                                        .any(|r| ret_regions.contains(r))
+                                })
                         });
                         self.operand_loans(
                             state,
