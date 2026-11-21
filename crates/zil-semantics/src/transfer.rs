@@ -909,6 +909,9 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::TaskRequestCancel
         | I::TaskPollClose
         | I::TaskFinishDestroy
+        | I::RegistrationStart
+        | I::RegistrationValid
+        | I::RegistrationClose
         | I::AsyncRegistrationStart
         | I::AsyncRegistrationValid
         | I::AsyncRegistrationRequestClose
@@ -919,9 +922,6 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::SyncStore
         | I::SyncFetchAdd
         | I::SyncCompareExchange
-        | I::TaskStart
-        | I::RegistrationStart
-        | I::RegistrationValid
-        | I::RegistrationClose => Err(zil_ir::body::intrinsic_name(op)),
+        | I::TaskStart => Err(zil_ir::body::intrinsic_name(op)),
     }
 }

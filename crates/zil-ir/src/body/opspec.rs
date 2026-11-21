@@ -1739,15 +1739,59 @@ fn intrinsic_sig(
             }
             Ok((vec![*reg_ty], cx.lookup(TyKind::Unit)?))
         }
+        IntrinsicOp::RegistrationStart => {
+            let [reg, close, env] = found else {
+                return Err(bad("registration.start takes 3 arguments"));
+            };
+            for cb in [*reg, *close] {
+                if !matches!(
+                    tys.get(cb),
+                    Some(TyKind::Opaque(OpaqueTy::ForeignCallback { .. }))
+                ) {
+                    return Err(bad("registration.start requires extern \"C\" callbacks"));
+                }
+            }
+            if tys.holds_address(*env) || tys.may_store_address(*env) {
+                return Err(bad("registration.start environment cannot hold addresses"));
+            }
+            let ok_dest = matches!(
+                tys.get(dest_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Registration { environment })) if *environment == *env)
+            );
+            if !ok_dest {
+                return Err(bad(
+                    "registration.start destination must be Managed<Registration<F>>",
+                ));
+            }
+            Ok((vec![*reg, *close, *env], dest_ty))
+        }
+        IntrinsicOp::RegistrationValid => {
+            let (d, OpaqueTy::Registration { .. }) = desc_arg()? else {
+                return Err(bad("registration.valid requires Registration descriptor"));
+            };
+            Ok((vec![d], bool_ty()?))
+        }
+        IntrinsicOp::RegistrationClose => {
+            let [reg_ty] = found else {
+                return Err(bad("registration.close takes Managed<Registration<F>>"));
+            };
+            let ok = matches!(
+                tys.get(*reg_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(tys.get(*inner), Some(TyKind::Opaque(OpaqueTy::Registration { .. })))
+            );
+            if !ok {
+                return Err(bad("registration.close requires Managed<Registration<F>>"));
+            }
+            Ok((vec![*reg_ty], cx.lookup(TyKind::Unit)?))
+        }
         IntrinsicOp::MutexUnlock
         | IntrinsicOp::SyncLoad
         | IntrinsicOp::SyncStore
         | IntrinsicOp::SyncFetchAdd
         | IntrinsicOp::SyncCompareExchange
-        | IntrinsicOp::TaskStart
-        | IntrinsicOp::RegistrationStart
-        | IntrinsicOp::RegistrationValid
-        | IntrinsicOp::RegistrationClose => Err(ConstraintError::Unspecified(intrinsic_name(op))),
+        | IntrinsicOp::TaskStart => Err(ConstraintError::Unspecified(intrinsic_name(op))),
     }
 }
 

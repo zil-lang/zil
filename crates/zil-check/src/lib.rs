@@ -514,9 +514,7 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<(), CheckE
                         &block.terminator,
                         Terminator::Call {
                             callee: Callee::Intrinsic(
-                                IntrinsicOp::TaskCreate
-                                    | IntrinsicOp::TaskStart
-                                    | IntrinsicOp::AsyncRegistrationStart
+                                IntrinsicOp::TaskCreate | IntrinsicOp::TaskStart
                             ),
                             args,
                             ..
@@ -539,21 +537,33 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<(), CheckE
             }
         }
 
-        // Check `ThreadScope` callbacks (args[2] is the parent-thread callback).
+        // Check `ThreadScope`, `RegistrationStart`, and `AsyncRegistrationStart` callbacks.
         for block in &func.body.blocks {
             if let Terminator::Call {
-                callee: Callee::Intrinsic(IntrinsicOp::ThreadScope),
+                callee: Callee::Intrinsic(op),
                 args,
                 ..
             } = &block.terminator
-                && let Some(Operand::Copy(p) | Operand::Move(p)) = args.get(2)
-                && let Some(cfn) = closure_fn_of_place(&func.body, p)
-                && can_suspend[cfn.index()]
             {
-                return Err(fail(
-                    fid,
-                    "thread_scope callback cannot suspend outside a Task context",
-                ));
+                let cb_arg = if matches!(
+                    op,
+                    IntrinsicOp::ThreadScope | IntrinsicOp::RegistrationStart
+                ) {
+                    args.get(2)
+                } else if *op == IntrinsicOp::AsyncRegistrationStart {
+                    args.get(3)
+                } else {
+                    None
+                };
+                if let Some(Operand::Copy(p) | Operand::Move(p)) = cb_arg
+                    && let Some(cfn) = closure_fn_of_place(&func.body, p)
+                    && can_suspend[cfn.index()]
+                {
+                    return Err(fail(
+                        fid,
+                        "foreign or thread_scope callback cannot suspend outside a Task context",
+                    ));
+                }
             }
         }
     }

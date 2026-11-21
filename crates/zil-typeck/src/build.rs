@@ -680,6 +680,11 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 };
                 TyKind::Opaque(OpaqueTy::Task { result, context })
             }
+            TyData::Opaque(OpaqueKind::Registration(environment)) => {
+                TyKind::Opaque(OpaqueTy::Registration {
+                    environment: self.lower_ty(environment, span)?,
+                })
+            }
             TyData::Opaque(OpaqueKind::AsyncRegistration(environment)) => {
                 TyKind::Opaque(OpaqueTy::AsyncRegistration {
                     environment: self.lower_ty(environment, span)?,
