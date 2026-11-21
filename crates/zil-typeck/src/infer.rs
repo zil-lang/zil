@@ -2012,9 +2012,24 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     fields: out,
                 }
             }
-            ast::PatternKind::Reference { .. } => {
-                self.unsupported("reference patterns", span);
-                PatKind::Wild
+            ast::PatternKind::Reference {
+                mutable: is_mut,
+                pattern: inner,
+            } => {
+                if let ast::PatternKind::Name(n) = &inner.kind {
+                    let ref_ty = self.types.intern(TyData::Ref {
+                        region: None,
+                        mutable: *is_mut,
+                        pointee: expected,
+                    });
+                    PatKind::RefBinding {
+                        local: self.declare(n, ref_ty, mutable, inner.span),
+                        mutable: *is_mut,
+                    }
+                } else {
+                    self.unsupported("nested reference patterns", span);
+                    PatKind::Wild
+                }
             }
             ast::PatternKind::ErrorArm { is_error, pattern } => {
                 let et = self.types.shallow(expected);
@@ -2054,7 +2069,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
 
     fn irrefutable(&self, p: &Pat) -> bool {
         match &p.kind {
-            PatKind::Wild | PatKind::Binding(_) => true,
+            PatKind::Wild | PatKind::Binding(_) | PatKind::RefBinding { .. } => true,
             PatKind::Lit(_) | PatKind::ErrorArm { .. } => false,
             PatKind::Tuple(items) => items.iter().all(|i| self.irrefutable(i)),
             PatKind::Adt { adt, fields, .. } => {
@@ -3299,25 +3314,27 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             None => self.fresh_args(adt),
             Some(given) => {
                 let expected_n = self.items.adt(adt).generics.len();
-                if given.len() != expected_n {
+                let mut explicit_tys = Vec::new();
+                for g in given {
+                    match g {
+                        ast::GenericArg::Type(t) => explicit_tys.push(self.resolve_written(t)),
+                        ast::GenericArg::Lifetime(_) => {}
+                        ast::GenericArg::Const(expr) => {
+                            explicit_tys.push(self.resolve_const_generic_arg(expr));
+                        }
+                        ast::GenericArg::AssociatedBinding(_) => {
+                            self.unsupported("non-type generic arguments", span);
+                            explicit_tys.push(self.types.error());
+                        }
+                    }
+                }
+                if explicit_tys.is_empty() {
+                    self.fresh_args(adt)
+                } else if explicit_tys.len() != expected_n {
                     self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
                     self.fresh_args(adt)
                 } else {
-                    let mut out = Vec::with_capacity(given.len());
-                    for g in given {
-                        match g {
-                            ast::GenericArg::Type(t) => out.push(self.resolve_written(t)),
-                            ast::GenericArg::Const(expr) => {
-                                out.push(self.resolve_const_generic_arg(expr));
-                            }
-                            ast::GenericArg::Lifetime(_)
-                            | ast::GenericArg::AssociatedBinding(_) => {
-                                self.unsupported("non-type generic arguments", span);
-                                out.push(self.types.error());
-                            }
-                        }
-                    }
-                    out
+                    explicit_tys
                 }
             }
         };
@@ -5029,7 +5046,7 @@ impl Finalizer<'_, '_> {
     fn pat(&mut self, p: &mut Pat) {
         p.ty = self.zonk(p.ty, p.span);
         match &mut p.kind {
-            PatKind::Wild | PatKind::Binding(_) => {}
+            PatKind::Wild | PatKind::Binding(_) | PatKind::RefBinding { .. } => {}
             PatKind::Lit(l) => {
                 let (l, ty, span) = (*l, p.ty, p.span);
                 self.literal(l, ty, span);

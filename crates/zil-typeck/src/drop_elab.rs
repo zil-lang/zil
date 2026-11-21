@@ -136,6 +136,32 @@ fn bool_assign(flag: Local, value: bool, span: Span) -> Instruction {
     }
 }
 
+/// If `ufields` records one or more moved fields under `place` belonging to a
+/// single enum variant of `adt`, returns that variant index.
+fn active_moved_variant(
+    place: &Place,
+    adt: zil_ir::body::AdtId,
+    ufields: &HashSet<Place>,
+) -> Option<zil_ir::body::VariantIdx> {
+    let prefix_len = place.projections.len();
+    let mut found: Option<zil_ir::body::VariantIdx> = None;
+    for u in ufields {
+        if u.root == place.root
+            && u.projections.len() > prefix_len
+            && u.projections.starts_with(&place.projections)
+            && let zil_ir::body::Projection::Field(fref) = u.projections[prefix_len]
+            && fref.adt == adt
+        {
+            match found {
+                None => found = Some(fref.variant),
+                Some(prev) if prev == fref.variant => {}
+                Some(_) => return None,
+            }
+        }
+    }
+    found
+}
+
 fn place_cleanup_uninit(
     place: &Place,
     ty: zil_ir::body::TyId,
@@ -165,26 +191,37 @@ fn place_cleanup_uninit(
             let adt = *adt;
             let args = *args;
             let def = tys.adt(adt);
-            if def.user_drop || def.variants.len() != 1 {
+            if def.user_drop {
                 return false;
             }
+            let variant = if def.variants.len() == 1 {
+                zil_ir::body::VariantIdx(0)
+            } else if let Some(v) = active_moved_variant(place, adt, ufields) {
+                v
+            } else {
+                return false;
+            };
             let arg_tys = tys.args(args);
-            def.variants[0].fields.iter().enumerate().all(|(fi, f)| {
-                let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
-                    arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
-                } else {
-                    f.ty
-                };
-                let mut sub = place.clone();
-                sub.projections
-                    .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
-                        adt,
-                        variant: zil_ir::body::VariantIdx(0),
-                        field: zil_ir::body::FieldIdx(fi as u32),
-                        args,
-                    }));
-                place_cleanup_uninit(&sub, fty, tys, ufields)
-            })
+            def.variants[variant.0 as usize]
+                .fields
+                .iter()
+                .enumerate()
+                .all(|(fi, f)| {
+                    let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
+                        arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
+                    } else {
+                        f.ty
+                    };
+                    let mut sub = place.clone();
+                    sub.projections
+                        .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
+                            adt,
+                            variant,
+                            field: zil_ir::body::FieldIdx(fi as u32),
+                            args,
+                        }));
+                    place_cleanup_uninit(&sub, fty, tys, ufields)
+                })
         }
         TyKind::Unit
         | TyKind::Bool
@@ -254,12 +291,20 @@ fn collect_live_cleanup_places(
             let adt = *adt;
             let args = *args;
             let def = tys.adt(adt);
-            if def.user_drop || def.variants.len() != 1 {
+            if def.user_drop {
                 out.push(place.clone());
                 return;
             }
+            let variant = if def.variants.len() == 1 {
+                zil_ir::body::VariantIdx(0)
+            } else if let Some(v) = active_moved_variant(place, adt, ufields) {
+                v
+            } else {
+                out.push(place.clone());
+                return;
+            };
             let arg_tys = tys.args(args);
-            for (fi, f) in def.variants[0].fields.iter().enumerate() {
+            for (fi, f) in def.variants[variant.0 as usize].fields.iter().enumerate() {
                 let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
                     arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
                 } else {
@@ -269,7 +314,7 @@ fn collect_live_cleanup_places(
                 sub.projections
                     .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
                         adt,
-                        variant: zil_ir::body::VariantIdx(0),
+                        variant,
                         field: zil_ir::body::FieldIdx(fi as u32),
                         args,
                     }));

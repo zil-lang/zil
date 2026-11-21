@@ -307,6 +307,11 @@ pub struct Pat {
 pub enum PatKind {
     Wild,
     Binding(LocalId),
+    /// `ref x` (`mutable = false`) or `ref mut x` (`mutable = true`).
+    RefBinding {
+        local: LocalId,
+        mutable: bool,
+    },
     Lit(Lit),
     Tuple(Vec<Pat>),
     /// A variant of an Enum, or the single variant of a Record/Package;

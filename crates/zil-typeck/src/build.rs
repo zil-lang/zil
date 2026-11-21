@@ -832,7 +832,7 @@ struct LoopFrame {
 #[derive(Clone)]
 struct Row<'t> {
     cols: Vec<(Place, &'t Pat)>,
-    bindings: Vec<(Local, Place)>,
+    bindings: Vec<(Local, Place, Option<Mutability>)>,
     arm: usize,
 }
 
@@ -2490,11 +2490,20 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         self.simplify(&mut rows);
         let row = rows.pop();
         if let Some(row) = row {
-            for (local, place) in row.bindings {
+            for (local, place, ref_mut) in row.bindings {
                 self.declare(local, pattern.span);
-                let ty = self.locals[local.index()].ty;
-                let v = self.use_place(place, ty);
-                self.assign(Place::local(local), Rvalue::Use(v), pattern.span);
+                let rv = match ref_mut {
+                    Some(mutability) => Rvalue::Ref {
+                        region: Region::Static,
+                        mutability,
+                        place,
+                    },
+                    None => {
+                        let ty = self.locals[local.index()].ty;
+                        Rvalue::Use(self.use_place(place, ty))
+                    }
+                };
+                self.assign(Place::local(local), rv, pattern.span);
             }
         }
     }
@@ -2564,7 +2573,22 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                                 self.bind_local(*l, &info)
                             }
                         };
-                        row.bindings.push((local, place));
+                        row.bindings.push((local, place, None));
+                    }
+                    PatKind::RefBinding { local: l, mutable } => {
+                        let local = match self.map[l.0 as usize] {
+                            Some(local) => local,
+                            None => {
+                                let info = self.locals_info[l.0 as usize].clone();
+                                self.bind_local(*l, &info)
+                            }
+                        };
+                        let m = if *mutable {
+                            Mutability::Exclusive
+                        } else {
+                            Mutability::Shared
+                        };
+                        row.bindings.push((local, place, Some(m)));
                     }
                     PatKind::Tuple(items) => {
                         for (i, p) in items.iter().enumerate() {
@@ -2620,14 +2644,23 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         };
         let Some((test_place, test_pat)) = first.cols.first().cloned() else {
             // Leaf: bind and enter the arm.
-            for (local, place) in first.bindings {
+            for (local, place, ref_mut) in first.bindings {
                 self.push(InstructionKind::StorageLive(local), span);
                 if !arm_bindings[first.arm].contains(&local) {
                     arm_bindings[first.arm].push(local);
                 }
-                let ty = self.locals[local.index()].ty;
-                let v = self.use_place(place, ty);
-                self.assign(Place::local(local), Rvalue::Use(v), span);
+                let rv = match ref_mut {
+                    Some(mutability) => Rvalue::Ref {
+                        region: Region::Static,
+                        mutability,
+                        place,
+                    },
+                    None => {
+                        let ty = self.locals[local.index()].ty;
+                        Rvalue::Use(self.use_place(place, ty))
+                    }
+                };
+                self.assign(Place::local(local), rv, span);
             }
             self.goto(arm_blocks[first.arm], span);
             return;
@@ -2815,7 +2848,10 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     self.decide(sub_rows, arm_blocks, arm_bindings, span);
                 }
             }
-            PatKind::Wild | PatKind::Binding(_) | PatKind::Tuple(_) => {
+            PatKind::Wild
+            | PatKind::Binding(_)
+            | PatKind::RefBinding { .. }
+            | PatKind::Tuple(_) => {
                 // `simplify` removed these columns.
                 self.failed = true;
             }
