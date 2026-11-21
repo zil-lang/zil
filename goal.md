@@ -1,6 +1,6 @@
 # ZIL 任务看板
 
-更新：2026-11-16（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
+更新：2026-11-21（Asia/Shanghai）。本文件是唯一实时任务状态；只记录下表有限范围，不代表完整语言、B0 或 ZUI 已完成。规范与门槛以任务源码分支的[设计][design]、具名附件和[产品条件][gates]为准。
 
 已合入＝所列范围已进入远端 main；实现待验＝已有实现、尚未接受；部分实现＝完整链路未闭合；进行中＝正在实现或验证、尚未验收；待执行/待排期＝尚未执行/派定。待办优先级仅 P0/P1/P2，已交付行用“—”。任务 ID 不带前导零。
 
@@ -10,9 +10,17 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-当前 Alpha 最新完整功能候选 `3d305ded6`：主13/13与预期语义负例4/4、extra14/14（嵌套创建者回归已恢复）、最近40/40、审后raw13/13、Source11/11。Task SDK为13通过/23失败/0忽略（36项，新增通过为精确负例），原30helper仍仅12份通过独立Verify；其12份已分别完成双后端O0/O2共48/48实际构建、正常48与分配失败48次机器执行，原输出/帧清理断言全过。其余18份Source与完整Task原生族仍未接受，Γ审查加严和独立来源/类对应消费者继续施工；不跨候选相加，不以Unsupported或总脚本退出码算通过。
+**2026-11-21 Alpha Core 正式合入（A0 已完成）**：[PR #88](https://github.com/zil-lang/zil/pull/88)（`task/language-alpha@0ca21d0f3391138610f874e96c3a443cc4892028`）已通过最终验收并合入 `main@915886835d35cab3c95a37d2ede7cc4e763048bb`，`task/language-alpha` 已删除。同提交收据：Workspace `566/566`、Reference-only `543/543`、LLVM text-reference `76/76`、Native API `16` 构建/`128` 执行/`56` 故障注入、Fixed Projects `21/21`（`17` 验证 + `4/4` 预期拒绝，`60/60` 原生构建、`152/152` 必要比较、`12/12` 附加构建、`4/4` 控制组）、Roam Callable `42/42`、Roam Task `24/24`，远端三条 CI（Main `44882559497`、Research LLVM `44882559494`、Repository structure `44882559496`）全绿。
 
-**当前主线：单一 Alpha 大功能分支，一次贯通核心语言完整功能链。** 当前 `main@9170bb421` 已接受PR87标准库基础、PR85数值主体、PR86十宽Store整数布局及此前有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
+**后续组织（三专项 + 一长期父任务，均基于 `main@915886835` 独立分支）**：
+- **A1（P0，关联 G7.1–G7.4）**：`task/foreign-registration-native` — 外部 `Registration` 与跨线程 `AsyncRegistration` 原生运行时（A1.1 同线程、A1.2 跨线程原子准入/drain/关闭竞争、A1.3 Task/闭包联合，限 `spec/threaded-foreign-registration.md` 的 `ClosedEnvironment` Profile）。
+- **A2（P1，新增 G10.6.8）**：`task/alpha-acceptance-evidence` — 专用 Alpha 验收 GitHub Actions 工作流（精确 SHA 构建、固定项目 21/21 & 152/152、Roam Callable 42/42 & Task 24/24、原始 JSON/Artifact 与 fail-closed 校验）。
+- **A3（P1，新增 G10.5.1.16）**：`task/llvm-structured-builder` — `zil-backend-llvm` 接入 `zil-llvm-api` 既有结构化 `model::Module` + `compile_module`，正式 LLVM API 路径脱离文本解析，保留文本路径作差分对照，量化编译/运行性能。
+- **A4（P0 长期，沿用 G10.6.3 及 G2.3/G2.4/G3.4/G3.5/G4.5/G5.2/G5.3/G6/G8.4/G8.6）**：在 `main@915886835` 上重跑各开放父任务原 Source 消费者，按真实剩余失败继续收口，不与 A1–A3 重复计数。
+
+历史记录（2026-11-16 合并前）：当前 Alpha 最新完整功能候选 `3d305ded6`：主13/13与预期语义负例4/4、extra14/14（嵌套创建者回归已恢复）、最近40/40、审后raw13/13、Source11/11。Task SDK为13通过/23失败/0忽略（36项，新增通过为精确负例），原30helper仍仅12份通过独立Verify；其12份已分别完成双后端O0/O2共48/48实际构建、正常48与分配失败48次机器执行，原输出/帧清理断言全过。其余18份Source与完整Task原生族仍未接受，Γ审查加严和独立来源/类对应消费者继续施工；不跨候选相加，不以Unsupported或总脚本退出码算通过。
+
+**历史主线（已由 PR #88 合入 `main@915886835` 取代）：** 原 `main@9170bb421` 已接受PR87标准库基础、PR85数值主体、PR86十宽Store整数布局及此前有限语言范围、PR71原始回归、PR73借入Package的Managed Store字段替换、PR81 POD Map增长/Copy Set及PR82 Store按需增长追加；编译专项已独立合入PR75、PR76、PR78和PR79，普通施工已正常同步。仍是开发预览，不据有限子项关闭1.0父门。
 
 用户本轮明确：可由一个分支承接的工作只保留一个入口，确有独立实施需要才拆分。编译提速仍由原编译对话实施；其余未完成工作由本对话接续。Map、Store已由 `task/ordinary-collections` 依次交付并合入，原施工分支已删除；G9.3.10已在本批施工，原24个实际消费者全过，待完整独立集成。固定 `archive/source-history` 已保全至4fe6113e，只保全历史与候选，goal继续作为唯一看板。
 
@@ -393,7 +401,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G7.1 | 安装函数返回后稳定拥有真实闭包环境的Registration、显式强关闭及失败清理 | 已合入 | — | — | [已合入证据][e37]；限同步关闭，不覆盖跨线程排空。 |
-| G7.2 | 更一般借入/跨线程环境的登记对象与关闭合同 | 部分实现 | P0 | 待派 | G7.2.1已合入closed FnMut环境的跨线程准入、raw holder、no-future/drain和一次cleanup；一般借入环境及任意入口图未闭合，继续依赖G3.4、G8.5。 |
+| G7.2 | 更一般借入/跨线程环境的登记对象与关闭合同 | 进行中 | P0 | `task/foreign-registration-native` (A1) | 基于 `main@915886835` 补齐 Body IR LLVM 后端的 `RegistrationStart/Valid/Close` 与 `AsyncRegistration*` 五项原生运行时（A1.1 同线程、A1.2 跨线程原子准入/drain/关闭竞争、A1.3 Task/闭包联合，限 `ClosedEnvironment` Profile）；一般借入环境与任意入口图仍保留给父项。 |
 | G7.2.1 | 跨线程raw持有、FnMut准入、完整drain及一次关闭 | 已合入 | — | — | `861f18086/e4380130`独审并合：具体与generic四前提、原子发布/准入/driver、真实raw holder、完整drain与一次cleanup。closed环境/Direct入口有限，不授任意FFI/线程能力。 已由main@222e550af本批有限范围验收。 |
 | G7.3 | 外部waker/晚通知、no-future及drain，关闭后所有raw入口静止 | 部分实现 | P0 | root | 同线程晚通知gate/provider排空已[合入][e42]；G7.2.1的closed跨线程raw holder/no-future/drain已由main@222e550af验收。一般借入环境和通用waker图仍待补。 |
 | G7.4 | Registration与异步任务责任的失败/取消/完成组合 | 部分实现 | P0 | root | 有限 Task 失败/取消/返回时排空已[合入][e42]；更一般组合依赖 G7.2、G8.6。 |
@@ -568,6 +576,7 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | G10.5.1.13 | 完整请求关键路径与对象命中后的重复工作 | 本轮收束·候选未采用 | P1 | Chat编译专项 · root | main990保持；结构sink ee0与Builder定位9f0各84请求/42对同ELF与materialIR/252 I/O完整，wall+7.63%/+2.08%，不采用。identity/linear各36编译108运行仍编译NoGo；不将局部成本或跨窗口差额当净收益。全部源码、原始数据与否定结果已保全，父门仍开放。[本轮记录](records/compiler-next-optimization.json)。 |
 | G10.5.1.14 | 多点批量修改、并发候选及重编范围 | 本轮收束·目标未达成 | P1 | Chat编译专项 · root | 吸收Rust/Blaze actual imports与已优化body复用，原预算/owner/Verify/完整O2不放宽。进程内2321完成36编译108运行，质量Pass但编译+22.47%/+9.22%；full2458同规模完整，N256编译wall−9.48%/CPU−13.25%，但N64/256运行+34.50%/+46.23%，质量NoGo，均未采用。两次构建各64API/6proof/no-native通过；无新增多点/并发收益结论。四旧失败ref实际退役，一条研究入口保留，完整raw v1保存；父门开放。[本轮记录](records/compiler-next-optimization.json) · [前轮记录](records/compiler-multi-edit-continuation.json)。 |
 | G10.5.1.15 | 稳定语义节点、点对点分层传播及大项目真实编译接入 | 整链已测·优化未达标 | P1 | Chat响应式专项 · root | 两批已推：58机器当前检查链/pack快照、3c当前共享体准入/规划/原始发布/ABI借用。strict/B388/D254含原生/发布3/fmt/release及完整27性能门过，但首改1.552/R1.042s NoGo；26的1.549/R1.054s负结果保留。正式scoped检查5105/复用0；独立LIR包装失配仅是接口反例，lower_view正式借用源树，不能当基准根因。Rust codegen102ms之后还等待LLVM369ms/link38ms；LLVM481ms与等待重叠，不与ZIL全后端571ms错比。机器类/图/分区、Source/Types恢复和发布仍需实质省工，不再按小指针缓存计收益。[结果](records/compiler-incremental-demand-continuation.json)。 |
+| G10.5.1.16 | Body IR LLVM 后端接入 `zil-llvm-api` 既有结构化 Builder (`model::Module` + `compile_module`)，正式 LLVM API 路径脱离文本解析并量化编译/运行性能 | 进行中 | P1 | `task/llvm-structured-builder` (A3) | 基于 `main@915886835` 独立分支实施；复用 `zil-llvm-api` 既有结构化模型与 `compile_module`，保留文本路径作差分测试参考，验证 O0/O2、1/8 units、闭包/Task/Mutex/OwnedDyn/故障清理并记录同口径性能数据。 |
 
 </details>
 
@@ -592,10 +601,11 @@ Map/Copy Set已由[PR81](https://github.com/zil-lang/zil/pull/81)合入main `2fb
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | Map/Copy Set已由PR81交付；Store.push_growing已由PR82合main2bb30ce1，候选/CI/main同tree03251642。首败与后续验收分别保留；本地workspace6040/0/0、strict/text通过，三CI全success、两套各6040/5926/70，原生及独审范围见接续记录。ordinary分支已退役，固定archive4fe6113e保全；清理后25条分支含22条编译专项，全部保护。G9.3.10待排期，owning哈希及1.0父门仍开放。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | Chat语言接续 · root集成 | Alpha Core（[PR #88](https://github.com/zil-lang/zil/pull/88)）已合入 `main@915886835`（Workspace 566/566、Reference 543/543、Text 76/76、Native API 16/128/56、Fixed Projects 21/21 & 152/152、Roam 42/42 + 24/24、三条 CI 全绿）。剩余完整 Alpha 合同开放能力（G2.3/G2.4、G3.4/G3.5、G4.5、G5.2/G5.3、G6、G8.4/G8.6）作为 A4 在新 `main` 上重跑原 Source 消费者按真实缺口继续收口。 |
 | G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 已合入 | — | — | `6c1ac6fdf`已合候选；恢复旧flat callback/Store真实root快路，保留新borrowed Product分类，84项与原CLI/window正反例专项通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.5 | 新共享构造检查的两核实际独占loan发现与旧fee保持 | 已合入 | — | — | `e5c52c936/396c183c`已合：复用付费建表，无额外扫描，原两预算控制恢复原值、28独占构造/slot控制通过。 已由main@222e550af本批有限范围验收。 |
 | G10.6.6 | 默认worker深调用与life组合栈溢出 | 已合入 | — | — | 既有递归帧修复由main@222e550af验收；source_life合流回归的子项也已由main@0e770a26e交付。原默认栈/深调用/费用控制保留。 |
+| G10.6.8 | Alpha 固定项目与 Roam 组合矩阵的专用 CI 收据自动化工作流 | 进行中 | P1 | `task/alpha-acceptance-evidence` (A2) | 基于 `main@915886835` 独立分支实施；精确 SHA 构建 ZIL/Roam 并记录 SHA-256，自动跑固定项目 21/21 & 152/152、Roam Callable 42/42、Task 24/24，保存原始 JSON/失败项/工具链/源码 SHA 为 Artifact，缺报告/零执行/Unsupported/ResourceLimit 明确失败并输出单一汇总。 |
 
 </details>
 
