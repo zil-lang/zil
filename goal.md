@@ -6,15 +6,15 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@ac7f65ea6`](https://github.com/zil-lang/zil/commit/ac7f65ea6)（开放 PR：0；L1/L2/L3 与 P0 来源证明收口分支均已合入并清理）
-- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、L3 三批（[PR #103](https://github.com/zil-lang/zil/pull/103)–[#105](https://github.com/zil-lang/zil/pull/105)）及 **L3 安全证明收口**（[PR #106](https://github.com/zil-lang/zil/pull/106)：`zil-check` 前向 CFG 格不动点逐路径来源证明、`OwnedDyn` 擦除 `MutexGuard` 保守拒绝、7 项 Raw/Wire 反例与 6 级转发链原生正例、L3 全部覆盖负例升级为严格 `ResultCategory::SafeReject`）均已 4/4 远端 CI 全绿合入 `main`
-- **总体阻塞**：PR #106 已修复 G8.6/G7.2 的 CFG 来源算法与 G8.5 擦除 Guard 限定检查，但 G7.2 同根借用 Raw/Wire 的测试证据仍有缺陷：`l3_provenance_closure.rs` 使用空 `Certificate::default()` 并只断言 Verify 返回任意错误，无法证明实际别名拒绝；须补合法证书和具名冲突诊断方可关证明门（PR #106 验收评论）；全仓 `tests/**/*.zil` Success 数 **`839 / 1,385`**（`489 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`）
-- **下一发布门**：先完成 G7.2 同根别名有效 Raw/Wire 证据的最小验收修补；随后继续 L3 余项或并行 L4 标准库与 ABI
+- **主线基线**：[`main@4618f14fe`](https://github.com/zil-lang/zil/commit/4618f14fe)（开放 PR：0；L1/L2/L3 与全部安全证明收口分支均已合入并清理）
+- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、L3 三批（[PR #103](https://github.com/zil-lang/zil/pull/103)–[#105](https://github.com/zil-lang/zil/pull/105)）及 **L3 安全证明收口**（[PR #106](https://github.com/zil-lang/zil/pull/106) + [PR #107](https://github.com/zil-lang/zil/pull/107)：`zil-check` 前向 CFG 格不动点逐路径来源证明、`OwnedDyn` 擦除 `MutexGuard` 保守拒绝、同根别名有效 3 函数证书与合法不相交对照精确 `LoanConflict` 证明、13+1 项 `RISKS.json` 精确阶段/诊断码/原因绑定）均已 4/4 远端 CI 全绿合入 `main`
+- **总体阻塞**：无活跃 P0 阻塞（PR #106 审核指出的 G7.2 同根别名测试空证书/未具名冲突缺陷已由 PR #107 闭合）；全仓 `tests/**/*.zil` Success 数 **`839 / 1,385`**（`489 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`）
+- **下一发布门**：按最新 `main@4618f14fe` 进入下一轮派工（L3 余项或并行 L4 标准库与 ABI）
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@ac7f65ea6 为基线）
+## 下一阶段施工安排（以 main@4618f14fe 为基线）
 
-本轮 L3 Batch 1–3（PR #103/#104/#105）及第九轮审核安全证明收口（PR #106）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收态，等待下一轮派工。编译性能专项独立保留，不在普通语言任务分支修改。
+本轮 L3 Batch 1–3（PR #103/#104/#105）及安全证明收口（PR #106/#107）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收态，等待下一轮派工。编译性能专项独立保留，不在普通语言任务分支修改。
 
 **统一计量及安全门**：`839/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
@@ -43,7 +43,7 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable`、PR #105 作用域回调及 PR #106 逐路径 CFG provider 身份证明、13 项 `SafeReject` 断言与 Raw/Wire 同根别名反例已合入） | 部分实现 | P0 | 先修补 PR #106 同根别名测试：使用结构完整有效证书要求 Verify 拒绝具名 LoanConflict/别名冲突，而非因 `Certificate::default()` 缺证书通过；Solver 同时校验具名拒绝，并补独立来源合法对照。随后继续一般借入环境与关闭合同；`body_captures_callback_alias.zil` 待源码 `&mut` 捕获语法开放后补齐端到端源码 `SafeReject` 覆盖 |
+| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable`、PR #105 作用域回调、PR #106 逐路径 CFG provider 身份证明及 PR #107 有效证书同根别名 `LoanConflict` + 合法不相交对照与 `RISKS.json` 精确诊断码绑定已合入） | 部分实现 | P0 | 继续推进一般借入环境与关闭合同；`body_captures_callback_alias.zil` 在 `RISKS.json` 中保持历史缺口标注（源码端待显式 `&mut` 捕获 profile 决策后统一收口） |
 | G7.3 | 剩余：一般借入环境的外部 waker / 晚通知、no-future 与 drain，关闭后所有 raw 入口静止 | 部分实现 | P0 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
 | G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
 | G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
