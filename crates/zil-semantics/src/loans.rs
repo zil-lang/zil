@@ -55,6 +55,71 @@ pub struct LoanTable {
     loans: Vec<Option<Loan>>,
 }
 
+fn resolve_store_borrow_place(body: &Body, arg_place: &Place) -> Place {
+    let mut cur = arg_place.clone();
+    let mut seen: Vec<Local> = Vec::new();
+    while cur.projections.is_empty() {
+        let PlaceRoot::Local(l) = cur.root else {
+            break;
+        };
+        if seen.contains(&l) || body.is_param(l) {
+            break;
+        }
+        seen.push(l);
+        let mut def_rhs: Option<&Rvalue> = None;
+        let mut multiple = false;
+        for block in &body.blocks {
+            for inst in &block.instructions {
+                if let InstructionKind::Assign { dest, value } = &inst.kind
+                    && dest.as_local() == Some(l)
+                {
+                    if def_rhs.is_some() {
+                        multiple = true;
+                        break;
+                    }
+                    def_rhs = Some(value);
+                }
+            }
+            if multiple {
+                break;
+            }
+            if let Terminator::Call { dest, .. } = &block.terminator
+                && dest.as_local() == Some(l)
+            {
+                multiple = true;
+                break;
+            }
+        }
+        if multiple {
+            break;
+        }
+        match def_rhs {
+            Some(Rvalue::Describe { place }) => return place.clone(),
+            Some(Rvalue::Use(zil_ir::body::Operand::Copy(p) | zil_ir::body::Operand::Move(p))) => {
+                cur = p.clone();
+            }
+            None
+            | Some(
+                Rvalue::Use(zil_ir::body::Operand::Const(_) | zil_ir::body::Operand::Pooled(_))
+                | Rvalue::Ref { .. }
+                | Rvalue::SliceRef { .. }
+                | Rvalue::Aggregate { .. }
+                | Rvalue::ErrorUnion { .. }
+                | Rvalue::Unary { .. }
+                | Rvalue::Binary { .. }
+                | Rvalue::Convert { .. }
+                | Rvalue::Discriminant(_)
+                | Rvalue::ErrorArm(_)
+                | Rvalue::Len(_)
+                | Rvalue::FnRef(_)
+                | Rvalue::ForeignFnRef(_)
+                | Rvalue::StaticUtf(_),
+            ) => break,
+        }
+    }
+    cur
+}
+
 impl LoanTable {
     pub fn build(body: &Body, tys: &TyTable) -> Self {
         let mut region_count = 0u32;
@@ -126,6 +191,50 @@ impl LoanTable {
                         instruction: Some(i as u32),
                     },
                     place: place.clone(),
+                    kind,
+                    anchored,
+                    stores_addresses,
+                }));
+            }
+            if let Terminator::Call {
+                callee:
+                    zil_ir::body::Callee::Intrinsic(zil_ir::body::IntrinsicOp::StoreBorrow {
+                        mutability,
+                    }),
+                args,
+                ..
+            } = &block.terminator
+                && let Some(
+                    zil_ir::body::Operand::Copy(arg_place) | zil_ir::body::Operand::Move(arg_place),
+                ) = args.first()
+            {
+                let store_place = resolve_store_borrow_place(body, arg_place);
+                let kind = match mutability {
+                    Mutability::Shared => LoanKind::Shared,
+                    Mutability::Exclusive => LoanKind::Exclusive,
+                };
+                let place_ty = type_place(&store_place, &cx).ok().map(|t| t.ty());
+                let is_desc = place_ty
+                    .is_some_and(|t| matches!(tys.get(t), Some(zil_ir::body::TyKind::Desc(_))));
+                let stores_addresses = place_ty.map(|t| tys.holds_address(t)).unwrap_or(true);
+                let closure_kind = body.closure.and_then(|c| tys.closure(c)).map(|c| c.kind);
+                let anchored = !is_desc
+                    && (store_place.first_deref().is_none()
+                        || (matches!(store_place.root, PlaceRoot::Capture(_))
+                            && matches!(
+                                closure_kind,
+                                Some(
+                                    zil_ir::body::ClosureKind::Fn
+                                        | zil_ir::body::ClosureKind::FnMut
+                                )
+                            )
+                            && kind == LoanKind::Exclusive));
+                loans.push(Some(Loan {
+                    origin: OpLocation {
+                        block: zil_ir::body::BlockId::from_index(b),
+                        instruction: None,
+                    },
+                    place: store_place,
                     kind,
                     anchored,
                     stores_addresses,

@@ -678,6 +678,12 @@ pub struct ReturnSummary {
     /// Closure capture indices (`0..64`) whose described `OwnedStore`/`ByteBuffer`
     /// may be structurally mutated directly or transitively by this closure.
     pub mutating_captures: u64,
+    /// Parameter indices (`0..64`) through which this function (directly or
+    /// transitively) may store an address-holding value behind a deref or descriptor.
+    pub addr_store_params: u64,
+    /// Closure capture indices (`0..64`) through which this closure (directly or
+    /// transitively) may store an address-holding value.
+    pub addr_store_captures: u64,
 }
 
 /// The signatures a body may refer to.

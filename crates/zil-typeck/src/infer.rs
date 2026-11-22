@@ -5896,6 +5896,48 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             let value = self.coerce_arg(value, expected, a.span);
             args.push(value);
         }
+        let generics = self.items.func(f).generics.clone();
+        for (g, a) in generics.iter().zip(type_args.iter()) {
+            if let Some((want_k, wp, wr)) = &g.callable {
+                let resolved = self.items.normalize_ty(*a, self.types);
+                let td = self.types.data(resolved).clone();
+                if let TyData::Closure {
+                    kind: got_k,
+                    params: gp,
+                    result: gr,
+                    ..
+                } = td
+                {
+                    let kind_ok = matches!(
+                        (got_k, want_k),
+                        (ClosureKind::Fn, _)
+                            | (ClosureKind::FnMut, ClosureKind::FnMut | ClosureKind::FnOnce)
+                            | (ClosureKind::FnOnce, ClosureKind::FnOnce)
+                    );
+                    if !kind_ok || gp.len() != wp.len() {
+                        self.error(
+                            diag::GENERIC_BOUND,
+                            span,
+                            format!(
+                                "type argument for `{}` does not satisfy callable bound",
+                                g.name
+                            ),
+                        );
+                    } else {
+                        for (gp_ty, wp_ty) in gp.iter().zip(wp.iter()) {
+                            let wp_sub = self.types.subst(*wp_ty, &type_args);
+                            let wp_sub = self.types.erase_regions(wp_sub);
+                            let wp_sub = self.items.normalize_ty(wp_sub, self.types);
+                            self.unify(*gp_ty, wp_sub, span);
+                        }
+                        let wr_sub = self.types.subst(*wr, &type_args);
+                        let wr_sub = self.types.erase_regions(wr_sub);
+                        let wr_sub = self.items.normalize_ty(wr_sub, self.types);
+                        self.unify(gr, wr_sub, span);
+                    }
+                }
+            }
+        }
         let ty = self.types.subst(result, &type_args);
         let ty = self.types.erase_regions(ty);
         Expr {
