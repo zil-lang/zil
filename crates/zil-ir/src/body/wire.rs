@@ -1221,6 +1221,7 @@ fn encode_intrinsic(w: &mut Writer, op: IntrinsicOp) {
             encode_memory_order(w, failure);
         }
         IntrinsicOp::CNull => w.u8(48),
+        IntrinsicOp::CCallback => w.u8(49),
     }
 }
 fn encode_memory_order(w: &mut Writer, o: super::inst::MemoryOrder) {
@@ -1300,6 +1301,7 @@ fn decode_intrinsic(r: &mut Reader<'_>) -> Result<IntrinsicOp, WireError> {
             failure: decode_memory_order(r)?,
         }),
         48 => Ok(IntrinsicOp::CNull),
+        49 => Ok(IntrinsicOp::CCallback),
         t => Err(WireError::InvalidTag("IntrinsicOp", t)),
     }
 }

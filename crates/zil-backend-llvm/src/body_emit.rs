@@ -406,6 +406,20 @@ done:\n\
     }
 
     for f in &module.foreigns {
+        if f.symbol == "zil_glibc_errno_exchange" {
+            let _ = writeln!(header, "declare ptr @__errno_location()");
+            let _ = writeln!(
+                header,
+                "define internal i32 @zil_glibc_errno_exchange(i32 %next) {{"
+            );
+            let _ = writeln!(header, "entry:");
+            let _ = writeln!(header, "  %p = call ptr @__errno_location()");
+            let _ = writeln!(header, "  %old = load i32, ptr %p");
+            let _ = writeln!(header, "  store i32 %next, ptr %p");
+            let _ = writeln!(header, "  ret i32 %old");
+            let _ = writeln!(header, "}}");
+            continue;
+        }
         let ret = llvm_ty(&module.tys, f.result)?;
         let mut params = Vec::with_capacity(f.params.len());
         for &p in &f.params {
@@ -1570,9 +1584,15 @@ impl<'a> FnEmitter<'a> {
             Rvalue::Binary { op, lhs, rhs } => {
                 let (lv, lt, l_ty) = self.emit_operand(lhs)?;
                 let (rv, _, _) = self.emit_operand(rhs)?;
-                let signed = l_ty
-                    .and_then(|t| self.tys().get(t))
-                    .is_some_and(|k| matches!(k, TyKind::Int(i) if i.signed()));
+                let signed = match lhs {
+                    Operand::Const(ConstValue::Int { ty, .. }) => ty.signed(),
+                    Operand::Copy(_)
+                    | Operand::Move(_)
+                    | Operand::Const(_)
+                    | Operand::Pooled(_) => l_ty
+                        .and_then(|t| self.tys().get(t))
+                        .is_some_and(|k| matches!(k, TyKind::Int(i) if i.signed())),
+                };
                 let is_float = lt == "float" || lt == "double";
                 let res = self.fresh();
                 let instr = match op {
@@ -1699,9 +1719,21 @@ impl<'a> FnEmitter<'a> {
                         _ => None,
                     }),
                 };
-                let from_kind = from_ty.and_then(|t| self.tys().get(t));
+                let from_float = match operand {
+                    Operand::Const(ConstValue::Float { ty, .. }) => Some(*ty),
+                    Operand::Copy(_)
+                    | Operand::Move(_)
+                    | Operand::Const(_)
+                    | Operand::Pooled(_) => from_ty.and_then(|t| {
+                        if let Some(TyKind::Float(f)) = self.tys().get(t) {
+                            Some(*f)
+                        } else {
+                            None
+                        }
+                    }),
+                };
                 let to_kind = self.tys().get(*to);
-                let cast = match (from_int, from_kind, to_kind) {
+                let cast = match (from_int, from_float, to_kind) {
                     (Some(a), _, Some(TyKind::Int(b))) => {
                         let ab = a.bits(64);
                         let bb = b.bits(64);
@@ -1718,19 +1750,15 @@ impl<'a> FnEmitter<'a> {
                             "uitofp"
                         }
                     }
-                    (_, Some(TyKind::Float(_)), Some(TyKind::Int(b))) => {
+                    (_, Some(_), Some(TyKind::Int(b))) => {
                         if b.signed() {
                             "fptosi"
                         } else {
                             "fptoui"
                         }
                     }
-                    (_, Some(TyKind::Float(FloatTy::F32)), Some(TyKind::Float(FloatTy::F64))) => {
-                        "fpext"
-                    }
-                    (_, Some(TyKind::Float(FloatTy::F64)), Some(TyKind::Float(FloatTy::F32))) => {
-                        "fptrunc"
-                    }
+                    (_, Some(FloatTy::F32), Some(TyKind::Float(FloatTy::F64))) => "fpext",
+                    (_, Some(FloatTy::F64), Some(TyKind::Float(FloatTy::F32))) => "fptrunc",
                     _ => "bitcast",
                 };
                 let _ = writeln!(self.out, "  {res} = {cast} {from_lt} {v} to {to_lt}");
@@ -2801,6 +2829,11 @@ impl<'a> FnEmitter<'a> {
             }
             IntrinsicOp::CNull => {
                 let _ = writeln!(self.out, "  store ptr null, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::CCallback => {
+                let (fn_ptr, _, _) = self.emit_operand(&args[0])?;
+                let _ = writeln!(self.out, "  store ptr {fn_ptr}, ptr {d_ptr}");
                 Ok(())
             }
             IntrinsicOp::ThreadScope => {

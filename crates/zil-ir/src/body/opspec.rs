@@ -1065,9 +1065,39 @@ fn c_abi_value(tys: &super::ty::TyTable, ty: TyId) -> bool {
 
 /// Pointee types allowed behind a `noescape` C pointer parameter.
 fn c_abi_pointee(tys: &super::ty::TyTable, ty: TyId) -> bool {
+    let mut seen = Vec::new();
+    c_abi_pointee_inner(tys, ty, &mut seen)
+}
+
+fn c_abi_pointee_inner(tys: &super::ty::TyTable, ty: TyId, seen: &mut Vec<super::AdtId>) -> bool {
+    if c_abi_value(tys, ty) {
+        return true;
+    }
     match tys.get(ty) {
-        Some(TyKind::Int(_) | TyKind::Float(_)) => true,
-        Some(TyKind::Array { element, .. }) => c_abi_value(tys, *element),
+        Some(TyKind::Array { element, .. }) => c_abi_pointee_inner(tys, *element, seen),
+        Some(TyKind::Adt { adt, args }) => {
+            if seen.contains(adt) {
+                return false;
+            }
+            let Some(def) = tys.get_adt(*adt) else {
+                return false;
+            };
+            if def.kind != super::ty::AdtKind::Record
+                || def.user_drop
+                || def.type_params != 0
+                || def.region_params != 0
+                || def.variants.len() != 1
+            {
+                return false;
+            }
+            seen.push(*adt);
+            let ok = def.variants[0].fields.iter().all(|f| {
+                let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                c_abi_pointee_inner(tys, fty, seen)
+            });
+            seen.pop();
+            ok
+        }
         Some(_) | None => false,
     }
 }
@@ -2042,6 +2072,34 @@ fn intrinsic_sig(
                 cx.lookup(TyKind::Opaque(OpaqueTy::ForeignHandle))?,
             ))
         }
+        IntrinsicOp::CCallback => {
+            let [fn_ty] = found else {
+                return Err(bad("c_callback takes one function argument"));
+            };
+            let Some(TyKind::FnPtr { params, result }) = tys.get(*fn_ty).cloned() else {
+                return Err(bad("c_callback requires a non-capturing function pointer"));
+            };
+            let is_c_scalar = |t: TyId| {
+                matches!(
+                    tys.get(t),
+                    Some(
+                        TyKind::Int(_)
+                            | TyKind::Float(_)
+                            | TyKind::Bool
+                            | TyKind::Opaque(OpaqueTy::ForeignHandle)
+                    )
+                )
+            };
+            if !params.iter().all(|&p| is_c_scalar(p))
+                || !(is_c_scalar(result) || matches!(tys.get(result), Some(TyKind::Unit)))
+            {
+                return Err(bad(
+                    "c_callback requires C-ABI scalar parameters and scalar or unit return type",
+                ));
+            }
+            let out_ty = cx.lookup(TyKind::Opaque(OpaqueTy::ForeignCallback { params, result }))?;
+            Ok((vec![*fn_ty], out_ty))
+        }
         IntrinsicOp::ScopedCallback => {
             let [reg_ty, close_ty, f_ref_ty, body_ty] = found else {
                 return Err(bad(
@@ -2182,6 +2240,7 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::SyncExchangeOrdered(_) => "sync.exchange_ordered",
         IntrinsicOp::SyncCompareExchangeOrdered { .. } => "sync.compare_exchange_ordered",
         IntrinsicOp::CNull => "c_null",
+        IntrinsicOp::CCallback => "c_callback",
     }
 }
 

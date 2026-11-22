@@ -4890,6 +4890,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 failure: zil_ir::body::MemoryOrder::SeqCst,
             },
             "c_null" => IntrinsicOp::CNull,
+            "c_callback" => IntrinsicOp::CCallback,
             "thread_scope" => IntrinsicOp::ThreadScope,
             "task_create" | "task_create_owned" => IntrinsicOp::TaskCreate,
             "task_valid" => IntrinsicOp::TaskValid,
@@ -5582,6 +5583,70 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         args: Vec::new(),
                     },
                     ty: handle_ty,
+                    span,
+                });
+            }
+            IntrinsicOp::CCallback => {
+                let [fn_arg] = arguments else {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        format!("`c_callback` expects 1 argument, found {}", arguments.len()),
+                    );
+                    return Some(self.err_expr(span));
+                };
+                let fn_expr = self.infer(&fn_arg.value);
+                let fn_ty = self.items.normalize_ty(fn_expr.ty, self.types);
+                let TyData::FnPtr { params, result } = self.types.data(fn_ty).clone() else {
+                    self.error(
+                        diag::FFI_DECLARATION,
+                        fn_arg.span,
+                        "`c_callback` requires a non-capturing function name, not a closure or value",
+                    );
+                    return Some(self.err_expr(span));
+                };
+                let is_c_scalar = |this: &mut Self, t: Ty| {
+                    let nt = this.items.normalize_ty(t, this.types);
+                    matches!(
+                        this.types.data(nt),
+                        TyData::Int(_)
+                            | TyData::Float(_)
+                            | TyData::Bool
+                            | TyData::Opaque(OpaqueKind::ForeignHandle)
+                    )
+                };
+                let mut ok = true;
+                for &p in &params {
+                    if !is_c_scalar(self, p) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if ok {
+                    let res_nt = self.items.normalize_ty(result, self.types);
+                    ok = is_c_scalar(self, result)
+                        || matches!(self.types.data(res_nt), TyData::Unit);
+                }
+                if !ok {
+                    self.error(
+                        diag::FFI_DECLARATION,
+                        fn_arg.span,
+                        "`c_callback` target function must use C-ABI scalar parameters and scalar or unit return type",
+                    );
+                    return Some(self.err_expr(span));
+                }
+                let cb_ty = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                        params,
+                        result,
+                    }));
+                return Some(Expr {
+                    kind: ExprKind::Intrinsic {
+                        op: IntrinsicOp::CCallback,
+                        args: vec![fn_expr],
+                    },
+                    ty: cb_ty,
                     span,
                 });
             }

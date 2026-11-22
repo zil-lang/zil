@@ -1608,7 +1608,8 @@ fn verify_sealed_thread_callable(
                         | IntrinsicOp::ThreadScope
                         | IntrinsicOp::SyncInit
                         | IntrinsicOp::ScopedCallback
-                        | IntrinsicOp::CNull => {
+                        | IntrinsicOp::CNull
+                        | IntrinsicOp::CCallback => {
                             return Err(fail(
                                 "ThreadCallable callback cannot invoke non-sealed runtime intrinsic",
                             ));

@@ -1187,6 +1187,7 @@ pub fn collect_program<'a>(
             &items.modules,
             &items.mod_by_path,
             &items.adt_kinds,
+            &items.adts,
             types,
             diags,
         );
@@ -2288,15 +2289,43 @@ fn is_c_abi_param(ty: Ty, types: &Types) -> bool {
     )
 }
 
-fn is_c_abi_noescape_param(ty: Ty, types: &Types) -> bool {
+fn is_c_abi_pod_pointee(ty: Ty, types: &Types, adts: &[AdtDecl], seen: &mut Vec<AdtRef>) -> bool {
+    if is_c_abi_param(ty, types) {
+        return true;
+    }
+    if let TyData::Array { element, .. } = *types.data(ty) {
+        return is_c_abi_pod_pointee(element, types, adts, seen);
+    }
+    if let TyData::Adt { adt, args, regions } = types.data(ty) {
+        if !args.is_empty() || !regions.is_empty() {
+            return false;
+        }
+        if seen.contains(adt) {
+            return false;
+        }
+        let Some(decl) = adts.get(adt.0 as usize) else {
+            return false;
+        };
+        if decl.kind != AdtKind::Record || decl.user_drop || decl.variants.len() != 1 {
+            return false;
+        }
+        seen.push(*adt);
+        let ok = decl.variants[0]
+            .fields
+            .iter()
+            .all(|f| is_c_abi_pod_pointee(f.ty, types, adts, seen));
+        seen.pop();
+        return ok;
+    }
+    false
+}
+
+fn is_c_abi_noescape_param(ty: Ty, types: &Types, adts: &[AdtDecl]) -> bool {
     let TyData::Ref { pointee, .. } = *types.data(ty) else {
         return false;
     };
-    if let TyData::Array { element, .. } = *types.data(pointee) {
-        is_c_abi_param(element, types)
-    } else {
-        is_c_abi_param(pointee, types)
-    }
+    let mut seen = Vec::new();
+    is_c_abi_pod_pointee(pointee, types, adts, &mut seen)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2308,6 +2337,7 @@ fn collect_foreign(
     modules: &[ModuleScope],
     mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
+    adts: &[AdtDecl],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> ForeignDeclInfo {
@@ -2434,7 +2464,8 @@ fn collect_foreign(
         });
         let noescape = noescape_params.contains(&(idx as u32));
         let ok = !p.give
-            && (is_c_abi_param(ty, types) || (noescape && is_c_abi_noescape_param(ty, types)));
+            && (is_c_abi_param(ty, types)
+                || (noescape && is_c_abi_noescape_param(ty, types, adts)));
         if !ok {
             diags.push(diag::error(
                 diag::FFI_DECLARATION,

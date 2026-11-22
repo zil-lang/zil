@@ -581,7 +581,7 @@ fn helper_and_readiness_explicit_manifest() {
         ),
         (
             "tests/language-readiness/controls/returned-static-guard.zil",
-            Expected::Rejected("typeck", "c_callback"),
+            Expected::Admitted,
         ),
         (
             "tests/language-readiness/controls/scoped-control.zil",
