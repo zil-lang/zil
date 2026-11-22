@@ -651,7 +651,11 @@ pub fn rvalue_ty(rvalue: &Rvalue, cx: &ConstraintCx<'_>) -> Result<TyId, Constra
                 BinOp::Eq | BinOp::Ne => {
                     matches!(
                         kind,
-                        TyKind::Int(_) | TyKind::Float(_) | TyKind::Bool | TyKind::Unit
+                        TyKind::Int(_)
+                            | TyKind::Float(_)
+                            | TyKind::Bool
+                            | TyKind::Unit
+                            | TyKind::Opaque(super::ty::OpaqueTy::ForeignHandle)
                     )
                 }
                 BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
@@ -1904,7 +1908,14 @@ fn intrinsic_sig(
             }
             Ok((vec![elem_ty], dest_ty))
         }
-        IntrinsicOp::SyncLoad => {
+        IntrinsicOp::SyncLoad | IntrinsicOp::SyncLoadOrdered(_) => {
+            if let IntrinsicOp::SyncLoadOrdered(order) = op
+                && !order.is_valid_load()
+            {
+                return Err(bad(
+                    "sync.load_ordered forbids Release and AcqRel memory orderings",
+                ));
+            }
             let [cell_ref] = found else {
                 return Err(bad("sync.load takes &Atomic*"));
             };
@@ -1926,7 +1937,14 @@ fn intrinsic_sig(
             }))?;
             Ok((vec![*cell_ref], elem_ty))
         }
-        IntrinsicOp::SyncStore => {
+        IntrinsicOp::SyncStore | IntrinsicOp::SyncStoreOrdered(_) => {
+            if let IntrinsicOp::SyncStoreOrdered(order) = op
+                && !order.is_valid_store()
+            {
+                return Err(bad(
+                    "sync.store_ordered forbids Acquire and AcqRel memory orderings",
+                ));
+            }
             let [cell_ref, val_ty] = found else {
                 return Err(bad("sync.store takes (&Atomic*, value)"));
             };
@@ -1951,7 +1969,9 @@ fn intrinsic_sig(
             }
             Ok((vec![*cell_ref, elem_ty], cx.lookup(TyKind::Unit)?))
         }
-        IntrinsicOp::SyncFetchAdd => {
+        IntrinsicOp::SyncFetchAdd
+        | IntrinsicOp::SyncFetchAddOrdered(_)
+        | IntrinsicOp::SyncExchangeOrdered(_) => {
             let [cell_ref, delta_ty] = found else {
                 return Err(bad("sync.fetch_add takes (&Atomic*, delta)"));
             };
@@ -1976,7 +1996,14 @@ fn intrinsic_sig(
             }
             Ok((vec![*cell_ref, elem_ty], elem_ty))
         }
-        IntrinsicOp::SyncCompareExchange => {
+        IntrinsicOp::SyncCompareExchange | IntrinsicOp::SyncCompareExchangeOrdered { .. } => {
+            if let IntrinsicOp::SyncCompareExchangeOrdered { success, failure } = op
+                && !super::inst::MemoryOrder::is_valid_cas(success, failure)
+            {
+                return Err(bad(
+                    "sync.compare_exchange_ordered failure ordering cannot be Release/AcqRel or stronger than success ordering",
+                ));
+            }
             let [cell_ref, exp_ty, des_ty] = found else {
                 return Err(bad(
                     "sync.compare_exchange takes (&Atomic*, expected, desired)",
@@ -2005,6 +2032,15 @@ fn intrinsic_sig(
             }
             let out_ty = cx.lookup(TyKind::Tuple(vec![elem_ty, bool_ty()?]))?;
             Ok((vec![*cell_ref, elem_ty, elem_ty], out_ty))
+        }
+        IntrinsicOp::CNull => {
+            if !found.is_empty() {
+                return Err(bad("c_null takes no arguments"));
+            }
+            Ok((
+                Vec::new(),
+                cx.lookup(TyKind::Opaque(OpaqueTy::ForeignHandle))?,
+            ))
         }
         IntrinsicOp::ScopedCallback => {
             let [reg_ty, close_ty, f_ref_ty, body_ty] = found else {
@@ -2140,6 +2176,12 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::OwnedDynCreate => "owned_dyn.create",
         IntrinsicOp::ThreadScope => "thread.scope",
         IntrinsicOp::ScopedCallback => "scoped_callback",
+        IntrinsicOp::SyncLoadOrdered(_) => "sync.load_ordered",
+        IntrinsicOp::SyncStoreOrdered(_) => "sync.store_ordered",
+        IntrinsicOp::SyncFetchAddOrdered(_) => "sync.fetch_add_ordered",
+        IntrinsicOp::SyncExchangeOrdered(_) => "sync.exchange_ordered",
+        IntrinsicOp::SyncCompareExchangeOrdered { .. } => "sync.compare_exchange_ordered",
+        IntrinsicOp::CNull => "c_null",
     }
 }
 

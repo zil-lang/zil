@@ -254,6 +254,12 @@ fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::OwnedDynCreate => "intrinsic OwnedDynCreate",
         IntrinsicOp::ThreadScope => "intrinsic ThreadScope",
         IntrinsicOp::ScopedCallback => "intrinsic ScopedCallback",
+        IntrinsicOp::SyncLoadOrdered(_) => "intrinsic SyncLoadOrdered",
+        IntrinsicOp::SyncStoreOrdered(_) => "intrinsic SyncStoreOrdered",
+        IntrinsicOp::SyncFetchAddOrdered(_) => "intrinsic SyncFetchAddOrdered",
+        IntrinsicOp::SyncExchangeOrdered(_) => "intrinsic SyncExchangeOrdered",
+        IntrinsicOp::SyncCompareExchangeOrdered { .. } => "intrinsic SyncCompareExchangeOrdered",
+        IntrinsicOp::CNull => "intrinsic CNull",
     }
 }
 

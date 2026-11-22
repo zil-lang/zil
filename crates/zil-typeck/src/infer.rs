@@ -4873,6 +4873,23 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             "atomic_store" => IntrinsicOp::SyncStore,
             "atomic_fetch_add" => IntrinsicOp::SyncFetchAdd,
             "atomic_compare_exchange" => IntrinsicOp::SyncCompareExchange,
+            "atomic_load_ordered" => {
+                IntrinsicOp::SyncLoadOrdered(zil_ir::body::MemoryOrder::SeqCst)
+            }
+            "atomic_store_ordered" => {
+                IntrinsicOp::SyncStoreOrdered(zil_ir::body::MemoryOrder::SeqCst)
+            }
+            "atomic_fetch_add_ordered" => {
+                IntrinsicOp::SyncFetchAddOrdered(zil_ir::body::MemoryOrder::SeqCst)
+            }
+            "atomic_exchange_ordered" => {
+                IntrinsicOp::SyncExchangeOrdered(zil_ir::body::MemoryOrder::SeqCst)
+            }
+            "atomic_compare_exchange_ordered" => IntrinsicOp::SyncCompareExchangeOrdered {
+                success: zil_ir::body::MemoryOrder::SeqCst,
+                failure: zil_ir::body::MemoryOrder::SeqCst,
+            },
+            "c_null" => IntrinsicOp::CNull,
             "thread_scope" => IntrinsicOp::ThreadScope,
             "task_create" | "task_create_owned" => IntrinsicOp::TaskCreate,
             "task_valid" => IntrinsicOp::TaskValid,
@@ -5368,14 +5385,45 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             IntrinsicOp::SyncLoad
             | IntrinsicOp::SyncStore
             | IntrinsicOp::SyncFetchAdd
-            | IntrinsicOp::SyncCompareExchange => {
-                let expected_arity = if op == IntrinsicOp::SyncLoad {
+            | IntrinsicOp::SyncCompareExchange
+            | IntrinsicOp::SyncLoadOrdered(_)
+            | IntrinsicOp::SyncStoreOrdered(_)
+            | IntrinsicOp::SyncFetchAddOrdered(_)
+            | IntrinsicOp::SyncExchangeOrdered(_)
+            | IntrinsicOp::SyncCompareExchangeOrdered { .. } => {
+                let is_ordered = matches!(
+                    op,
+                    IntrinsicOp::SyncLoadOrdered(_)
+                        | IntrinsicOp::SyncStoreOrdered(_)
+                        | IntrinsicOp::SyncFetchAddOrdered(_)
+                        | IntrinsicOp::SyncExchangeOrdered(_)
+                        | IntrinsicOp::SyncCompareExchangeOrdered { .. }
+                );
+                let is_cas = matches!(
+                    op,
+                    IntrinsicOp::SyncCompareExchange
+                        | IntrinsicOp::SyncCompareExchangeOrdered { .. }
+                );
+                let is_load = matches!(op, IntrinsicOp::SyncLoad | IntrinsicOp::SyncLoadOrdered(_));
+                let is_store = matches!(
+                    op,
+                    IntrinsicOp::SyncStore | IntrinsicOp::SyncStoreOrdered(_)
+                );
+                let value_arg_count = if is_load {
                     1
-                } else if op == IntrinsicOp::SyncCompareExchange {
+                } else if is_cas {
                     3
                 } else {
                     2
                 };
+                let order_arg_count = if !is_ordered {
+                    0
+                } else if is_cas {
+                    2
+                } else {
+                    1
+                };
+                let expected_arity = value_arg_count + order_arg_count;
                 if arguments.len() != expected_arity {
                     self.error(
                         diag::CALL_ARITY,
@@ -5387,6 +5435,89 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     );
                     return Some(self.err_expr(span));
                 }
+                let parse_order = |expr: &ast::Expr| -> Option<zil_ir::body::MemoryOrder> {
+                    use zil_ir::body::MemoryOrder;
+                    let ast::ExprKind::Member {
+                        object,
+                        member: ast::MemberName::Name(s),
+                    } = &expr.kind
+                    else {
+                        return None;
+                    };
+                    if !matches!(&object.kind, ast::ExprKind::Name(n) if n == "MemoryOrder") {
+                        return None;
+                    }
+                    match s.as_str() {
+                        "Relaxed" => Some(MemoryOrder::Relaxed),
+                        "Acquire" => Some(MemoryOrder::Acquire),
+                        "Release" => Some(MemoryOrder::Release),
+                        "AcqRel" => Some(MemoryOrder::AcqRel),
+                        "SeqCst" => Some(MemoryOrder::SeqCst),
+                        _ => None,
+                    }
+                };
+                let final_op = if is_ordered {
+                    let Some(ord1) = parse_order(&arguments[value_arg_count].value) else {
+                        self.error(
+                            diag::OPERATOR_TYPE,
+                            arguments[value_arg_count].span,
+                            format!(
+                                "`{name}` requires a compile-time `MemoryOrder` variant (Relaxed, Acquire, Release, AcqRel, or SeqCst)"
+                            ),
+                        );
+                        return Some(self.err_expr(span));
+                    };
+                    if matches!(op, IntrinsicOp::SyncLoadOrdered(_)) {
+                        if !ord1.is_valid_load() {
+                            self.error(
+                                diag::OPERATOR_TYPE,
+                                arguments[value_arg_count].span,
+                                "`atomic_load_ordered` does not allow `Release` or `AcqRel`",
+                            );
+                            return Some(self.err_expr(span));
+                        }
+                        IntrinsicOp::SyncLoadOrdered(ord1)
+                    } else if matches!(op, IntrinsicOp::SyncStoreOrdered(_)) {
+                        if !ord1.is_valid_store() {
+                            self.error(
+                                diag::OPERATOR_TYPE,
+                                arguments[value_arg_count].span,
+                                "`atomic_store_ordered` does not allow `Acquire` or `AcqRel`",
+                            );
+                            return Some(self.err_expr(span));
+                        }
+                        IntrinsicOp::SyncStoreOrdered(ord1)
+                    } else if matches!(op, IntrinsicOp::SyncFetchAddOrdered(_)) {
+                        IntrinsicOp::SyncFetchAddOrdered(ord1)
+                    } else if matches!(op, IntrinsicOp::SyncExchangeOrdered(_)) {
+                        IntrinsicOp::SyncExchangeOrdered(ord1)
+                    } else if matches!(op, IntrinsicOp::SyncCompareExchangeOrdered { .. }) {
+                        let Some(ord2) = parse_order(&arguments[value_arg_count + 1].value) else {
+                            self.error(
+                                diag::OPERATOR_TYPE,
+                                arguments[value_arg_count + 1].span,
+                                "`atomic_compare_exchange_ordered` requires a compile-time failure `MemoryOrder` variant",
+                            );
+                            return Some(self.err_expr(span));
+                        };
+                        if !zil_ir::body::MemoryOrder::is_valid_cas(ord1, ord2) {
+                            self.error(
+                                diag::OPERATOR_TYPE,
+                                arguments[value_arg_count + 1].span,
+                                "`atomic_compare_exchange_ordered` failure ordering cannot be `Release`/`AcqRel` or stronger than success ordering",
+                            );
+                            return Some(self.err_expr(span));
+                        }
+                        IntrinsicOp::SyncCompareExchangeOrdered {
+                            success: ord1,
+                            failure: ord2,
+                        }
+                    } else {
+                        op
+                    }
+                } else {
+                    op
+                };
                 let cell_expr = self.infer(&arguments[0].value);
                 let cell_ty = self.types.shallow(cell_expr.ty);
                 let cell_kind = if let TyData::Ref {
@@ -5418,20 +5549,39 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 };
                 let elem_ty = self.types.intern(TyData::Int(elem_int));
                 let mut args = vec![cell_expr];
-                for a in &arguments[1..] {
+                for a in &arguments[1..value_arg_count] {
                     let v = self.infer(&a.value);
                     args.push(self.coerce_arg(v, elem_ty, a.span));
                 }
-                let ret_ty = if op == IntrinsicOp::SyncStore {
+                let ret_ty = if is_store {
                     unit_ty
-                } else if op == IntrinsicOp::SyncCompareExchange {
+                } else if is_cas {
                     self.types.intern(TyData::Tuple(vec![elem_ty, bool_ty]))
                 } else {
                     elem_ty
                 };
                 return Some(Expr {
-                    kind: ExprKind::Intrinsic { op, args },
+                    kind: ExprKind::Intrinsic { op: final_op, args },
                     ty: ret_ty,
+                    span,
+                });
+            }
+            IntrinsicOp::CNull => {
+                if !arguments.is_empty() {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        format!("`c_null` expects 0 arguments, found {}", arguments.len()),
+                    );
+                    return Some(self.err_expr(span));
+                }
+                let handle_ty = self.types.intern(TyData::Opaque(OpaqueKind::ForeignHandle));
+                return Some(Expr {
+                    kind: ExprKind::Intrinsic {
+                        op: IntrinsicOp::CNull,
+                        args: Vec::new(),
+                    },
+                    ty: handle_ty,
                     span,
                 });
             }
@@ -6220,7 +6370,12 @@ impl Finalizer<'_, '_> {
             }
             BinOp::Eq | BinOp::Ne => matches!(
                 kind,
-                TyData::Int(_) | TyData::Float(_) | TyData::Bool | TyData::Unit | TyData::Type
+                TyData::Int(_)
+                    | TyData::Float(_)
+                    | TyData::Bool
+                    | TyData::Unit
+                    | TyData::Type
+                    | TyData::Opaque(OpaqueKind::ForeignHandle)
             ),
             BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
                 matches!(kind, TyData::Int(_) | TyData::Float(_))

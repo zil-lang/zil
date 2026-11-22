@@ -485,11 +485,11 @@ fn helper_and_readiness_explicit_manifest() {
         // tests/fixtures/numeric-text (3)
         (
             "tests/fixtures/numeric-text/float_roundtrip.zil",
-            Expected::Rejected("typeck", "c_null"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/numeric-text/float_status.zil",
-            Expected::Rejected("typeck", "c_null"),
+            Expected::Admitted,
         ),
         (
             "tests/fixtures/numeric-text/integer-widths.zil",

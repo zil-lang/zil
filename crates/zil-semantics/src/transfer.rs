@@ -909,6 +909,12 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::SyncStore
         | I::SyncFetchAdd
         | I::SyncCompareExchange
+        | I::SyncLoadOrdered(_)
+        | I::SyncStoreOrdered(_)
+        | I::SyncFetchAddOrdered(_)
+        | I::SyncExchangeOrdered(_)
+        | I::SyncCompareExchangeOrdered { .. }
+        | I::CNull
         | I::ThreadScope
         | I::ScopedCallback
         | I::TaskCreate

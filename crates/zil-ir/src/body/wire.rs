@@ -1199,6 +1199,49 @@ fn encode_intrinsic(w: &mut Writer, op: IntrinsicOp) {
         IntrinsicOp::ThreadScope => w.u8(40),
         IntrinsicOp::SyncInit => w.u8(41),
         IntrinsicOp::ScopedCallback => w.u8(42),
+        IntrinsicOp::SyncLoadOrdered(o) => {
+            w.u8(43);
+            encode_memory_order(w, o);
+        }
+        IntrinsicOp::SyncStoreOrdered(o) => {
+            w.u8(44);
+            encode_memory_order(w, o);
+        }
+        IntrinsicOp::SyncFetchAddOrdered(o) => {
+            w.u8(45);
+            encode_memory_order(w, o);
+        }
+        IntrinsicOp::SyncExchangeOrdered(o) => {
+            w.u8(46);
+            encode_memory_order(w, o);
+        }
+        IntrinsicOp::SyncCompareExchangeOrdered { success, failure } => {
+            w.u8(47);
+            encode_memory_order(w, success);
+            encode_memory_order(w, failure);
+        }
+        IntrinsicOp::CNull => w.u8(48),
+    }
+}
+fn encode_memory_order(w: &mut Writer, o: super::inst::MemoryOrder) {
+    use super::inst::MemoryOrder;
+    w.u8(match o {
+        MemoryOrder::Relaxed => 0,
+        MemoryOrder::Acquire => 1,
+        MemoryOrder::Release => 2,
+        MemoryOrder::AcqRel => 3,
+        MemoryOrder::SeqCst => 4,
+    });
+}
+fn decode_memory_order(r: &mut Reader<'_>) -> Result<super::inst::MemoryOrder, WireError> {
+    use super::inst::MemoryOrder;
+    match r.u8()? {
+        0 => Ok(MemoryOrder::Relaxed),
+        1 => Ok(MemoryOrder::Acquire),
+        2 => Ok(MemoryOrder::Release),
+        3 => Ok(MemoryOrder::AcqRel),
+        4 => Ok(MemoryOrder::SeqCst),
+        t => Err(WireError::InvalidTag("MemoryOrder", t)),
     }
 }
 fn decode_intrinsic(r: &mut Reader<'_>) -> Result<IntrinsicOp, WireError> {
@@ -1248,6 +1291,15 @@ fn decode_intrinsic(r: &mut Reader<'_>) -> Result<IntrinsicOp, WireError> {
         40 => Ok(IntrinsicOp::ThreadScope),
         41 => Ok(IntrinsicOp::SyncInit),
         42 => Ok(IntrinsicOp::ScopedCallback),
+        43 => Ok(IntrinsicOp::SyncLoadOrdered(decode_memory_order(r)?)),
+        44 => Ok(IntrinsicOp::SyncStoreOrdered(decode_memory_order(r)?)),
+        45 => Ok(IntrinsicOp::SyncFetchAddOrdered(decode_memory_order(r)?)),
+        46 => Ok(IntrinsicOp::SyncExchangeOrdered(decode_memory_order(r)?)),
+        47 => Ok(IntrinsicOp::SyncCompareExchangeOrdered {
+            success: decode_memory_order(r)?,
+            failure: decode_memory_order(r)?,
+        }),
+        48 => Ok(IntrinsicOp::CNull),
         t => Err(WireError::InvalidTag("IntrinsicOp", t)),
     }
 }

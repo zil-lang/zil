@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use zil_base::ResultCategory;
+use zil_base::{Phase, ResultCategory};
 use zil_driver::{
     CodegenOptions, CompilationSession, CompileOptions, NativeBackend, Optimization, Stage,
 };
@@ -188,6 +188,63 @@ fn l3_b2_mutex_unlock_and_mutex_with_native() {
 }
 
 #[test]
+fn l3_a_ordered_atomics_and_acquire_release_contention_native() {
+    let dir = temp_dir("ordered_atomics");
+    let src = r#"
+fn producer(cell: &AtomicI32) -> i32 {
+    var i = 0
+    while i < 200 {
+        atomic_fetch_add_ordered(cell, 1, MemoryOrder.AcqRel)
+        i = i + 1
+    }
+    return 0
+}
+fn main() -> i32 {
+    let (ok, r) = atomic_scope(0, (cell: &AtomicI32) -> i32 => {
+        atomic_store_ordered(cell, 10, MemoryOrder.Release)
+        let v0 = atomic_load_ordered(cell, MemoryOrder.Acquire)
+        if v0 != 10 { return 1 }
+        let prev = atomic_exchange_ordered(cell, 20, MemoryOrder.AcqRel)
+        if prev != 10 { return 2 }
+        let (obs1, won1) = atomic_compare_exchange_ordered(
+            cell,
+            20,
+            30,
+            MemoryOrder.AcqRel,
+            MemoryOrder.Acquire,
+        )
+        if obs1 != 20 || !won1 { return 3 }
+        let (obs2, won2) = atomic_compare_exchange_ordered(
+            cell,
+            999,
+            40,
+            MemoryOrder.Release,
+            MemoryOrder.Relaxed,
+        )
+        if obs2 != 30 || won2 { return 4 }
+        atomic_store_ordered(cell, 0, MemoryOrder.SeqCst)
+        let (created, c_ret, p_ret) = thread_scope(producer, cell, () -> i32 => {
+            var j = 0
+            while j < 200 {
+                atomic_fetch_add_ordered(cell, 1, MemoryOrder.AcqRel)
+                j = j + 1
+            }
+            return 0
+        })
+        if !created || c_ret != 0 || p_ret != 0 { return 5 }
+        let final_v = atomic_load_ordered(cell, MemoryOrder.SeqCst)
+        if final_v != 400 { return 6 }
+        return 0
+    })
+    if !ok { return 99 }
+    return r
+}
+"#;
+    let entry = write_source(&dir, "ordered_atomics.zil", src);
+    assert_eq!(build_and_run_dual(&dir, &entry), 0);
+}
+
+#[test]
 fn l3_b2_safety_negatives_rejected() {
     let root = repo_root()
         .join("tests/language-readiness/terminal/concurrency-and-registration/sync-probes");
@@ -197,13 +254,111 @@ fn l3_b2_safety_negatives_rejected() {
         "mutex-view-after-unlock-reject.zil",
         "mutex-guard-view-escape-reject.zil",
         "mutex-guard-thread-reject.zil",
-        "mutex-drop-tls-reject.zil",
     ] {
         check_rejected_path(&root.join(name));
     }
 
+    // Exact phase/code/reason bindings for L3-A ordered atomics, Transfer/Share,
+    // raw c_handle transfer, and Mutex<Resource> foreign-Drop rejection.
+    let exact_cases: [(&str, Phase, &str, &str); 4] = [
+        (
+            "cas-failure-order-reject.zil",
+            Phase::Types,
+            "E-OPERATOR-TYPE",
+            "failure ordering",
+        ),
+        (
+            "capability-copy-handle-thread-reject.zil",
+            Phase::Verify,
+            "E-SAFETY-CHECK",
+            "raw c_handle (ForeignHandle) is not Transfer",
+        ),
+        (
+            "capability-empty-impl-reject.zil",
+            Phase::Types,
+            "E-GENERIC-ARGUMENT",
+            "compiler-derived capability trait",
+        ),
+        (
+            "mutex-drop-tls-reject.zil",
+            Phase::Verify,
+            "E-SAFETY-CHECK",
+            "Mutex payload with non-thread-safe foreign Drop",
+        ),
+    ];
+    for (name, expected_phase, expected_code, expected_reason) in exact_cases {
+        let entry = root.join(name);
+        let mut session = CompilationSession::new();
+        let report = session.compile_path(
+            &entry,
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name} must fail with SafeReject, got {:?}: {:?}",
+            report.status,
+            report.diagnostics
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| {
+                d.phase == expected_phase
+                    && d.code == expected_code
+                    && d.message.contains(expected_reason)
+            }),
+            "{name} expected ({expected_phase:?}, `{expected_code}`, `{expected_reason}`), got: {:?}",
+            report.diagnostics
+        );
+    }
+
+    // Invalid load/store memory orderings must also be rejected at Phase::Types.
+    let dir = temp_dir("invalid_order_neg");
+    for (fname, src, needle) in [
+        (
+            "load_release.zil",
+            r#"
+fn main()->i32 {
+    let (ok, r) = atomic_scope(0, (cell: &AtomicI32) -> i32 => atomic_load_ordered(cell, MemoryOrder.Release))
+    if !ok { return 1 } return r
+}
+"#,
+            "atomic_load_ordered",
+        ),
+        (
+            "store_acquire.zil",
+            r#"
+fn main()->i32 {
+    let (ok, _) = atomic_scope(0, (cell: &AtomicI32) -> i32 => { atomic_store_ordered(cell, 1, MemoryOrder.Acquire); return 0 })
+    if !ok { return 1 } return 0
+}
+"#,
+            "atomic_store_ordered",
+        ),
+    ] {
+        let p = write_source(&dir, fname, src);
+        let mut session = CompilationSession::new();
+        let report = session.compile_path(
+            &p,
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, ResultCategory::SafeReject);
+        assert!(
+            report.diagnostics.iter().any(|d| d.phase == Phase::Types
+                && d.code == "E-OPERATOR-TYPE"
+                && d.message.contains(needle)),
+            "{fname} got: {:?}",
+            report.diagnostics
+        );
+    }
+
     // Returning `&AtomicI32` out of `atomic_scope` must be rejected by borrow escape analysis.
-    let dir = temp_dir("atomic_ref_escape");
+    let dir_esc = temp_dir("atomic_ref_escape");
     let escape_src = r#"
 fn bad()->&AtomicI32 {
     let (ok, r) = atomic_scope(0, (cell: &AtomicI32) -> &AtomicI32 => cell)
@@ -211,8 +366,135 @@ fn bad()->&AtomicI32 {
 }
 fn main()->i32 { return 0 }
 "#;
-    let escape_path = write_source(&dir, "escape.zil", escape_src);
+    let escape_path = write_source(&dir_esc, "escape.zil", escape_src);
     check_rejected_path(&escape_path);
+}
+
+#[test]
+fn l3_a_raw_wire_invalid_memory_order_rejected_by_checker() {
+    use zil_base::{FileId, Span};
+    use zil_ir::body::{
+        Block, BlockId, Body, Callee, Certificate, ConstValue, FnId, FnRole, FnSig, Function,
+        FunctionCertificate, Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl,
+        MemoryOrder, Module, Mutability, OpaqueTy, Operand, ParamEnv, Place, Region, ResumeMode,
+        Rvalue, SyncCellKind, Terminator, TyKind, TyTable, decode_module, encode_module,
+    };
+
+    // Build a structurally valid 1-function module calling forged
+    // `SyncCompareExchangeOrdered { success: Release, failure: Acquire }`.
+    let mut tys = TyTable::new();
+    let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+    let bool_ty = tys.intern(TyKind::Bool);
+    let out_ty = tys.intern(TyKind::Tuple(vec![i32_ty, bool_ty]));
+    let cell_ty = tys.intern(TyKind::Opaque(OpaqueTy::SyncCell(SyncCellKind::I32)));
+    let cell_ref_ty = tys.intern(TyKind::Ref {
+        region: Region::Static,
+        mutability: Mutability::Shared,
+        pointee: cell_ty,
+    });
+    let sp = Span::new(FileId(0), 0, 0);
+    let body = Body {
+        param_count: 1,
+        locals: vec![
+            LocalDecl {
+                ty: cell_ref_ty,
+                name: None,
+            },
+            LocalDecl {
+                ty: out_ty,
+                name: None,
+            },
+        ],
+        captures: Vec::new(),
+        closure: None,
+        result: i32_ty,
+        param_env: ParamEnv::default(),
+        drop_flags: Vec::new(),
+        blocks: vec![
+            Block {
+                instructions: vec![Instruction {
+                    kind: InstructionKind::StorageLive(Local(1)),
+                    span: sp,
+                }],
+                terminator: Terminator::Call {
+                    callee: Callee::Intrinsic(IntrinsicOp::SyncCompareExchangeOrdered {
+                        success: MemoryOrder::Release,
+                        failure: MemoryOrder::Acquire,
+                    }),
+                    args: vec![
+                        Operand::Copy(Place::local(Local(0))),
+                        Operand::Const(ConstValue::Int {
+                            ty: IntTy::I32,
+                            bits: 0,
+                        }),
+                        Operand::Const(ConstValue::Int {
+                            ty: IntTy::I32,
+                            bits: 1,
+                        }),
+                    ],
+                    dest: Place::local(Local(1)),
+                    target: BlockId(1),
+                    cancel: None,
+                },
+                terminator_span: sp,
+            },
+            Block {
+                instructions: vec![Instruction {
+                    kind: InstructionKind::Assign {
+                        dest: Place::local(Local(1)),
+                        value: Rvalue::Use(Operand::Copy(Place::local(Local(1)))),
+                    },
+                    span: sp,
+                }],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Int {
+                        ty: IntTy::I32,
+                        bits: 0,
+                    }),
+                },
+                terminator_span: sp,
+            },
+        ],
+    };
+    let module = Module {
+        tys,
+        functions: vec![Function {
+            name: "forged_cas".into(),
+            sig: FnSig {
+                type_params: 0,
+                region_params: 0,
+                params: vec![cell_ref_ty],
+                result: i32_ty,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: Vec::new(),
+            },
+            body,
+        }],
+        foreigns: Vec::new(),
+        statics: Vec::new(),
+        dyn_impls: Vec::new(),
+    };
+    let bytes = encode_module(&module);
+    let decoded = decode_module(&bytes).expect("wire roundtrip");
+    let cert = Certificate {
+        functions: vec![FunctionCertificate {
+            function: FnId(0),
+            invariants: Vec::new(),
+        }],
+    };
+    let err = zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 200_000 })
+        .expect_err("forged invalid CAS MemoryOrder must be rejected by zil-check");
+    assert!(
+        matches!(
+            err.kind,
+            zil_check::CheckErrorKind::Violation(zil_check::Violation {
+                kind: zil_check::ViolationKind::Constraint(_),
+                ..
+            })
+        ),
+        "expected Constraint violation for forged CAS MemoryOrder, got: {err:?}"
+    );
 }
 
 #[test]
