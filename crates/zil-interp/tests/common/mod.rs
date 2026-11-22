@@ -166,6 +166,7 @@ impl FnBuilder {
                 region_params: 0,
                 role: FnRole::Normal,
                 resume_mode: zil_ir::body::ResumeMode::Local,
+                state_contracts: Vec::new(),
             },
             body: Body {
                 param_count: self.params.len() as u32,

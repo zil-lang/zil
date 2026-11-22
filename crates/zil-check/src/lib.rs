@@ -38,12 +38,12 @@ pub fn check_module(
 ) -> Result<VerifiedModule, CheckError> {
     check_drop_bindings(&module)?;
     check_dyn_impls(&module)?;
-    check_contracts(&module)?;
     let sccs = validate_scc_contracts(&module).map_err(|e| CheckError {
         function: e.function,
         kind: CheckErrorKind::CertificateShape(e.reason),
     })?;
-    check_suspend_effects(&module, &sccs)?;
+    let can_suspend = check_suspend_effects(&module, &sccs)?;
+    check_contracts(&module, &can_suspend)?;
     let fn_sigs = module.fn_sigs();
     let return_summaries = zil_semantics::compute_return_summaries(&module);
     let sigs = Sigs {
@@ -221,13 +221,15 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
     Ok(())
 }
 
-/// Independently verifies function `resume(transfer)` contracts and FFI
-/// `c_register_async` provider role identity (covering both Source and Raw/Wire).
-fn check_contracts(module: &Module) -> Result<(), CheckError> {
-    use std::collections::HashMap;
+/// Independently verifies function `resume(transfer)` contracts (including
+/// transitive `Suspend` live-borrow freedom), fail-closed FFI `c_register_async`
+/// provider role identity, and per-path/per-result protocol-state contracts
+/// (`requires(state(...))`, `provides(retired(...))`, `on_pending`/`on_ready`).
+fn check_contracts(module: &Module, can_suspend: &[bool]) -> Result<(), CheckError> {
+    use std::collections::{HashMap, VecDeque};
     use zil_ir::body::{
-        Callee, ForeignCallbackRole, ForeignId, InstructionKind, IntrinsicOp, Local, Operand,
-        PlaceRoot, ResumeMode, Rvalue, Terminator,
+        BlockId, Callee, ClosureId, ForeignCallbackRole, ForeignId, InstructionKind, IntrinsicOp,
+        Local, OpLocation, Operand, Place, PlaceRoot, ResumeMode, Rvalue, Terminator,
     };
 
     let tys = &module.tys;
@@ -236,12 +238,83 @@ fn check_contracts(module: &Module) -> Result<(), CheckError> {
         kind: CheckErrorKind::CertificateShape(reason),
     };
 
+    let mut closure_to_fn: HashMap<ClosureId, FnId> = HashMap::new();
+    for (i, func) in module.functions.iter().enumerate() {
+        if let Some(cid) = func.body.closure {
+            closure_to_fn.insert(cid, FnId::from_index(i));
+        }
+    }
+
+    let closure_fn_of_place = |body: &zil_ir::body::Body, place: &Place| -> Option<FnId> {
+        let cx = body.cx(tys);
+        let mut ty = zil_ir::body::type_place(place, &cx).ok()?.ty();
+        for _ in 0..4 {
+            match tys.get(ty)? {
+                TyKind::Ref { pointee, .. } => ty = *pointee,
+                TyKind::Closure { def, .. } => return closure_to_fn.get(def).copied(),
+                TyKind::Unit
+                | TyKind::Bool
+                | TyKind::Int(_)
+                | TyKind::Float(_)
+                | TyKind::Never
+                | TyKind::Tuple(_)
+                | TyKind::Array { .. }
+                | TyKind::Slice(_)
+                | TyKind::Adt { .. }
+                | TyKind::Managed(_)
+                | TyKind::Desc(_)
+                | TyKind::ErrorUnion { .. }
+                | TyKind::FnPtr { .. }
+                | TyKind::Dyn { .. }
+                | TyKind::OwnedDyn { .. }
+                | TyKind::Opaque(_)
+                | TyKind::Param(_) => return None,
+            }
+        }
+        None
+    };
+
+    // 1. Compute transitive set of functions reachable on a suspending path
+    //    from any `ResumeMode::Transfer` function.
+    let mut transfer_reachable = vec![false; module.functions.len()];
+    let mut work: VecDeque<FnId> = VecDeque::new();
+    for (fi, func) in module.functions.iter().enumerate() {
+        if func.sig.resume_mode == ResumeMode::Transfer {
+            transfer_reachable[fi] = true;
+            work.push_back(FnId::from_index(fi));
+        }
+    }
+    while let Some(fid) = work.pop_front() {
+        let func = &module.functions[fid.index()];
+        for block in &func.body.blocks {
+            if let Terminator::Call { callee, .. } = &block.terminator {
+                let target_fn = match callee {
+                    Callee::Direct(cid) => Some(*cid),
+                    Callee::Closure { closure, .. } => closure_fn_of_place(&func.body, closure),
+                    Callee::Indirect(_)
+                    | Callee::DynSlot { .. }
+                    | Callee::Foreign(_)
+                    | Callee::Intrinsic(_) => None,
+                };
+                if let Some(tid) = target_fn
+                    && tid.index() < can_suspend.len()
+                    && can_suspend[tid.index()]
+                    && !transfer_reachable[tid.index()]
+                {
+                    transfer_reachable[tid.index()] = true;
+                    work.push_back(tid);
+                }
+            }
+        }
+    }
+
     for (fi, func) in module.functions.iter().enumerate() {
         let fn_id = FnId::from_index(fi);
 
-        // 1. Verify `resume(transfer)` functions hold no borrowed addresses in
-        //    their ABI or across any suspension (`TaskYield`) point.
-        if func.sig.resume_mode == ResumeMode::Transfer {
+        // 1a. Verify `resume(transfer)` functions (and every suspending helper
+        //     transitively reached from them) hold no borrowed addresses in
+        //     their ABI or live across any direct or indirect suspension point.
+        if transfer_reachable[fi] {
             for &p in &func.sig.params {
                 if tys.holds_address(p) || tys.may_store_address(p) {
                     return Err(fail(
@@ -250,51 +323,60 @@ fn check_contracts(module: &Module) -> Result<(), CheckError> {
                     ));
                 }
             }
-            if tys.holds_address(func.sig.result) || tys.may_store_address(func.sig.result) {
+            if func.sig.resume_mode == ResumeMode::Transfer
+                && (tys.holds_address(func.sig.result) || tys.may_store_address(func.sig.result))
+            {
                 return Err(fail(
                     fn_id,
                     "resume(transfer) function cannot return borrowed addresses",
                 ));
             }
-            let has_yield = func.body.blocks.iter().any(|b| {
-                matches!(
-                    b.terminator,
+            let live = zil_semantics::Liveness::compute(&func.body);
+            for (bi, block) in func.body.blocks.iter().enumerate() {
+                let suspends_here = match &block.terminator {
                     Terminator::Call {
                         callee: Callee::Intrinsic(IntrinsicOp::TaskYield),
                         ..
-                    }
-                )
-            });
-            if has_yield {
-                let live = zil_semantics::Liveness::compute(&func.body);
-                for (bi, block) in func.body.blocks.iter().enumerate() {
-                    if matches!(
-                        block.terminator,
-                        Terminator::Call {
-                            callee: Callee::Intrinsic(IntrinsicOp::TaskYield),
-                            ..
-                        }
-                    ) {
-                        let at = zil_ir::body::OpLocation {
-                            block: zil_ir::body::BlockId(bi as u32),
-                            instruction: None,
-                        };
-                        for l_idx in live.after(at).iter() {
-                            if let Some(decl) = func.body.locals.get(l_idx)
-                                && tys.holds_address(decl.ty)
-                            {
-                                return Err(fail(
-                                    fn_id,
-                                    "resume(transfer) suspending function cannot hold borrowed addresses across yield",
-                                ));
-                            }
+                    } => true,
+                    Terminator::Call {
+                        callee: Callee::Direct(cid),
+                        ..
+                    } => cid.index() < can_suspend.len() && can_suspend[cid.index()],
+                    Terminator::Call {
+                        callee: Callee::Closure { closure, .. },
+                        ..
+                    } => closure_fn_of_place(&func.body, closure).is_some_and(|cid| {
+                        cid.index() < can_suspend.len() && can_suspend[cid.index()]
+                    }),
+                    Terminator::Call { .. }
+                    | Terminator::Goto { .. }
+                    | Terminator::Switch { .. }
+                    | Terminator::Return { .. }
+                    | Terminator::Assert { .. }
+                    | Terminator::Unreachable
+                    | Terminator::Trap(_) => false,
+                };
+                if suspends_here {
+                    let at = OpLocation {
+                        block: BlockId(bi as u32),
+                        instruction: None,
+                    };
+                    for l_idx in live.after(at).iter() {
+                        if let Some(decl) = func.body.locals.get(l_idx)
+                            && tys.holds_address(decl.ty)
+                        {
+                            return Err(fail(
+                                fn_id,
+                                "resume(transfer) suspending function cannot hold borrowed addresses across yield",
+                            ));
                         }
                     }
                 }
             }
         }
 
-        // 2. Verify FFI provider role identity on `AsyncRegistrationStart` calls.
+        // 2. Verify FFI provider role identity on `AsyncRegistrationStart` calls
+        //    (fail-closed inside `transfer_reachable` functions).
         let mut local_foreign: HashMap<Local, ForeignId> = HashMap::new();
         for block in &func.body.blocks {
             for inst in &block.instructions {
@@ -331,12 +413,33 @@ fn check_contracts(module: &Module) -> Result<(), CheckError> {
                         | Operand::Pooled(_) => None,
                     };
                     let Some(fid) = fid else {
+                        if transfer_reachable[fi] {
+                            return Err(fail(
+                                fn_id,
+                                "resume(transfer) requires statically known extern callback provider with thread_async_driver_transfer",
+                            ));
+                        }
                         continue;
                     };
                     let Some(fdecl) = module.foreigns.get(fid.index()) else {
                         return Err(fail(fn_id, "c_register_async references unknown ForeignId"));
                     };
-                    if let Some(role) = fdecl.callback_role {
+                    if transfer_reachable[fi] {
+                        let want_role = match slot_idx {
+                            0 => ForeignCallbackRole::ThreadAsyncRegister,
+                            1 => ForeignCallbackRole::ThreadAsyncRequestClose,
+                            2 => ForeignCallbackRole::ThreadAsyncPollDrain,
+                            _ => unreachable!(),
+                        };
+                        if fdecl.callback_role != Some(want_role)
+                            || !fdecl.thread_async_driver_transfer
+                        {
+                            return Err(fail(
+                                fn_id,
+                                "resume(transfer) requires explicit thread_async_callback_* role and thread_async_driver_transfer on all providers",
+                            ));
+                        }
+                    } else if let Some(role) = fdecl.callback_role {
                         let role_ok = match slot_idx {
                             0 => matches!(
                                 role,
@@ -372,17 +475,496 @@ fn check_contracts(module: &Module) -> Result<(), CheckError> {
                         } else {
                             family_threaded = Some(threaded);
                         }
-                        if func.sig.resume_mode == ResumeMode::Transfer
-                            && (!threaded || !fdecl.thread_async_driver_transfer)
+                    }
+                }
+            }
+        }
+
+        // 3. Verify declared protocol-state contracts (`requires(state(...))`,
+        //    `provides(retired(...))`, `provides(on_pending/on_ready(...))`).
+        if !func.sig.state_contracts.is_empty() {
+            verify_fn_state_contracts(module, fn_id, func)?;
+        }
+    }
+    Ok(())
+}
+
+/// Independently verifies a function's `StateContractClause`s via forward CFG
+/// abstract interpretation over `{Open, Closing, Closed}` + `retired`.
+fn verify_fn_state_contracts(
+    module: &Module,
+    fn_id: FnId,
+    func: &zil_ir::body::Function,
+) -> Result<(), CheckError> {
+    use std::collections::{HashMap, VecDeque};
+    use zil_ir::body::{
+        AggregateKind, BlockId, Callee, InstructionKind, IntrinsicOp, Local, OpaqueTy, Operand,
+        PlaceRoot, ProtocolStateSet, Rvalue, StateContractClause, Terminator,
+    };
+
+    let tys = &module.tys;
+    let fail = |reason: &'static str| CheckError {
+        function: fn_id,
+        kind: CheckErrorKind::CertificateShape(reason),
+    };
+
+    let is_protocol_handle_ty = |mut ty: zil_ir::body::TyId| -> bool {
+        for _ in 0..4 {
+            match tys.get(ty) {
+                Some(
+                    TyKind::Ref { pointee, .. } | TyKind::Managed(pointee) | TyKind::Desc(pointee),
+                ) => ty = *pointee,
+                Some(TyKind::Opaque(
+                    OpaqueTy::Task { .. }
+                    | OpaqueTy::Registration { .. }
+                    | OpaqueTy::AsyncRegistration { .. },
+                )) => return true,
+                _ => return false,
+            }
+        }
+        false
+    };
+
+    let is_poll_ty = |ty: zil_ir::body::TyId| -> bool {
+        let inner = match tys.get(ty) {
+            Some(TyKind::ErrorUnion { ok, .. }) => *ok,
+            _ => ty,
+        };
+        match tys.get(inner) {
+            Some(TyKind::Adt { adt, .. }) => tys
+                .get_adt(*adt)
+                .is_some_and(|d| d.kind == AdtKind::Enum && d.variants.len() == 2),
+            _ => false,
+        }
+    };
+
+    let param_count = func.body.param_count as usize;
+    let mut init_states = vec![ProtocolStateSet::ALL; param_count];
+    let mut has_poll_post = false;
+    for clause in &func.sig.state_contracts {
+        let (param, states_opt) = match *clause {
+            StateContractClause::RequiresState { param, states } => (param, Some(states)),
+            StateContractClause::ProvidesRetired { param } => (param, None),
+            StateContractClause::ProvidesOnPending { param, states }
+            | StateContractClause::ProvidesOnReady { param, states } => {
+                has_poll_post = true;
+                (param, Some(states))
+            }
+        };
+        let p_idx = param as usize;
+        if p_idx >= param_count || p_idx >= func.sig.params.len() {
+            return Err(fail("state contract references out-of-range parameter"));
+        }
+        if !is_protocol_handle_ty(func.sig.params[p_idx]) {
+            return Err(fail(
+                "state contract parameter is not a protocol handle type",
+            ));
+        }
+        if let Some(st) = states_opt {
+            if !st.is_valid() {
+                return Err(fail("state contract has invalid ProtocolStateSet bitmask"));
+            }
+            if matches!(clause, StateContractClause::RequiresState { .. }) {
+                init_states[p_idx] = st;
+            }
+        }
+    }
+    if has_poll_post && !is_poll_ty(func.sig.result) {
+        return Err(fail(
+            "on_pending/on_ready state contract requires Poll return type",
+        ));
+    }
+
+    #[derive(Clone, PartialEq, Eq)]
+    struct ProtoState {
+        states: Vec<ProtocolStateSet>,
+        retired: Vec<bool>,
+        /// Maps a local to the protocol parameter index it aliases.
+        alias: HashMap<Local, usize>,
+        /// Maps a Poll local to `(param_idx, pending_states, ready_states)`.
+        poll_of: HashMap<Local, (usize, ProtocolStateSet, ProtocolStateSet)>,
+        /// Maps a discriminant local to the Poll local it was read from.
+        discr_of: HashMap<Local, Local>,
+        /// Maps a Poll local constructed directly from an enum variant (`0 = Pending, 1 = Ready`).
+        poll_variant: HashMap<Local, u32>,
+    }
+
+    impl ProtoState {
+        fn join(&mut self, other: &Self) -> bool {
+            let mut changed = false;
+            for i in 0..self.states.len() {
+                let merged = self.states[i].union(other.states[i]);
+                if merged != self.states[i] {
+                    self.states[i] = merged;
+                    changed = true;
+                }
+                let ret = self.retired[i] && other.retired[i];
+                if ret != self.retired[i] {
+                    self.retired[i] = ret;
+                    changed = true;
+                }
+            }
+            changed
+        }
+
+        fn resolve_param(&self, op: &Operand) -> Option<usize> {
+            match op {
+                Operand::Copy(p) | Operand::Move(p) => match p.root {
+                    PlaceRoot::Local(l) => self.alias.get(&l).copied(),
+                    PlaceRoot::Capture(_) => None,
+                },
+                Operand::Const(_) | Operand::Pooled(_) => None,
+            }
+        }
+    }
+
+    let mut entry_alias = HashMap::new();
+    for i in 0..param_count {
+        entry_alias.insert(Local(i as u32), i);
+    }
+    let entry_state = ProtoState {
+        states: init_states,
+        retired: vec![false; param_count],
+        alias: entry_alias,
+        poll_of: HashMap::new(),
+        discr_of: HashMap::new(),
+        poll_variant: HashMap::new(),
+    };
+
+    let nblocks = func.body.blocks.len();
+    let mut in_states: Vec<Option<ProtoState>> = vec![None; nblocks];
+    let mut queue: VecDeque<usize> = VecDeque::new();
+    if nblocks > 0 {
+        in_states[0] = Some(entry_state);
+        queue.push_back(0);
+    }
+
+    let enqueue = |target: BlockId,
+                   st: ProtoState,
+                   in_states: &mut [Option<ProtoState>],
+                   queue: &mut VecDeque<usize>| {
+        let ti = target.index();
+        if ti >= in_states.len() {
+            return;
+        }
+        match &mut in_states[ti] {
+            None => {
+                in_states[ti] = Some(st);
+                queue.push_back(ti);
+            }
+            Some(existing) => {
+                if existing.join(&st) {
+                    queue.push_back(ti);
+                }
+            }
+        }
+    };
+
+    while let Some(bi) = queue.pop_front() {
+        let mut st = in_states[bi].clone().expect("enqueued block has state");
+        let block = &func.body.blocks[bi];
+
+        for inst in &block.instructions {
+            if let InstructionKind::Assign { dest, value } = &inst.kind
+                && dest.projections.is_empty()
+                && let PlaceRoot::Local(dl) = dest.root
+            {
+                st.alias.remove(&dl);
+                st.poll_of.remove(&dl);
+                st.discr_of.remove(&dl);
+                st.poll_variant.remove(&dl);
+                match value {
+                    Rvalue::Use(Operand::Copy(src) | Operand::Move(src))
+                    | Rvalue::Ref { place: src, .. }
+                    | Rvalue::Describe { place: src } => {
+                        if let PlaceRoot::Local(sl) = src.root {
+                            if let Some(&p) = st.alias.get(&sl) {
+                                st.alias.insert(dl, p);
+                            }
+                            if let Some(&po) = st.poll_of.get(&sl) {
+                                st.poll_of.insert(dl, po);
+                            }
+                            if let Some(&pv) = st.poll_variant.get(&sl) {
+                                st.poll_variant.insert(dl, pv);
+                            }
+                        }
+                    }
+                    Rvalue::Discriminant(src) => {
+                        if src.projections.is_empty()
+                            && let PlaceRoot::Local(sl) = src.root
                         {
-                            return Err(fail(
-                                fn_id,
-                                "resume(transfer) requires thread_async_driver_transfer extern callback provider",
-                            ));
+                            st.discr_of.insert(dl, sl);
+                        }
+                    }
+                    Rvalue::Aggregate {
+                        kind: AggregateKind::Adt { variant, .. },
+                        ..
+                    } => {
+                        st.poll_variant.insert(dl, variant.0);
+                    }
+                    Rvalue::Use(_)
+                    | Rvalue::SliceRef { .. }
+                    | Rvalue::Aggregate { .. }
+                    | Rvalue::ErrorUnion { .. }
+                    | Rvalue::Unary { .. }
+                    | Rvalue::Binary { .. }
+                    | Rvalue::Convert { .. }
+                    | Rvalue::ErrorArm(_)
+                    | Rvalue::Len(_)
+                    | Rvalue::FnRef(_)
+                    | Rvalue::ForeignFnRef(_)
+                    | Rvalue::StaticUtf(_) => {}
+                }
+            }
+        }
+
+        match &block.terminator {
+            Terminator::Goto { target } => enqueue(*target, st, &mut in_states, &mut queue),
+            Terminator::Assert { target, .. } => enqueue(*target, st, &mut in_states, &mut queue),
+            Terminator::Switch {
+                discr,
+                arms,
+                otherwise,
+            } => {
+                let poll_info = match discr {
+                    Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
+                        match p.root {
+                            PlaceRoot::Local(l) => st
+                                .discr_of
+                                .get(&l)
+                                .and_then(|pl| st.poll_of.get(pl).copied()),
+                            PlaceRoot::Capture(_) => None,
+                        }
+                    }
+                    Operand::Copy(_)
+                    | Operand::Move(_)
+                    | Operand::Const(_)
+                    | Operand::Pooled(_) => None,
+                };
+                for &(val, target) in arms {
+                    let mut branch_st = st.clone();
+                    if let Some((p_idx, pend_st, ready_st)) = poll_info {
+                        if val == 0 {
+                            branch_st.states[p_idx] = pend_st;
+                        } else if val == 1 {
+                            branch_st.states[p_idx] = ready_st;
+                        }
+                    }
+                    enqueue(target, branch_st, &mut in_states, &mut queue);
+                }
+                enqueue(*otherwise, st, &mut in_states, &mut queue);
+            }
+            Terminator::Call {
+                callee,
+                args,
+                dest,
+                target,
+                cancel,
+            } => {
+                if let Some(cancel_target) = cancel {
+                    enqueue(*cancel_target, st.clone(), &mut in_states, &mut queue);
+                }
+                let dest_local = if dest.projections.is_empty() {
+                    match dest.root {
+                        PlaceRoot::Local(l) => Some(l),
+                        PlaceRoot::Capture(_) => None,
+                    }
+                } else {
+                    None
+                };
+                match callee {
+                    Callee::Intrinsic(
+                        IntrinsicOp::TaskRequestCancel | IntrinsicOp::AsyncRegistrationRequestClose,
+                    ) => {
+                        if let Some(a0) = args.first()
+                            && let Some(p_idx) = st.resolve_param(a0)
+                        {
+                            st.states[p_idx] = ProtocolStateSet(
+                                ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED,
+                            );
+                        }
+                    }
+                    Callee::Intrinsic(
+                        IntrinsicOp::TaskPollClose | IntrinsicOp::AsyncRegistrationPollClose,
+                    ) => {
+                        if let Some(a0) = args.first()
+                            && let Some(p_idx) = st.resolve_param(a0)
+                        {
+                            st.states[p_idx] = ProtocolStateSet(
+                                ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED,
+                            );
+                            if let Some(dl) = dest_local {
+                                st.poll_of.insert(
+                                    dl,
+                                    (
+                                        p_idx,
+                                        ProtocolStateSet(ProtocolStateSet::CLOSING),
+                                        ProtocolStateSet(ProtocolStateSet::CLOSED),
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                    Callee::Intrinsic(
+                        IntrinsicOp::TaskFinishDestroy
+                        | IntrinsicOp::AsyncRegistrationFinishDestroy,
+                    ) => {
+                        if let Some(a0) = args.first()
+                            && let Some(p_idx) = st.resolve_param(a0)
+                        {
+                            if !st.states[p_idx]
+                                .is_subset_of(ProtocolStateSet(ProtocolStateSet::CLOSED))
+                            {
+                                return Err(fail(
+                                    "finish_destroy called on protocol handle not proved Closed",
+                                ));
+                            }
+                            st.retired[p_idx] = true;
+                        }
+                    }
+                    Callee::Intrinsic(IntrinsicOp::RegistrationClose) => {
+                        if let Some(a0) = args.first()
+                            && let Some(p_idx) = st.resolve_param(a0)
+                        {
+                            st.retired[p_idx] = true;
+                        }
+                    }
+                    Callee::Direct(cid) => {
+                        if let Some(callee_fn) = module.functions.get(cid.index())
+                            && !callee_fn.sig.state_contracts.is_empty()
+                        {
+                            let mut pend_by_param: HashMap<usize, ProtocolStateSet> =
+                                HashMap::new();
+                            let mut ready_by_param: HashMap<usize, ProtocolStateSet> =
+                                HashMap::new();
+                            for c in &callee_fn.sig.state_contracts {
+                                match *c {
+                                    StateContractClause::RequiresState { param, states } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(p_idx) = st.resolve_param(arg)
+                                            && !st.states[p_idx].is_subset_of(states)
+                                        {
+                                            return Err(fail(
+                                                "callee requires(state(...)) precondition not satisfied",
+                                            ));
+                                        }
+                                    }
+                                    StateContractClause::ProvidesRetired { param } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(p_idx) = st.resolve_param(arg)
+                                        {
+                                            st.retired[p_idx] = true;
+                                        }
+                                    }
+                                    StateContractClause::ProvidesOnPending { param, states } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(p_idx) = st.resolve_param(arg)
+                                        {
+                                            pend_by_param.insert(p_idx, states);
+                                        }
+                                    }
+                                    StateContractClause::ProvidesOnReady { param, states } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(p_idx) = st.resolve_param(arg)
+                                        {
+                                            ready_by_param.insert(p_idx, states);
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(dl) = dest_local {
+                                for (&p_idx, &pend) in &pend_by_param {
+                                    let ready = ready_by_param
+                                        .get(&p_idx)
+                                        .copied()
+                                        .unwrap_or(st.states[p_idx]);
+                                    st.poll_of.insert(dl, (p_idx, pend, ready));
+                                }
+                                for (&p_idx, &ready) in &ready_by_param {
+                                    if !pend_by_param.contains_key(&p_idx) {
+                                        st.poll_of.insert(dl, (p_idx, st.states[p_idx], ready));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Callee::Intrinsic(_)
+                    | Callee::Indirect(_)
+                    | Callee::Closure { .. }
+                    | Callee::DynSlot { .. }
+                    | Callee::Foreign(_) => {}
+                }
+                enqueue(*target, st, &mut in_states, &mut queue);
+            }
+            Terminator::Return { value } => {
+                let ret_local = match value {
+                    Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
+                        match p.root {
+                            PlaceRoot::Local(l) => Some(l),
+                            PlaceRoot::Capture(_) => None,
+                        }
+                    }
+                    Operand::Copy(_)
+                    | Operand::Move(_)
+                    | Operand::Const(_)
+                    | Operand::Pooled(_) => None,
+                };
+                for clause in &func.sig.state_contracts {
+                    match *clause {
+                        StateContractClause::RequiresState { .. } => {}
+                        StateContractClause::ProvidesRetired { param } => {
+                            if !st.retired[param as usize] {
+                                return Err(fail(
+                                    "function fails to satisfy provides(retired(...)) on all return paths",
+                                ));
+                            }
+                        }
+                        StateContractClause::ProvidesOnPending { param, states } => {
+                            let p_idx = param as usize;
+                            let ok = if let Some(rl) = ret_local
+                                && let Some(&(po_p, pend_st, _)) = st.poll_of.get(&rl)
+                                && po_p == p_idx
+                            {
+                                pend_st.is_subset_of(states)
+                            } else if let Some(rl) = ret_local
+                                && st.poll_variant.get(&rl) == Some(&1)
+                            {
+                                // Returning Poll.Ready directly; on_pending vacuously holds.
+                                true
+                            } else {
+                                st.states[p_idx].is_subset_of(states)
+                            };
+                            if !ok {
+                                return Err(fail(
+                                    "function fails to satisfy provides(on_pending(state(...)))",
+                                ));
+                            }
+                        }
+                        StateContractClause::ProvidesOnReady { param, states } => {
+                            let p_idx = param as usize;
+                            let ok = if let Some(rl) = ret_local
+                                && let Some(&(po_p, _, ready_st)) = st.poll_of.get(&rl)
+                                && po_p == p_idx
+                            {
+                                ready_st.is_subset_of(states)
+                            } else if let Some(rl) = ret_local
+                                && st.poll_variant.get(&rl) == Some(&0)
+                            {
+                                // Returning Poll.Pending directly; on_ready vacuously holds.
+                                true
+                            } else {
+                                st.states[p_idx].is_subset_of(states)
+                            };
+                            if !ok {
+                                return Err(fail(
+                                    "function fails to satisfy provides(on_ready(state(...)))",
+                                ));
+                            }
                         }
                     }
                 }
             }
+            Terminator::Unreachable | Terminator::Trap(_) => {}
         }
     }
     Ok(())
@@ -394,7 +976,7 @@ fn check_contracts(module: &Module) -> Result<(), CheckError> {
 ///   `TaskCreate` / `TaskStart` / `AsyncRegistrationStart` worker entry slots;
 /// - `ThreadScope` callbacks cannot suspend (bare OS thread has no Task frame);
 /// - `FnRole::DynSlotImpl`, `FnRole::Drop`, and entry `main` cannot transitively suspend.
-fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<(), CheckError> {
+fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<Vec<bool>, CheckError> {
     use std::collections::HashMap;
     use zil_ir::body::{
         Callee, ClosureId, InstructionKind, IntrinsicOp, Local, Operand, Place, Rvalue, Terminator,
@@ -825,7 +1407,7 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<(), CheckE
         }
     }
 
-    Ok(())
+    Ok(can_suspend)
 }
 
 /// Conservatively verifies the sealed `ThreadCallable` execution profile

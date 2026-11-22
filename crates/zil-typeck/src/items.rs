@@ -104,6 +104,7 @@ pub struct FnDecl<'a> {
     pub self_ty: Option<Ty>,
     pub role: FnRoleSpec,
     pub resume_mode: zil_ir::body::ResumeMode,
+    pub state_contracts: Vec<zil_ir::body::StateContractClause>,
     pub ast: &'a ast::Function,
 }
 
@@ -1783,6 +1784,7 @@ fn collect_adt_methods<'a>(
                     self_ty: Some(self_ty),
                     role: FnRoleSpec::Normal,
                     resume_mode: zil_ir::body::ResumeMode::Local,
+                    state_contracts: Vec::new(),
                     ast: f,
                 });
                 items.adts[adt_ref.0 as usize]
@@ -1813,18 +1815,18 @@ fn collect_adt_methods<'a>(
     }
 }
 
-fn validate_state_term(
+fn parse_state_term(
     term: &ast::ContractTerm,
     param_names: &[&str],
     diags: &mut Vec<Diagnostic>,
-) -> bool {
+) -> Option<Option<(u32, zil_ir::body::ProtocolStateSet)>> {
     if term.path.as_slice() != ["state"] || term.arguments.len() < 2 {
-        return false;
+        return None;
     }
     let [pname] = term.arguments[0].path.as_slice() else {
-        return false;
+        return None;
     };
-    if !term.arguments[0].arguments.is_empty() || !param_names.contains(&pname.as_str()) {
+    let Some(param_idx) = param_names.iter().position(|n| *n == pname.as_str()) else {
         diags.push(diag::error(
             diag::RESOURCE_RESULT_MODE,
             term.arguments[0].span,
@@ -1832,14 +1834,37 @@ fn validate_state_term(
                 "contract `state(...)` must name a parameter of this function, found `{pname}`"
             ),
         ));
-        return true;
+        return Some(None);
+    };
+    if !term.arguments[0].arguments.is_empty() {
+        diags.push(diag::error(
+            diag::RESOURCE_RESULT_MODE,
+            term.arguments[0].span,
+            format!(
+                "contract `state(...)` must name a parameter of this function, found `{pname}`"
+            ),
+        ));
+        return Some(None);
     }
+    let mut mask: u8 = 0;
+    let mut ok = true;
     for st in &term.arguments[1..] {
-        let valid = matches!(
-            st.path.as_slice(),
-            [s] if st.arguments.is_empty() && matches!(s.as_str(), "Open" | "Closing" | "Closed")
-        );
-        if !valid {
+        let bit = match st.path.as_slice() {
+            [s] if st.arguments.is_empty() && s == "Open" => {
+                Some(zil_ir::body::ProtocolStateSet::OPEN)
+            }
+            [s] if st.arguments.is_empty() && s == "Closing" => {
+                Some(zil_ir::body::ProtocolStateSet::CLOSING)
+            }
+            [s] if st.arguments.is_empty() && s == "Closed" => {
+                Some(zil_ir::body::ProtocolStateSet::CLOSED)
+            }
+            _ => None,
+        };
+        if let Some(b) = bit {
+            mask |= b;
+        } else {
+            ok = false;
             diags.push(diag::error(
                 diag::RESOURCE_RESULT_MODE,
                 st.span,
@@ -1847,16 +1872,28 @@ fn validate_state_term(
             ));
         }
     }
-    true
+    if ok && mask != 0 {
+        Some(Some((
+            param_idx as u32,
+            zil_ir::body::ProtocolStateSet(mask),
+        )))
+    } else {
+        Some(None)
+    }
 }
 
 fn parse_fn_contracts(
     clauses: &[ast::ContractClause],
     param_names: &[&str],
     diags: &mut Vec<Diagnostic>,
-) -> (ResultMode, zil_ir::body::ResumeMode) {
+) -> (
+    ResultMode,
+    zil_ir::body::ResumeMode,
+    Vec<zil_ir::body::StateContractClause>,
+) {
     let mut result_mode = ResultMode::Default;
     let mut resume_mode: Option<zil_ir::body::ResumeMode> = None;
+    let mut state_contracts: Vec<zil_ir::body::StateContractClause> = Vec::new();
     for c in clauses {
         if c.name == "result" {
             for term in &c.terms {
@@ -1915,8 +1952,15 @@ fn parse_fn_contracts(
             }
         } else if c.name == "requires" {
             for term in &c.terms {
-                if !validate_state_term(term, param_names, diags) {
-                    diags.push(diag::unsupported("function contracts", term.span));
+                match parse_state_term(term, param_names, diags) {
+                    Some(Some((param, states))) => {
+                        state_contracts.push(zil_ir::body::StateContractClause::RequiresState {
+                            param,
+                            states,
+                        });
+                    }
+                    Some(None) => {}
+                    None => diags.push(diag::unsupported("function contracts", term.span)),
                 }
             }
         } else if c.name == "provides" {
@@ -1925,8 +1969,12 @@ fn parse_fn_contracts(
                     let arg = &term.arguments[0];
                     if let [pname] = arg.path.as_slice()
                         && arg.arguments.is_empty()
-                        && param_names.contains(&pname.as_str())
+                        && let Some(param_idx) =
+                            param_names.iter().position(|n| *n == pname.as_str())
                     {
+                        state_contracts.push(zil_ir::body::StateContractClause::ProvidesRetired {
+                            param: param_idx as u32,
+                        });
                         continue;
                     }
                     diags.push(diag::error(
@@ -1936,9 +1984,25 @@ fn parse_fn_contracts(
                     ));
                 } else if matches!(term.path.as_slice(), [s] if s == "on_pending" || s == "on_ready")
                     && term.arguments.len() == 1
-                    && validate_state_term(&term.arguments[0], param_names, diags)
+                    && let Some(parsed) = parse_state_term(&term.arguments[0], param_names, diags)
                 {
-                    continue;
+                    if let Some((param, states)) = parsed {
+                        if term.path[0] == "on_pending" {
+                            state_contracts.push(
+                                zil_ir::body::StateContractClause::ProvidesOnPending {
+                                    param,
+                                    states,
+                                },
+                            );
+                        } else {
+                            state_contracts.push(
+                                zil_ir::body::StateContractClause::ProvidesOnReady {
+                                    param,
+                                    states,
+                                },
+                            );
+                        }
+                    }
                 } else {
                     diags.push(diag::unsupported("function contracts", term.span));
                 }
@@ -1947,7 +2011,11 @@ fn parse_fn_contracts(
             diags.push(diag::unsupported("function contracts", c.span));
         }
     }
-    (result_mode, resume_mode.unwrap_or_default())
+    (
+        result_mode,
+        resume_mode.unwrap_or_default(),
+        state_contracts,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1972,7 +2040,8 @@ fn collect_fn<'a>(
     );
     let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
     let param_names: Vec<&str> = f.params.iter().map(|p| p.name.as_str()).collect();
-    let (result_mode, resume_mode) = parse_fn_contracts(&f.contract, &param_names, diags);
+    let (result_mode, resume_mode, state_contracts) =
+        parse_fn_contracts(&f.contract, &param_names, diags);
     let mut params = Vec::new();
     for p in &f.params {
         let raw_ty = resolve_type_with_lifetimes(
@@ -2045,6 +2114,42 @@ fn collect_fn<'a>(
             }
         }
     };
+    for clause in &state_contracts {
+        let param_idx = match *clause {
+            zil_ir::body::StateContractClause::RequiresState { param, .. }
+            | zil_ir::body::StateContractClause::ProvidesRetired { param }
+            | zil_ir::body::StateContractClause::ProvidesOnPending { param, .. }
+            | zil_ir::body::StateContractClause::ProvidesOnReady { param, .. } => param,
+        };
+        if let Some(pinfo) = params.get(param_idx as usize) {
+            let mut inner = pinfo.ty;
+            while let TyData::Ref { pointee, .. }
+            | TyData::Managed(pointee)
+            | TyData::Desc(pointee) = types.data(inner)
+            {
+                inner = *pointee;
+            }
+            let is_protocol_handle = matches!(
+                types.data(inner),
+                TyData::Opaque(
+                    OpaqueKind::Task { .. }
+                        | OpaqueKind::Registration(_)
+                        | OpaqueKind::AsyncRegistration(_)
+                ) | TyData::Param(_)
+                    | TyData::Error
+            );
+            if !is_protocol_handle {
+                diags.push(diag::error(
+                    diag::RESOURCE_RESULT_MODE,
+                    pinfo.span,
+                    format!(
+                        "protocol state contract parameter `{}` must be a `Task`, `Registration`, or `AsyncRegistration` handle",
+                        pinfo.name
+                    ),
+                ));
+            }
+        }
+    }
     FnDecl {
         module: mid,
         name: qualify(&modules[mid.0 as usize].path, &f.name),
@@ -2055,6 +2160,7 @@ fn collect_fn<'a>(
         self_ty: None,
         role: FnRoleSpec::Normal,
         resume_mode,
+        state_contracts,
         ast: f,
     }
 }
@@ -2433,6 +2539,7 @@ fn collect_impl<'a>(
         self_ty: Some(self_desc),
         role: FnRoleSpec::Drop(target_adt),
         resume_mode: zil_ir::body::ResumeMode::Local,
+        state_contracts: Vec::new(),
         ast: f,
     });
 }
@@ -2613,6 +2720,7 @@ fn collect_trait_impl<'a>(
                     self_ty: Some(target),
                     role: FnRoleSpec::Normal,
                     resume_mode: zil_ir::body::ResumeMode::Local,
+                    state_contracts: Vec::new(),
                     ast: f,
                 });
                 methods.push((f.name.clone(), fn_ref));
@@ -2669,6 +2777,7 @@ fn collect_trait_impl<'a>(
             self_ty: Some(target),
             role: FnRoleSpec::Normal,
             resume_mode: zil_ir::body::ResumeMode::Local,
+            state_contracts: Vec::new(),
             ast: default_f,
         });
         methods.push((mname, fn_ref));
