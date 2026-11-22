@@ -585,7 +585,7 @@ fn helper_and_readiness_explicit_manifest() {
         ),
         (
             "tests/language-readiness/controls/scoped-control.zil",
-            Expected::Rejected("typeck", "E-UNSUPPORTED"),
+            Expected::Admitted,
         ),
         (
             "tests/language-readiness/controls/static-trait-control.zil",

@@ -910,6 +910,7 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::SyncFetchAdd
         | I::SyncCompareExchange
         | I::ThreadScope
+        | I::ScopedCallback
         | I::TaskCreate
         | I::TaskValid
         | I::TaskYield

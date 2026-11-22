@@ -478,6 +478,66 @@ fn check_contracts(module: &Module, can_suspend: &[bool]) -> Result<(), CheckErr
                     }
                 }
             }
+            if let Terminator::Call {
+                callee: Callee::Foreign(for_id),
+                ..
+            } = &block.terminator
+                && let Some(fdecl) = module.foreigns.get(for_id.index())
+                && matches!(
+                    fdecl.callback_role,
+                    Some(ForeignCallbackRole::ScopedRegister | ForeignCallbackRole::ScopedClose)
+                )
+            {
+                return Err(fail(
+                    fn_id,
+                    "scoped callback provider cannot be called directly outside c_with_callback",
+                ));
+            }
+            if let Terminator::Call {
+                callee: Callee::Intrinsic(IntrinsicOp::ScopedCallback),
+                args,
+                ..
+            } = &block.terminator
+            {
+                let resolve_fid = |arg: &Operand| -> Option<ForeignId> {
+                    let (Operand::Copy(p) | Operand::Move(p)) = arg else {
+                        return None;
+                    };
+                    if !p.projections.is_empty() {
+                        return None;
+                    }
+                    let zil_ir::body::PlaceRoot::Local(loc) = p.root else {
+                        return None;
+                    };
+                    local_foreign.get(&loc).copied()
+                };
+                for (slot_idx, want_role) in [
+                    (0usize, ForeignCallbackRole::ScopedRegister),
+                    (1usize, ForeignCallbackRole::ScopedClose),
+                ] {
+                    let Some(arg) = args.get(slot_idx) else {
+                        return Err(fail(
+                            fn_id,
+                            "c_with_callback missing register/close provider argument",
+                        ));
+                    };
+                    let Some(for_id) = resolve_fid(arg) else {
+                        return Err(fail(
+                            fn_id,
+                            "c_with_callback requires statically known extern callback provider",
+                        ));
+                    };
+                    let Some(fdecl) = module.foreigns.get(for_id.index()) else {
+                        return Err(fail(fn_id, "c_with_callback references unknown ForeignId"));
+                    };
+                    if fdecl.callback_role != Some(want_role) {
+                        return Err(fail(
+                            fn_id,
+                            "c_with_callback register/close provider role mismatch",
+                        ));
+                    }
+                }
+            }
         }
 
         // 2b. Fail-closed verification of cross-thread Task transfer via `ThreadScope`:
@@ -1782,7 +1842,8 @@ fn verify_sealed_thread_callable(
                         | IntrinsicOp::ManagedCreate
                         | IntrinsicOp::OwnedDynCreate
                         | IntrinsicOp::ThreadScope
-                        | IntrinsicOp::SyncInit => {
+                        | IntrinsicOp::SyncInit
+                        | IntrinsicOp::ScopedCallback => {
                             return Err(fail(
                                 "ThreadCallable callback cannot invoke non-sealed runtime intrinsic",
                             ));

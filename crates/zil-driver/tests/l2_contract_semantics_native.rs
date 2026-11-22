@@ -384,7 +384,7 @@ fn main() -> i32 { return f() }
         "E-UNSUPPORTED",
     );
 
-    // 5. Unknown contract clause and unproven scoped_callback_register remain rejected.
+    // 5. Unknown contract clause and unknown extern provides clause remain rejected.
     check_rejected(
         &dir,
         "unknown_clause_unsupported",
@@ -397,10 +397,10 @@ fn main() -> i32 { return f() }
     );
     check_rejected(
         &dir,
-        "scoped_callback_unsupported",
+        "unknown_extern_role_unsupported",
         r#"
 extern "C" fn reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle
-    contract { provides(static_callbacks(), scoped_callback_register()); effects(ffi); };
+    contract { provides(static_callbacks(), unproven_future_role()); effects(ffi); };
 fn main() -> i32 { return 0 }
 "#,
         ResultCategory::Unsupported,

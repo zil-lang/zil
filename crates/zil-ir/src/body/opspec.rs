@@ -2006,6 +2006,85 @@ fn intrinsic_sig(
             let out_ty = cx.lookup(TyKind::Tuple(vec![elem_ty, bool_ty()?]))?;
             Ok((vec![*cell_ref, elem_ty, elem_ty], out_ty))
         }
+        IntrinsicOp::ScopedCallback => {
+            let [reg_ty, close_ty, f_ref_ty, body_ty] = found else {
+                return Err(bad(
+                    "scoped_callback takes (register, close, &mut callback, body)",
+                ));
+            };
+            let i32_ty = cx.lookup(TyKind::Int(IntTy::I32))?;
+            let i64_ty = cx.lookup(TyKind::Int(IntTy::I64))?;
+            let handle_ty = cx.lookup(TyKind::Opaque(OpaqueTy::ForeignHandle))?;
+            let unit_ty = cx.lookup(TyKind::Unit)?;
+            let cb_ty = cx.lookup(TyKind::Opaque(OpaqueTy::ForeignCallback {
+                params: vec![handle_ty, i32_ty],
+                result: i64_ty,
+            }))?;
+            let expected_reg = cx.lookup(TyKind::Opaque(OpaqueTy::ForeignCallback {
+                params: vec![cb_ty, handle_ty],
+                result: handle_ty,
+            }))?;
+            let expected_close = cx.lookup(TyKind::Opaque(OpaqueTy::ForeignCallback {
+                params: vec![handle_ty],
+                result: unit_ty,
+            }))?;
+            if *reg_ty != expected_reg {
+                return Err(bad(
+                    "scoped_callback register must have signature fn(extern \"C\" fn(c_handle, i32)->i64, c_handle)->c_handle",
+                ));
+            }
+            if *close_ty != expected_close {
+                return Err(bad(
+                    "scoped_callback close must have signature fn(c_handle)->void",
+                ));
+            }
+            let Some(TyKind::Ref {
+                mutability: Mutability::Exclusive,
+                pointee: f_ty,
+                ..
+            }) = tys.get(*f_ref_ty)
+            else {
+                return Err(bad("scoped_callback callback must be passed as &mut F"));
+            };
+            if tys.holds_address(*f_ty) || tys.may_store_address(*f_ty) {
+                return Err(bad(
+                    "scoped_callback callback environment cannot capture borrowed addresses",
+                ));
+            }
+            let f_ok = match tys.get(*f_ty) {
+                Some(TyKind::Closure { def, args }) => tys.closure(*def).is_some_and(|cdef| {
+                    matches!(
+                        cdef.kind,
+                        super::ty::ClosureKind::Fn | super::ty::ClosureKind::FnMut
+                    ) && cdef.params.len() == 1
+                        && tys.subst_lookup(cdef.params[0], *args) == Some(i32_ty)
+                        && tys.subst_lookup(cdef.result, *args) == Some(i32_ty)
+                }),
+                Some(TyKind::FnPtr { params, result }) => {
+                    params.as_slice() == [i32_ty] && *result == i32_ty
+                }
+                _ => false,
+            };
+            if !f_ok {
+                return Err(bad(
+                    "scoped_callback callback must be Fn(i32)->i32 or FnMut(i32)->i32",
+                ));
+            }
+            let body_ok = match tys.get(*body_ty) {
+                Some(TyKind::Closure { def, args }) => tys.closure(*def).is_some_and(|cdef| {
+                    cdef.params.is_empty() && tys.subst_lookup(cdef.result, *args) == Some(i32_ty)
+                }),
+                Some(TyKind::FnPtr { params, result }) => params.is_empty() && *result == i32_ty,
+                _ => false,
+            };
+            if !body_ok {
+                return Err(bad(
+                    "scoped_callback body must be a 0-argument callable returning i32",
+                ));
+            }
+            let out_ty = cx.lookup(TyKind::Tuple(vec![bool_ty()?, i32_ty]))?;
+            Ok((vec![*reg_ty, *close_ty, *f_ref_ty, *body_ty], out_ty))
+        }
         IntrinsicOp::TaskStart => Err(ConstraintError::Unspecified(intrinsic_name(op))),
     }
 }
@@ -2060,6 +2139,7 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::ManagedCreate => "managed.create",
         IntrinsicOp::OwnedDynCreate => "owned_dyn.create",
         IntrinsicOp::ThreadScope => "thread.scope",
+        IntrinsicOp::ScopedCallback => "scoped_callback",
     }
 }
 
