@@ -231,12 +231,13 @@ fn l3_b3_project_main_modes_0_to_7_native() {
 #[test]
 fn l3_b3_all_14_negative_controls_rejected() {
     let root = repo_root().join("tests/foreign-scoped-callback/negative");
-    let cases = [
+    // 13 negative controls marked `current_source_coverage: true` in RISKS.json:
+    // each MUST fail as a semantic SafeReject (never Unsupported or Success).
+    let semantic_safe_reject_cases = [
         "fn_once_callback.zil",
         "borrowed_callback_environment.zil",
         "body_captures_same_callback.zil",
         "body_moves_same_callback.zil",
-        "body_captures_callback_alias.zil",
         "missing_unsafe_region.zil",
         "swapped_roles.zil",
         "missing_register_role.zil",
@@ -247,7 +248,7 @@ fn l3_b3_all_14_negative_controls_rejected() {
         "body_used_after_consumption.zil",
         "caller_keeps_live_callback_alias.zil",
     ];
-    for name in cases {
+    for name in semantic_safe_reject_cases {
         let entry = root.join(name);
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
@@ -255,12 +256,35 @@ fn l3_b3_all_14_negative_controls_rejected() {
             ..CompileOptions::default()
         };
         let report = session.compile_path(&entry, &opts);
-        assert_ne!(
+        assert_eq!(
             report.status,
-            ResultCategory::Success,
-            "negative control {name} must be rejected, but succeeded"
+            ResultCategory::SafeReject,
+            "negative control {name} must fail with SafeReject (not {:?}): {:?}",
+            report.status,
+            report.diagnostics
+        );
+        assert!(
+            !report.diagnostics.is_empty(),
+            "negative control {name} must emit at least one diagnostic"
         );
     }
+
+    // `body_captures_callback_alias.zil` is explicitly recorded as
+    // `current_source_coverage: false` in RISKS.json because surface syntax does
+    // not yet accept `&mut` capture bindings; its independent Raw/Wire same-root
+    // alias conflict proof lives in `l3_provenance_closure.rs`.
+    let alias_entry = root.join("body_captures_callback_alias.zil");
+    let mut session = CompilationSession::new();
+    let opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&alias_entry, &opts);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "negative control body_captures_callback_alias.zil must not succeed"
+    );
 }
 
 #[test]
