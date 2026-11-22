@@ -1,0 +1,610 @@
+//! End-to-end native execution, OOM cleanup, source safety, and Raw/Wire IR
+//! verification tests for L2 Batch 2 (`OwnedDyn<dyn Trait, Context<'a>>`
+//! borrowed providers).
+
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use zil_base::ResultCategory;
+use zil_driver::{
+    CodegenOptions, CompilationSession, CompileOptions, NativeBackend, Optimization, Stage,
+};
+
+fn repo_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("workspace root")
+        .to_path_buf()
+}
+
+fn temp_dir(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("zil-l2-b2-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+fn write_source(dir: &Path, filename: &str, src: &str) -> PathBuf {
+    let path = dir.join(filename);
+    std::fs::write(&path, src).expect("write source");
+    path
+}
+
+fn dual_configs() -> Vec<(&'static str, NativeBackend, Optimization)> {
+    let mut configs = vec![
+        ("clang-o0", NativeBackend::Clang, Optimization::O0),
+        ("clang-o2", NativeBackend::Clang, Optimization::O2),
+    ];
+    if cfg!(feature = "llvm-api") {
+        configs.push(("llvmapi-o0", NativeBackend::LlvmApi, Optimization::O0));
+        configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
+    }
+    configs
+}
+
+fn build_and_run_dual_with_c(
+    dir: &Path,
+    entry: &Path,
+    extra_c_sources: &[PathBuf],
+) -> (i32, Vec<u8>) {
+    let mut expected: Option<(i32, Vec<u8>)> = None;
+    for (label, backend, opt) in dual_configs() {
+        let exe = dir.join(format!("bin-{label}"));
+        let mut session = CompilationSession::new();
+        let opts = CompileOptions {
+            stop_after: Stage::Build,
+            optimization: opt,
+            backend,
+            output: Some(exe.clone()),
+            extra_c_sources: extra_c_sources.to_vec(),
+            codegen: CodegenOptions { units: 1, jobs: 1 },
+            ..CompileOptions::default()
+        };
+        let report = session.compile_path(entry, &opts);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "build failed for {} ({label}): {:?}",
+            entry.display(),
+            report.diagnostics
+        );
+        assert_eq!(report.verification_runs, 1);
+
+        let out = Command::new(&exe)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap_or_else(|e| panic!("failed to run {}: {e}", exe.display()));
+        assert!(
+            out.stderr.is_empty(),
+            "unexpected stderr ({label}): {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let code = out.status.code().unwrap_or(-1);
+        let result = (code, out.stdout);
+        if let Some(prev) = &expected {
+            assert_eq!(&result, prev, "result mismatch on {label}");
+        } else {
+            expected = Some(result);
+        }
+    }
+    expected.expect("at least one backend ran")
+}
+
+fn check_rejected(dir: &Path, name: &str, src: &str, expected_code_prefix: &str) {
+    let entry = write_source(dir, &format!("{name}.zil"), src);
+    let mut session = CompilationSession::new();
+    let opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&entry, &opts);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "expected `{name}` to be rejected, but it succeeded"
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code.starts_with(expected_code_prefix)),
+        "expected diagnostic starting with `{expected_code_prefix}` for `{name}`, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn dyn_context_fixtures_execute_natively_on_dual_backends() {
+    let root = repo_root();
+    let fixtures = [
+        "tests/fixtures/dyn-context/exclusive-provider.zil",
+        "tests/fixtures/dyn-context/exclusive-factory.zil",
+        "tests/fixtures/dyn-context/trait-life-setter.zil",
+        "tests/fixtures/dyn-context/captured-owner.zil",
+        "tests/fixtures/dyn-context/field-address-factory.zil",
+        "tests/fixtures/dyn-context/shared-field-from-mutable.zil",
+        "tests/fixtures/dyn-context/long-slice-getter.zil",
+        "tests/fixtures/dyn-context/owned-inline-region.zil",
+        "tests/fixtures/dyn-context/static-slice-phantom.zil",
+    ];
+    for (idx, rel) in fixtures.iter().enumerate() {
+        let dir = temp_dir(&format!("fixture-{idx}"));
+        let path = root.join(rel);
+        let (code, stdout) = build_and_run_dual_with_c(&dir, &path, &[]);
+        assert_eq!(code, 0, "fixture {rel} returned non-zero exit code {code}");
+        assert!(
+            stdout.is_empty(),
+            "fixture {rel} produced unexpected stdout"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[test]
+fn borrowed_dyn_provider_drop_order_and_oom_cleanup_native() {
+    let dir = temp_dir("drop-and-oom");
+    let src = r#"
+extern "C" fn putchar(code: i32) -> i32;
+
+resource Token { code: i32 }
+impl Drop for Token {
+    fn drop(self: Self) {
+        unsafe { putchar(self.code) }
+    }
+}
+
+struct Context<life a> { leaf: &'a mut i32 }
+package Provider<life a> { pointer: &'a mut i32; manages token: Token }
+
+trait Change {
+    fn step(self: &mut Self) -> i32;
+}
+
+impl<life a> Change for Provider<'a> {
+    fn step(self: &mut Self) -> i32 {
+        *self.pointer += 1
+        return *self.pointer
+    }
+}
+
+fn run<life a>(value: &'a mut i32) -> i32 {
+    match owned_dyn::<dyn Change, Context<'a>>(Provider::<'a> { pointer: value, token: Token { code: 68 } }) {
+        .err(_) => { return 99 },
+        .ok(owner) => {
+            var handle = owner
+            let a = handle.step()
+            let b = handle.step()
+            return a + b
+        }
+    }
+}
+
+fn main() -> i32 {
+    var value = 10
+    let sum = run(&mut value)
+    if sum == 99 {
+        return 99
+    }
+    value += 100
+    if sum == 23 && value == 112 {
+        unsafe { putchar(79) }
+        return 0
+    }
+    return 1
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+
+    // 1. Normal execution: Provider drops ('D') at the end of run() BEFORE
+    //    main() resumes mutating `value` and prints 'O'.
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert_eq!(stdout.as_slice(), b"DO");
+
+    // 2. OOM injection: calloc() returns NULL; OwnedDynCreate must drop the
+    //    unboxed concrete Provider<'a> exactly once ('D') and return 99.
+    let oom_dir = temp_dir("drop-and-oom-fail");
+    let oom_probe = oom_dir.join("oom_calloc.c");
+    std::fs::write(
+        &oom_probe,
+        r#"
+#include <stddef.h>
+void *calloc(size_t nmemb, size_t size) {
+    (void)nmemb;
+    (void)size;
+    return NULL;
+}
+"#,
+    )
+    .expect("write oom_calloc.c");
+    let (oom_code, oom_stdout) = build_and_run_dual_with_c(&oom_dir, &entry, &[oom_probe]);
+    assert_eq!(oom_code, 99);
+    assert_eq!(oom_stdout.as_slice(), b"D");
+
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_dir_all(&oom_dir);
+}
+
+#[test]
+fn borrowed_dyn_provider_safety_negatives_are_rejected() {
+    let dir = temp_dir("safety-negatives");
+
+    // 1. Local borrow escaping via returned OwnedDyn<dyn Change, Context<'a>>.
+    check_rejected(
+        &dir,
+        "local_borrow_escape",
+        r#"
+struct Context<life a> { leaf: &'a mut i32 }
+struct Provider<life a> { pointer: &'a mut i32 }
+trait Change { fn step(self: &mut Self) -> i32; }
+impl<life a> Change for Provider<'a> {
+    fn step(self: &mut Self) -> i32 { *self.pointer += 1; return *self.pointer }
+}
+fn escape<life a>(_unused: &'a mut i32) -> DynCreateError!OwnedDyn<dyn Change, Context<'a>> {
+    var local = 7
+    return owned_dyn::<dyn Change, Context<'a>>(Provider::<'a> { pointer: &mut local })
+}
+fn main() -> i32 {
+    var x = 1
+    match escape(&mut x) { .err(_) => { return 0 }, .ok(_) => { return 1 } }
+}
+"#,
+        "E-SAFETY-SOLVE",
+    );
+
+    // 2. Conflicting write to borrowed owner while OwnedDyn is still live.
+    check_rejected(
+        &dir,
+        "conflicting_write_while_live",
+        r#"
+struct Context<life a> { leaf: &'a mut i32 }
+struct Provider<life a> { pointer: &'a mut i32 }
+trait Change { fn step(self: &mut Self) -> i32; }
+impl<life a> Change for Provider<'a> {
+    fn step(self: &mut Self) -> i32 { *self.pointer += 1; return *self.pointer }
+}
+fn main() -> i32 {
+    var x = 10
+    match owned_dyn::<dyn Change, Context<'a>>(Provider { pointer: &mut x }) {
+        .err(_) => { return 1 }
+        .ok(owner) => {
+            var h = owner
+            x = 99
+            return h.step()
+        }
+    }
+}
+"#,
+        "E-SAFETY-SOLVE",
+    );
+
+    // 3. Invariant region mismatch on OwnedDyn<dyn Set<'a>, Context<'a>>.
+    check_rejected(
+        &dir,
+        "invariant_region_mismatch",
+        r#"
+struct Context<life a> { value: &'a i32 }
+struct Pointer<life a> { value: &'a i32 }
+trait Set<life a> {
+    fn set(self: &mut Self, next: &'a i32);
+    fn read(self: &Self) -> i32;
+}
+impl<life p> Set<'p> for Pointer<'p> {
+    fn set(self: &mut Self, next: &'p i32) { self.value = next }
+    fn read(self: &Self) -> i32 { return *self.value }
+}
+fn create<life a>(initial: &'a i32) -> DynCreateError!OwnedDyn<dyn Set<'a>, Context<'a>> {
+    return owned_dyn::<dyn Set<'a>, Context<'a>>(Pointer::<'a> { value: initial })
+}
+fn update<life a>(owner: &mut OwnedDyn<dyn Set<'a>, Context<'a>>, next: &'a i32) {
+    owner.set(next)
+}
+fn bad<life a, life b>(initial: &'a i32, shorter: &'b i32) -> i32 {
+    match create(initial) {
+        .err(_) => { return 0 }
+        .ok(owner) => {
+            var h = owner
+            update(&mut h, shorter)
+            return h.read()
+        }
+    }
+}
+fn main() -> i32 {
+    let a = 1
+    let b = 2
+    return bad(&a, &b)
+}
+"#,
+        "E-SAFETY-SOLVE",
+    );
+
+    // 4. Erasing borrowed Provider<'a> into context-free OwnedDyn<dyn Change>.
+    check_rejected(
+        &dir,
+        "erasing_borrow_without_context",
+        r#"
+struct Provider<life a> { pointer: &'a mut i32 }
+trait Change { fn step(self: &mut Self) -> i32; }
+impl<life a> Change for Provider<'a> {
+    fn step(self: &mut Self) -> i32 { *self.pointer += 1; return *self.pointer }
+}
+fn bad<life a>(value: &'a mut i32) -> DynCreateError!OwnedDyn<dyn Change> {
+    return owned_dyn::<dyn Change>(Provider::<'a> { pointer: value })
+}
+fn main() -> i32 {
+    var x = 1
+    match bad(&mut x) { .err(_) => { return 0 }, .ok(_) => { return 1 } }
+}
+"#,
+        "E-SAFETY-SOLVE",
+    );
+
+    // 5. Provider carries region 'b not covered by Context<'a>.
+    check_rejected(
+        &dir,
+        "provider_region_exceeds_context",
+        r#"
+struct Context<life a> { leaf: &'a i32 }
+struct Provider<life a, life b> { first: &'a i32, second: &'b i32 }
+trait Read { fn read(self: &Self) -> i32; }
+impl<life a, life b> Read for Provider<'a, 'b> {
+    fn read(self: &Self) -> i32 { return *self.first + *self.second }
+}
+fn bad<life a, life b>(x: &'a i32, y: &'b i32) -> DynCreateError!OwnedDyn<dyn Read, Context<'a>> {
+    return owned_dyn::<dyn Read, Context<'a>>(Provider::<'a, 'b> { first: x, second: y })
+}
+fn main() -> i32 {
+    let a = 1
+    let b = 2
+    match bad(&a, &b) { .err(_) => { return 0 }, .ok(_) => { return 1 } }
+}
+"#,
+        "E-SAFETY-SOLVE",
+    );
+
+    // 6. Double move / use-after-move of borrowed OwnedDyn.
+    check_rejected(
+        &dir,
+        "double_move_owned_dyn",
+        r#"
+struct Context<life a> { leaf: &'a mut i32 }
+struct Provider<life a> { pointer: &'a mut i32 }
+trait Change { fn step(self: &mut Self) -> i32; }
+impl<life a> Change for Provider<'a> {
+    fn step(self: &mut Self) -> i32 { *self.pointer += 1; return *self.pointer }
+}
+fn take<life a>(h: OwnedDyn<dyn Change, Context<'a>>) -> i32 {
+    var owned = h
+    return owned.step()
+}
+fn run<life a>(value: &'a mut i32) -> i32 {
+    match owned_dyn::<dyn Change, Context<'a>>(Provider::<'a> { pointer: value }) {
+        .err(_) => { return 0 }
+        .ok(owner) => {
+            let a = take(owner)
+            let b = take(owner)
+            return a + b
+        }
+    }
+}
+fn main() -> i32 { var x = 1; return run(&mut x) }
+"#,
+        "E-SAFETY-SOLVE",
+    );
+
+    // 7. Context-free OwnedDyn<dyn Change> cannot unify with OwnedDyn<dyn Change, Context<'a>>.
+    check_rejected(
+        &dir,
+        "context_vs_contextless_type_mismatch",
+        r#"
+struct Context<life a> { leaf: &'a i32 }
+struct Plain { value: i32 }
+trait Read { fn read(self: &Self) -> i32; }
+impl Read for Plain { fn read(self: &Self) -> i32 { return self.value } }
+fn bad<life a>(_unused: &'a i32) -> DynCreateError!OwnedDyn<dyn Read, Context<'a>> {
+    return owned_dyn::<dyn Read>(Plain { value: 1 })
+}
+fn main() -> i32 {
+    let x = 1
+    match bad(&x) { .err(_) => { return 0 }, .ok(_) => { return 1 } }
+}
+"#,
+        "E-TYPE-MISMATCH",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_forged_owned_dyn_context_bypass_is_rejected_by_checker() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, Block, BlockId, Body, Callee, ConstValue, DynDef, DynImpl, DynSlotSig,
+        FieldDef, FnId, FnRole, FnSig, Function, GenericArgs, IntTy, IntrinsicOp, Local, LocalDecl,
+        Module, Mutability, Operand, ParamEnv, Place, Region, Terminator, TyKind, TyTable,
+        VariantDef, decode_module, encode_module,
+    };
+
+    // Build a forged raw Body IR module where OwnedDynCreate erases a borrowed
+    // Provider<'a> (&'a mut i32) into context-free OwnedDyn { def, context: None }.
+    let mut tys = TyTable::new();
+    let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+    let ref_mut_r0_i32 = tys.intern(TyKind::Ref {
+        region: Region::Param(0),
+        mutability: Mutability::Exclusive,
+        pointee: i32_ty,
+    });
+    let err_adt = tys.add_adt(AdtDef {
+        name: "DynCreateError".into(),
+        kind: AdtKind::Enum,
+        type_params: 0,
+        region_params: 0,
+        variants: vec![VariantDef {
+            name: "OutOfMemory".into(),
+            fields: vec![],
+        }],
+        user_drop: false,
+    });
+    let empty_args = tys.intern_args(GenericArgs {
+        tys: vec![],
+        regions: vec![],
+    });
+    let err_ty = tys.intern(TyKind::Adt {
+        adt: err_adt,
+        args: empty_args,
+    });
+    let dyn_id = tys.add_dyn(DynDef {
+        name: "Change".into(),
+        slots: vec![DynSlotSig {
+            name: "step".into(),
+            receiver: Some(Mutability::Exclusive),
+            params: vec![],
+            result: i32_ty,
+        }],
+    });
+    let forged_owned_dyn = tys.intern(TyKind::OwnedDyn {
+        def: dyn_id,
+        context: None,
+    });
+    let result_ty = tys.intern(TyKind::ErrorUnion {
+        ok: forged_owned_dyn,
+        err: err_ty,
+    });
+    let prov_adt = tys.add_adt(AdtDef {
+        name: "Provider".into(),
+        kind: AdtKind::Record,
+        type_params: 0,
+        region_params: 1,
+        variants: vec![VariantDef {
+            name: "Provider".into(),
+            fields: vec![FieldDef {
+                name: "pointer".into(),
+                ty: ref_mut_r0_i32,
+            }],
+        }],
+        user_drop: false,
+    });
+    let r0_args = tys.intern_args(GenericArgs {
+        tys: vec![],
+        regions: vec![Region::Param(0)],
+    });
+    let prov_ty = tys.intern(TyKind::Adt {
+        adt: prov_adt,
+        args: r0_args,
+    });
+    let recv_ty = tys.intern(TyKind::Ref {
+        region: Region::Static,
+        mutability: Mutability::Exclusive,
+        pointee: prov_ty,
+    });
+
+    // Slot impl function (fn 0)
+    let slot_fn = Function {
+        name: "Provider::step".into(),
+        sig: FnSig {
+            type_params: 0,
+            region_params: 1,
+            params: vec![recv_ty],
+            result: i32_ty,
+            role: FnRole::DynSlotImpl {
+                dyn_id,
+                concrete_ty: prov_ty,
+                slot: 0,
+            },
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![LocalDecl {
+                ty: recv_ty,
+                name: Some("self".into()),
+            }],
+            captures: vec![],
+            closure: None,
+            result: i32_ty,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![Block {
+                instructions: vec![],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Int {
+                        ty: IntTy::I32,
+                        bits: 0,
+                    }),
+                },
+                terminator_span: zil_base::Span::default(),
+            }],
+        },
+    };
+
+    // Forged creator function (fn 1)
+    let forged_fn = Function {
+        name: "forged_create".into(),
+        sig: FnSig {
+            type_params: 0,
+            region_params: 1,
+            params: vec![prov_ty],
+            result: result_ty,
+            role: FnRole::Normal,
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![
+                LocalDecl {
+                    ty: prov_ty,
+                    name: Some("p".into()),
+                },
+                LocalDecl {
+                    ty: result_ty,
+                    name: Some("ret".into()),
+                },
+            ],
+            captures: vec![],
+            closure: None,
+            result: result_ty,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![
+                Block {
+                    instructions: vec![],
+                    terminator: Terminator::Call {
+                        callee: Callee::Intrinsic(IntrinsicOp::OwnedDynCreate),
+                        args: vec![Operand::Move(Place::local(Local(0)))],
+                        dest: Place::local(Local(1)),
+                        target: BlockId(1),
+                        cancel: None,
+                    },
+                    terminator_span: zil_base::Span::default(),
+                },
+                Block {
+                    instructions: vec![],
+                    terminator: Terminator::Return {
+                        value: Operand::Move(Place::local(Local(1))),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                },
+            ],
+        },
+    };
+
+    let module = Module {
+        tys,
+        functions: vec![slot_fn, forged_fn],
+        foreigns: vec![],
+        statics: vec![],
+        dyn_impls: vec![DynImpl {
+            dyn_id,
+            concrete_ty: prov_ty,
+            methods: vec![FnId(0)],
+        }],
+    };
+
+    // Round-trip through binary Wire encoding to verify wire format preserves
+    // OwnedDyn.context and independent solver/verifier rejects the forgery.
+    let bytes = encode_module(&module);
+    let decoded = decode_module(&bytes).expect("wire decode forged module");
+    let solved = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 });
+    assert!(
+        solved.is_err(),
+        "solver must reject raw/wire OwnedDynCreate erasing borrowed Provider<'a> into context-free OwnedDyn"
+    );
+}

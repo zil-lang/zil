@@ -614,10 +614,10 @@ fn llvm_ty(tys: &TyTable, id: TyId) -> Result<String, BodyEmitError> {
             Some(TyKind::Opaque(OpaqueTy::ByteBuffer | OpaqueTy::OwnedStore { .. })) => {
                 "{ ptr, i64, i64 }".into()
             }
-            Some(TyKind::OwnedDyn(_) | TyKind::Dyn(_)) => "{ ptr, ptr }".into(),
+            Some(TyKind::OwnedDyn { .. } | TyKind::Dyn(_)) => "{ ptr, ptr }".into(),
             _ => "ptr".into(),
         },
-        TyKind::Dyn(_) | TyKind::OwnedDyn(_) => "{ ptr, ptr }".into(),
+        TyKind::Dyn(_) | TyKind::OwnedDyn { .. } => "{ ptr, ptr }".into(),
         TyKind::Desc(_) | TyKind::FnPtr { .. } | TyKind::Opaque(_) => "ptr".into(),
         TyKind::Slice(_) => "{ ptr, i64 }".into(),
         TyKind::Array { element, length } => {
@@ -1160,7 +1160,7 @@ impl<'a> FnEmitter<'a> {
                             writeln!(self.out, "  call void @__zil_areg_drop_frame(ptr {handle})");
                         return Ok(());
                     }
-                    Some(TyKind::OwnedDyn(_)) => {
+                    Some(TyKind::OwnedDyn { .. }) => {
                         self.emit_owned_dyn_drop(ptr);
                         return Ok(());
                     }
@@ -1300,7 +1300,7 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "{l_ok}:");
                 Ok(())
             }
-            TyKind::OwnedDyn(_) => {
+            TyKind::OwnedDyn { .. } => {
                 self.emit_owned_dyn_drop(ptr);
                 Ok(())
             }
@@ -3763,10 +3763,10 @@ impl<'a> FnEmitter<'a> {
                 let concrete_ty = concrete_ty_opt
                     .ok_or_else(|| BodyEmitError::new("OwnedDynCreate missing concrete type"))?;
                 let dyn_id = if let Some(TyKind::ErrorUnion { ok, .. }) = self.tys().get(d_ty) {
-                    if let Some(TyKind::OwnedDyn(id)) = self.tys().get(*ok) {
+                    if let Some(TyKind::OwnedDyn { def: id, .. }) = self.tys().get(*ok) {
                         *id
                     } else if let Some(TyKind::Managed(inner)) = self.tys().get(*ok)
-                        && let Some(TyKind::OwnedDyn(id)) = self.tys().get(*inner)
+                        && let Some(TyKind::OwnedDyn { def: id, .. }) = self.tys().get(*inner)
                     {
                         *id
                     } else {

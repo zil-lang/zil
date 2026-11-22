@@ -108,8 +108,11 @@ pub enum TyData {
     },
     /// `dyn Trait` unsized pointee.
     Dyn(TraitRef),
-    /// `OwnedDyn<dyn Trait>` affine owner.
-    OwnedDyn(TraitRef),
+    /// `OwnedDyn<dyn Trait>` or `OwnedDyn<dyn Trait, Context<'a>>` affine owner.
+    OwnedDyn {
+        trait_ref: TraitRef,
+        context: Option<Ty>,
+    },
     /// The n-th type parameter of the enclosing generic declaration.
     Param(u32),
     /// `Self` inside a trait method signature.
@@ -263,11 +266,11 @@ impl Types {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_)
             | TyData::Param(_)
             | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Error => false,
+            TyData::OwnedDyn { context, .. } => context.is_some_and(|c| self.occurs(v, c)),
         }
     }
 
@@ -430,6 +433,25 @@ impl Types {
                 match (c1, c2) {
                     (Some(a), Some(b)) => self.unify(a, b),
                     (None, None) | (None, Some(_)) | (Some(_), None) => Ok(()),
+                }
+            }
+            (
+                TyData::OwnedDyn {
+                    trait_ref: t1,
+                    context: c1,
+                },
+                TyData::OwnedDyn {
+                    trait_ref: t2,
+                    context: c2,
+                },
+            ) => {
+                if t1 != t2 {
+                    return Err(Mismatch);
+                }
+                match (c1, c2) {
+                    (None, None) => Ok(()),
+                    (Some(a), Some(b)) => self.unify(a, b),
+                    (None, Some(_)) | (Some(_), None) => Err(Mismatch),
                 }
             }
             (
@@ -675,11 +697,17 @@ impl Types {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_)
             | TyData::Param(_)
             | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Error => ty,
+            TyData::OwnedDyn { trait_ref, context } => {
+                let context = match context {
+                    Some(c) => Some(self.zonk(c)?),
+                    None => None,
+                };
+                self.intern(TyData::OwnedDyn { trait_ref, context })
+            }
         })
     }
 
@@ -860,9 +888,12 @@ impl Types {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_)
             | TyData::Var(_)
             | TyData::Error => ty,
+            TyData::OwnedDyn { trait_ref, context } => {
+                let context = context.map(|c| self.subst_with_self(c, args, self_ty));
+                self.intern(TyData::OwnedDyn { trait_ref, context })
+            }
         }
     }
 
@@ -1018,10 +1049,13 @@ impl Types {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_)
             | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,
+            TyData::OwnedDyn { trait_ref, context } => {
+                let context = context.map(|c| self.subst(c, args));
+                self.intern(TyData::OwnedDyn { trait_ref, context })
+            }
         }
     }
 
@@ -1154,12 +1188,15 @@ impl Types {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_)
             | TyData::Param(_)
             | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,
+            TyData::OwnedDyn { trait_ref, context } => {
+                let context = context.map(|c| self.erase_regions(c));
+                self.intern(TyData::OwnedDyn { trait_ref, context })
+            }
         }
     }
 }

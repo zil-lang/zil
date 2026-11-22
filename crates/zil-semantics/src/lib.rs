@@ -88,7 +88,8 @@ pub(crate) fn ty_holds_reference(tys: &zil_ir::body::TyTable, ty: zil_ir::body::
                     })
                 })
             }),
-            TyKind::Dyn { .. } | TyKind::OwnedDyn(_) => false,
+            TyKind::Dyn { .. } => false,
+            TyKind::OwnedDyn { context, .. } => context.is_some_and(|c| walk(tys, c, seen)),
         }
     }
     walk(tys, ty, &mut Vec::new())
@@ -126,8 +127,8 @@ pub(crate) fn ty_holds_store_or_bytes_desc(
             | TyKind::Param(_)
             | TyKind::FnPtr { .. }
             | TyKind::Opaque(_)
-            | TyKind::Dyn { .. }
-            | TyKind::OwnedDyn(_) => false,
+            | TyKind::Dyn { .. } => false,
+            TyKind::OwnedDyn { context, .. } => context.is_some_and(|c| walk(tys, c, seen)),
             TyKind::Ref { pointee: inner, .. }
             | TyKind::Managed(inner)
             | TyKind::Slice(inner)

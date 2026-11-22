@@ -134,7 +134,7 @@ impl<'a> Kernel<'a> {
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
             | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
+            | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => None,
         }
@@ -831,7 +831,7 @@ impl<'a> Kernel<'a> {
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
             | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
+            | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => return Err(leak()),
         };

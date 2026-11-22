@@ -644,6 +644,60 @@ impl Kernel<'_> {
                     .unwrap_or_else(|| loans.clone()),
                 None,
             ),
+            Terminator::Call {
+                callee: zil_ir::body::Callee::DynSlot { .. },
+                dest,
+                ..
+            } => {
+                let cx = self.body.cx(self.tys);
+                let dest_ty = type_place(dest, &cx).ok().map(|t| t.ty());
+                if dest_ty.is_some_and(|t| !self.tys.holds_address(t)) {
+                    (self.empty_loans(), None)
+                } else if let Some(dty) = dest_ty
+                    && !self.tys.regions_in(dty).is_empty()
+                    && let Some(recv_access) =
+                        accesses.iter().find(|a| a.role == OperandRole::Callee)
+                    && let Ok(recv_t) = type_place(&recv_access.place, &cx)
+                    && let Some(zil_ir::body::TyKind::Ref { pointee, .. }) =
+                        self.tys.get(recv_t.ty())
+                    && let Some(zil_ir::body::TyKind::OwnedDyn {
+                        context: Some(ctx), ..
+                    }) = self.tys.get(*pointee)
+                    && self
+                        .tys
+                        .regions_in(dty)
+                        .iter()
+                        .all(|r| self.tys.regions_in(*ctx).contains(r))
+                {
+                    let mut out = self.empty_loans();
+                    // Add loans carried by the OwnedDyn value itself (through its
+                    // direct receiver borrow) without keeping the borrow of the
+                    // OwnedDyn handle local itself.
+                    if let PlaceRoot::Local(rl) = recv_access.place.root {
+                        for id in state.carries.of(rl).iter() {
+                            if let Some(loan) = self.loans.get(id) {
+                                if let PlaceRoot::Local(owner) = loan.place.root {
+                                    out.union_with(state.carries.of(owner));
+                                } else {
+                                    out.insert(EXTERNAL);
+                                }
+                            } else {
+                                out.insert(id);
+                            }
+                        }
+                    } else {
+                        out.insert(EXTERNAL);
+                    }
+                    let non_recv = accesses.iter().filter(|a| a.role != OperandRole::Callee);
+                    out.union_with(&self.operand_loans(
+                        state,
+                        non_recv.map(|a| (a.role, a.access, a.place.as_ref())),
+                    ));
+                    (out, None)
+                } else {
+                    (loans.clone(), None)
+                }
+            }
             Terminator::Call { .. }
             | Terminator::Goto { .. }
             | Terminator::Switch { .. }
@@ -670,14 +724,34 @@ impl Kernel<'_> {
                     ),
                 ..
             } => false,
-            Terminator::Call { .. } => accesses.iter().any(|a| {
-                flows_value(a.role, a.access)
-                    && self
-                        .reach(state, a.place.root)
-                        .iter()
-                        .any(|id| id == EXTERNAL || self.loans.loan_region(id).is_some())
-                    && self.place_may_store_address(&a.place)
-            }),
+            Terminator::Call { .. } => {
+                let cx = self.body.cx(self.tys);
+                accesses.iter().any(|a| {
+                    if !flows_value(a.role, a.access) || !self.place_may_store_address(&a.place) {
+                        return false;
+                    }
+                    let direct_external = self.storage_targets(state, a.place.root, true).1;
+                    if direct_external {
+                        return true;
+                    }
+                    let nested_stores = type_place(&a.place, &cx).map_or(true, |t| {
+                        let ty = t.ty();
+                        match self.tys.get(ty) {
+                            Some(zil_ir::body::TyKind::Ref {
+                                mutability: zil_ir::body::Mutability::Exclusive,
+                                pointee,
+                                ..
+                            }) => self.tys.may_store_address(*pointee),
+                            _ => self.tys.may_store_address(ty),
+                        }
+                    });
+                    nested_stores
+                        && self
+                            .reach(state, a.place.root)
+                            .iter()
+                            .any(|id| id == EXTERNAL || self.loans.loan_region(id).is_some())
+                })
+            }
             Terminator::Goto { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
@@ -725,17 +799,36 @@ impl Kernel<'_> {
                 {
                     let accesses = term.accesses();
                     for r in 0..sig.region_params {
+                        let has_invariant = sig.params.iter().any(|pt| {
+                            if !self.tys.regions_in(*pt).contains(&r) {
+                                return false;
+                            }
+                            let inner = match self.tys.get(*pt) {
+                                Some(
+                                    zil_ir::body::TyKind::Managed(t)
+                                    | zil_ir::body::TyKind::Ref { pointee: t, .. },
+                                ) => *t,
+                                _ => *pt,
+                            };
+                            matches!(
+                                self.tys.get(inner),
+                                Some(
+                                    zil_ir::body::TyKind::Opaque(zil_ir::body::OpaqueTy::Task {
+                                        context: Some(_),
+                                        ..
+                                    }) | zil_ir::body::TyKind::OwnedDyn {
+                                        context: Some(_),
+                                        ..
+                                    } | zil_ir::body::TyKind::Closure { .. }
+                                )
+                            )
+                        });
+                        if !has_invariant {
+                            continue;
+                        }
                         let mut prev_local_loans: Option<Vec<_>> = None;
                         for (idx, pt) in sig.params.iter().enumerate() {
                             if !self.tys.regions_in(*pt).contains(&r) {
-                                continue;
-                            }
-                            let is_task = matches!(
-                                self.tys.get(*pt),
-                                Some(zil_ir::body::TyKind::Managed(inner))
-                                    if matches!(self.tys.get(*inner), Some(zil_ir::body::TyKind::Opaque(zil_ir::body::OpaqueTy::Task { context: Some(_), .. })))
-                            );
-                            if !is_task {
                                 continue;
                             }
                             let arg_loans = self.operand_loans(
@@ -805,7 +898,18 @@ impl Kernel<'_> {
                         }
                     }
                     for y in writable {
-                        state.carries.add(y, &flows.loans);
+                        let mut filtered = self.empty_loans();
+                        for id in flows.loans.iter() {
+                            if self
+                                .loans
+                                .get(id)
+                                .is_some_and(|l| l.place.root == PlaceRoot::Local(y))
+                            {
+                                continue;
+                            }
+                            filtered.insert(id);
+                        }
+                        state.carries.add(y, &filtered);
                     }
                 }
                 if flows.external_store {
@@ -912,7 +1016,7 @@ impl Kernel<'_> {
                 | zil_ir::body::TyKind::FnPtr { .. }
                 | zil_ir::body::TyKind::Closure { .. }
                 | zil_ir::body::TyKind::Dyn(_)
-                | zil_ir::body::TyKind::OwnedDyn(_)
+                | zil_ir::body::TyKind::OwnedDyn { .. }
                 | zil_ir::body::TyKind::Param(_)
                 | zil_ir::body::TyKind::Opaque(_) => return None,
             }
