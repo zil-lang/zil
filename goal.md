@@ -6,22 +6,20 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@a3e2f5227`](https://github.com/zil-lang/zil/commit/a3e2f5227)（开放 PR：0；远端分支：5）
-- **当前阶段**：语言核心组合收口（重点推进 L1/L2 高杠杆共因，不阻塞可独立并行的 L3/L4 任务）
-- **总体阻塞**：无 P0 安全阻断；全仓 `tests/**/*.zil` 通过 **`716 / 1,385`**（较基线 `573` 的 Success 数净增 `+143`；原扫描报告 0 接受集回退，负例仍需按真实预期分类复核；已合入 L1 Batch 1 [PR #96](https://github.com/zil-lang/zil/pull/96) `+120`、L1 Batch 2 [PR #97](https://github.com/zil-lang/zil/pull/97) `+23`）
-- **下一发布门**：完成 L1/L2 核心共因收口（内联方法、资源包独占借用组合、`OwnedDyn` 借入 provider、函数/外部契约），随后转入 L3/L4 真实应用联合验收
+- **主线基线**：[`main@a6462ceef`](https://github.com/zil-lang/zil/commit/a6462ceef)（开放 PR：0；远端分支：5）
+- **当前阶段**：L1 四批全部合入（[PR #96](https://github.com/zil-lang/zil/pull/96)、[PR #97](https://github.com/zil-lang/zil/pull/97)、[PR #98](https://github.com/zil-lang/zil/pull/98)、[PR #99](https://github.com/zil-lang/zil/pull/99)），现转入 **L2 核心收口**（借入 `OwnedDyn` provider 与函数/外部合同）
+- **总体阻塞**：无 P0 安全阻断（已修补 `FnMut` 捕获重借用逃逸）；全仓 `tests/**/*.zil` Success 数 **`742 / 1,385`**（0 接受集回退，0 误放行，0 `ResourceLimit`）
+- **下一发布门**：完成 L2 Batch 2（借入 `OwnedDyn` provider）与 L2 Batch 1（函数/外部合同），随后转入 L3/L4 真实应用联合验收
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@a3e2f5227 为基线）
+## 下一阶段施工安排（以 main@a6462ceef 为基线）
 
 以下仅为**当前待施工范围**；编译性能专项独立保留，不在这些任务分支修改。执行顺序按真实依赖决定，互不冲突的工作可并行；每批验收后即合入并删除任务分支。
 
 | 批次 / 建议分支 | 关联任务 | 完整交付与验收门 | 安排 |
 | --- | --- | --- | --- |
-| **L1 Batch 3** `task/l1-inline-methods` | G2.4 / G1.4 | 先逐份核定现有约 15 份 `E-UNSUPPORTED: methods` 原 Source 的合法性；贯通 `struct/package` 内联方法的定义/接收者/实例化/可见性及调用与清理。合法原 Source → Analyze/Verify → Clang/LLVM API × O0/O2；非法接收者、借用、隐藏方法和伪造 Raw/Wire 仍拒绝 | **下一批，优先执行** |
-| **L1 Batch 4** `task/l1-borrowed-ownership` | G3.4 / G3.5 | 对 `OperandClass` / `MoveFromBorrowed` / `WriteThroughShared` 逐例先判定合法正例还是应拒负例，不以消除报错为目标；仅修同根的字段转交、独占借用与闭包来源，真实生命周期、失败清理和 Raw/Wire 反例必须闭合 | Batch 3 后；可在写集不重叠时并行准备 |
-| **L2 Batch 1** `task/l2-contract-semantics` | G6.1 / G5.2 | 盘点约 25 份 function contracts、51 份 extern contract clause 的原输入及约束类型；只实现具有明确定义且可独立证明的合同子集。Typeck/OpSpec/Analyze/Verify/FFI Provider 身份和原生消费一致；未知/无证明的合同仍拒绝 | 可与 L1 并行，公共 Schema 集中协调 |
-| **L2 Batch 2** `task/l2-borrowed-dyn-provider` | G5.3 / G6.2 | 对约 15 份借入 `OwnedDyn<dyn Trait, Context<'a>>` 输入先核设计合法性；用明确 owner/borrow、provider 同一身份和释放时序交付，提供短寿命逃逸/重复清理/错误槽位负例及双后端分配失败测试 | 在相关借用及合同前提稳定后实施 |
+| **L2 Batch 2** `task/l2-borrowed-dyn-provider` | G5.3 / G6.2 | 对约 15 份借入 `OwnedDyn<dyn Trait, Context<'a>>` 输入先核设计合法性；用明确 owner/borrow、provider 同一身份和释放时序交付，提供短寿命逃逸/重复清理/错误槽位负例及双后端分配失败测试 | **进行中（当前施工）** |
+| **L2 Batch 1** `task/l2-contract-semantics` | G6.1 / G5.2 | 盘点约 25 份 function contracts、51 份 extern contract clause 的原输入及约束类型；只实现具有明确定义且可独立证明的合同子集。Typeck/OpSpec/Analyze/Verify/FFI Provider 身份和原生消费一致；未知/无证明的合同仍拒绝 | 紧随 L2 Batch 2 |
 
 **统一计量及安全门**：`716/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
