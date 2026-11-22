@@ -292,6 +292,8 @@ pub enum IntrinsicOp {
     },
     /// Produce a null `c_handle` value (`c_null()`).
     CNull,
+    /// Convert a non-capturing C-ABI scalar function pointer into `extern "C" fn(...)` (`c_callback(f)`).
+    CCallback,
 }
 
 /// Explicit atomic memory ordering (`MemoryOrder`).

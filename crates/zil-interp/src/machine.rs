@@ -260,6 +260,7 @@ fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::SyncExchangeOrdered(_) => "intrinsic SyncExchangeOrdered",
         IntrinsicOp::SyncCompareExchangeOrdered { .. } => "intrinsic SyncCompareExchangeOrdered",
         IntrinsicOp::CNull => "intrinsic CNull",
+        IntrinsicOp::CCallback => "intrinsic CCallback",
     }
 }
 
