@@ -549,61 +549,97 @@ impl CompilationSession {
         let mut by_logical: HashMap<String, ModuleId> = HashMap::new();
         by_logical.insert(String::new(), ModuleId(0));
 
-        if let Some(root_dir) = search_root {
-            let std_dir = find_std_dir(root_dir);
-            let mut idx = 0;
-            while idx < loaded.len() {
-                let raw_imports: Vec<(Vec<String>, String, Span)> = loaded[idx]
-                    .ast
-                    .items
-                    .iter()
-                    .filter_map(|item| {
-                        if let zil_syntax::ast::ItemKind::Import(imp) = &item.kind {
-                            let alias = imp
-                                .alias
-                                .clone()
-                                .or_else(|| imp.path.last().cloned())
-                                .unwrap_or_default();
-                            Some((imp.path.clone(), alias, item.span))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                let mut edges = Vec::with_capacity(raw_imports.len());
-                for (imp_path, alias, imp_span) in raw_imports {
-                    if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "meta" {
-                        edges.push((alias, zil_check::ct_original::CtOriginalImportTarget::Meta));
-                        continue;
-                    }
-                    if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "syntax" {
-                        edges.push((
-                            alias,
-                            zil_check::ct_original::CtOriginalImportTarget::Syntax,
-                        ));
-                        continue;
-                    }
-                    let logical = imp_path.join(".");
-                    if let Some(&mid) = by_logical.get(&logical) {
-                        edges.push((
-                            alias,
-                            zil_check::ct_original::CtOriginalImportTarget::Module(mid),
-                        ));
-                        continue;
-                    }
-                    let resolved = if imp_path.first().map(String::as_str) == Some("std") {
-                        std_dir.as_deref().and_then(|sd| {
-                            project::resolve_file_module(sd, &imp_path[1..], imp_span).ok()
-                        })
+        let std_dir = search_root.and_then(find_std_dir);
+        let mut idx = 0;
+        while idx < loaded.len() {
+            let raw_imports: Vec<(Vec<String>, String, Span)> = loaded[idx]
+                .ast
+                .items
+                .iter()
+                .filter_map(|item| {
+                    if let zil_syntax::ast::ItemKind::Import(imp) = &item.kind {
+                        let alias = imp
+                            .alias
+                            .clone()
+                            .or_else(|| imp.path.last().cloned())
+                            .unwrap_or_default();
+                        Some((imp.path.clone(), alias, item.span))
                     } else {
+                        None
+                    }
+                })
+                .collect();
+            let mut edges = Vec::with_capacity(raw_imports.len());
+            for (imp_path, alias, imp_span) in raw_imports {
+                if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "meta" {
+                    edges.push((alias, zil_check::ct_original::CtOriginalImportTarget::Meta));
+                    continue;
+                }
+                if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "syntax" {
+                    edges.push((
+                        alias,
+                        zil_check::ct_original::CtOriginalImportTarget::Syntax,
+                    ));
+                    continue;
+                }
+                let logical = imp_path.join(".");
+                if let Some(&mid) = by_logical.get(&logical) {
+                    edges.push((
+                        alias,
+                        zil_check::ct_original::CtOriginalImportTarget::Module(mid),
+                    ));
+                    continue;
+                }
+                let next_id = loaded.len() as u32;
+                let mod_unit = if imp_path.first().map(String::as_str) == Some("std") {
+                    if let Some(mod_file) = std_dir.as_deref().and_then(|sd| {
+                        project::resolve_file_module(sd, &imp_path[1..], imp_span).ok()
+                    }) {
+                        match read_source_unit(
+                            &mod_file,
+                            FileId(next_id),
+                            ModuleId(next_id),
+                            &options.limits,
+                        ) {
+                            Ok(u) => u,
+                            Err(diag) => {
+                                report.phase = diag.phase;
+                                report.status = diag.category;
+                                report.diagnostics = vec![diag];
+                                report.seconds = start.elapsed().as_secs_f64();
+                                return report;
+                            }
+                        }
+                    } else if let Some((virtual_path, text)) = embedded_std_source(&imp_path[1..]) {
+                        if text.len() > options.limits.max_source_bytes {
+                            report.phase = Phase::Parse;
+                            report.status = ResultCategory::ResourceLimit;
+                            report.diagnostics = vec![Diagnostic::limit(
+                                Phase::Parse,
+                                "source exceeds max_source_bytes limit",
+                                None,
+                            )];
+                            report.seconds = start.elapsed().as_secs_f64();
+                            return report;
+                        }
+                        SourceUnit::new(
+                            FileId(next_id),
+                            ModuleId(next_id),
+                            virtual_path,
+                            text.to_string(),
+                        )
+                    } else {
+                        // Leave unresolved for typeck to report a clean E-NAME-UNRESOLVED.
+                        continue;
+                    }
+                } else if let Some(root_dir) = search_root {
+                    let Some(mod_file) =
                         project::resolve_file_module(root_dir, &imp_path, imp_span).ok()
-                    };
-                    let Some(mod_file) = resolved else {
+                    else {
                         // Leave unresolved for typeck to report a clean E-NAME-UNRESOLVED.
                         continue;
                     };
-                    let next_id = loaded.len() as u32;
-                    let mod_unit = match read_source_unit(
+                    match read_source_unit(
                         &mod_file,
                         FileId(next_id),
                         ModuleId(next_id),
@@ -617,36 +653,37 @@ impl CompilationSession {
                             report.seconds = start.elapsed().as_secs_f64();
                             return report;
                         }
-                    };
-                    report
-                        .source_files
-                        .insert(mod_unit.file_id, mod_unit.path.clone());
-                    let mod_ast = match self.parse_cached(&mod_unit, options, &mut report, observer)
-                    {
-                        Ok(ast) => ast,
-                        Err(diags) => {
-                            report.phase = Phase::Parse;
-                            report.status = highest_category(&diags);
-                            report.diagnostics = diags;
-                            report.seconds = start.elapsed().as_secs_f64();
-                            return report;
-                        }
-                    };
-                    let mid = ModuleId(next_id);
-                    by_logical.insert(logical.clone(), mid);
-                    loaded.push(LoadedMod {
-                        logical_path: logical,
-                        ast: mod_ast,
-                        imports: Vec::new(),
-                    });
-                    edges.push((
-                        alias,
-                        zil_check::ct_original::CtOriginalImportTarget::Module(mid),
-                    ));
-                }
-                loaded[idx].imports = edges;
-                idx += 1;
+                    }
+                } else {
+                    continue;
+                };
+                report
+                    .source_files
+                    .insert(mod_unit.file_id, mod_unit.path.clone());
+                let mod_ast = match self.parse_cached(&mod_unit, options, &mut report, observer) {
+                    Ok(ast) => ast,
+                    Err(diags) => {
+                        report.phase = Phase::Parse;
+                        report.status = highest_category(&diags);
+                        report.diagnostics = diags;
+                        report.seconds = start.elapsed().as_secs_f64();
+                        return report;
+                    }
+                };
+                let mid = ModuleId(next_id);
+                by_logical.insert(logical.clone(), mid);
+                loaded.push(LoadedMod {
+                    logical_path: logical,
+                    ast: mod_ast,
+                    imports: Vec::new(),
+                });
+                edges.push((
+                    alias,
+                    zil_check::ct_original::CtOriginalImportTarget::Module(mid),
+                ));
             }
+            loaded[idx].imports = edges;
+            idx += 1;
         }
 
         // Reject user declarations of reserved built-in type family `Option`.
@@ -859,6 +896,76 @@ impl CompilationSession {
     }
 }
 
+const EMBEDDED_STD_MODULES: &[(&str, &str)] = &[
+    (
+        "buffered_io",
+        include_str!("../../../lib/std/buffered_io.zil"),
+    ),
+    (
+        "collections",
+        include_str!("../../../lib/std/collections.zil"),
+    ),
+    ("float", include_str!("../../../lib/std/float.zil")),
+    ("graph", include_str!("../../../lib/std/graph.zil")),
+    (
+        "i64_hash_map",
+        include_str!("../../../lib/std/i64_hash_map.zil"),
+    ),
+    (
+        "i64_hash_set",
+        include_str!("../../../lib/std/i64_hash_set.zil"),
+    ),
+    ("int", include_str!("../../../lib/std/int.zil")),
+    ("io", include_str!("../../../lib/std/io.zil")),
+    ("iter", include_str!("../../../lib/std/iter.zil")),
+    (
+        "owning_entries",
+        include_str!("../../../lib/std/owning_entries.zil"),
+    ),
+    (
+        "owning_hash_map",
+        include_str!("../../../lib/std/owning_hash_map.zil"),
+    ),
+    (
+        "owning_hash_set",
+        include_str!("../../../lib/std/owning_hash_set.zil"),
+    ),
+    (
+        "owning_map",
+        include_str!("../../../lib/std/owning_map.zil"),
+    ),
+    (
+        "pod_hash_map",
+        include_str!("../../../lib/std/pod_hash_map.zil"),
+    ),
+    (
+        "pod_hash_set",
+        include_str!("../../../lib/std/pod_hash_set.zil"),
+    ),
+    ("store", include_str!("../../../lib/std/store.zil")),
+    ("string", include_str!("../../../lib/std/string.zil")),
+    (
+        "string_map",
+        include_str!("../../../lib/std/string_map.zil"),
+    ),
+    ("text_edit", include_str!("../../../lib/std/text_edit.zil")),
+    ("ui_input", include_str!("../../../lib/std/ui_input.zil")),
+    ("ui_layout", include_str!("../../../lib/std/ui_layout.zil")),
+    ("ui_raster", include_str!("../../../lib/std/ui_raster.zil")),
+    ("utf8", include_str!("../../../lib/std/utf8.zil")),
+];
+
+fn embedded_std_source(subpath: &[String]) -> Option<(String, &'static str)> {
+    if subpath.len() != 1 {
+        return None;
+    }
+    let name = subpath[0].as_str();
+    EMBEDDED_STD_MODULES
+        .iter()
+        .find(|(mod_name, _)| *mod_name == name)
+        .map(|(mod_name, text)| (format!("lib/std/{mod_name}.zil"), *text))
+}
+
 fn find_std_dir(start: &Path) -> Option<PathBuf> {
     let mut cur = start.canonicalize().ok()?;
     loop {
@@ -866,14 +973,60 @@ fn find_std_dir(start: &Path) -> Option<PathBuf> {
         if lib_std.is_dir() {
             return Some(lib_std);
         }
-        let candidate = cur.join("std");
-        if candidate.is_dir() {
-            return Some(candidate);
-        }
         if !cur.pop() {
             return None;
         }
     }
+}
+
+fn validate_project_std_modules(project: &ProjectSources) -> Result<(), Diagnostic> {
+    for (segments, mid) in &project.paths {
+        if segments.first().map(String::as_str) != Some("std") {
+            continue;
+        }
+        let unit = project.sources.iter().find(|s| s.module_id == *mid);
+        let canonical = embedded_std_source(&segments[1..]).map(|(_, text)| text);
+        let matches = match (unit, canonical) {
+            (Some(u), Some(c)) => u.text == c,
+            _ => false,
+        };
+        if !matches {
+            return Err(Diagnostic::error(
+                Phase::Driver,
+                "E-STD-RESERVED",
+                None,
+                format!(
+                    "module `{}` is in the reserved `std` namespace and cannot be forged or overridden",
+                    segments.join(".")
+                ),
+            ));
+        }
+    }
+    for unit in &project.sources {
+        let sub = if let Some(rest) = unit.path.strip_prefix("std.") {
+            Some(rest.strip_suffix(".zil").unwrap_or(rest))
+        } else if let Some(rest) = unit.path.strip_prefix("std/") {
+            Some(rest.strip_suffix(".zil").unwrap_or(rest))
+        } else {
+            None
+        };
+        if let Some(sub) = sub {
+            let segs: Vec<String> = sub.split(['.', '/']).map(str::to_string).collect();
+            let canonical = embedded_std_source(&segs).map(|(_, text)| text);
+            if canonical != Some(unit.text.as_str()) {
+                return Err(Diagnostic::error(
+                    Phase::Driver,
+                    "E-STD-RESERVED",
+                    None,
+                    format!(
+                        "module `{}` is in the reserved `std` namespace and cannot be forged or overridden",
+                        unit.path
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn highest_category(diags: &[Diagnostic]) -> ResultCategory {
@@ -982,16 +1135,23 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
             source_files: BTreeMap::new(),
         };
     };
-    let inputs: Vec<(&str, &str)> = project
-        .sources
-        .iter()
-        .map(|s| (s.path.as_str(), s.text.as_str()))
-        .collect();
     let start = Instant::now();
     let mut report = CompileReport::new(entry);
     for s in &project.sources {
         report.source_files.insert(s.file_id, s.path.clone());
     }
+    if let Err(diag) = validate_project_std_modules(project) {
+        report.status = diag.category;
+        report.phase = diag.phase;
+        report.diagnostics = vec![diag];
+        report.seconds = start.elapsed().as_secs_f64();
+        return report;
+    }
+    let inputs: Vec<(&str, &str)> = project
+        .sources
+        .iter()
+        .map(|s| (s.path.as_str(), s.text.as_str()))
+        .collect();
     match verify_body_program(&inputs) {
         Ok(verified) => {
             report.verification_runs = 1;

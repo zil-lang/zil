@@ -122,11 +122,63 @@ pub fn verify_body_program(sources: &[(&str, &str)]) -> Result<VerifiedModule, B
 
     // Independent universal CT original-definition verification (checks unused
     // CT declarations and every branch directly against parsed AST).
+    let by_logical: std::collections::HashMap<&str, ModuleId> = parsed
+        .iter()
+        .enumerate()
+        .map(|(i, (path, _))| (*path, ModuleId(i as u32)))
+        .collect();
+    let ct_import_owned: Vec<Vec<(String, zil_check::ct_original::CtOriginalImportTarget)>> =
+        parsed
+            .iter()
+            .map(|(_, ast)| {
+                ast.items
+                    .iter()
+                    .filter_map(|item| {
+                        let zil_syntax::ast::ItemKind::Import(imp) = &item.kind else {
+                            return None;
+                        };
+                        let alias = imp
+                            .alias
+                            .clone()
+                            .or_else(|| imp.path.last().cloned())
+                            .unwrap_or_default();
+                        let target =
+                            if imp.path.len() == 2 && imp.path[0] == "std" && imp.path[1] == "meta"
+                            {
+                                zil_check::ct_original::CtOriginalImportTarget::Meta
+                            } else if imp.path.len() == 2
+                                && imp.path[0] == "std"
+                                && imp.path[1] == "syntax"
+                            {
+                                zil_check::ct_original::CtOriginalImportTarget::Syntax
+                            } else {
+                                let logical = imp.path.join(".");
+                                let mid = *by_logical.get(logical.as_str())?;
+                                zil_check::ct_original::CtOriginalImportTarget::Module(mid)
+                            };
+                        Some((alias, target))
+                    })
+                    .collect()
+            })
+            .collect();
+    let ct_import_vecs: Vec<Vec<zil_check::ct_original::CtOriginalImport<'_>>> = ct_import_owned
+        .iter()
+        .map(|edges| {
+            edges
+                .iter()
+                .map(|(alias, target)| zil_check::ct_original::CtOriginalImport {
+                    alias: alias.as_str(),
+                    target: *target,
+                })
+                .collect()
+        })
+        .collect();
     let ct_mods: Vec<zil_check::ct_original::CtOriginalModule<'_>> = ast_refs
         .iter()
-        .map(|syntax| zil_check::ct_original::CtOriginalModule {
+        .zip(ct_import_vecs.iter())
+        .map(|(syntax, imps)| zil_check::ct_original::CtOriginalModule {
             syntax,
-            imports: &[],
+            imports: imps.as_slice(),
         })
         .collect();
     let mut ct_meter = zil_check::ct_original::CtVerificationMeter::new(1_000_000);
