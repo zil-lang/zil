@@ -15,8 +15,8 @@ use super::ids::{
 use super::inst::{
     AggregateKind, BinOp, Block, Body, Callee, ClosureCallMode, ConstValue, DropFlag, DynImpl,
     FnRole, FnSig, ForeignAbi, ForeignCallbackRole, ForeignDecl, Function, Instruction,
-    InstructionKind, IntrinsicOp, LocalDecl, Module, Operand, ResumeMode, Rvalue, ScopeExit,
-    Terminator, TrapKind, UnOp,
+    InstructionKind, IntrinsicOp, LocalDecl, Module, Operand, ProtocolStateSet, ResumeMode, Rvalue,
+    ScopeExit, StateContractClause, Terminator, TrapKind, UnOp,
 };
 use super::place::{FieldRef, Place, PlaceRoot, Projection};
 use super::source_map::OpLocation;
@@ -1439,6 +1439,27 @@ fn encode_function(w: &mut Writer, f: &Function) {
         ResumeMode::Local => 0,
         ResumeMode::Transfer => 1,
     });
+    w.vec(&f.sig.state_contracts, |w, c| match *c {
+        StateContractClause::RequiresState { param, states } => {
+            w.u8(0);
+            w.u32(param);
+            w.u8(states.0);
+        }
+        StateContractClause::ProvidesRetired { param } => {
+            w.u8(1);
+            w.u32(param);
+        }
+        StateContractClause::ProvidesOnPending { param, states } => {
+            w.u8(2);
+            w.u32(param);
+            w.u8(states.0);
+        }
+        StateContractClause::ProvidesOnReady { param, states } => {
+            w.u8(3);
+            w.u32(param);
+            w.u8(states.0);
+        }
+    });
     w.u32(f.body.param_count);
     w.vec(&f.body.locals, |w, l| {
         w.u32(l.ty.0);
@@ -1479,6 +1500,22 @@ fn decode_function(r: &mut Reader<'_>) -> Result<Function, WireError> {
         1 => ResumeMode::Transfer,
         t => return Err(WireError::InvalidTag("ResumeMode", t)),
     };
+    let state_contracts = r.vec(|r| match r.u8()? {
+        0 => Ok(StateContractClause::RequiresState {
+            param: r.u32()?,
+            states: ProtocolStateSet(r.u8()?),
+        }),
+        1 => Ok(StateContractClause::ProvidesRetired { param: r.u32()? }),
+        2 => Ok(StateContractClause::ProvidesOnPending {
+            param: r.u32()?,
+            states: ProtocolStateSet(r.u8()?),
+        }),
+        3 => Ok(StateContractClause::ProvidesOnReady {
+            param: r.u32()?,
+            states: ProtocolStateSet(r.u8()?),
+        }),
+        t => Err(WireError::InvalidTag("StateContractClause", t)),
+    })?;
     let param_count = r.u32()?;
     let locals = r.vec(|r| {
         Ok(LocalDecl {
@@ -1512,6 +1549,7 @@ fn decode_function(r: &mut Reader<'_>) -> Result<Function, WireError> {
             region_params,
             role,
             resume_mode,
+            state_contracts,
         },
         body: Body {
             param_count,

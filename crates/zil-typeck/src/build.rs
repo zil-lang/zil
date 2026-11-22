@@ -235,6 +235,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             FnRoleSpec::Drop(adt) => FnRole::Drop(self.adt_id(adt, span)?),
         };
         let resume_mode = decl.resume_mode;
+        let state_contracts = decl.state_contracts.clone();
         let id = FnId::from_index(self.module.functions.len());
         let mut name = decl.name.clone();
         if !args.is_empty() {
@@ -254,6 +255,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 region_params,
                 role,
                 resume_mode,
+                state_contracts,
             },
             body: Body {
                 param_count: 0,
@@ -316,6 +318,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     slot,
                 },
                 resume_mode: ResumeMode::Local,
+                state_contracts: Vec::new(),
             },
             body: Body {
                 param_count: 0,
@@ -404,6 +407,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             region_params,
             role: FnRole::Normal,
             resume_mode: ResumeMode::Local,
+            state_contracts: Vec::new(),
         };
         let owner_name = self.items.func(owner).name.clone();
         let id = FnId::from_index(self.module.functions.len());
@@ -471,6 +475,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     region_params,
                     role: FnRole::Normal,
                     resume_mode: ResumeMode::Local,
+                    state_contracts: Vec::new(),
                 };
                 let cthir = ThirFn {
                     locals: c.locals.clone(),
@@ -2208,6 +2213,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             region_params: 0,
             role: FnRole::Normal,
             resume_mode: ResumeMode::Local,
+            state_contracts: Vec::new(),
         };
         let synthetic_thir = ThirFn {
             locals: self.locals_info.clone(),
@@ -3203,6 +3209,7 @@ pub fn eval_ct_type_expr<'a>(
         region_params: 0,
         role: FnRole::Normal,
         resume_mode: ResumeMode::Local,
+        state_contracts: Vec::new(),
     };
     let synthetic_thir = ThirFn {
         locals: locals.to_vec(),

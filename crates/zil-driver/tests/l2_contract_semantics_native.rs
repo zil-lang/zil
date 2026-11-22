@@ -256,6 +256,20 @@ fn close_step<T>(owner: &mut AsyncRegistration<T>) -> Poll<void>
     return async_registration_poll_close(owner)
 }
 
+fn retire_owner<T>(give owner: AsyncRegistration<T>)
+    contract { requires(state(owner, Open, Closing, Closed)); provides(retired(owner)); }
+{
+    var cur = give owner
+    async_registration_request_close(&mut cur)
+    loop {
+        match close_step(&mut cur) {
+            Poll.Pending() => { continue },
+            Poll.Ready(_) => { break }
+        }
+    }
+    async_registration_finish_destroy_checked(give cur)
+}
+
 fn worker(seed: i32) -> i32 contract { effects(suspend); resume(transfer) } {
     var acc = seed
     let cb = move (v: i32) -> i32 => {
@@ -265,14 +279,7 @@ fn worker(seed: i32) -> i32 contract { effects(suspend); resume(transfer) } {
     unsafe {
         var reg = c_register_async(p_register, p_request_close, p_poll_drain, cb)
         task_yield()
-        async_registration_request_close(&mut reg)
-        loop {
-            match close_step(&mut reg) {
-                Poll.Pending() => { continue },
-                Poll.Ready(_) => { break }
-            }
-        }
-        async_registration_finish_destroy_checked(give reg)
+        retire_owner(give reg)
     }
     return seed + 40
 }
@@ -530,6 +537,180 @@ fn main() -> i32 { return 0 }
         "E-SAFETY-CHECK",
     );
 
+    // 11. Transitive suspend via helper holding borrowed local across call in resume(transfer).
+    check_rejected(
+        &dir,
+        "resume_transfer_indirect_helper_borrowed_local",
+        r#"
+fn helper() { task_yield() }
+fn worker(seed: i32) -> i32 contract { effects(suspend); resume(transfer) } {
+    let x = seed
+    let p = &x
+    helper()
+    return *p
+}
+fn main() -> i32 { return 0 }
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 12. Transitive suspend helper accepting borrowed &i32 called from resume(transfer).
+    check_rejected(
+        &dir,
+        "resume_transfer_indirect_helper_borrowed_param",
+        r#"
+fn helper(p: &i32) -> i32 {
+    task_yield()
+    return *p
+}
+fn worker(seed: i32) -> i32 contract { effects(suspend); resume(transfer) } {
+    let x = seed
+    return helper(&x)
+}
+fn main() -> i32 { return 0 }
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 13. Fail-closed: unannotated extern "C" fn (missing callback_role) in resume(transfer).
+    check_rejected(
+        &dir,
+        "unannotated_extern_provider_in_resume_transfer",
+        r#"
+extern "C" fn p_reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn p_req(tok: c_handle);
+extern "C" fn p_drain(tok: c_handle) -> i32;
+fn worker() -> i32 contract { effects(suspend); resume(transfer) } {
+    let cb = move (v: i32) -> i32 => v + 1
+    unsafe {
+        var r = c_register_async(p_reg, p_req, p_drain, cb)
+        task_yield()
+        async_registration_request_close(&mut r)
+        loop {
+            match async_registration_poll_close(&mut r) {
+                Poll.Pending() => { continue },
+                Poll.Ready(_) => { break }
+            }
+        }
+        async_registration_finish_destroy_checked(give r)
+    }
+    return 0
+}
+fn main() -> i32 { return 0 }
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 14. Fail-closed: thread_async_callback_* without thread_async_driver_transfer in resume(transfer).
+    check_rejected(
+        &dir,
+        "missing_driver_transfer_in_resume_transfer",
+        r#"
+extern "C" fn p_reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle
+    contract { provides(static_callbacks(), thread_async_callback_register()); effects(ffi); };
+extern "C" fn p_req(tok: c_handle)
+    contract { provides(static_callbacks(), thread_async_callback_request_close()); effects(ffi); };
+extern "C" fn p_drain(tok: c_handle) -> i32
+    contract { provides(static_callbacks(), thread_async_callback_poll_drain()); effects(ffi); };
+fn worker() -> i32 contract { effects(suspend); resume(transfer) } {
+    let cb = move (v: i32) -> i32 => v + 1
+    unsafe {
+        var r = c_register_async(p_reg, p_req, p_drain, cb)
+        task_yield()
+        async_registration_request_close(&mut r)
+        loop {
+            match async_registration_poll_close(&mut r) {
+                Poll.Pending() => { continue },
+                Poll.Ready(_) => { break }
+            }
+        }
+        async_registration_finish_destroy_checked(give r)
+    }
+    return 0
+}
+fn main() -> i32 { return 0 }
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 15. Protocol state contract on non-protocol parameter type (i32).
+    check_rejected(
+        &dir,
+        "state_contract_on_non_protocol_param",
+        r#"
+fn bad(x: i32) -> i32 contract { requires(state(x, Closed)) } { return x }
+fn main() -> i32 { return bad(0) }
+"#,
+        ResultCategory::SafeReject,
+        "E-RESOURCE-RESULT-MODE",
+    );
+
+    // 16. Unfulfilled provides(on_ready(state(owner, Closed))): fabricating Poll.Ready on Open handle.
+    check_rejected(
+        &dir,
+        "fabricated_poll_ready_violates_closed_contract",
+        r#"
+fn bad<T>(owner: &mut AsyncRegistration<T>) -> Poll<void>
+    contract { requires(state(owner, Open)); provides(on_ready(state(owner, Closed))); }
+{
+    return Poll.Ready(())
+}
+extern "C" fn p_reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn p_req(tok: c_handle);
+extern "C" fn p_drain(tok: c_handle) -> i32;
+fn main() -> i32 {
+    let cb = move (v: i32) -> i32 => v + 1
+    unsafe {
+        var r = c_register_async(p_reg, p_req, p_drain, cb)
+        let _ = bad(&mut r)
+        async_registration_request_close(&mut r)
+        loop {
+            match async_registration_poll_close(&mut r) {
+                Poll.Pending() => { continue },
+                Poll.Ready(_) => { break }
+            }
+        }
+        async_registration_finish_destroy_checked(give r)
+    }
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 17. Unfulfilled provides(retired(owner)): calling finish_destroy without proving Closed.
+    check_rejected(
+        &dir,
+        "unproved_closed_before_finish_destroy",
+        r#"
+fn bad<T>(give owner: AsyncRegistration<T>)
+    contract { requires(state(owner, Open)); provides(retired(owner)); }
+{
+    var cur = give owner
+    async_registration_request_close(&mut cur)
+    async_registration_finish_destroy_checked(give cur)
+}
+extern "C" fn p_reg(cb: extern "C" fn(c_handle, i32) -> i64, ctx: c_handle) -> c_handle;
+extern "C" fn p_req(tok: c_handle);
+extern "C" fn p_drain(tok: c_handle) -> i32;
+fn main() -> i32 {
+    let cb = move (v: i32) -> i32 => v + 1
+    unsafe {
+        let r = c_register_async(p_reg, p_req, p_drain, cb)
+        bad(give r)
+    }
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -537,8 +718,8 @@ fn main() -> i32 { return 0 }
 fn raw_wire_forged_resume_transfer_with_borrowed_param_is_rejected_by_checker() {
     use zil_ir::body::{
         Block, Body, ConstValue, FnRole, FnSig, Function, IntTy, LocalDecl, Module, Mutability,
-        Operand, ParamEnv, Region, ResumeMode, Terminator, TyKind, TyTable, decode_module,
-        encode_module,
+        Operand, ParamEnv, Region, ResumeMode, StateContractClause, Terminator, TyKind, TyTable,
+        decode_module, encode_module,
     };
 
     let mut tys = TyTable::new();
@@ -558,6 +739,7 @@ fn raw_wire_forged_resume_transfer_with_borrowed_param_is_rejected_by_checker() 
             region_params: 0,
             role: FnRole::Normal,
             resume_mode: ResumeMode::Transfer,
+            state_contracts: Vec::new(),
         },
         body: Body {
             param_count: 1,
@@ -600,5 +782,63 @@ fn raw_wire_forged_resume_transfer_with_borrowed_param_is_rejected_by_checker() 
     assert!(
         checked.is_err(),
         "independent checker must reject Raw/Wire ResumeMode::Transfer function accepting borrowed &i32"
+    );
+
+    // Also verify Raw/Wire forged ProvidesRetired on a non-protocol or unretired param is rejected.
+    let mut tys2 = TyTable::new();
+    let i32_ty2 = tys2.intern(TyKind::Int(IntTy::I32));
+    let forged_state = Function {
+        name: "forged_retired".into(),
+        sig: FnSig {
+            params: vec![i32_ty2],
+            result: i32_ty2,
+            type_params: 0,
+            region_params: 0,
+            role: FnRole::Normal,
+            resume_mode: ResumeMode::Local,
+            state_contracts: vec![StateContractClause::ProvidesRetired { param: 0 }],
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![LocalDecl {
+                ty: i32_ty2,
+                name: Some("x".into()),
+            }],
+            captures: vec![],
+            closure: None,
+            result: i32_ty2,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![Block {
+                instructions: vec![],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Int {
+                        ty: IntTy::I32,
+                        bits: 0,
+                    }),
+                },
+                terminator_span: zil_base::Span::default(),
+            }],
+        },
+    };
+    let module2 = Module {
+        tys: tys2,
+        functions: vec![forged_state],
+        foreigns: vec![],
+        statics: vec![],
+        dyn_impls: vec![],
+    };
+    let bytes2 = encode_module(&module2);
+    let decoded2 = decode_module(&bytes2).expect("wire decode forged state module");
+    let cert2 = zil_solve::solve_module(&decoded2, zil_solve::Budget { steps: 1_000_000 })
+        .expect("solver produces certificate");
+    let checked2 = zil_check::check_module(
+        decoded2,
+        &cert2,
+        zil_check::CheckBudget { steps: 1_000_000 },
+    );
+    assert!(
+        checked2.is_err(),
+        "independent checker must reject Raw/Wire forged StateContractClause"
     );
 }

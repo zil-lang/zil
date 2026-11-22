@@ -495,6 +495,51 @@ pub enum FnRole {
     },
 }
 
+/// Bitmask of protocol handle states (`Open` | `Closing` | `Closed`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ProtocolStateSet(pub u8);
+
+impl ProtocolStateSet {
+    pub const OPEN: u8 = 1 << 0;
+    pub const CLOSING: u8 = 1 << 1;
+    pub const CLOSED: u8 = 1 << 2;
+    pub const ALL: Self = Self(Self::OPEN | Self::CLOSING | Self::CLOSED);
+
+    pub const fn is_subset_of(self, other: Self) -> bool {
+        (self.0 & !other.0) == 0
+    }
+
+    pub const fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+
+    pub const fn is_valid(self) -> bool {
+        self.0 != 0 && (self.0 & !Self::ALL.0) == 0
+    }
+}
+
+/// Verified function-level protocol state contract clause (`contract { requires/provides(...) }`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum StateContractClause {
+    /// `requires(state(param, states))`
+    RequiresState {
+        param: u32,
+        states: ProtocolStateSet,
+    },
+    /// `provides(retired(param))`
+    ProvidesRetired { param: u32 },
+    /// `provides(on_pending(state(param, states)))`
+    ProvidesOnPending {
+        param: u32,
+        states: ProtocolStateSet,
+    },
+    /// `provides(on_ready(state(param, states)))`
+    ProvidesOnReady {
+        param: u32,
+        states: ProtocolStateSet,
+    },
+}
+
 /// Declared task resume locality contract (`contract { resume(local | transfer) }`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ResumeMode {
@@ -511,6 +556,7 @@ pub struct FnSig {
     pub region_params: u32,
     pub role: FnRole,
     pub resume_mode: ResumeMode,
+    pub state_contracts: Vec<StateContractClause>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
