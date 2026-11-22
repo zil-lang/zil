@@ -505,7 +505,12 @@ impl Kernel<'_> {
         (targets, external)
     }
 
-    pub(crate) fn terminator_flows(&self, state: &State, term: &Terminator) -> TermFlows {
+    pub(crate) fn terminator_flows(
+        &self,
+        state: &State,
+        term: &Terminator,
+        at: OpLocation,
+    ) -> TermFlows {
         let accesses = term.accesses();
         let loans = self.operand_loans(
             state,
@@ -644,6 +649,17 @@ impl Kernel<'_> {
                     .unwrap_or_else(|| loans.clone()),
                 None,
             ),
+            Terminator::Call {
+                callee:
+                    zil_ir::body::Callee::Intrinsic(zil_ir::body::IntrinsicOp::StoreBorrow { .. }),
+                ..
+            } => {
+                let mut rl = loans.clone();
+                if let Some(id) = self.loans.created_at(at) {
+                    rl.insert(id);
+                }
+                (rl, None)
+            }
             Terminator::Call {
                 callee: zil_ir::body::Callee::DynSlot { .. },
                 dest,
@@ -884,13 +900,55 @@ impl Kernel<'_> {
                 );
                 if !is_protocol_intrinsic {
                     // The callee may store any argument loan into any writable,
-                    // address-holding storage it receives.
+                    // address-holding storage it receives. For a Closure whose
+                    // captures cannot store addresses (`!may_store_address`), a
+                    // direct callee can only introduce a loan into it if the
+                    // callee actually writes an address-holding value through
+                    // that parameter (`addr_store_params`).
+                    let direct_writable_loans = match callee {
+                        zil_ir::body::Callee::Direct(f) => self
+                            .sigs
+                            .return_summaries
+                            .and_then(|ms| ms.get(f.index()))
+                            .map(|summary| {
+                                let accesses = term.accesses();
+                                let matching = accesses.iter().filter(|a| {
+                                    let OperandRole::Arg(idx) = a.role else {
+                                        return false;
+                                    };
+                                    idx >= 64 || (summary.addr_store_params & (1u64 << idx)) != 0
+                                });
+                                self.operand_loans(
+                                    state,
+                                    matching.map(|a| (a.role, a.access, a.place.as_ref())),
+                                )
+                            }),
+                        zil_ir::body::Callee::Indirect(_)
+                        | zil_ir::body::Callee::Closure { .. }
+                        | zil_ir::body::Callee::DynSlot { .. }
+                        | zil_ir::body::Callee::Foreign(_)
+                        | zil_ir::body::Callee::Intrinsic(_) => None,
+                    };
+                    let cx = self.body.cx(self.tys);
                     let mut writable = Vec::new();
                     for id in flows.loans.iter() {
                         let Some(loan) = self.loans.get(id) else {
                             continue;
                         };
                         if loan.kind.writes() && loan.stores_addresses && loan.anchored {
+                            let is_non_storing_closure =
+                                type_place(&loan.place, &cx).ok().is_some_and(|t| {
+                                    matches!(
+                                        self.tys.get(t.ty()),
+                                        Some(zil_ir::body::TyKind::Closure { .. })
+                                    ) && !self.tys.may_store_address(t.ty())
+                                });
+                            if is_non_storing_closure
+                                && let Some(dw) = &direct_writable_loans
+                                && !dw.contains(id)
+                            {
+                                continue;
+                            }
                             match loan.place.root {
                                 PlaceRoot::Local(y) => writable.push(y),
                                 PlaceRoot::Capture(_) => self.no_escape(state, &flows.loans)?,
@@ -1347,6 +1405,52 @@ impl Kernel<'_> {
                 place: place.clone(),
                 loan,
             });
+        }
+        Ok(())
+    }
+
+    /// Rejects `StoreBorrow` (`store_at` / `store_at_mut`) when an overlapping
+    /// live shared/exclusive loan on the same store conflicts with the requested
+    /// borrow mutability.
+    pub(crate) fn check_store_borrow_conflict(
+        &self,
+        state: &State,
+        term: &Terminator,
+        at: OpLocation,
+    ) -> Result<(), ViolationKind> {
+        let Terminator::Call {
+            callee:
+                zil_ir::body::Callee::Intrinsic(zil_ir::body::IntrinsicOp::StoreBorrow { mutability }),
+            ..
+        } = term
+        else {
+            return Ok(());
+        };
+        let Some(new_id) = self.loans.created_at(at) else {
+            return Ok(());
+        };
+        let Some(new_loan) = self.loans.get(new_id) else {
+            return Ok(());
+        };
+        for id in state.carries.all().iter() {
+            let Some(loan) = self.loans.get(id) else {
+                continue;
+            };
+            if loan.kind == LoanKind::Desc {
+                continue;
+            }
+            if loan.place.root != new_loan.place.root {
+                continue;
+            }
+            if new_loan.place.relation(&loan.place) == PlaceRelation::Disjoint {
+                continue;
+            }
+            if conflicts(PlaceAccess::Borrow(*mutability), loan.kind) {
+                return Err(ViolationKind::LoanConflict {
+                    place: new_loan.place.clone(),
+                    loan: loan.origin,
+                });
+            }
         }
         Ok(())
     }

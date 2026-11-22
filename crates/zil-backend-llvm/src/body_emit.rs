@@ -2419,50 +2419,13 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
                 let cap = self.fresh();
                 let _ = writeln!(self.out, "  {cap} = load i64, ptr {cap_slot}");
-                let full = self.fresh();
-                let _ = writeln!(self.out, "  {full} = icmp eq i64 {len}, {cap}");
-                let grow_bb = self.fresh();
+                let has_space = self.fresh();
+                let _ = writeln!(self.out, "  {has_space} = icmp slt i64 {len}, {cap}");
                 let write_bb = self.fresh();
                 let fail_bb = self.fresh();
                 let done_bb = self.fresh();
-                let (gl, wl, fl, dl) =
-                    (&grow_bb[1..], &write_bb[1..], &fail_bb[1..], &done_bb[1..]);
-                let _ = writeln!(self.out, "  br i1 {full}, label %{gl}, label %{wl}");
-                let _ = writeln!(self.out, "{gl}:");
-                let is_zero = self.fresh();
-                let _ = writeln!(self.out, "  {is_zero} = icmp eq i64 {cap}, 0");
-                let doubled = self.fresh();
-                let _ = writeln!(self.out, "  {doubled} = shl i64 {cap}, 1");
-                let new_cap = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {new_cap} = select i1 {is_zero}, i64 8, i64 {doubled}"
-                );
-                let sz_ptr = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {sz_ptr} = getelementptr {elem_llvm}, ptr null, i32 1"
-                );
-                let elem_sz = self.fresh();
-                let _ = writeln!(self.out, "  {elem_sz} = ptrtoint ptr {sz_ptr} to i64");
-                let total_bytes = self.fresh();
-                let _ = writeln!(self.out, "  {total_bytes} = mul i64 {new_cap}, {elem_sz}");
-                let old_data = self.fresh();
-                let _ = writeln!(self.out, "  {old_data} = load ptr, ptr {data_slot}");
-                let new_data = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {new_data} = call ptr @realloc(ptr {old_data}, i64 {total_bytes})"
-                );
-                let ok_alloc = self.fresh();
-                let _ = writeln!(self.out, "  {ok_alloc} = icmp ne ptr {new_data}, null");
-                let commit_bb = self.fresh();
-                let cl = &commit_bb[1..];
-                let _ = writeln!(self.out, "  br i1 {ok_alloc}, label %{cl}, label %{fl}");
-                let _ = writeln!(self.out, "{cl}:");
-                let _ = writeln!(self.out, "  store ptr {new_data}, ptr {data_slot}");
-                let _ = writeln!(self.out, "  store i64 {new_cap}, ptr {cap_slot}");
-                let _ = writeln!(self.out, "  br label %{wl}");
+                let (wl, fl, dl) = (&write_bb[1..], &fail_bb[1..], &done_bb[1..]);
+                let _ = writeln!(self.out, "  br i1 {has_space}, label %{wl}, label %{fl}");
                 let _ = writeln!(self.out, "{wl}:");
                 let data = self.fresh();
                 let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");

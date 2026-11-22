@@ -250,12 +250,16 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                     || summaries[fi].capture_mask != u64::MAX
                     || summaries[fi].mutating_params != u64::MAX
                     || summaries[fi].mutating_captures != u64::MAX
+                    || summaries[fi].addr_store_params != u64::MAX
+                    || summaries[fi].addr_store_captures != u64::MAX
                     || field_flows[fi] != FieldFlow::Top
                 {
                     summaries[fi].param_mask = u64::MAX;
                     summaries[fi].capture_mask = u64::MAX;
                     summaries[fi].mutating_params = u64::MAX;
                     summaries[fi].mutating_captures = u64::MAX;
+                    summaries[fi].addr_store_params = u64::MAX;
+                    summaries[fi].addr_store_captures = u64::MAX;
                     summaries[fi].ret_field_param_masks.clear();
                     field_flows[fi] = FieldFlow::Top;
                     changed = true;
@@ -284,6 +288,8 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
             let mut ret_cap = summaries[fi].capture_mask;
             let mut mut_param = summaries[fi].mutating_params;
             let mut mut_cap = summaries[fi].mutating_captures;
+            let mut addr_store_param = summaries[fi].addr_store_params;
+            let mut addr_store_cap = summaries[fi].addr_store_captures;
             let mut ret_fields = field_flows[fi].clone();
 
             let cx = body.cx(&module.tys);
@@ -324,6 +330,22 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                                if dest_holds
+                                    && (dest.first_deref().is_some()
+                                        || matches!(dest.root, PlaceRoot::Capture(_)))
+                                {
+                                    match dest.root {
+                                        PlaceRoot::Local(l) if l.index() < deps.len() => {
+                                            addr_store_param |= deps[l.index()];
+                                            addr_store_cap |= cap_deps[l.index()];
+                                        }
+                                        PlaceRoot::Capture(ci) => {
+                                            addr_store_cap |=
+                                                if ci < 64 { 1u64 << ci } else { u64::MAX };
+                                        }
+                                        PlaceRoot::Local(_) => {}
                                     }
                                 }
                                 if dest
@@ -430,6 +452,22 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                                 }
                             }
                             InstructionKind::Replace { place, old, .. } => {
+                                if place_holds_addr(place)
+                                    && (place.first_deref().is_some()
+                                        || matches!(place.root, PlaceRoot::Capture(_)))
+                                {
+                                    match place.root {
+                                        PlaceRoot::Local(l) if l.index() < deps.len() => {
+                                            addr_store_param |= deps[l.index()];
+                                            addr_store_cap |= cap_deps[l.index()];
+                                        }
+                                        PlaceRoot::Capture(ci) => {
+                                            addr_store_cap |=
+                                                if ci < 64 { 1u64 << ci } else { u64::MAX };
+                                        }
+                                        PlaceRoot::Local(_) => {}
+                                    }
+                                }
                                 let mut rhs_p = 0u64;
                                 let mut rhs_c = 0u64;
                                 for a in &accesses {
@@ -816,6 +854,122 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                                 }
                                 Callee::Intrinsic(_) => {}
                             }
+                            // Propagate transitive address stores through writable parameters/captures.
+                            if place_holds_addr(dest)
+                                && (dest.first_deref().is_some()
+                                    || matches!(dest.root, PlaceRoot::Capture(_)))
+                            {
+                                match dest.root {
+                                    PlaceRoot::Local(l) if l.index() < deps.len() => {
+                                        addr_store_param |= deps[l.index()];
+                                        addr_store_cap |= cap_deps[l.index()];
+                                    }
+                                    PlaceRoot::Capture(ci) => {
+                                        addr_store_cap |=
+                                            if ci < 64 { 1u64 << ci } else { u64::MAX };
+                                    }
+                                    PlaceRoot::Local(_) => {}
+                                }
+                            }
+                            match callee {
+                                Callee::Direct(g) => {
+                                    let gas = summaries
+                                        .get(g.index())
+                                        .map_or(u64::MAX, |s| s.addr_store_params);
+                                    for (ai, arg) in args.iter().enumerate() {
+                                        if ai >= 64 || (gas & (1u64 << ai)) != 0 {
+                                            mark_op(
+                                                arg,
+                                                &mut addr_store_param,
+                                                &mut addr_store_cap,
+                                            );
+                                        }
+                                    }
+                                }
+                                Callee::Closure { closure, .. } => {
+                                    let cx = body.cx(&module.tys);
+                                    let closure_def =
+                                        zil_ir::body::type_place(closure, &cx).ok().and_then(|t| {
+                                            let ty = t.ty();
+                                            if let zil_ir::body::TyKind::Closure { def, .. } =
+                                                module.tys.kind(ty)
+                                            {
+                                                Some(*def)
+                                            } else if let zil_ir::body::TyKind::Managed(inner)
+                                            | zil_ir::body::TyKind::Ref {
+                                                pointee: inner,
+                                                ..
+                                            } = module.tys.kind(ty)
+                                            {
+                                                if let zil_ir::body::TyKind::Closure {
+                                                    def, ..
+                                                } = module.tys.kind(*inner)
+                                                {
+                                                    Some(*def)
+                                                } else {
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        });
+                                    let csum = closure_def.and_then(|def| {
+                                        module
+                                            .functions
+                                            .iter()
+                                            .position(|f| f.body.closure == Some(def))
+                                            .and_then(|idx| summaries.get(idx))
+                                    });
+                                    let cas = csum.map_or(u64::MAX, |s| s.addr_store_captures);
+                                    if cas != 0 {
+                                        match closure.root {
+                                            PlaceRoot::Local(rl) if rl.index() < deps.len() => {
+                                                addr_store_param |= deps[rl.index()];
+                                                addr_store_cap |= cap_deps[rl.index()];
+                                            }
+                                            PlaceRoot::Capture(ci) => {
+                                                addr_store_cap |=
+                                                    if ci < 64 { 1u64 << ci } else { u64::MAX };
+                                            }
+                                            PlaceRoot::Local(_) => {}
+                                        }
+                                    }
+                                    let pas = csum.map_or(u64::MAX, |s| s.addr_store_params);
+                                    for (ai, arg) in args.iter().enumerate() {
+                                        if ai >= 64 || (pas & (1u64 << ai)) != 0 {
+                                            mark_op(
+                                                arg,
+                                                &mut addr_store_param,
+                                                &mut addr_store_cap,
+                                            );
+                                        }
+                                    }
+                                }
+                                Callee::Intrinsic(IntrinsicOp::StorePush) => {
+                                    let elem_holds_addr = match args.get(1) {
+                                        Some(Operand::Copy(p) | Operand::Move(p)) => {
+                                            place_holds_addr(p)
+                                        }
+                                        Some(Operand::Const(_) | Operand::Pooled(_)) | None => {
+                                            false
+                                        }
+                                    };
+                                    if elem_holds_addr && let Some(a0) = args.first() {
+                                        mark_op(a0, &mut addr_store_param, &mut addr_store_cap);
+                                    }
+                                }
+                                Callee::Intrinsic(
+                                    IntrinsicOp::ThreadScope | IntrinsicOp::ScopedCallback,
+                                )
+                                | Callee::Indirect(_)
+                                | Callee::DynSlot { .. }
+                                | Callee::Foreign(_) => {
+                                    for arg in args {
+                                        mark_op(arg, &mut addr_store_param, &mut addr_store_cap);
+                                    }
+                                }
+                                Callee::Intrinsic(_) => {}
+                            }
                             if dest
                                 .projections
                                 .iter()
@@ -864,6 +1018,8 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                 || ret_cap != summaries[fi].capture_mask
                 || mut_param != summaries[fi].mutating_params
                 || mut_cap != summaries[fi].mutating_captures
+                || addr_store_param != summaries[fi].addr_store_params
+                || addr_store_cap != summaries[fi].addr_store_captures
                 || next_field_masks != summaries[fi].ret_field_param_masks
                 || ret_fields != field_flows[fi]
             {
@@ -871,6 +1027,8 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                 summaries[fi].capture_mask = ret_cap;
                 summaries[fi].mutating_params = mut_param;
                 summaries[fi].mutating_captures = mut_cap;
+                summaries[fi].addr_store_params = addr_store_param;
+                summaries[fi].addr_store_captures = addr_store_cap;
                 summaries[fi].ret_field_param_masks = next_field_masks;
                 field_flows[fi] = ret_fields;
                 changed = true;

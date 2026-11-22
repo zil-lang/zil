@@ -402,7 +402,9 @@ impl<'a> Kernel<'a> {
             | Terminator::Call { .. }
             | Terminator::Assert { .. } => {}
         }
-        let flows = self.terminator_flows(&state, term);
+        let flows = self.terminator_flows(&state, term, at);
+        self.check_store_borrow_conflict(&state, term, at)
+            .map_err(fail)?;
         self.check_store_mutation_conflict(&state, term, at)
             .map_err(fail)?;
         for access in term.accesses() {
