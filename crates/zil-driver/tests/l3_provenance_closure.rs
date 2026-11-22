@@ -6,19 +6,19 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use zil_base::{FileId, ResultCategory, Span};
-use zil_check::{CheckBudget, CheckError, CheckErrorKind, check_module};
+use zil_check::{CheckBudget, CheckError, CheckErrorKind, Violation, ViolationKind, check_module};
 use zil_driver::{
     CodegenOptions, CompilationSession, CompileOptions, NativeBackend, Optimization, Stage,
 };
 use zil_ir::body::{
     AdtDef, AdtKind, ArgsId, Block, BlockId, Body, Callee, Certificate, ClosureDef, ClosureId,
     ClosureKind, ConstValue, DynDef, DynId, DynImpl, DynSlotSig, FieldDef, FnId, FnRole, FnSig,
-    ForeignAbi, ForeignCallbackRole, ForeignDecl, ForeignId, Function, GenericArgs, Instruction,
-    InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module, Mutability, OpaqueTy, Operand,
-    ParamEnv, Place, PlaceRoot, Projection, Region, ResumeMode, Rvalue, Terminator, TyKind,
-    TyTable, VariantDef, decode_module, encode_module,
+    ForeignAbi, ForeignCallbackRole, ForeignDecl, ForeignId, Function, FunctionCertificate,
+    GenericArgs, Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module,
+    Mutability, OpaqueTy, Operand, ParamEnv, Place, PlaceRoot, Projection, Region, ResumeMode,
+    Rvalue, Terminator, TyKind, TyTable, VariantDef, decode_module, encode_module,
 };
-use zil_solve::Budget;
+use zil_solve::{Budget, SolveError};
 
 fn sp() -> Span {
     Span::new(FileId(0), 0, 0)
@@ -1111,179 +1111,203 @@ fn build_scoped_provider_module(mode: &str) -> Module {
                 },
             ],
         },
-        "same_root_alias" => Body {
-            // Raw/Wire same-root alias conflict: hold `&f` live across `&mut f` publication
-            // to `ScopedCallback`, then dereference `&f` afterwards.
-            param_count: 1,
-            locals: vec![
-                LocalDecl {
-                    ty: bool_ty,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: reg_ty,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: close_ty,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: f_fn_ty,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: f_shared_ref,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: f_mut_ref,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: body_fn_ty,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: out_ty,
-                    name: None,
-                },
-                LocalDecl {
-                    ty: f_fn_ty,
-                    name: None,
-                },
-            ],
-            captures: Vec::new(),
-            closure: None,
-            result: i32_ty,
-            param_env: ParamEnv::default(),
-            drop_flags: Vec::new(),
-            blocks: vec![
-                Block {
-                    instructions: vec![
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(1)),
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::Assign {
-                                dest: Place::local(Local(1)),
-                                value: Rvalue::ForeignFnRef(ForeignId(0)),
+        "same_root_alias" | "disjoint_alias_control" => {
+            // Identical call & lifetime structure; the only difference is whether
+            // shared borrow `Local(4)` borrows the same root `Local(3)` as the
+            // exclusive `&mut Local(3)` published to `ScopedCallback`, or a
+            // provably disjoint local `Local(9)`.
+            let shared_target = if mode == "same_root_alias" {
+                Local(3)
+            } else {
+                Local(9)
+            };
+            Body {
+                param_count: 1,
+                locals: vec![
+                    LocalDecl {
+                        ty: bool_ty,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: reg_ty,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: close_ty,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: f_fn_ty,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: f_shared_ref,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: f_mut_ref,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: body_fn_ty,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: out_ty,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: f_fn_ty,
+                        name: None,
+                    },
+                    LocalDecl {
+                        ty: f_fn_ty,
+                        name: None,
+                    },
+                ],
+                captures: Vec::new(),
+                closure: None,
+                result: i32_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: Vec::new(),
+                blocks: vec![
+                    Block {
+                        instructions: vec![
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(1)),
+                                span: sp(),
                             },
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(2)),
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::Assign {
-                                dest: Place::local(Local(2)),
-                                value: Rvalue::ForeignFnRef(ForeignId(1)),
-                            },
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(3)),
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::Assign {
-                                dest: Place::local(Local(3)),
-                                value: Rvalue::FnRef(FnId(0)),
-                            },
-                            span: sp(),
-                        },
-                        // Create shared alias Local(4) = &Local(3)
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(4)),
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::Assign {
-                                dest: Place::local(Local(4)),
-                                value: Rvalue::Ref {
-                                    region: Region::Static,
-                                    mutability: Mutability::Shared,
-                                    place: Place::local(Local(3)),
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(1)),
+                                    value: Rvalue::ForeignFnRef(ForeignId(0)),
                                 },
+                                span: sp(),
                             },
-                            span: sp(),
-                        },
-                        // Create exclusive borrow Local(5) = &mut Local(3) while Local(4) is live
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(5)),
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::Assign {
-                                dest: Place::local(Local(5)),
-                                value: Rvalue::Ref {
-                                    region: Region::Static,
-                                    mutability: Mutability::Exclusive,
-                                    place: Place::local(Local(3)),
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(2)),
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(2)),
+                                    value: Rvalue::ForeignFnRef(ForeignId(1)),
                                 },
+                                span: sp(),
                             },
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(6)),
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::Assign {
-                                dest: Place::local(Local(6)),
-                                value: Rvalue::FnRef(FnId(1)),
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(3)),
+                                span: sp(),
                             },
-                            span: sp(),
-                        },
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(7)),
-                            span: sp(),
-                        },
-                    ],
-                    terminator: Terminator::Call {
-                        callee: Callee::Intrinsic(IntrinsicOp::ScopedCallback),
-                        args: vec![
-                            Operand::Copy(Place::local(Local(1))),
-                            Operand::Copy(Place::local(Local(2))),
-                            Operand::Copy(Place::local(Local(5))),
-                            Operand::Copy(Place::local(Local(6))),
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(3)),
+                                    value: Rvalue::FnRef(FnId(0)),
+                                },
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(9)),
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(9)),
+                                    value: Rvalue::FnRef(FnId(0)),
+                                },
+                                span: sp(),
+                            },
+                            // Create shared borrow Local(4) = &shared_target
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(4)),
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(4)),
+                                    value: Rvalue::Ref {
+                                        region: Region::Static,
+                                        mutability: Mutability::Shared,
+                                        place: Place::local(shared_target),
+                                    },
+                                },
+                                span: sp(),
+                            },
+                            // Create exclusive borrow Local(5) = &mut Local(3) while Local(4) is live
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(5)),
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(5)),
+                                    value: Rvalue::Ref {
+                                        region: Region::Static,
+                                        mutability: Mutability::Exclusive,
+                                        place: Place::local(Local(3)),
+                                    },
+                                },
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(6)),
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(6)),
+                                    value: Rvalue::FnRef(FnId(1)),
+                                },
+                                span: sp(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(7)),
+                                span: sp(),
+                            },
                         ],
-                        dest: Place::local(Local(7)),
-                        target: BlockId(1),
-                        cancel: None,
-                    },
-                    terminator_span: sp(),
-                },
-                // bb1: read through shared alias Local(4) AFTER exclusive publication!
-                Block {
-                    instructions: vec![
-                        Instruction {
-                            kind: InstructionKind::StorageLive(Local(8)),
-                            span: sp(),
+                        terminator: Terminator::Call {
+                            callee: Callee::Intrinsic(IntrinsicOp::ScopedCallback),
+                            args: vec![
+                                Operand::Copy(Place::local(Local(1))),
+                                Operand::Copy(Place::local(Local(2))),
+                                Operand::Move(Place::local(Local(5))),
+                                Operand::Copy(Place::local(Local(6))),
+                            ],
+                            dest: Place::local(Local(7)),
+                            target: BlockId(1),
+                            cancel: None,
                         },
-                        Instruction {
-                            kind: InstructionKind::Assign {
-                                dest: Place::local(Local(8)),
-                                value: Rvalue::Use(Operand::Copy(Place {
-                                    root: PlaceRoot::Local(Local(4)),
-                                    projections: vec![Projection::Deref],
-                                })),
+                        terminator_span: sp(),
+                    },
+                    // bb1: read through shared alias Local(4) AFTER exclusive publication!
+                    Block {
+                        instructions: vec![
+                            Instruction {
+                                kind: InstructionKind::StorageLive(Local(8)),
+                                span: sp(),
                             },
-                            span: sp(),
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: Place::local(Local(8)),
+                                    value: Rvalue::Use(Operand::Copy(Place {
+                                        root: PlaceRoot::Local(Local(4)),
+                                        projections: vec![Projection::Deref],
+                                    })),
+                                },
+                                span: sp(),
+                            },
+                        ],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Int {
+                                ty: IntTy::I32,
+                                bits: 0,
+                            }),
                         },
-                    ],
-                    terminator: Terminator::Return {
-                        value: Operand::Const(ConstValue::Int {
-                            ty: IntTy::I32,
-                            bits: 0,
-                        }),
+                        terminator_span: sp(),
                     },
-                    terminator_span: sp(),
-                },
-            ],
-        },
+                ],
+            }
+        }
         other => unreachable!("unknown mode {other}"),
     };
 
@@ -1378,23 +1402,97 @@ fn raw_wire_scoped_provider_reassignment_after_call_must_fail_closed() {
 
 #[test]
 fn raw_wire_scoped_callback_same_root_alias_conflict_is_rejected_by_checker() {
-    // Independent Raw/Wire alias control corresponding to RISKS.json `body_captures_callback_alias`.
-    let module = build_scoped_provider_module("same_root_alias");
-    let bytes = encode_module(&module);
-    let decoded = decode_module(&bytes).expect("wire decode");
-    assert!(
-        zil_solve::solve_module(&decoded, Budget { steps: 200_000 }).is_err(),
-        "solver must reject live shared alias across exclusive &mut f publication"
+    // 1. Disjoint control: identical ScopedCallback call & bb0->bb1 lifetime shape,
+    //    but shared borrow Local(4) = &Local(9) is provably disjoint from exclusive
+    //    borrow Local(5) = &mut Local(3). Both Solver and Verify MUST accept.
+    let disjoint_module = build_scoped_provider_module("disjoint_alias_control");
+    let disjoint_bytes = encode_module(&disjoint_module);
+    let disjoint_decoded = decode_module(&disjoint_bytes).expect("disjoint wire decode");
+    let disjoint_cert = zil_solve::solve_module(&disjoint_decoded, Budget { steps: 200_000 })
+        .expect("disjoint alias control must solve without violation");
+    assert_eq!(
+        disjoint_cert.functions.len(),
+        3,
+        "disjoint control certificate must cover all 3 functions"
     );
+    check_module(
+        disjoint_decoded.clone(),
+        &disjoint_cert,
+        CheckBudget { steps: 200_000 },
+    )
+    .expect("zil-check must accept disjoint alias control with solved certificate");
+
+    // Also prove that a structurally complete 3-function certificate (no missing
+    // function certificates, matching the join-free bb0->bb1 CFG) is accepted by
+    // zil-check on the disjoint control — so rejection below cannot be caused by
+    // CertificateShape("one function certificate per function").
+    let structural_cert = Certificate {
+        functions: (0..3)
+            .map(|i| FunctionCertificate {
+                function: FnId::from_index(i),
+                invariants: Vec::new(),
+            })
+            .collect(),
+    };
+    check_module(
+        disjoint_decoded,
+        &structural_cert,
+        CheckBudget { steps: 200_000 },
+    )
+    .expect("zil-check must accept disjoint alias control with structurally complete certificate");
+
+    // 2. Same-root alias conflict: identical module, changing ONLY Local(4)'s
+    //    borrowed target from Local(9) to Local(3) (same root as `&mut Local(3)`).
+    let conflict_module = build_scoped_provider_module("same_root_alias");
+    let conflict_bytes = encode_module(&conflict_module);
+    let conflict_decoded = decode_module(&conflict_bytes).expect("conflict wire decode");
+
+    // 2a. Solver must reject specifically with ViolationKind::LoanConflict on Local(3) in FnId(2).
+    let solve_errors = zil_solve::solve_module(&conflict_decoded, Budget { steps: 200_000 })
+        .expect_err("solver must reject live shared alias across exclusive &mut f publication");
     assert!(
-        check_module(
-            decoded,
-            &Certificate::default(),
-            CheckBudget { steps: 200_000 }
+        solve_errors.iter().any(|err| matches!(
+            err,
+            SolveError::Violation {
+                function,
+                violation: Violation {
+                    kind: ViolationKind::LoanConflict { place, .. },
+                    ..
+                },
+            } if *function == FnId(2) && *place == Place::local(Local(3))
+        )),
+        "expected Solver SolveError::Violation(LoanConflict on Local(3) in FnId(2)), got: {solve_errors:?}"
+    );
+
+    // 2b. Verify must independently reject with CheckErrorKind::Violation(LoanConflict on Local(3))
+    //     when given a structurally valid 3-function certificate (both `structural_cert` and the
+    //     certificate solved from the isomorphic disjoint control).
+    for (label, cert) in [
+        ("structural_cert", &structural_cert),
+        ("disjoint_solved_cert", &disjoint_cert),
+    ] {
+        let check_err = check_module(
+            conflict_decoded.clone(),
+            cert,
+            CheckBudget { steps: 200_000 },
         )
-        .is_err(),
-        "zil-check must independently reject live shared alias across exclusive &mut f publication"
-    );
+        .expect_err("zil-check must independently reject same-root alias conflict");
+        assert_eq!(
+            check_err.function,
+            FnId(2),
+            "expected rejection in FnId(2) with {label}, got {check_err:?}"
+        );
+        assert!(
+            matches!(
+                check_err.kind,
+                CheckErrorKind::Violation(Violation {
+                    kind: ViolationKind::LoanConflict { ref place, .. },
+                    ..
+                }) if *place == Place::local(Local(3))
+            ),
+            "expected zil-check Violation(LoanConflict on Local(3)) with {label}, got: {check_err:?}"
+        );
+    }
 }
 
 #[test]

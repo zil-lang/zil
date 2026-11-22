@@ -13,6 +13,7 @@ pub mod scc;
 pub use certificate::{CheckBudget, CheckError, CheckErrorKind, check_function};
 pub use fidelity::{FidelityError, check_fidelity};
 pub use scc::{CallScc, SccContractError, call_graph_sccs, validate_scc_contracts};
+pub use zil_semantics::{Violation, ViolationKind};
 
 use zil_ir::body::{AdtId, AdtKind, Certificate, FnId, FnRole, Module, Sigs, TyKind};
 
