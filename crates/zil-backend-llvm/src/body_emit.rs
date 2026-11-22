@@ -86,6 +86,7 @@ pub fn emit_verified_body_units_with_entry(
     header.push_str("declare i32 @pthread_mutex_lock(ptr)\n");
     header.push_str("declare i32 @pthread_mutex_unlock(ptr)\n");
     header.push_str("@__zil_current_task = linkonce_odr thread_local global ptr null\n");
+    header.push_str("@__zil_task_cancel_trap = linkonce_odr thread_local global i1 false\n");
     header.push_str(
         "%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [9216 x i64], ptr, ptr }\n",
     );
@@ -1216,7 +1217,90 @@ impl<'a> FnEmitter<'a> {
                         }
                         Ok(())
                     }
-                    AdtKind::Record | AdtKind::Resource | AdtKind::Enum => Ok(()),
+                    AdtKind::Enum => {
+                        let base_llvm = llvm_storage_ty(self.tys(), ty)?;
+                        let variants: Vec<(usize, Vec<TyId>)> = def
+                            .variants
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, v)| !v.fields.is_empty())
+                            .map(|(vi, v)| {
+                                let ftys = v
+                                    .fields
+                                    .iter()
+                                    .map(|f| self.tys().subst_lookup(f.ty, args).unwrap_or(f.ty))
+                                    .collect();
+                                (vi, ftys)
+                            })
+                            .collect();
+                        let mut variant_drops: Vec<(usize, String)> = Vec::new();
+                        for (vi, ftys) in variants {
+                            let mut v_parts = Vec::with_capacity(ftys.len());
+                            for &fty in &ftys {
+                                v_parts.push(llvm_storage_ty(self.tys(), fty)?);
+                            }
+                            let v_llvm = format!("{{ {} }}", v_parts.join(", "));
+                            let vp = self.fresh();
+                            let saved_len = self.out.len();
+                            let mut any_drop = false;
+                            for (fi, fty) in ftys.into_iter().enumerate() {
+                                let fgep = self.fresh();
+                                let f_saved = self.out.len();
+                                let res = self.emit_drop_ptr(&fgep, fty);
+                                let f_ir = self.out.split_off(f_saved);
+                                res?;
+                                if !f_ir.is_empty() {
+                                    any_drop = true;
+                                    let _ = writeln!(
+                                        self.out,
+                                        "  {fgep} = getelementptr inbounds {v_llvm}, ptr {vp}, i32 0, i32 {fi}"
+                                    );
+                                    self.out.push_str(&f_ir);
+                                }
+                            }
+                            let v_ir = self.out.split_off(saved_len);
+                            if any_drop {
+                                let mut full_v_ir = String::new();
+                                let _ = writeln!(
+                                    full_v_ir,
+                                    "  {vp} = getelementptr inbounds {base_llvm}, ptr {ptr}, i32 0, i32 {}",
+                                    1 + vi
+                                );
+                                full_v_ir.push_str(&v_ir);
+                                variant_drops.push((vi, full_v_ir));
+                            }
+                        }
+                        if variant_drops.is_empty() {
+                            return Ok(());
+                        }
+                        let tag_p = self.fresh();
+                        let tag = self.fresh();
+                        let done_bb = self.fresh();
+                        let done_lbl = done_bb[1..].to_string();
+                        let _ = writeln!(
+                            self.out,
+                            "  {tag_p} = getelementptr inbounds {base_llvm}, ptr {ptr}, i32 0, i32 0"
+                        );
+                        let _ = writeln!(self.out, "  {tag} = load i32, ptr {tag_p}");
+                        let mut arm_lbls = Vec::with_capacity(variant_drops.len());
+                        for _ in &variant_drops {
+                            let bb = self.fresh();
+                            arm_lbls.push(bb[1..].to_string());
+                        }
+                        let _ = writeln!(self.out, "  switch i32 {tag}, label %{done_lbl} [");
+                        for ((vi, _), lbl) in variant_drops.iter().zip(&arm_lbls) {
+                            let _ = writeln!(self.out, "    i32 {vi}, label %{lbl}");
+                        }
+                        let _ = writeln!(self.out, "  ]");
+                        for ((_, v_ir), lbl) in variant_drops.into_iter().zip(&arm_lbls) {
+                            let _ = writeln!(self.out, "{lbl}:");
+                            self.out.push_str(&v_ir);
+                            let _ = writeln!(self.out, "  br label %{done_lbl}");
+                        }
+                        let _ = writeln!(self.out, "{done_lbl}:");
+                        Ok(())
+                    }
+                    AdtKind::Record | AdtKind::Resource => Ok(()),
                 }
             }
             TyKind::Tuple(elems) => {
@@ -1833,6 +1917,8 @@ impl<'a> FnEmitter<'a> {
             }
             Terminator::Return { value } => {
                 let (v, lt, _) = self.emit_operand(value)?;
+                self.out
+                    .push_str("  store i1 false, ptr @__zil_task_cancel_trap\n");
                 if lt == "void" {
                     self.out.push_str("  ret void\n");
                 } else {
@@ -2107,6 +2193,8 @@ impl<'a> FnEmitter<'a> {
                 Ok(())
             }
             Terminator::Trap(TrapKind::Cancel) => {
+                self.out
+                    .push_str("  store i1 true, ptr @__zil_task_cancel_trap\n");
                 let ret_llvm = llvm_ty(self.tys(), self.body.result)?;
                 if ret_llvm == "void" {
                     self.out.push_str("  ret void\n");
@@ -3163,10 +3251,10 @@ impl<'a> FnEmitter<'a> {
                     arg_vals.push((v, lt, st, aty));
                 }
                 let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
-                let task_res_ty = match self.tys().get(d_ty) {
-                    Some(TyKind::ErrorUnion { ok, .. }) => match self.tys().get(*ok) {
+                let (task_res_ty, task_err_ty) = match self.tys().get(d_ty) {
+                    Some(TyKind::ErrorUnion { ok, err }) => match self.tys().get(*ok) {
                         Some(TyKind::Managed(inner)) => match self.tys().get(*inner) {
-                            Some(TyKind::Opaque(OpaqueTy::Task { result, .. })) => *result,
+                            Some(TyKind::Opaque(OpaqueTy::Task { result, .. })) => (*result, *err),
                             _ => {
                                 return Err(BodyEmitError::new("TaskCreate ok inner is not Task"));
                             }
@@ -3254,6 +3342,29 @@ impl<'a> FnEmitter<'a> {
                 self.extra_defs.push_str("  store i32 2, ptr %st_slot\n");
                 self.extra_defs.push_str("  br label %swap_back\n");
                 self.extra_defs.push_str("done_canc:\n");
+                if res_llvm != "void" {
+                    let saved_len = self.out.len();
+                    let res = self.emit_drop_ptr("%canc_rslot", task_res_ty);
+                    let drop_res_ir = self.out.split_off(saved_len);
+                    res?;
+                    if !drop_res_ir.is_empty() {
+                        self.extra_defs
+                            .push_str("  %canc_trapped = load i1, ptr @__zil_task_cancel_trap\n");
+                        self.extra_defs.push_str(
+                            "  br i1 %canc_trapped, label %done_canc_finish, label %done_canc_drop\n",
+                        );
+                        self.extra_defs.push_str("done_canc_drop:\n");
+                        let _ = writeln!(
+                            self.extra_defs,
+                            "  %canc_rslot = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 1"
+                        );
+                        let _ =
+                            writeln!(self.extra_defs, "  store {res_llvm} %rv, ptr %canc_rslot");
+                        self.extra_defs.push_str(&drop_res_ir);
+                        self.extra_defs.push_str("  br label %done_canc_finish\n");
+                        self.extra_defs.push_str("done_canc_finish:\n");
+                    }
+                }
                 self.extra_defs.push_str("  store i32 5, ptr %st_slot\n");
                 self.extra_defs.push_str("  br label %swap_back\n");
                 self.extra_defs.push_str("swap_back:\n");
@@ -3345,7 +3456,71 @@ impl<'a> FnEmitter<'a> {
                     self.out,
                     "  {e_slot} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
                 );
-                let _ = writeln!(self.out, "  store i32 0, ptr {e_slot}");
+                let owned_failure_inputs = match self.tys().get(task_err_ty) {
+                    Some(TyKind::Adt { adt, args: eargs })
+                        if self
+                            .tys()
+                            .get_adt(*adt)
+                            .is_some_and(|def| def.name == "TaskCreateOwnedFailure") =>
+                    {
+                        self.tys().field_ty(
+                            *adt,
+                            zil_ir::body::VariantIdx(0),
+                            zil_ir::body::FieldIdx(1),
+                            *eargs,
+                        )
+                    }
+                    _ => None,
+                };
+                if let Some(inputs_ty) = owned_failure_inputs {
+                    let err_llvm = llvm_storage_ty(self.tys(), task_err_ty)?;
+                    let reason_p = self.fresh();
+                    let inputs_p = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {reason_p} = getelementptr inbounds {err_llvm}, ptr {e_slot}, i32 0, i32 0"
+                    );
+                    let _ = writeln!(self.out, "  store i32 0, ptr {reason_p}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {inputs_p} = getelementptr inbounds {err_llvm}, ptr {e_slot}, i32 0, i32 1"
+                    );
+                    if arg_vals.is_empty() {
+                        let _ = writeln!(self.out, "  store i8 0, ptr {inputs_p}");
+                    } else {
+                        let inputs_llvm = llvm_storage_ty(self.tys(), inputs_ty)?;
+                        for (i, (v, lt, _, _)) in arg_vals.iter().enumerate() {
+                            let fp = self.fresh();
+                            let _ = writeln!(
+                                self.out,
+                                "  {fp} = getelementptr inbounds {inputs_llvm}, ptr {inputs_p}, i32 0, i32 {i}"
+                            );
+                            if lt == "void" {
+                                let _ = writeln!(self.out, "  store i8 0, ptr {fp}");
+                            } else {
+                                let _ = writeln!(self.out, "  store {lt} {v}, ptr {fp}");
+                            }
+                        }
+                    }
+                } else {
+                    let _ = writeln!(self.out, "  store i32 0, ptr {e_slot}");
+                    for (v, lt, _, aty) in arg_vals.iter().rev() {
+                        if lt != "void"
+                            && let Some(arg_ty) = *aty
+                        {
+                            let ap = self.fresh();
+                            let saved_len = self.out.len();
+                            let res = self.emit_drop_ptr(&ap, arg_ty);
+                            let one_drop = self.out.split_off(saved_len);
+                            res?;
+                            if !one_drop.is_empty() {
+                                let _ = writeln!(self.out, "  {ap} = alloca {lt}");
+                                let _ = writeln!(self.out, "  store {lt} {v}, ptr {ap}");
+                                self.out.push_str(&one_drop);
+                            }
+                        }
+                    }
+                }
                 let _ = writeln!(self.out, "  br label %{done_lbl}");
 
                 let _ = writeln!(self.out, "{ok_lbl}:");
