@@ -6,17 +6,17 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@462d4fec4`](https://github.com/zil-lang/zil/commit/462d4fec4)（开放 PR：1 — [PR #105](https://github.com/zil-lang/zil/pull/105) L3 Batch 3 远端 CI 验收中）
-- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、**L3 Batch 1**（[PR #103](https://github.com/zil-lang/zil/pull/103)：`std.task.*`、`TaskThreadScopeResult` 跨线程任务迁移、`task_await`）及 **L3 Batch 2**（[PR #104](https://github.com/zil-lang/zil/pull/104)：`AtomicI32`/`AtomicI64`/`AtomicUsize`、`atomic_scope`、CAS、`mutex_unlock`/`mutex_with` 与独立 `MutexGuard`/`Mutex<T>` 线程安全证明）均已 4/4 远端 CI 全绿合入 `main`
-- **总体阻塞**：无 P0 安全阻断；全仓 `tests/**/*.zil` Success 数 **`809 / 1,385`**（PR #105 含 `c_with_callback` 与非 `Copy` 捕获 `FnOnce` 推导，预计升至 **`839 / 1,385`**，0 回归，0 误放行，0 `ResourceLimit`）
-- **下一发布门**：完成 [PR #105](https://github.com/zil-lang/zil/pull/105)（L3 Batch 3：`G7.2`/`G7.3` `c_with_callback`）4/4 远端 CI 并合入 `main`
+- **主线基线**：[`main@895294064`](https://github.com/zil-lang/zil/commit/895294064)（开放 PR：0；L1/L2/L3 全部任务分支已合入并清理）
+- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）及 **L3 三批**（[PR #103](https://github.com/zil-lang/zil/pull/103)：`std.task.*` / `TaskThreadScopeResult` / `task_await`；[PR #104](https://github.com/zil-lang/zil/pull/104)：`AtomicI32`/`I64`/`Usize` / `atomic_scope` / CAS / `mutex_unlock` / `mutex_with` 与独立 `MutexGuard`/`Mutex<T>` 线程安全证明；[PR #105](https://github.com/zil-lang/zil/pull/105)：`scoped_callback_register`/`close` 角色、零堆分配 `c_with_callback` 运行时与非 `Copy` 捕获 `FnOnce` 推导）均已 4/4 远端 CI 全绿合入 `main`
+- **总体阻塞**：无 P0 安全阻断；全仓 `tests/**/*.zil` Success 数 **`839 / 1,385`**（L3 三批累计 +75 合法正例，0 回归，0 误放行，0 `ResourceLimit`）
+- **下一发布门**：待新一轮 L3 余项或 L4（标准库与 ABI）派工
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@462d4fec4 为基线）
+## 下一阶段施工安排（以 main@895294064 为基线）
 
-当前持续推进 L3 到可验收态：L3 Batch 1（PR #103）与 L3 Batch 2（PR #104）已 4/4 CI 全绿合入，L3 Batch 3（PR #105：`c_with_callback`）正在跑 4/4 远端 CI。编译性能专项独立保留，不在普通语言任务分支修改。
+本轮 L3 Batch 1–3（PR #103/#104/#105）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收态，等待下一轮派工。编译性能专项独立保留，不在普通语言任务分支修改。
 
-**统一计量及安全门**：`809/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
+**统一计量及安全门**：`839/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
 ## 2. L1 · 基础语言与类型组合
 
@@ -43,7 +43,7 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G7.2 | 剩余：一般借入 / 跨线程环境的 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable` 已合入） | 部分实现 | P0 | 覆盖借入环境登记正例 + 关闭后回调/悬垂捕获负例 + 原生双后端 |
+| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable` 及 PR #105 作用域回调 `scoped_callback_register`/`close` + `c_with_callback` 已合入） | 部分实现 | P0 | 覆盖借入环境登记正例 + 关闭后回调/悬垂捕获负例 + 原生双后端 |
 | G7.3 | 剩余：一般借入环境的外部 waker / 晚通知、no-future 与 drain，关闭后所有 raw 入口静止 | 部分实现 | P0 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
 | G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
 | G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
