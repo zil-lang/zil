@@ -14,8 +14,9 @@ use super::ids::{
 };
 use super::inst::{
     AggregateKind, BinOp, Block, Body, Callee, ClosureCallMode, ConstValue, DropFlag, DynImpl,
-    FnRole, FnSig, ForeignAbi, ForeignDecl, Function, Instruction, InstructionKind, IntrinsicOp,
-    LocalDecl, Module, Operand, Rvalue, ScopeExit, Terminator, TrapKind, UnOp,
+    FnRole, FnSig, ForeignAbi, ForeignCallbackRole, ForeignDecl, Function, Instruction,
+    InstructionKind, IntrinsicOp, LocalDecl, Module, Operand, ResumeMode, Rvalue, ScopeExit,
+    Terminator, TrapKind, UnOp,
 };
 use super::place::{FieldRef, Place, PlaceRoot, Projection};
 use super::source_map::OpLocation;
@@ -1434,6 +1435,10 @@ fn encode_function(w: &mut Writer, f: &Function) {
             w.u32(slot);
         }
     }
+    w.u8(match f.sig.resume_mode {
+        ResumeMode::Local => 0,
+        ResumeMode::Transfer => 1,
+    });
     w.u32(f.body.param_count);
     w.vec(&f.body.locals, |w, l| {
         w.u32(l.ty.0);
@@ -1469,6 +1474,11 @@ fn decode_function(r: &mut Reader<'_>) -> Result<Function, WireError> {
         },
         t => return Err(WireError::InvalidTag("FnRole", t)),
     };
+    let resume_mode = match r.u8()? {
+        0 => ResumeMode::Local,
+        1 => ResumeMode::Transfer,
+        t => return Err(WireError::InvalidTag("ResumeMode", t)),
+    };
     let param_count = r.u32()?;
     let locals = r.vec(|r| {
         Ok(LocalDecl {
@@ -1501,6 +1511,7 @@ fn decode_function(r: &mut Reader<'_>) -> Result<Function, WireError> {
             type_params,
             region_params,
             role,
+            resume_mode,
         },
         body: Body {
             param_count,
@@ -1523,6 +1534,16 @@ fn encode_foreign_decl(w: &mut Writer, f: &ForeignDecl) {
     w.vec(&f.params, |w, t| w.u32(t.0));
     w.u32(f.result.0);
     w.vec(&f.noescape_params, |w, i| w.u32(*i));
+    w.u8(match f.callback_role {
+        None => 0,
+        Some(ForeignCallbackRole::AsyncRegister) => 1,
+        Some(ForeignCallbackRole::AsyncRequestClose) => 2,
+        Some(ForeignCallbackRole::AsyncPollDrain) => 3,
+        Some(ForeignCallbackRole::ThreadAsyncRegister) => 4,
+        Some(ForeignCallbackRole::ThreadAsyncRequestClose) => 5,
+        Some(ForeignCallbackRole::ThreadAsyncPollDrain) => 6,
+    });
+    w.bool(f.thread_async_driver_transfer);
 }
 fn decode_foreign_decl(r: &mut Reader<'_>) -> Result<ForeignDecl, WireError> {
     let symbol = r.string()?;
@@ -1530,12 +1551,28 @@ fn decode_foreign_decl(r: &mut Reader<'_>) -> Result<ForeignDecl, WireError> {
         0 => ForeignAbi::C,
         t => return Err(WireError::InvalidTag("ForeignAbi", t)),
     };
+    let params = r.vec(|r| Ok(TyId(r.u32()?)))?;
+    let result = TyId(r.u32()?);
+    let noescape_params = r.vec(Reader::u32)?;
+    let callback_role = match r.u8()? {
+        0 => None,
+        1 => Some(ForeignCallbackRole::AsyncRegister),
+        2 => Some(ForeignCallbackRole::AsyncRequestClose),
+        3 => Some(ForeignCallbackRole::AsyncPollDrain),
+        4 => Some(ForeignCallbackRole::ThreadAsyncRegister),
+        5 => Some(ForeignCallbackRole::ThreadAsyncRequestClose),
+        6 => Some(ForeignCallbackRole::ThreadAsyncPollDrain),
+        t => return Err(WireError::InvalidTag("ForeignCallbackRole", t)),
+    };
+    let thread_async_driver_transfer = r.bool()?;
     Ok(ForeignDecl {
         symbol,
         abi,
-        params: r.vec(|r| Ok(TyId(r.u32()?)))?,
-        result: TyId(r.u32()?),
-        noescape_params: r.vec(Reader::u32)?,
+        params,
+        result,
+        noescape_params,
+        callback_role,
+        thread_async_driver_transfer,
     })
 }
 

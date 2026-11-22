@@ -241,6 +241,8 @@ fn a_foreign_call_with_c_scalars_is_accepted() {
         params: vec![i32],
         result: i32,
         noescape_params: Vec::new(),
+        callback_role: None,
+        thread_async_driver_transfer: false,
     });
     let mut f = FnBuilder::new("f", &[], i32);
     let (b0, b1) = (f.block(), f.block());
@@ -270,6 +272,8 @@ fn a_foreign_signature_with_an_address_is_rejected() {
         params: vec![r_ty],
         result: unit,
         noescape_params: Vec::new(),
+        callback_role: None,
+        thread_async_driver_transfer: false,
     });
     let mut f = FnBuilder::new("f", &[], unit);
     let (b0, b1) = (f.block(), f.block());

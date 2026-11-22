@@ -495,6 +495,14 @@ pub enum FnRole {
     },
 }
 
+/// Declared task resume locality contract (`contract { resume(local | transfer) }`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum ResumeMode {
+    #[default]
+    Local,
+    Transfer,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FnSig {
     pub params: Vec<TyId>,
@@ -502,11 +510,32 @@ pub struct FnSig {
     pub type_params: u32,
     pub region_params: u32,
     pub role: FnRole,
+    pub resume_mode: ResumeMode,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ForeignAbi {
     C,
+}
+
+/// Declared callback provider role from `extern "C" fn ... contract { provides(...) }`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ForeignCallbackRole {
+    AsyncRegister,
+    AsyncRequestClose,
+    AsyncPollDrain,
+    ThreadAsyncRegister,
+    ThreadAsyncRequestClose,
+    ThreadAsyncPollDrain,
+}
+
+impl ForeignCallbackRole {
+    pub fn is_threaded(self) -> bool {
+        matches!(
+            self,
+            Self::ThreadAsyncRegister | Self::ThreadAsyncRequestClose | Self::ThreadAsyncPollDrain
+        )
+    }
 }
 
 /// A foreign function declaration (`extern "C"`). Parameters and result
@@ -521,6 +550,10 @@ pub struct ForeignDecl {
     pub result: TyId,
     /// Parameter indices declared `noescape` (may accept C-ABI addresses).
     pub noescape_params: Vec<u32>,
+    /// Optional async callback provider role declared in `provides(...)`.
+    pub callback_role: Option<ForeignCallbackRole>,
+    /// Whether `provides(thread_async_driver_transfer())` was declared.
+    pub thread_async_driver_transfer: bool,
 }
 
 /// Per-function sound over-approximation of parameter and closure-capture flows

@@ -38,6 +38,7 @@ pub fn check_module(
 ) -> Result<VerifiedModule, CheckError> {
     check_drop_bindings(&module)?;
     check_dyn_impls(&module)?;
+    check_contracts(&module)?;
     let sccs = validate_scc_contracts(&module).map_err(|e| CheckError {
         function: e.function,
         kind: CheckErrorKind::CertificateShape(e.reason),
@@ -214,6 +215,173 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
                     fid,
                     "orphan FnRole::DynSlotImpl not referenced by DynImpl",
                 ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Independently verifies function `resume(transfer)` contracts and FFI
+/// `c_register_async` provider role identity (covering both Source and Raw/Wire).
+fn check_contracts(module: &Module) -> Result<(), CheckError> {
+    use std::collections::HashMap;
+    use zil_ir::body::{
+        Callee, ForeignCallbackRole, ForeignId, InstructionKind, IntrinsicOp, Local, Operand,
+        PlaceRoot, ResumeMode, Rvalue, Terminator,
+    };
+
+    let tys = &module.tys;
+    let fail = |f: FnId, reason: &'static str| CheckError {
+        function: f,
+        kind: CheckErrorKind::CertificateShape(reason),
+    };
+
+    for (fi, func) in module.functions.iter().enumerate() {
+        let fn_id = FnId::from_index(fi);
+
+        // 1. Verify `resume(transfer)` functions hold no borrowed addresses in
+        //    their ABI or across any suspension (`TaskYield`) point.
+        if func.sig.resume_mode == ResumeMode::Transfer {
+            for &p in &func.sig.params {
+                if tys.holds_address(p) || tys.may_store_address(p) {
+                    return Err(fail(
+                        fn_id,
+                        "resume(transfer) function cannot accept borrowed addresses",
+                    ));
+                }
+            }
+            if tys.holds_address(func.sig.result) || tys.may_store_address(func.sig.result) {
+                return Err(fail(
+                    fn_id,
+                    "resume(transfer) function cannot return borrowed addresses",
+                ));
+            }
+            let has_yield = func.body.blocks.iter().any(|b| {
+                matches!(
+                    b.terminator,
+                    Terminator::Call {
+                        callee: Callee::Intrinsic(IntrinsicOp::TaskYield),
+                        ..
+                    }
+                )
+            });
+            if has_yield {
+                let live = zil_semantics::Liveness::compute(&func.body);
+                for (bi, block) in func.body.blocks.iter().enumerate() {
+                    if matches!(
+                        block.terminator,
+                        Terminator::Call {
+                            callee: Callee::Intrinsic(IntrinsicOp::TaskYield),
+                            ..
+                        }
+                    ) {
+                        let at = zil_ir::body::OpLocation {
+                            block: zil_ir::body::BlockId(bi as u32),
+                            instruction: None,
+                        };
+                        for l_idx in live.after(at).iter() {
+                            if let Some(decl) = func.body.locals.get(l_idx)
+                                && tys.holds_address(decl.ty)
+                            {
+                                return Err(fail(
+                                    fn_id,
+                                    "resume(transfer) suspending function cannot hold borrowed addresses across yield",
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Verify FFI provider role identity on `AsyncRegistrationStart` calls.
+        let mut local_foreign: HashMap<Local, ForeignId> = HashMap::new();
+        for block in &func.body.blocks {
+            for inst in &block.instructions {
+                if let InstructionKind::Assign {
+                    dest,
+                    value: Rvalue::ForeignFnRef(fid),
+                } = &inst.kind
+                    && dest.projections.is_empty()
+                    && let PlaceRoot::Local(l) = dest.root
+                {
+                    local_foreign.insert(l, *fid);
+                }
+            }
+        }
+        for block in &func.body.blocks {
+            if let Terminator::Call {
+                callee: Callee::Intrinsic(IntrinsicOp::AsyncRegistrationStart),
+                args,
+                ..
+            } = &block.terminator
+            {
+                let mut family_threaded: Option<bool> = None;
+                for (slot_idx, arg) in args.iter().take(3).enumerate() {
+                    let fid = match arg {
+                        Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
+                            match p.root {
+                                PlaceRoot::Local(l) => local_foreign.get(&l).copied(),
+                                PlaceRoot::Capture(_) => None,
+                            }
+                        }
+                        Operand::Copy(_)
+                        | Operand::Move(_)
+                        | Operand::Const(_)
+                        | Operand::Pooled(_) => None,
+                    };
+                    let Some(fid) = fid else {
+                        continue;
+                    };
+                    let Some(fdecl) = module.foreigns.get(fid.index()) else {
+                        return Err(fail(fn_id, "c_register_async references unknown ForeignId"));
+                    };
+                    if let Some(role) = fdecl.callback_role {
+                        let role_ok = match slot_idx {
+                            0 => matches!(
+                                role,
+                                ForeignCallbackRole::AsyncRegister
+                                    | ForeignCallbackRole::ThreadAsyncRegister
+                            ),
+                            1 => matches!(
+                                role,
+                                ForeignCallbackRole::AsyncRequestClose
+                                    | ForeignCallbackRole::ThreadAsyncRequestClose
+                            ),
+                            2 => matches!(
+                                role,
+                                ForeignCallbackRole::AsyncPollDrain
+                                    | ForeignCallbackRole::ThreadAsyncPollDrain
+                            ),
+                            _ => true,
+                        };
+                        if !role_ok {
+                            return Err(fail(
+                                fn_id,
+                                "c_register_async slot does not match extern callback provider role",
+                            ));
+                        }
+                        let threaded = role.is_threaded();
+                        if let Some(prev) = family_threaded {
+                            if prev != threaded {
+                                return Err(fail(
+                                    fn_id,
+                                    "c_register_async mixes single-thread and threaded extern callback providers",
+                                ));
+                            }
+                        } else {
+                            family_threaded = Some(threaded);
+                        }
+                        if func.sig.resume_mode == ResumeMode::Transfer
+                            && (!threaded || !fdecl.thread_async_driver_transfer)
+                        {
+                            return Err(fail(
+                                fn_id,
+                                "resume(transfer) requires thread_async_driver_transfer extern callback provider",
+                            ));
+                        }
+                    }
+                }
             }
         }
     }

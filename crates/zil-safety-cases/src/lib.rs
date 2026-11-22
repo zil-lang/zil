@@ -206,6 +206,7 @@ impl FnBuilder {
                 type_params: 0,
                 region_params: 0,
                 role: self.role,
+                resume_mode: zil_ir::body::ResumeMode::Local,
             },
             body: Body {
                 param_count: self.params.len() as u32,

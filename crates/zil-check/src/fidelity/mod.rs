@@ -727,6 +727,7 @@ mod tests {
                     type_params: 0,
                     region_params: 0,
                     role: FnRole::Normal,
+                    resume_mode: zil_ir::body::ResumeMode::Local,
                 },
                 body,
             }],
