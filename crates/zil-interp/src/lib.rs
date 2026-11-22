@@ -337,7 +337,7 @@ fn conforms_in(
         | TyKind::Managed(_)
         | TyKind::Desc(_)
         | TyKind::Dyn(_)
-        | TyKind::OwnedDyn(_)
+        | TyKind::OwnedDyn { .. }
         | TyKind::Param(_)
         | TyKind::Opaque(_) => false,
     }

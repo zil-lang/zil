@@ -1139,7 +1139,7 @@ fn callee_sig(
                     pointee,
                     ..
                 } => {
-                    if let TyKind::Dyn(d) | TyKind::OwnedDyn(d) =
+                    if let TyKind::Dyn(d) | TyKind::OwnedDyn { def: d, .. } =
                         *tys.get(*pointee).ok_or(ConstraintError::MissingType)?
                     {
                         (d, Some(*mutability))
@@ -1149,7 +1149,7 @@ fn callee_sig(
                         });
                     }
                 }
-                TyKind::OwnedDyn(d) => (*d, None),
+                TyKind::OwnedDyn { def: d, .. } => (*d, None),
                 TyKind::Unit
                 | TyKind::Bool
                 | TyKind::Never
@@ -1294,16 +1294,37 @@ fn intrinsic_sig(
             let [val_ty] = found else {
                 return Err(bad("owned_dyn.create takes one argument"));
             };
-            if tys.holds_address(*val_ty) || tys.may_store_address(*val_ty) {
-                return Err(bad(
-                    "owned_dyn.create cannot erase an address-holding value",
-                ));
-            }
             let Some(TyKind::ErrorUnion { ok, err }) = tys.get(dest_ty) else {
                 return Err(bad("owned_dyn.create requires an error union destination"));
             };
-            if !matches!(tys.get(*ok), Some(TyKind::OwnedDyn(_))) {
+            let Some(TyKind::OwnedDyn { context, .. }) = tys.get(*ok) else {
                 return Err(bad("owned_dyn.create ok arm must be OwnedDyn"));
+            };
+            match context {
+                None => {
+                    if tys.holds_address(*val_ty) || tys.may_store_address(*val_ty) {
+                        return Err(bad(
+                            "owned_dyn.create cannot erase an address-holding value without a Context bound",
+                        ));
+                    }
+                }
+                Some(ctx_ty) => {
+                    let val_regions = tys.regions_in(*val_ty);
+                    let ctx_regions = tys.regions_in(*ctx_ty);
+                    if val_regions.iter().any(|r| !ctx_regions.contains(r)) {
+                        return Err(bad(
+                            "owned_dyn.create provider region escapes OwnedDyn Context bound",
+                        ));
+                    }
+                    if (tys.holds_address(*val_ty) || tys.may_store_address(*val_ty))
+                        && !tys.holds_address(*ctx_ty)
+                        && !tys.may_store_address(*ctx_ty)
+                    {
+                        return Err(bad(
+                            "owned_dyn.create borrowed provider requires address-bearing Context bound",
+                        ));
+                    }
+                }
             }
             let err_is_enum = matches!(
                 tys.get(*err),
@@ -1930,7 +1951,9 @@ fn ty_is_transfer_safe(tys: &super::ty::TyTable, ty: TyId) -> bool {
             | TyKind::Int(_)
             | TyKind::Float(_)
             | TyKind::FnPtr { .. } => true,
-            TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Dyn(_) | TyKind::OwnedDyn(_) => false,
+            TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. } => {
+                false
+            }
             TyKind::Param(_) => false,
             TyKind::Opaque(op) => match op {
                 OpaqueTy::ByteBuffer | OpaqueTy::ForeignCallback { .. } | OpaqueTy::SyncCell(_) => {

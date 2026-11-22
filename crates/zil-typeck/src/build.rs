@@ -107,6 +107,11 @@ fn max_region_param_count(tys: &zil_ir::body::TyTable, params: &[TyId], result: 
             TyKind::Managed(inner) | TyKind::Desc(inner) => {
                 walk_ty(tys, *inner, visited, out);
             }
+            TyKind::OwnedDyn { context, .. } => {
+                if let Some(c) = context {
+                    walk_ty(tys, *c, visited, out);
+                }
+            }
             TyKind::Unit
             | TyKind::Bool
             | TyKind::Int(_)
@@ -114,7 +119,6 @@ fn max_region_param_count(tys: &zil_ir::body::TyTable, params: &[TyId], result: 
             | TyKind::Never
             | TyKind::Param(_)
             | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
             | TyKind::Opaque(_) => {}
         }
     }
@@ -842,7 +846,14 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 TyKind::Closure { def, args }
             }
             TyData::Dyn(tr) => TyKind::Dyn(self.dyn_id(tr, span)?),
-            TyData::OwnedDyn(tr) => TyKind::OwnedDyn(self.dyn_id(tr, span)?),
+            TyData::OwnedDyn { trait_ref, context } => {
+                let def = self.dyn_id(trait_ref, span)?;
+                let context = match context {
+                    Some(c) => Some(self.lower_ty(c, span)?),
+                    None => None,
+                };
+                TyKind::OwnedDyn { def, context }
+            }
             TyData::ConstU32(_) => TyKind::Unit,
             TyData::ArrayConst { .. }
             | TyData::ConstParam(_)
@@ -905,7 +916,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
             | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
+            | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => {}
         }
@@ -2003,7 +2014,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 {
                     let closed_ret = self.closed(e.ty);
                     if let TyData::ErrorUnion { ok, .. } = *self.mono.types.data(closed_ret)
-                        && let TyData::OwnedDyn(tr) = *self.mono.types.data(ok)
+                        && let TyData::OwnedDyn { trait_ref: tr, .. } = *self.mono.types.data(ok)
                     {
                         let closed_concrete = self.closed(arg0.ty);
                         self.mono.ensure_dyn_impl(tr, closed_concrete, span);
@@ -2336,7 +2347,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     | TyKind::FnPtr { .. }
                     | TyKind::Closure { .. }
                     | TyKind::Dyn(_)
-                    | TyKind::OwnedDyn(_)
+                    | TyKind::OwnedDyn { .. }
                     | TyKind::Param(_)
                     | TyKind::Opaque(_) => {
                         self.failed = true;

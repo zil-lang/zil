@@ -512,9 +512,16 @@ fn encode_ty_kind(w: &mut Writer, k: &TyKind) {
             w.u8(15);
             w.u32(d.0);
         }
-        TyKind::OwnedDyn(d) => {
+        TyKind::OwnedDyn { def, context } => {
             w.u8(16);
-            w.u32(d.0);
+            w.u32(def.0);
+            match context {
+                None => w.u8(0),
+                Some(ctx) => {
+                    w.u8(1);
+                    w.u32(ctx.0);
+                }
+            }
         }
         TyKind::Param(p) => {
             w.u8(17);
@@ -563,7 +570,15 @@ fn decode_ty_kind(r: &mut Reader<'_>) -> Result<TyKind, WireError> {
             args: ArgsId(r.u32()?),
         }),
         15 => Ok(TyKind::Dyn(DynId(r.u32()?))),
-        16 => Ok(TyKind::OwnedDyn(DynId(r.u32()?))),
+        16 => {
+            let def = DynId(r.u32()?);
+            let context = match r.u8()? {
+                0 => None,
+                1 => Some(TyId(r.u32()?)),
+                t => return Err(WireError::InvalidTag("OwnedDynContext", t)),
+            };
+            Ok(TyKind::OwnedDyn { def, context })
+        }
         17 => Ok(TyKind::Param(r.u32()?)),
         18 => Ok(TyKind::Opaque(decode_opaque(r)?)),
         t => Err(WireError::InvalidTag("TyKind", t)),

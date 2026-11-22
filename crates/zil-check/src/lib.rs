@@ -170,7 +170,7 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
                     "dyn impl method lacks matching FnRole::DynSlotImpl authorization",
                 ));
             }
-            if func.sig.type_params != 0 || func.sig.region_params != 0 {
+            if func.sig.type_params != 0 {
                 return Err(fail(fn_id, "dyn impl method cannot be generic"));
             }
             if func.sig.params.len() != 1 + slot.params.len() {
@@ -181,17 +181,22 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
                 Some(want_mut) => matches!(
                     tys.get(recv_ty),
                     Some(TyKind::Ref { mutability, pointee, .. })
-                        if *mutability == want_mut && *pointee == dimpl.concrete_ty
+                        if *mutability == want_mut
+                            && tys.same_erased_region(*pointee, dimpl.concrete_ty)
                 ),
-                None => recv_ty == dimpl.concrete_ty,
+                None => tys.same_erased_region(recv_ty, dimpl.concrete_ty),
             };
             if !recv_ok {
                 return Err(fail(fn_id, "dyn impl method receiver type mismatch"));
             }
-            if func.sig.params[1..] != slot.params[..] {
+            if !func.sig.params[1..]
+                .iter()
+                .zip(&slot.params)
+                .all(|(a, b)| tys.same_erased_region(*a, *b))
+            {
                 return Err(fail(fn_id, "dyn impl method parameter type mismatch"));
             }
-            if func.sig.result != slot.result {
+            if !tys.same_erased_region(func.sig.result, slot.result) {
                 return Err(fail(fn_id, "dyn impl method return type mismatch"));
             }
             if bound_fns.contains(&fn_id) {
@@ -781,7 +786,7 @@ fn verify_sealed_thread_callable(
                 | TyKind::ErrorUnion { .. }
                 | TyKind::FnPtr { .. }
                 | TyKind::Dyn(_)
-                | TyKind::OwnedDyn(_)
+                | TyKind::OwnedDyn { .. }
                 | TyKind::Param(_)
                 | TyKind::Opaque(_) => return None,
             }

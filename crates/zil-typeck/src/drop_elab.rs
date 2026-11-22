@@ -235,7 +235,7 @@ fn place_cleanup_uninit(
         | TyKind::FnPtr { .. }
         | TyKind::Closure { .. }
         | TyKind::Dyn(_)
-        | TyKind::OwnedDyn(_)
+        | TyKind::OwnedDyn { .. }
         | TyKind::ErrorUnion { .. }
         | TyKind::Managed(_)
         | TyKind::Desc(_)
@@ -333,7 +333,7 @@ fn collect_live_cleanup_places(
         | TyKind::FnPtr { .. }
         | TyKind::Closure { .. }
         | TyKind::Dyn(_)
-        | TyKind::OwnedDyn(_)
+        | TyKind::OwnedDyn { .. }
         | TyKind::ErrorUnion { .. }
         | TyKind::Managed(_)
         | TyKind::Desc(_)

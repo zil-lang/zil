@@ -132,7 +132,10 @@ pub enum TyKind {
     /// Unsized dynamic pointee.
     Dyn(DynId),
     /// Affine owner of an erased concrete value.
-    OwnedDyn(DynId),
+    OwnedDyn {
+        def: DynId,
+        context: Option<TyId>,
+    },
     /// The n-th type parameter of the enclosing generic scope.
     Param(u32),
     Opaque(OpaqueTy),
@@ -357,8 +360,7 @@ impl TyTable {
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_) => return ty,
+            | TyKind::Dyn(_) => return ty,
             TyKind::Adt { adt, args: inner } => {
                 let inner = self.subst_args(inner, args);
                 return self.intern(TyKind::Adt { adt, args: inner });
@@ -375,6 +377,7 @@ impl TyTable {
             | TyKind::Desc(_)
             | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
+            | TyKind::OwnedDyn { .. }
             | TyKind::Opaque(_)) => other,
         };
         let mut map = |t: TyId| self.subst(t, args);
@@ -445,8 +448,7 @@ impl TyTable {
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_) => return Some(ty),
+            | TyKind::Dyn(_) => return Some(ty),
             TyKind::Adt { adt, args: inner } => {
                 let inner = self.subst_args_lookup(inner, args)?;
                 return self.lookup(&TyKind::Adt { adt, args: inner });
@@ -461,6 +463,7 @@ impl TyTable {
             | TyKind::Ref { .. }
             | TyKind::Managed(_)
             | TyKind::Desc(_)
+            | TyKind::OwnedDyn { .. }
             | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
             | TyKind::Opaque(_)) => other,
@@ -541,7 +544,7 @@ impl TyTable {
                 mutability: Mutability::Exclusive,
                 ..
             } => ValueClass::Affine,
-            TyKind::Managed(_) | TyKind::OwnedDyn(_) => ValueClass::Affine,
+            TyKind::Managed(_) | TyKind::OwnedDyn { .. } => ValueClass::Affine,
             TyKind::Slice(_) | TyKind::Dyn(_) => ValueClass::NotValue,
             TyKind::Param(i) => {
                 if env.copy_params.get(*i as usize).copied().unwrap_or(false) {
@@ -650,7 +653,9 @@ impl TyTable {
             | TyKind::FnPtr { .. }
             | TyKind::Desc(_)
             | TyKind::Ref { .. } => false,
-            TyKind::Managed(_) | TyKind::OwnedDyn(_) | TyKind::Slice(_) | TyKind::Dyn(_) => true,
+            TyKind::Managed(_) | TyKind::OwnedDyn { .. } | TyKind::Slice(_) | TyKind::Dyn(_) => {
+                true
+            }
             TyKind::Tuple(items) => items
                 .iter()
                 .any(|t| self.needs_cleanup_in(*t, env, visiting)),
@@ -721,8 +726,10 @@ impl TyTable {
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::FnPtr { .. }
-            | TyKind::OwnedDyn(_) => false,
+            | TyKind::FnPtr { .. } => false,
+            TyKind::OwnedDyn { context, .. } => {
+                context.is_some_and(|c| self.holds_address_in(c, visiting))
+            }
             TyKind::Ref { .. } | TyKind::Desc(_) => true,
             TyKind::Opaque(o) => match opaque_contents(o) {
                 Some(parts) => parts.iter().any(|t| self.holds_address_in(*t, visiting)),
@@ -789,8 +796,10 @@ impl TyTable {
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::FnPtr { .. }
-            | TyKind::OwnedDyn(_) => false,
+            | TyKind::FnPtr { .. } => false,
+            TyKind::OwnedDyn { context, .. } => {
+                context.is_some_and(|c| self.may_store_address_in(c, visiting))
+            }
             TyKind::Opaque(o) => match opaque_contents(o) {
                 Some(parts) => parts
                     .iter()
@@ -937,13 +946,17 @@ impl TyTable {
                     }
                 }
             }
+            TyKind::OwnedDyn { context, .. } => {
+                if let Some(c) = context {
+                    self.collect_regions_in(*c, out, visiting);
+                }
+            }
             TyKind::Unit
             | TyKind::Bool
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
             | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
             | TyKind::Param(_) => {}
         }
         visiting.pop();
@@ -1054,6 +1067,23 @@ impl TyTable {
                         (None, Some(_)) | (Some(_), None) => false,
                     }
             }
+            (
+                TyKind::OwnedDyn {
+                    def: da,
+                    context: ca,
+                },
+                TyKind::OwnedDyn {
+                    def: db,
+                    context: cb,
+                },
+            ) => {
+                da == db
+                    && match (ca, cb) {
+                        (None, None) => true,
+                        (Some(a), Some(b)) => self.same_erased_region(*a, *b),
+                        (None, Some(_)) | (Some(_), None) => false,
+                    }
+            }
             _ => false,
         }
     }
@@ -1132,7 +1162,7 @@ impl TyTable {
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
             | TyKind::Dyn(_)
-            | TyKind::OwnedDyn(_)
+            | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => None,
         }
@@ -1161,7 +1191,10 @@ pub fn map_kind(
         TyKind::Int(i) => TyKind::Int(i),
         TyKind::Float(f) => TyKind::Float(f),
         TyKind::Dyn(d) => TyKind::Dyn(d),
-        TyKind::OwnedDyn(d) => TyKind::OwnedDyn(d),
+        TyKind::OwnedDyn { def, context } => TyKind::OwnedDyn {
+            def,
+            context: context.map(&mut *ty),
+        },
         TyKind::Param(i) => TyKind::Param(i),
         // Nominal argument lists are interned separately; substitution
         // handles them before calling this one-level map.

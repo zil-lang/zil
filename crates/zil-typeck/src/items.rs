@@ -436,7 +436,7 @@ impl<'a> Items<'a> {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_)
+            | TyData::OwnedDyn { .. }
             | TyData::Param(_)
             | TyData::SelfParam
             | TyData::Var(_)
@@ -1467,7 +1467,7 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
         | TyData::Dyn(_)
-        | TyData::OwnedDyn(_)
+        | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
         | TyData::Assoc { .. }
@@ -2317,7 +2317,7 @@ fn collect_trait_impl<'a>(
         ));
         return;
     };
-    let (impl_generics, _) = type_generics(
+    let (impl_generics, impl_lifetimes) = type_generics(
         mid,
         &imp.generics,
         &items.modules,
@@ -2329,32 +2329,38 @@ fn collect_trait_impl<'a>(
     let scope: Vec<String> = impl_generics.iter().map(|g| g.name.clone()).collect();
     let mut trait_args = Vec::new();
     for a in args {
-        if let ast::GenericArg::Type(t) = a {
-            trait_args.push(
-                resolve_type_in(
-                    t,
-                    mid,
-                    &scope,
-                    &items.modules,
-                    &items.mod_by_path,
-                    &items.adt_kinds,
-                    None,
-                    None,
-                    types,
-                )
-                .unwrap_or_else(|d| {
-                    diags.push(d);
-                    types.error()
-                }),
-            );
-        } else {
-            diags.push(diag::unsupported("non-type trait arguments", trait_ty.span));
+        match a {
+            ast::GenericArg::Type(t) => {
+                trait_args.push(
+                    resolve_type_with_lifetimes(
+                        t,
+                        mid,
+                        &scope,
+                        &impl_lifetimes,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        None,
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    }),
+                );
+            }
+            ast::GenericArg::Lifetime(_) => {}
+            ast::GenericArg::Const(_) | ast::GenericArg::AssociatedBinding(_) => {
+                diags.push(diag::unsupported("non-type trait arguments", trait_ty.span));
+            }
         }
     }
-    let target = resolve_type_in(
+    let target = resolve_type_with_lifetimes(
         &imp.target,
         mid,
         &scope,
+        &impl_lifetimes,
         &items.modules,
         &items.mod_by_path,
         &items.adt_kinds,
@@ -2373,10 +2379,11 @@ fn collect_trait_impl<'a>(
         match &m.kind {
             ast::ItemKind::TypeAlias(ta) => {
                 if let Some(val) = &ta.value {
-                    let ty = resolve_type_in(
+                    let ty = resolve_type_with_lifetimes(
                         val,
                         mid,
                         &scope,
+                        &impl_lifetimes,
                         &items.modules,
                         &items.mod_by_path,
                         &items.adt_kinds,
@@ -2408,10 +2415,11 @@ fn collect_trait_impl<'a>(
                     });
                 }
                 for p in &f.params {
-                    let ty = resolve_type_in(
+                    let ty = resolve_type_with_lifetimes(
                         &p.ty,
                         mid,
                         &scope,
+                        &impl_lifetimes,
                         &items.modules,
                         &items.mod_by_path,
                         &items.adt_kinds,
@@ -2430,10 +2438,11 @@ fn collect_trait_impl<'a>(
                     });
                 }
                 let result = match &f.return_type {
-                    Some(t) => resolve_type_in(
+                    Some(t) => resolve_type_with_lifetimes(
                         t,
                         mid,
                         &scope,
+                        &impl_lifetimes,
                         &items.modules,
                         &items.mod_by_path,
                         &items.adt_kinds,
@@ -2452,7 +2461,7 @@ fn collect_trait_impl<'a>(
                     module: mid,
                     name: format!("{trait_name}::{}", f.name),
                     generics: impl_generics.clone(),
-                    region_params: Vec::new(),
+                    region_params: impl_lifetimes.clone(),
                     params,
                     result,
                     self_ty: Some(target),
@@ -2691,12 +2700,19 @@ fn resolve_type_with_lifetimes(
                     return Ok(types.intern(TyData::Desc(inner)));
                 }
                 if name == "OwnedDyn" {
-                    let [ast::GenericArg::Type(inner_ast)] = args.as_slice() else {
-                        return Err(diag::error(
-                            diag::TYPE_ARGUMENT,
-                            t.span,
-                            "`OwnedDyn<dyn Trait>` takes one type argument",
-                        ));
+                    let (inner_ast, ctx_ast) = match args.as_slice() {
+                        [ast::GenericArg::Type(inner_ast)] => (inner_ast, None),
+                        [
+                            ast::GenericArg::Type(inner_ast),
+                            ast::GenericArg::Type(ctx_ast),
+                        ] => (inner_ast, Some(ctx_ast)),
+                        _ => {
+                            return Err(diag::error(
+                                diag::TYPE_ARGUMENT,
+                                t.span,
+                                "`OwnedDyn<dyn Trait[, Context]>` takes one or two type arguments",
+                            ));
+                        }
                     };
                     let inner = resolve_type_with_lifetimes(
                         inner_ast,
@@ -2714,10 +2730,28 @@ fn resolve_type_with_lifetimes(
                         return Err(diag::error(
                             diag::TYPE_ARGUMENT,
                             t.span,
-                            "`OwnedDyn` argument must be a `dyn Trait` type",
+                            "`OwnedDyn` first argument must be a `dyn Trait` type",
                         ));
                     };
-                    return Ok(types.intern(TyData::OwnedDyn(tr)));
+                    let context = match ctx_ast {
+                        Some(c_ast) => Some(resolve_type_with_lifetimes(
+                            c_ast,
+                            from,
+                            generics,
+                            lifetimes,
+                            modules,
+                            mod_by_path,
+                            adt_kinds,
+                            self_ty,
+                            None,
+                            types,
+                        )?),
+                        None => None,
+                    };
+                    return Ok(types.intern(TyData::OwnedDyn {
+                        trait_ref: tr,
+                        context,
+                    }));
                 }
                 if matches!(
                     name.as_str(),

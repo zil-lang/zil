@@ -631,7 +631,7 @@ impl<'m> Machine<'m> {
                         | TyKind::FnPtr { .. }
                         | TyKind::Closure { .. }
                         | TyKind::Dyn(_)
-                        | TyKind::OwnedDyn(_)
+                        | TyKind::OwnedDyn { .. }
                         | TyKind::Param(_)
                         | TyKind::Opaque(_),
                     )

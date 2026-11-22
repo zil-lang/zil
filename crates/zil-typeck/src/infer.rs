@@ -2311,7 +2311,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
                     | TyData::Dyn(_)
-                    | TyData::OwnedDyn(_)
+                    | TyData::OwnedDyn { .. }
                     | TyData::Param(_)
                     | TyData::SelfParam
                     | TyData::Assoc { .. }
@@ -3028,7 +3028,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
                     | TyData::Dyn(_)
-                    | TyData::OwnedDyn(_)
+                    | TyData::OwnedDyn { .. }
                     | TyData::Param(_)
                     | TyData::SelfParam
                     | TyData::Assoc { .. } => {
@@ -3926,7 +3926,9 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 );
                 return self.err_expr(span);
             }
-            if let TyData::Dyn(tr) | TyData::OwnedDyn(tr) = *self.types.data(self_ty) {
+            if let TyData::Dyn(tr) | TyData::OwnedDyn { trait_ref: tr, .. } =
+                *self.types.data(self_ty)
+            {
                 let tr_decl = self.items.trait_decl(tr);
                 if let Some((slot, m)) = tr_decl
                     .methods
@@ -4283,29 +4285,37 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         span: Span,
     ) -> Option<Expr> {
         if name == "owned_dyn" {
-            let Some([ast::GenericArg::Type(t)]) = explicit else {
-                self.error(
-                    diag::TYPE_ARGUMENT,
-                    span,
-                    "`owned_dyn` requires one `dyn Trait` type argument",
-                );
-                return Some(self.err_expr(span));
+            let (t, ctx_ast) = match explicit {
+                Some([ast::GenericArg::Type(t)]) => (t, None),
+                Some([ast::GenericArg::Type(t), ast::GenericArg::Type(c)]) => (t, Some(c)),
+                _ => {
+                    self.error(
+                        diag::TYPE_ARGUMENT,
+                        span,
+                        "`owned_dyn` requires one or two type arguments (`dyn Trait[, Context]`)",
+                    );
+                    return Some(self.err_expr(span));
+                }
             };
             let target = self.resolve_written(t);
             let TyData::Dyn(tr) = *self.types.data(target) else {
                 self.error(
                     diag::TYPE_ARGUMENT,
                     span,
-                    "`owned_dyn` type argument must be `dyn Trait`",
+                    "`owned_dyn` first type argument must be `dyn Trait`",
                 );
                 return Some(self.err_expr(span));
             };
+            let context = ctx_ast.map(|c| self.resolve_written(c));
             let [arg] = arguments else {
                 self.error(diag::CALL_ARITY, span, "`owned_dyn` takes one argument");
                 return Some(self.err_expr(span));
             };
             let val = self.infer(&arg.value);
-            let ok = self.types.intern(TyData::OwnedDyn(tr));
+            let ok = self.types.intern(TyData::OwnedDyn {
+                trait_ref: tr,
+                context,
+            });
             let err = self.types.intern(TyData::Adt {
                 adt: AdtRef(1),
                 args: Vec::new(),
@@ -4999,9 +5009,11 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 | TyData::Var(_)
                 | TyData::FnPtr { .. }
                 | TyData::Closure { .. }
-                | TyData::Dyn(_)
-                | TyData::OwnedDyn(_)
-                | TyData::Opaque(
+                | TyData::Dyn(_) => false,
+                TyData::OwnedDyn { context, .. } => {
+                    context.is_some_and(|c| walk(types, c, depth + 1))
+                }
+                TyData::Opaque(
                     OpaqueKind::ByteBuffer
                     | OpaqueKind::ForeignHandle
                     | OpaqueKind::ForeignCallback { .. },
@@ -5243,7 +5255,7 @@ impl Finalizer<'_, '_> {
             | TyData::Ref { .. }
             | TyData::FnPtr { .. }
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_)
+            | TyData::OwnedDyn { .. }
             | TyData::Desc(_)
             | TyData::Adt { .. }
             | TyData::ErrorUnion { .. }
@@ -5288,7 +5300,7 @@ impl Finalizer<'_, '_> {
             TyData::Closure { .. }
             | TyData::ImplCallable { .. }
             | TyData::Dyn(_)
-            | TyData::OwnedDyn(_) => false,
+            | TyData::OwnedDyn { .. } => false,
             TyData::Managed(_) => false,
             TyData::Opaque(OpaqueKind::ForeignHandle | OpaqueKind::ForeignCallback { .. }) => true,
             TyData::Opaque(
@@ -6124,7 +6136,7 @@ pub fn check_defer_suspend_effects(
                 | TyData::FnPtr { .. }
                 | TyData::ImplCallable { .. }
                 | TyData::Dyn(_)
-                | TyData::OwnedDyn(_)
+                | TyData::OwnedDyn { .. }
                 | TyData::Param(_)
                 | TyData::SelfParam
                 | TyData::Assoc { .. }
