@@ -22,8 +22,8 @@ use zil_ir::body::{
     ClosureId, ConstValue, DynDef, DynId, DynImpl, DynSlotSig, FieldDef, FieldIdx, FieldRef,
     FloatTy, FnId, FnRole, FnSig, ForeignAbi, ForeignDecl, ForeignId, Function, FunctionSourceMap,
     GenericArgs, Instruction, InstructionKind, IntTy, IntrinsicOp, Local, LocalDecl, Module,
-    Mutability, OpLocation, OpaqueTy, Operand, ParamEnv, Place, Projection, Region, Rvalue,
-    SourceMap, SourceRelation, StaticId, Terminator, TyId, TyKind, ValueClass, VariantDef,
+    Mutability, OpLocation, OpaqueTy, Operand, ParamEnv, Place, Projection, Region, ResumeMode,
+    Rvalue, SourceMap, SourceRelation, StaticId, Terminator, TyId, TyKind, ValueClass, VariantDef,
     VariantIdx,
 };
 
@@ -205,6 +205,8 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 abi: ForeignAbi::C,
                 params,
                 noescape_params: f.noescape_params,
+                callback_role: f.callback_role,
+                thread_async_driver_transfer: f.thread_async_driver_transfer,
                 result,
             });
         }
@@ -232,6 +234,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             FnRoleSpec::Normal => FnRole::Normal,
             FnRoleSpec::Drop(adt) => FnRole::Drop(self.adt_id(adt, span)?),
         };
+        let resume_mode = decl.resume_mode;
         let id = FnId::from_index(self.module.functions.len());
         let mut name = decl.name.clone();
         if !args.is_empty() {
@@ -250,6 +253,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 type_params: 0,
                 region_params,
                 role,
+                resume_mode,
             },
             body: Body {
                 param_count: 0,
@@ -311,6 +315,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     concrete_ty,
                     slot,
                 },
+                resume_mode: ResumeMode::Local,
             },
             body: Body {
                 param_count: 0,
@@ -398,6 +403,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             type_params: 0,
             region_params,
             role: FnRole::Normal,
+            resume_mode: ResumeMode::Local,
         };
         let owner_name = self.items.func(owner).name.clone();
         let id = FnId::from_index(self.module.functions.len());
@@ -464,6 +470,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     type_params: 0,
                     region_params,
                     role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
                 };
                 let cthir = ThirFn {
                     locals: c.locals.clone(),
@@ -2200,6 +2207,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             type_params: 0,
             region_params: 0,
             role: FnRole::Normal,
+            resume_mode: ResumeMode::Local,
         };
         let synthetic_thir = ThirFn {
             locals: self.locals_info.clone(),
@@ -3194,6 +3202,7 @@ pub fn eval_ct_type_expr<'a>(
         type_params: 0,
         region_params: 0,
         role: FnRole::Normal,
+        resume_mode: ResumeMode::Local,
     };
     let synthetic_thir = ThirFn {
         locals: locals.to_vec(),

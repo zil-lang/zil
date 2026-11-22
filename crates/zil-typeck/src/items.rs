@@ -103,6 +103,7 @@ pub struct FnDecl<'a> {
     pub result: Ty,
     pub self_ty: Option<Ty>,
     pub role: FnRoleSpec,
+    pub resume_mode: zil_ir::body::ResumeMode,
     pub ast: &'a ast::Function,
 }
 
@@ -121,6 +122,8 @@ pub struct ForeignDeclInfo {
     pub symbol: String,
     pub params: Vec<Ty>,
     pub noescape_params: Vec<u32>,
+    pub callback_role: Option<zil_ir::body::ForeignCallbackRole>,
+    pub thread_async_driver_transfer: bool,
     pub result: Ty,
     pub span: Span,
 }
@@ -1779,6 +1782,7 @@ fn collect_adt_methods<'a>(
                     result,
                     self_ty: Some(self_ty),
                     role: FnRoleSpec::Normal,
+                    resume_mode: zil_ir::body::ResumeMode::Local,
                     ast: f,
                 });
                 items.adts[adt_ref.0 as usize]
@@ -1809,8 +1813,50 @@ fn collect_adt_methods<'a>(
     }
 }
 
-fn parse_result_mode(clauses: &[ast::ContractClause], diags: &mut Vec<Diagnostic>) -> ResultMode {
-    let mut mode = ResultMode::Default;
+fn validate_state_term(
+    term: &ast::ContractTerm,
+    param_names: &[&str],
+    diags: &mut Vec<Diagnostic>,
+) -> bool {
+    if term.path.as_slice() != ["state"] || term.arguments.len() < 2 {
+        return false;
+    }
+    let [pname] = term.arguments[0].path.as_slice() else {
+        return false;
+    };
+    if !term.arguments[0].arguments.is_empty() || !param_names.contains(&pname.as_str()) {
+        diags.push(diag::error(
+            diag::RESOURCE_RESULT_MODE,
+            term.arguments[0].span,
+            format!(
+                "contract `state(...)` must name a parameter of this function, found `{pname}`"
+            ),
+        ));
+        return true;
+    }
+    for st in &term.arguments[1..] {
+        let valid = matches!(
+            st.path.as_slice(),
+            [s] if st.arguments.is_empty() && matches!(s.as_str(), "Open" | "Closing" | "Closed")
+        );
+        if !valid {
+            diags.push(diag::error(
+                diag::RESOURCE_RESULT_MODE,
+                st.span,
+                "contract `state(...)` only accepts `Open`, `Closing`, or `Closed`",
+            ));
+        }
+    }
+    true
+}
+
+fn parse_fn_contracts(
+    clauses: &[ast::ContractClause],
+    param_names: &[&str],
+    diags: &mut Vec<Diagnostic>,
+) -> (ResultMode, zil_ir::body::ResumeMode) {
+    let mut result_mode = ResultMode::Default;
+    let mut resume_mode: Option<zil_ir::body::ResumeMode> = None;
     for c in clauses {
         if c.name == "result" {
             for term in &c.terms {
@@ -1820,7 +1866,9 @@ fn parse_result_mode(clauses: &[ast::ContractClause], diags: &mut Vec<Diagnostic
                     _ => None,
                 };
                 match next {
-                    Some(m) if mode == ResultMode::Default || mode == m => mode = m,
+                    Some(m) if result_mode == ResultMode::Default || result_mode == m => {
+                        result_mode = m
+                    }
                     Some(_) => diags.push(diag::error(
                         diag::RESOURCE_RESULT_MODE,
                         term.span,
@@ -1829,14 +1877,77 @@ fn parse_result_mode(clauses: &[ast::ContractClause], diags: &mut Vec<Diagnostic
                     None => diags.push(diag::unsupported("function contracts", term.span)),
                 }
             }
-        } else if c.name == "requires" || c.name == "provides" || c.name == "effects" {
-            // Protocol state pre/postconditions and effect bounds (checked in Finalizer/semantics).
-            continue;
+        } else if c.name == "resume" {
+            if c.terms.is_empty() {
+                diags.push(diag::unsupported("function contracts", c.span));
+            }
+            for term in &c.terms {
+                let next = match term.path.as_slice() {
+                    [s] if s == "local" && term.arguments.is_empty() => {
+                        Some(zil_ir::body::ResumeMode::Local)
+                    }
+                    [s] if s == "transfer" && term.arguments.is_empty() => {
+                        Some(zil_ir::body::ResumeMode::Transfer)
+                    }
+                    _ => None,
+                };
+                match next {
+                    Some(m) if resume_mode.is_none() || resume_mode == Some(m) => {
+                        resume_mode = Some(m);
+                    }
+                    Some(_) => diags.push(diag::error(
+                        diag::RESOURCE_RESULT_MODE,
+                        term.span,
+                        "`resume(local)` and `resume(transfer)` are mutually exclusive",
+                    )),
+                    None => diags.push(diag::unsupported("function contracts", term.span)),
+                }
+            }
+        } else if c.name == "effects" {
+            for term in &c.terms {
+                let valid = matches!(
+                    term.path.as_slice(),
+                    [s] if (s == "suspend" || s == "io") && term.arguments.is_empty()
+                );
+                if !valid {
+                    diags.push(diag::unsupported("function effect clause", term.span));
+                }
+            }
+        } else if c.name == "requires" {
+            for term in &c.terms {
+                if !validate_state_term(term, param_names, diags) {
+                    diags.push(diag::unsupported("function contracts", term.span));
+                }
+            }
+        } else if c.name == "provides" {
+            for term in &c.terms {
+                if term.path.as_slice() == ["retired"] && term.arguments.len() == 1 {
+                    let arg = &term.arguments[0];
+                    if let [pname] = arg.path.as_slice()
+                        && arg.arguments.is_empty()
+                        && param_names.contains(&pname.as_str())
+                    {
+                        continue;
+                    }
+                    diags.push(diag::error(
+                        diag::RESOURCE_RESULT_MODE,
+                        arg.span,
+                        "contract `retired(...)` must name a parameter of this function",
+                    ));
+                } else if matches!(term.path.as_slice(), [s] if s == "on_pending" || s == "on_ready")
+                    && term.arguments.len() == 1
+                    && validate_state_term(&term.arguments[0], param_names, diags)
+                {
+                    continue;
+                } else {
+                    diags.push(diag::unsupported("function contracts", term.span));
+                }
+            }
         } else {
             diags.push(diag::unsupported("function contracts", c.span));
         }
     }
-    mode
+    (result_mode, resume_mode.unwrap_or_default())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1860,7 +1971,8 @@ fn collect_fn<'a>(
         diags,
     );
     let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
-    let result_mode = parse_result_mode(&f.contract, diags);
+    let param_names: Vec<&str> = f.params.iter().map(|p| p.name.as_str()).collect();
+    let (result_mode, resume_mode) = parse_fn_contracts(&f.contract, &param_names, diags);
     let mut params = Vec::new();
     for p in &f.params {
         let raw_ty = resolve_type_with_lifetimes(
@@ -1942,6 +2054,7 @@ fn collect_fn<'a>(
         result,
         self_ty: None,
         role: FnRoleSpec::Normal,
+        resume_mode,
         ast: f,
     }
 }
@@ -2001,6 +2114,8 @@ fn collect_foreign(
         ));
     }
     let mut noescape_params: Vec<u32> = Vec::new();
+    let mut callback_role: Option<zil_ir::body::ForeignCallbackRole> = None;
+    let mut thread_async_driver_transfer = false;
     for c in &f.contract {
         if c.name == "provides" {
             for term in &c.terms {
@@ -2019,20 +2134,48 @@ fn collect_foreign(
                             "noescape must name a parameter of this extern function",
                         ));
                     }
-                } else if matches!(
-                    term.path.as_slice(),
-                    [s] if matches!(
-                        s.as_str(),
-                        "static_callbacks"
-                            | "async_callback_register"
-                            | "async_callback_request_close"
-                            | "async_callback_poll_drain"
-                            | "thread_async_callback_register"
-                            | "thread_async_callback_request_close"
-                            | "thread_async_callback_poll_drain"
-                    )
-                ) {
+                } else if term.arguments.is_empty() && term.path.as_slice() == ["static_callbacks"]
+                {
                     continue;
+                } else if term.arguments.is_empty()
+                    && term.path.as_slice() == ["thread_async_driver_transfer"]
+                {
+                    thread_async_driver_transfer = true;
+                } else if term.arguments.is_empty()
+                    && let [s] = term.path.as_slice()
+                    && let Some(role) = match s.as_str() {
+                        "async_callback_register" => {
+                            Some(zil_ir::body::ForeignCallbackRole::AsyncRegister)
+                        }
+                        "async_callback_request_close" => {
+                            Some(zil_ir::body::ForeignCallbackRole::AsyncRequestClose)
+                        }
+                        "async_callback_poll_drain" => {
+                            Some(zil_ir::body::ForeignCallbackRole::AsyncPollDrain)
+                        }
+                        "thread_async_callback_register" => {
+                            Some(zil_ir::body::ForeignCallbackRole::ThreadAsyncRegister)
+                        }
+                        "thread_async_callback_request_close" => {
+                            Some(zil_ir::body::ForeignCallbackRole::ThreadAsyncRequestClose)
+                        }
+                        "thread_async_callback_poll_drain" => {
+                            Some(zil_ir::body::ForeignCallbackRole::ThreadAsyncPollDrain)
+                        }
+                        _ => None,
+                    }
+                {
+                    if let Some(prev) = callback_role
+                        && prev != role
+                    {
+                        diags.push(diag::error(
+                            diag::FFI_DECLARATION,
+                            term.span,
+                            "extern function cannot declare conflicting callback provider roles",
+                        ));
+                    } else {
+                        callback_role = Some(role);
+                    }
                 } else {
                     diags.push(diag::unsupported("extern contract clause", term.span));
                 }
@@ -2106,6 +2249,8 @@ fn collect_foreign(
         symbol: f.name.clone(),
         params,
         noescape_params,
+        callback_role,
+        thread_async_driver_transfer,
         result,
         span,
     }
@@ -2287,6 +2432,7 @@ fn collect_impl<'a>(
         result: types.unit(),
         self_ty: Some(self_desc),
         role: FnRoleSpec::Drop(target_adt),
+        resume_mode: zil_ir::body::ResumeMode::Local,
         ast: f,
     });
 }
@@ -2466,6 +2612,7 @@ fn collect_trait_impl<'a>(
                     result,
                     self_ty: Some(target),
                     role: FnRoleSpec::Normal,
+                    resume_mode: zil_ir::body::ResumeMode::Local,
                     ast: f,
                 });
                 methods.push((f.name.clone(), fn_ref));
@@ -2521,6 +2668,7 @@ fn collect_trait_impl<'a>(
             result,
             self_ty: Some(target),
             role: FnRoleSpec::Normal,
+            resume_mode: zil_ir::body::ResumeMode::Local,
             ast: default_f,
         });
         methods.push((mname, fn_ref));

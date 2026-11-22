@@ -511,6 +511,7 @@ fn raw_wire_forged_owned_dyn_context_bypass_is_rejected_by_checker() {
                 concrete_ty: prov_ty,
                 slot: 0,
             },
+            resume_mode: zil_ir::body::ResumeMode::Local,
         },
         body: Body {
             param_count: 1,
@@ -545,6 +546,7 @@ fn raw_wire_forged_owned_dyn_context_bypass_is_rejected_by_checker() {
             params: vec![prov_ty],
             result: result_ty,
             role: FnRole::Normal,
+            resume_mode: zil_ir::body::ResumeMode::Local,
         },
         body: Body {
             param_count: 1,
