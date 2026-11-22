@@ -98,10 +98,12 @@ fn check_rejected(dir: &Path, name: &str, src: &str, expected_code_prefix: &str)
         ..CompileOptions::default()
     };
     let report = session.compile_path(&entry, &opts);
-    assert_ne!(
+    assert_eq!(
         report.status,
-        ResultCategory::Success,
-        "expected `{name}` to be rejected, but it succeeded"
+        ResultCategory::SafeReject,
+        "expected `{name}` to fail with SafeReject (got {:?}): {:?}",
+        report.status,
+        report.diagnostics
     );
     assert!(
         report

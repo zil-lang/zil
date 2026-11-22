@@ -92,10 +92,17 @@ fn check_rejected_path(entry: &Path) {
         ..CompileOptions::default()
     };
     let report = session.compile_path(entry, &opts);
-    assert_ne!(
+    assert_eq!(
         report.status,
-        ResultCategory::Success,
-        "expected {} to be rejected, but it succeeded",
+        ResultCategory::SafeReject,
+        "expected {} to fail with SafeReject (got {:?}): {:?}",
+        entry.display(),
+        report.status,
+        report.diagnostics
+    );
+    assert!(
+        !report.diagnostics.is_empty(),
+        "expected {} to emit at least one SafeReject diagnostic",
         entry.display()
     );
 }
