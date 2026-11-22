@@ -38,12 +38,14 @@ It does not invoke undefined C behavior as a language-safety test.
 Temporary output directories use input-byte hex labels. No historical evidence,
 full-output archive, transport round trip or permanent audit store is required.
 
-`negative/` contains 13 current standalone rejection controls and the preserved
-explicit Address<Closure> capture gap. Their risk descriptions are
-frozen in RISKS.json; the one functional Rust target also matches source phase,
-code and relevant reason, with zero machine execution for illegal cases. These
-are obligations, not a claim of rejection before actual execution. The raw
-verifier's own codes are not substituted for the first source diagnostic.
+`negative/` contains 14 standalone rejection controls whose risk descriptions are
+recorded in `RISKS.json`. All 14 inputs (including `body_captures_callback_alias.zil`)
+are verified as semantic `SafeReject` with exact source phase, diagnostic code,
+and reason in `l3_scoped_foreign_callback_native.rs` (dynamically checked against
+`RISKS.json`), with zero machine execution for illegal cases. Independent
+Raw/Wire same-root `LoanConflict` and disjoint-root acceptance controls live in
+`l3_provenance_closure.rs`. Broader general `Address<Closure>` and `&mut`
+capture combinations remain evaluated under their own language capability scope.
 
 `project/disjoint_body_main.zil` is a separate positive nearby control: body
 updates an unrelated borrowed i32 twice in its actual event loop. The observable
@@ -51,16 +53,13 @@ C events, result and six zero-allocation counters equal the original mode-0 row;
 the original ten-mode source/oracle stays unchanged. Its native group is two
 additional runs per selected backend (O0/O2), separate from the original 66.
 
-
-The body-captured `Address<Closure>` alias input remains a legal, unverified gap if an earlier capture-profile gate rejects it before the alias check. Do not count that early failure as a semantic rejection Pass. An ordinary shared f address live across exclusive publication reaches the actual alias check; same-root rejection and distinct-root acceptance remain independent obligations.
-
 `project/local_body_main.zil` and `local_body_bridge.zil` test a public F-only wrapper that constructs a concrete noncapturing body, pumps two events, then checks the result, cleared C roots and persistent callback state. `LOCAL_BODY_ORACLE.json` is generated independently from source operations and the C protocol. The body factory moves its captured Event into a genuinely FnOnce local; the nested-body factory reads an owning Event and exposes its actual Fn mode. Both must clean remaining captures before close.
 
-Use the `foreign_scoped_callbacks` Rust target. The source-verification, rejection-control, oracle and nearby-control tests each select their explicit scenario; run the whole target to cover all of them. For LLVM API add `--features llvm-api`, and require builder input, `parse_ns=0`, LLVM verification and no fallback. The C driver and independent oracle must agree on full return value, callback/reentry counts, cleanup order and all six allocator counters. Recompute the oracle from Source; it must not read compiler reports.
+Use the `l3_scoped_foreign_callback_native` and `l3_provenance_closure` Rust targets. For LLVM API add `--features llvm-api`, and require builder input, `parse_ns=0`, LLVM verification and no fallback.
 
 ```sh
-cargo test -p zil-driver --test foreign_scoped_callbacks
-cargo test -p zil-driver --features llvm-api --test foreign_scoped_callbacks
+cargo test -p zil-driver --test l3_scoped_foreign_callback_native --test l3_provenance_closure
+cargo test -p zil-driver --features llvm-api --test l3_scoped_foreign_callback_native --test l3_provenance_closure
 ```
 
 Frozen run counts and intermediate producer/Verify/Analyze checkpoints remain at the exact earlier Git commit `28b3e37bb4d8a1fe8b146c72cf891fc99de32440:tests/foreign-scoped-callback/README.md`. They describe their bound sources and tools, not the current main checkout. This finite consumer does not establish a complete language, Rust cost or product gate.
