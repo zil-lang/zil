@@ -264,11 +264,11 @@ fn task_owner_transport_explicit_manifest() {
     discovered.sort();
 
     // Exact manifest for all 33 files:
-    // - 21 positive programs -> Admitted
-    // - 9 negative safety contracts -> Rejected with exact phase & semantic diagnostic (0 E-UNSUPPORTED)
+    // - 19 positive programs -> Admitted (including 2 FnOnce Suspend-root controls in invalid-source-contracts/)
+    // - 11 negative safety contracts -> Rejected with exact phase & semantic diagnostic (0 E-UNSUPPORTED)
     // - 3 known higher-order cross-function task-region transport gaps -> explicitly tracked
     let manifest: &[(&str, Expected)] = &[
-        // 21 positive task-owner-transport programs (including 4 positive controls in invalid-source-contracts/)
+        // 19 positive task-owner-transport programs
         ("adapter-default-local.zil", Expected::Admitted),
         ("child-frame-cleanup.zil", Expected::Admitted),
         ("closed-task-fnonce.zil", Expected::Admitted),
@@ -276,14 +276,18 @@ fn task_owner_transport_explicit_manifest() {
         ("equal-shared-task-classes.zil", Expected::Admitted),
         ("fnmut-async-close.zil", Expected::Admitted),
         ("fnmut-async-poll-close.zil", Expected::Admitted),
+        // Newly enforced Direct default-Drop rejections for unclosed external Task parameters
         (
             "invalid-source-contracts/direct-child-cleanup.zil",
-            Expected::Admitted,
+            Expected::Rejected("typeck", "Closed fact or a Suspend execution root"),
         ),
         (
             "invalid-source-contracts/mutable-frame-never-called.zil",
-            Expected::Admitted,
+            Expected::Rejected("typeck", "Closed fact or a Suspend execution root"),
         ),
+        // Boundary: both invoke FnOnce inside a Suspend execution root (`parent` has `task_yield()`),
+        // matching the positive `once-pending-returned-task-cleanup.zil` contract under
+        // `spec/task-owned-aggregates.md` lines 110-119.
         (
             "invalid-source-contracts/once-pending-callable-cleanup.zil",
             Expected::Admitted,

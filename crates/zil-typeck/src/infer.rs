@@ -6284,28 +6284,94 @@ impl Finalizer<'_, '_> {
                 }
             }
         }
-        if self.explicit_direct && !expr_contains_suspend(&f.body) {
-            for (li, l) in f.locals.iter().enumerate() {
-                let lid = LocalId(li as u32);
-                if self.may_suspend_on_drop(l.ty) && !local_is_consumed(&f.body, lid) {
-                    self.diags.push(diag::error(
-                        diag::GENERIC_BOUND,
-                        l.span,
-                        "default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
-                    ));
+        if !expr_contains_suspend(&f.body) {
+            let mut reported: std::collections::HashSet<LocalId> = std::collections::HashSet::new();
+            if self.explicit_direct {
+                for (li, l) in f.locals.iter().enumerate() {
+                    let lid = LocalId(li as u32);
+                    if self.may_suspend_on_drop(l.ty) && !local_is_consumed(&f.body, lid) {
+                        reported.insert(lid);
+                        self.diags.push(diag::error(
+                            diag::GENERIC_BOUND,
+                            l.span,
+                            "default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+                        ));
+                    }
+                }
+            }
+            let mut tainted: std::collections::HashSet<LocalId> = std::collections::HashSet::new();
+            for &p in &f.params {
+                if self.ty_owns_task_or_async_reg(f.locals[p.0 as usize].ty, 0) {
+                    tainted.insert(p);
+                }
+            }
+            if !tainted.is_empty() {
+                loop {
+                    let before = tainted.len();
+                    propagate_tainted_locals(&f.body, &mut tainted, |lid| {
+                        self.may_suspend_on_drop(f.locals[lid.0 as usize].ty)
+                    });
+                    if tainted.len() == before {
+                        break;
+                    }
+                }
+                for (li, l) in f.locals.iter().enumerate() {
+                    let lid = LocalId(li as u32);
+                    if tainted.contains(&lid)
+                        && !reported.contains(&lid)
+                        && !local_is_consumed(&f.body, lid)
+                        && !local_is_poll_closed(&f.body, lid)
+                        && !local_is_called(&f.body, lid)
+                    {
+                        self.diags.push(diag::error(
+                            diag::GENERIC_BOUND,
+                            l.span,
+                            "default Drop cleanup may suspend and lacks a Closed fact or a Suspend execution root",
+                        ));
+                    }
                 }
             }
         }
     }
 
-    fn may_suspend_on_drop(&self, ty: Ty) -> bool {
+    fn ty_owns_task_or_async_reg(&self, ty: Ty, depth: u32) -> bool {
+        if depth > 16 {
+            return false;
+        }
         match self.data(ty) {
-            TyData::Managed(inner) => matches!(
-                self.data(inner),
-                TyData::Opaque(OpaqueKind::Task { .. } | OpaqueKind::AsyncRegistration(_))
-            ),
-            TyData::Closure { .. } | TyData::ImplCallable { .. } => true,
-            TyData::Tuple(xs) => xs.iter().any(|&x| self.may_suspend_on_drop(x)),
+            TyData::Managed(inner) => {
+                if matches!(
+                    self.data(inner),
+                    TyData::Opaque(OpaqueKind::Task { .. } | OpaqueKind::AsyncRegistration(_))
+                ) {
+                    true
+                } else {
+                    self.ty_owns_task_or_async_reg(inner, depth + 1)
+                }
+            }
+            TyData::Tuple(xs) => xs
+                .iter()
+                .any(|&x| self.ty_owns_task_or_async_reg(x, depth + 1)),
+            TyData::Array { element, .. } | TyData::ArrayConst { element, .. } => {
+                self.ty_owns_task_or_async_reg(element, depth + 1)
+            }
+            TyData::ErrorUnion { ok, err } => {
+                self.ty_owns_task_or_async_reg(ok, depth + 1)
+                    || self.ty_owns_task_or_async_reg(err, depth + 1)
+            }
+            TyData::Adt { adt, args, .. } => {
+                let decl = self.items.adt(adt);
+                decl.variants.iter().any(|v| {
+                    v.fields.iter().any(|fld| {
+                        let fty = if let TyData::Param(idx) = self.data(fld.ty) {
+                            args.get(idx as usize).copied().unwrap_or(fld.ty)
+                        } else {
+                            fld.ty
+                        };
+                        self.ty_owns_task_or_async_reg(fty, depth + 1)
+                    })
+                })
+            }
             TyData::Unit
             | TyData::Type
             | TyData::ConstParam(_)
@@ -6316,16 +6382,46 @@ impl Finalizer<'_, '_> {
             | TyData::Never
             | TyData::Param(_)
             | TyData::Var(_)
+            | TyData::Slice(_)
+            | TyData::Ref { .. }
+            | TyData::FnPtr { .. }
+            | TyData::Closure { .. }
+            | TyData::ImplCallable { .. }
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn { .. }
+            | TyData::Desc(_)
+            | TyData::Opaque(_)
+            | TyData::SelfParam
+            | TyData::Assoc { .. }
+            | TyData::Error => false,
+        }
+    }
+
+    fn may_suspend_on_drop(&self, ty: Ty) -> bool {
+        match self.data(ty) {
+            TyData::Closure { .. } | TyData::ImplCallable { .. } => true,
+            TyData::Managed(_)
+            | TyData::Tuple(_)
             | TyData::Array { .. }
             | TyData::ArrayConst { .. }
+            | TyData::ErrorUnion { .. }
+            | TyData::Adt { .. } => self.ty_owns_task_or_async_reg(ty, 0),
+            TyData::Unit
+            | TyData::Type
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
+            | TyData::Bool
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Never
+            | TyData::Param(_)
+            | TyData::Var(_)
             | TyData::Slice(_)
             | TyData::Ref { .. }
             | TyData::FnPtr { .. }
             | TyData::Dyn(_)
             | TyData::OwnedDyn { .. }
             | TyData::Desc(_)
-            | TyData::Adt { .. }
-            | TyData::ErrorUnion { .. }
             | TyData::Opaque(_)
             | TyData::SelfParam
             | TyData::Assoc { .. }
@@ -6991,6 +7087,365 @@ fn local_is_consumed(e: &Expr, root: LocalId) -> bool {
 
 fn capture_is_consumed(e: &Expr, cap: u32) -> bool {
     value_is_consumed(e, None, Some(cap))
+}
+
+fn unwrap_local_or_borrow_ref(e: &Expr) -> Option<LocalId> {
+    match &e.kind {
+        ExprKind::Local(l) => Some(*l),
+        ExprKind::Give(inner) | ExprKind::Borrow { place: inner, .. } => {
+            unwrap_local_or_borrow_ref(inner)
+        }
+        ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Capture(_)
+        | ExprKind::Field { .. }
+        | ExprKind::TupleField { .. }
+        | ExprKind::Index { .. }
+        | ExprKind::Deref(_)
+        | ExprKind::SliceBorrow { .. }
+        | ExprKind::Len(_)
+        | ExprKind::Describe(_)
+        | ExprKind::ManagedCreate { .. }
+        | ExprKind::Unary { .. }
+        | ExprKind::Binary { .. }
+        | ExprKind::Logical { .. }
+        | ExprKind::Convert { .. }
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
+        | ExprKind::Call { .. }
+        | ExprKind::IndirectCall { .. }
+        | ExprKind::Closure { .. }
+        | ExprKind::ClosureCall { .. }
+        | ExprKind::TraitCall { .. }
+        | ExprKind::DynCall { .. }
+        | ExprKind::ForeignCall { .. }
+        | ExprKind::Intrinsic { .. }
+        | ExprKind::Adt { .. }
+        | ExprKind::ErrorInject { .. }
+        | ExprKind::Try(_)
+        | ExprKind::CtEval(_)
+        | ExprKind::Tuple(_)
+        | ExprKind::Array(_)
+        | ExprKind::If { .. }
+        | ExprKind::Match { .. }
+        | ExprKind::Block(_)
+        | ExprKind::Loop(_)
+        | ExprKind::While { .. }
+        | ExprKind::Break
+        | ExprKind::Continue
+        | ExprKind::Return(_)
+        | ExprKind::Assign { .. } => None,
+    }
+}
+
+fn collect_pat_bindings(pat: &Pat, out: &mut Vec<LocalId>) {
+    match &pat.kind {
+        PatKind::Binding(l) => out.push(*l),
+        PatKind::Tuple(ps) => {
+            for p in ps {
+                collect_pat_bindings(p, out);
+            }
+        }
+        PatKind::Adt { fields, .. } => {
+            for p in fields {
+                collect_pat_bindings(p, out);
+            }
+        }
+        PatKind::ErrorArm { inner, .. } => collect_pat_bindings(inner, out),
+        PatKind::Wild | PatKind::RefBinding { .. } | PatKind::Lit(_) => {}
+    }
+}
+
+fn expr_any(e: &Expr, pred: &mut impl FnMut(&Expr) -> bool) -> bool {
+    if pred(e) {
+        return true;
+    }
+    match &e.kind {
+        ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Local(_)
+        | ExprKind::Capture(_)
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
+        | ExprKind::Break
+        | ExprKind::Continue => false,
+        ExprKind::Field { base, .. }
+        | ExprKind::TupleField { base, .. }
+        | ExprKind::Deref(base)
+        | ExprKind::Give(base)
+        | ExprKind::Borrow { place: base, .. }
+        | ExprKind::Describe(base)
+        | ExprKind::Unary { operand: base, .. }
+        | ExprKind::Convert { operand: base }
+        | ExprKind::Len(base)
+        | ExprKind::Try(base)
+        | ExprKind::ErrorInject { value: base, .. }
+        | ExprKind::CtEval(base)
+        | ExprKind::Loop(base) => expr_any(base, pred),
+        ExprKind::SliceBorrow {
+            place, start, end, ..
+        } => {
+            expr_any(place, pred)
+                || start.as_deref().is_some_and(|x| expr_any(x, pred))
+                || end.as_deref().is_some_and(|x| expr_any(x, pred))
+        }
+        ExprKind::Index { base, index }
+        | ExprKind::Binary {
+            lhs: base,
+            rhs: index,
+            ..
+        }
+        | ExprKind::Logical {
+            lhs: base,
+            rhs: index,
+            ..
+        }
+        | ExprKind::While {
+            cond: base,
+            body: index,
+        }
+        | ExprKind::Assign {
+            place: base,
+            value: index,
+            ..
+        } => expr_any(base, pred) || expr_any(index, pred),
+        ExprKind::Return(v) => v.as_deref().is_some_and(|x| expr_any(x, pred)),
+        ExprKind::ManagedCreate { fields, .. }
+        | ExprKind::Adt { fields, .. }
+        | ExprKind::Tuple(fields)
+        | ExprKind::Array(fields)
+        | ExprKind::Closure {
+            captures: fields, ..
+        }
+        | ExprKind::Call { args: fields, .. }
+        | ExprKind::ForeignCall { args: fields, .. }
+        | ExprKind::Intrinsic { args: fields, .. }
+        | ExprKind::TraitCall { args: fields, .. } => fields.iter().any(|x| expr_any(x, pred)),
+        ExprKind::IndirectCall { callee, args }
+        | ExprKind::ClosureCall {
+            closure: callee,
+            args,
+            ..
+        }
+        | ExprKind::DynCall {
+            object: callee,
+            args,
+            ..
+        } => expr_any(callee, pred) || args.iter().any(|x| expr_any(x, pred)),
+        ExprKind::If {
+            cond,
+            then,
+            otherwise,
+        } => {
+            expr_any(cond, pred)
+                || expr_any(then, pred)
+                || otherwise.as_deref().is_some_and(|x| expr_any(x, pred))
+        }
+        ExprKind::Match { scrutinee, arms } => {
+            expr_any(scrutinee, pred) || arms.iter().any(|a| expr_any(&a.body, pred))
+        }
+        ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
+            Stmt::Let { init, .. } => expr_any(init, pred),
+            Stmt::Expr(x) | Stmt::Defer(x) => expr_any(x, pred),
+        }),
+    }
+}
+
+fn expr_mentions_any(e: &Expr, set: &std::collections::HashSet<LocalId>) -> bool {
+    expr_any(
+        e,
+        &mut |sub| matches!(sub.kind, ExprKind::Local(l) if set.contains(&l)),
+    )
+}
+
+fn propagate_tainted_locals(
+    e: &Expr,
+    tainted: &mut std::collections::HashSet<LocalId>,
+    mut may_suspend: impl FnMut(LocalId) -> bool,
+) {
+    fn walk(
+        e: &Expr,
+        tainted: &mut std::collections::HashSet<LocalId>,
+        may_suspend: &mut impl FnMut(LocalId) -> bool,
+    ) {
+        match &e.kind {
+            ExprKind::Block(stmts) => {
+                for s in stmts {
+                    match s {
+                        Stmt::Let { pattern, init } => {
+                            walk(init, tainted, may_suspend);
+                            if expr_mentions_any(init, tainted) {
+                                let mut bound = Vec::new();
+                                collect_pat_bindings(pattern, &mut bound);
+                                for b in bound {
+                                    if may_suspend(b) {
+                                        tainted.insert(b);
+                                    }
+                                }
+                            }
+                        }
+                        Stmt::Expr(x) | Stmt::Defer(x) => walk(x, tainted, may_suspend),
+                    }
+                }
+            }
+            ExprKind::Assign { place, value, .. } => {
+                walk(value, tainted, may_suspend);
+                if let Some(dst) = unwrap_local_ref(place)
+                    && expr_mentions_any(value, tainted)
+                    && may_suspend(dst)
+                {
+                    tainted.insert(dst);
+                }
+            }
+            ExprKind::Match { scrutinee, arms } => {
+                walk(scrutinee, tainted, may_suspend);
+                let scrut_tainted = expr_mentions_any(scrutinee, tainted);
+                for arm in arms {
+                    if scrut_tainted {
+                        let mut bound = Vec::new();
+                        collect_pat_bindings(&arm.pattern, &mut bound);
+                        for b in bound {
+                            if may_suspend(b) {
+                                tainted.insert(b);
+                            }
+                        }
+                    }
+                    walk(&arm.body, tainted, may_suspend);
+                }
+            }
+            ExprKind::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                walk(cond, tainted, may_suspend);
+                walk(then, tainted, may_suspend);
+                if let Some(eb) = otherwise {
+                    walk(eb, tainted, may_suspend);
+                }
+            }
+            ExprKind::Loop(body) => walk(body, tainted, may_suspend),
+            ExprKind::While { cond, body } => {
+                walk(cond, tainted, may_suspend);
+                walk(body, tainted, may_suspend);
+            }
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::Capture(_)
+            | ExprKind::Field { .. }
+            | ExprKind::TupleField { .. }
+            | ExprKind::Index { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Give(_)
+            | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Len(_)
+            | ExprKind::Describe(_)
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Unary { .. }
+            | ExprKind::Binary { .. }
+            | ExprKind::Logical { .. }
+            | ExprKind::Convert { .. }
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Call { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Adt { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
+            | ExprKind::Tuple(_)
+            | ExprKind::Array(_)
+            | ExprKind::Break
+            | ExprKind::Continue
+            | ExprKind::Return(_) => {}
+        }
+    }
+    walk(e, tainted, &mut may_suspend);
+}
+
+fn local_is_poll_closed(e: &Expr, target: LocalId) -> bool {
+    expr_any(e, &mut |sub| {
+        matches!(
+            &sub.kind,
+            ExprKind::Intrinsic {
+                op: IntrinsicOp::TaskPollClose | IntrinsicOp::AsyncRegistrationPollClose,
+                args,
+            } if args
+                .first()
+                .and_then(unwrap_local_or_borrow_ref)
+                == Some(target)
+        )
+    })
+}
+
+fn local_is_called(e: &Expr, target: LocalId) -> bool {
+    expr_any(e, &mut |sub| match &sub.kind {
+        ExprKind::ClosureCall {
+            closure: callee, ..
+        }
+        | ExprKind::IndirectCall { callee, .. } => {
+            unwrap_local_or_borrow_ref(callee) == Some(target)
+        }
+        ExprKind::TraitCall { args, .. } => {
+            args.first().and_then(unwrap_local_or_borrow_ref) == Some(target)
+        }
+        ExprKind::DynCall { object, .. } => unwrap_local_or_borrow_ref(object) == Some(target),
+        ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Local(_)
+        | ExprKind::Capture(_)
+        | ExprKind::Field { .. }
+        | ExprKind::TupleField { .. }
+        | ExprKind::Index { .. }
+        | ExprKind::Deref(_)
+        | ExprKind::Give(_)
+        | ExprKind::Borrow { .. }
+        | ExprKind::SliceBorrow { .. }
+        | ExprKind::Len(_)
+        | ExprKind::Describe(_)
+        | ExprKind::ManagedCreate { .. }
+        | ExprKind::Unary { .. }
+        | ExprKind::Binary { .. }
+        | ExprKind::Logical { .. }
+        | ExprKind::Convert { .. }
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
+        | ExprKind::Call { .. }
+        | ExprKind::Closure { .. }
+        | ExprKind::ForeignCall { .. }
+        | ExprKind::Intrinsic { .. }
+        | ExprKind::Adt { .. }
+        | ExprKind::ErrorInject { .. }
+        | ExprKind::Try(_)
+        | ExprKind::CtEval(_)
+        | ExprKind::Tuple(_)
+        | ExprKind::Array(_)
+        | ExprKind::If { .. }
+        | ExprKind::Match { .. }
+        | ExprKind::Block(_)
+        | ExprKind::Loop(_)
+        | ExprKind::While { .. }
+        | ExprKind::Break
+        | ExprKind::Continue
+        | ExprKind::Return(_)
+        | ExprKind::Assign { .. } => false,
+    })
 }
 
 fn unwrap_capture_ref(e: &Expr) -> Option<u32> {

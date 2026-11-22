@@ -9,8 +9,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use zil_base::Span;
 use zil_ir::body::{
-    Block, BlockId, Body, ConstValue, DropFlag, Instruction, InstructionKind, Local, LocalDecl,
-    Operand, Place, PlaceAccess, Rvalue, Terminator, TyKind, TyTable,
+    Block, BlockId, Body, ConstValue, DropFlag, Instruction, InstructionKind, IntTy, Local,
+    LocalDecl, Operand, Place, PlaceAccess, Rvalue, Terminator, TyKind, TyTable,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -424,9 +424,14 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
 
     // 2. Decide which places need a drop flag (only those observed as Maybe
     //    at some reachable auto-drop point).
+    struct EnumPartialDrop {
+        discr: Local,
+        variants: Vec<Vec<(Place, Option<Local>)>>,
+    }
     let mut flagged: HashMap<Place, Local> = HashMap::new();
     let mut per_point: HashMap<(BlockId, usize), Init> = HashMap::new();
     let mut partial_drops: HashMap<(BlockId, usize), Vec<Place>> = HashMap::new();
+    let mut enum_partial_drops: HashMap<(BlockId, usize), EnumPartialDrop> = HashMap::new();
     let mut replace_to_assign: HashSet<(BlockId, usize)> = HashSet::new();
     for (b_idx, block) in body.blocks.iter().enumerate() {
         let Some((mut state, mut ufields, mut may_ufields)) = entry[b_idx].clone() else {
@@ -454,6 +459,9 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     }
                     per_point.insert((bid, i), st);
                     let lp = Place::local(l);
+                    let has_may_moved = may_ufields.iter().any(|u| {
+                        u.root == zil_ir::body::PlaceRoot::Local(l) && !u.projections.is_empty()
+                    });
                     if st.is_maybe() && !flagged.contains_key(&lp) {
                         let bool_ty = tys.intern(TyKind::Bool);
                         let flag = Local::from_index(body.locals.len());
@@ -466,21 +474,102 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                             place: lp.clone(),
                         });
                         flagged.insert(lp, flag);
-                    } else if !st.is_definitely_uninit()
-                        && !st.is_maybe()
-                        && ufields
-                            .iter()
-                            .any(|u| u.root == zil_ir::body::PlaceRoot::Local(l))
-                    {
-                        let mut subs = Vec::new();
-                        collect_live_cleanup_places(
-                            &Place::local(l),
-                            body.locals[l.index()].ty,
-                            tys,
-                            &ufields,
-                            &mut subs,
-                        );
-                        partial_drops.insert((bid, i), subs);
+                    } else if !st.is_definitely_uninit() && !st.is_maybe() && has_may_moved {
+                        let local_ty = body.locals[l.index()].ty;
+                        let is_multi_enum = if let TyKind::Adt { adt, args } = tys.kind(local_ty) {
+                            let def = tys.adt(*adt);
+                            if !def.user_drop && def.variants.len() > 1 {
+                                Some((*adt, *args))
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+                        let has_must_moved = ufields.iter().any(|u| {
+                            u.root == zil_ir::body::PlaceRoot::Local(l) && !u.projections.is_empty()
+                        });
+                        let use_simple_partial = has_must_moved
+                            && is_multi_enum.is_none_or(|(adt, _)| {
+                                active_moved_variant(&lp, adt, &ufields).is_some()
+                                    && !may_ufields.iter().any(|u| {
+                                        u.root == zil_ir::body::PlaceRoot::Local(l)
+                                            && !ufields.contains(u)
+                                    })
+                            });
+                        if use_simple_partial {
+                            let mut subs = Vec::new();
+                            collect_live_cleanup_places(&lp, local_ty, tys, &ufields, &mut subs);
+                            partial_drops.insert((bid, i), subs);
+                        } else if let Some((adt, args)) = is_multi_enum {
+                            let variants_meta: Vec<Vec<zil_ir::body::TyId>> = {
+                                let def = tys.adt(adt);
+                                def.variants
+                                    .iter()
+                                    .map(|v| {
+                                        v.fields
+                                            .iter()
+                                            .map(|f| tys.subst_lookup(f.ty, args).unwrap_or(f.ty))
+                                            .collect()
+                                    })
+                                    .collect()
+                            };
+                            let mut variants_plan = Vec::with_capacity(variants_meta.len());
+                            for (vi, ftys) in variants_meta.into_iter().enumerate() {
+                                let mut drops = Vec::new();
+                                for (fi, fty) in ftys.into_iter().enumerate() {
+                                    if !tys.needs_cleanup(fty, &zil_ir::body::ParamEnv::default()) {
+                                        continue;
+                                    }
+                                    let mut sub = lp.clone();
+                                    sub.projections.push(zil_ir::body::Projection::Field(
+                                        zil_ir::body::FieldRef {
+                                            adt,
+                                            variant: zil_ir::body::VariantIdx(vi as u32),
+                                            field: zil_ir::body::FieldIdx(fi as u32),
+                                            args,
+                                        },
+                                    ));
+                                    if ufields.contains(&sub) {
+                                        continue;
+                                    }
+                                    let opt_flag = if may_ufields.contains(&sub) {
+                                        let flag =
+                                            *flagged.entry(sub.clone()).or_insert_with(|| {
+                                                let bool_ty = tys.intern(TyKind::Bool);
+                                                let fl = Local::from_index(body.locals.len());
+                                                body.locals.push(LocalDecl {
+                                                    ty: bool_ty,
+                                                    name: None,
+                                                });
+                                                body.drop_flags.push(DropFlag {
+                                                    flag: fl,
+                                                    place: sub.clone(),
+                                                });
+                                                fl
+                                            });
+                                        Some(flag)
+                                    } else {
+                                        None
+                                    };
+                                    drops.push((sub, opt_flag));
+                                }
+                                variants_plan.push(drops);
+                            }
+                            let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+                            let discr = Local::from_index(body.locals.len());
+                            body.locals.push(LocalDecl {
+                                ty: i32_ty,
+                                name: None,
+                            });
+                            enum_partial_drops.insert(
+                                (bid, i),
+                                EnumPartialDrop {
+                                    discr,
+                                    variants: variants_plan,
+                                },
+                            );
+                        }
                     }
                 } else if ufields.contains(place) {
                     per_point.insert((bid, i), Init::UNINIT);
@@ -656,7 +745,98 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                 }
                 // Definitely initialized: keep the drop (or expand partial-move field drops).
                 let drop_place = place.clone();
-                if let Some(sub_places) = partial_drops.get(&(bid, i)) {
+                if let Some(epd) = enum_partial_drops.get(&(bid, i)) {
+                    cur_insts.push(Instruction {
+                        kind: InstructionKind::Assign {
+                            dest: Place::local(epd.discr),
+                            value: Rvalue::Discriminant(drop_place.clone()),
+                        },
+                        span,
+                    });
+                    let after = alloc_block(
+                        &mut extra_blocks,
+                        Block {
+                            instructions: Vec::new(),
+                            terminator: Terminator::Unreachable,
+                            terminator_span: span,
+                        },
+                    );
+                    let mut arm_targets = Vec::with_capacity(epd.variants.len());
+                    for vdrops in &epd.variants {
+                        if vdrops.is_empty() {
+                            arm_targets.push(after);
+                            continue;
+                        }
+                        let mut next_target = after;
+                        for (sub, opt_flag) in vdrops.iter().rev() {
+                            if let Some(flag) = opt_flag {
+                                let do_drop = alloc_block(
+                                    &mut extra_blocks,
+                                    Block {
+                                        instructions: vec![
+                                            Instruction {
+                                                kind: InstructionKind::Drop { place: sub.clone() },
+                                                span,
+                                            },
+                                            bool_assign(*flag, false, span),
+                                        ],
+                                        terminator: Terminator::Goto {
+                                            target: next_target,
+                                        },
+                                        terminator_span: span,
+                                    },
+                                );
+                                next_target = alloc_block(
+                                    &mut extra_blocks,
+                                    Block {
+                                        instructions: Vec::new(),
+                                        terminator: Terminator::Switch {
+                                            discr: Operand::Copy(Place::local(*flag)),
+                                            arms: vec![(0, next_target)],
+                                            otherwise: do_drop,
+                                        },
+                                        terminator_span: span,
+                                    },
+                                );
+                            } else {
+                                next_target = alloc_block(
+                                    &mut extra_blocks,
+                                    Block {
+                                        instructions: vec![Instruction {
+                                            kind: InstructionKind::Drop { place: sub.clone() },
+                                            span,
+                                        }],
+                                        terminator: Terminator::Goto {
+                                            target: next_target,
+                                        },
+                                        terminator_span: span,
+                                    },
+                                );
+                            }
+                        }
+                        arm_targets.push(next_target);
+                    }
+                    let last_idx = arm_targets.len() - 1;
+                    let term = Terminator::Switch {
+                        discr: Operand::Copy(Place::local(epd.discr)),
+                        arms: arm_targets[..last_idx]
+                            .iter()
+                            .enumerate()
+                            .map(|(vi, &tgt)| (vi as u128, tgt))
+                            .collect(),
+                        otherwise: arm_targets[last_idx],
+                    };
+                    flush_block(
+                        &mut body.blocks,
+                        &mut extra_blocks,
+                        cur_id,
+                        std::mem::take(&mut cur_insts),
+                        term,
+                        span,
+                    );
+                    cur_id = after;
+                    continue;
+                } else if let Some(sub_places) = partial_drops.get(&(bid, i)) {
                     for sub in sub_places {
                         cur_insts.push(Instruction {
                             kind: InstructionKind::Drop { place: sub.clone() },
