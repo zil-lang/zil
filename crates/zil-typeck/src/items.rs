@@ -101,8 +101,18 @@ pub struct FnDecl<'a> {
     pub region_params: Vec<String>,
     pub params: Vec<ParamInfo>,
     pub result: Ty,
+    pub self_ty: Option<Ty>,
     pub role: FnRoleSpec,
     pub ast: &'a ast::Function,
+}
+
+#[derive(Clone, Debug)]
+pub struct InlineMethodDecl {
+    pub name: String,
+    pub fn_ref: FnRef,
+    pub public: bool,
+    pub has_self: bool,
+    pub host_generic_count: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -138,11 +148,13 @@ pub struct VariantDecl {
 
 #[derive(Clone, Debug)]
 pub struct AdtDecl {
+    pub module: ModIdx,
     pub name: String,
     pub kind: AdtKind,
     pub generics: Vec<String>,
     pub region_params: u32,
     pub variants: Vec<VariantDecl>,
+    pub methods: Vec<InlineMethodDecl>,
     pub user_drop: bool,
 }
 
@@ -152,6 +164,10 @@ impl AdtDecl {
             .iter()
             .position(|v| v.name == name)
             .map(|i| i as u32)
+    }
+
+    pub fn method_named(&self, name: &str) -> Option<&InlineMethodDecl> {
+        self.methods.iter().find(|m| m.name == name)
     }
 }
 
@@ -622,6 +638,8 @@ pub fn collect_program<'a>(
                 }],
             },
         ],
+        module: ModIdx(0),
+        methods: Vec::new(),
         user_drop: false,
     });
     let dyn_create_error_adt = AdtRef(1);
@@ -636,6 +654,8 @@ pub fn collect_program<'a>(
             shape: VariantShape::Unit,
             fields: Vec::new(),
         }],
+        module: ModIdx(0),
+        methods: Vec::new(),
         user_drop: false,
     });
     let poll_adt = AdtRef(2);
@@ -661,6 +681,8 @@ pub fn collect_program<'a>(
                 }],
             },
         ],
+        module: ModIdx(0),
+        methods: Vec::new(),
         user_drop: false,
     });
     let task_create_error_adt = AdtRef(3);
@@ -675,6 +697,8 @@ pub fn collect_program<'a>(
             shape: VariantShape::Unit,
             fields: Vec::new(),
         }],
+        module: ModIdx(0),
+        methods: Vec::new(),
         user_drop: false,
     });
     let task_poll_error_adt = AdtRef(4);
@@ -701,6 +725,8 @@ pub fn collect_program<'a>(
                 fields: Vec::new(),
             },
         ],
+        module: ModIdx(0),
+        methods: Vec::new(),
         user_drop: false,
     });
     let mutex_create_error_adt = AdtRef(5);
@@ -715,6 +741,8 @@ pub fn collect_program<'a>(
             shape: VariantShape::Unit,
             fields: Vec::new(),
         }],
+        module: ModIdx(0),
+        methods: Vec::new(),
         user_drop: false,
     });
     let task_create_error_ty = types.intern(TyData::Adt {
@@ -745,6 +773,8 @@ pub fn collect_program<'a>(
                 },
             ],
         }],
+        module: ModIdx(0),
+        methods: Vec::new(),
         user_drop: false,
     });
 
@@ -1002,7 +1032,14 @@ pub fn collect_program<'a>(
         );
         items.traits.push(decl);
     }
+    let mut adt_method_asts: Vec<(ModIdx, AdtRef, &'a ast::Aggregate)> = Vec::new();
     for (mid, item) in adt_asts {
+        let adt_ref = AdtRef(items.adts.len() as u32);
+        if let AdtAst::Aggregate(agg, _) = item
+            && !agg.methods.is_empty()
+        {
+            adt_method_asts.push((mid, adt_ref, agg));
+        }
         let decl = collect_adt(
             mid,
             item,
@@ -1049,6 +1086,9 @@ pub fn collect_program<'a>(
                 Err(d) => diags.push(d),
             }
         }
+    }
+    for (mid, adt_ref, agg) in adt_method_asts {
+        collect_adt_methods(mid, adt_ref, agg, &mut items, types, diags);
     }
     for (mid, imp, span) in impl_asts {
         collect_impl(mid, imp, span, &mut items, types, diags);
@@ -1463,9 +1503,6 @@ fn collect_adt(
                 ast::AggregateKind::Package => AdtKind::Package,
                 ast::AggregateKind::Resource => AdtKind::Resource,
             };
-            if !a.methods.is_empty() {
-                diags.push(diag::unsupported("methods", span));
-            }
             (&a.name, kind, &a.generics, span)
         }
         AdtAst::Enum(e, span) => (&e.name, AdtKind::Enum, &e.generics, span),
@@ -1609,12 +1646,166 @@ fn collect_adt(
     };
     let _ = span;
     AdtDecl {
+        module: mid,
         name: qualify(&modules[mid.0 as usize].path, name),
         kind,
         generics: scope,
         region_params: lifetimes.len() as u32,
         variants,
+        methods: Vec::new(),
         user_drop: false,
+    }
+}
+
+fn collect_adt_methods<'a>(
+    mid: ModIdx,
+    adt_ref: AdtRef,
+    agg: &'a ast::Aggregate,
+    items: &mut Items<'a>,
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) {
+    let (host_generics, host_lifetimes) = type_generics(
+        mid,
+        &agg.generics,
+        &items.modules,
+        &items.mod_by_path,
+        &items.adt_kinds,
+        types,
+        diags,
+    );
+    let host_generic_count = host_generics.len();
+    let host_args: Vec<Ty> = (0..host_generic_count)
+        .map(|i| types.intern(TyData::Param(i as u32)))
+        .collect();
+    let host_regions: Vec<Option<u32>> =
+        (0..host_lifetimes.len()).map(|i| Some(i as u32)).collect();
+    let self_ty = types.intern(TyData::Adt {
+        adt: adt_ref,
+        args: host_args,
+        regions: host_regions,
+    });
+    let adt_name = items.adts[adt_ref.0 as usize].name.clone();
+    for member in &agg.methods {
+        match &member.kind {
+            ast::ItemKind::Function(f) => {
+                if items.adts[adt_ref.0 as usize]
+                    .methods
+                    .iter()
+                    .any(|m| m.name == f.name)
+                {
+                    diags.push(diag::error(
+                        diag::NAME_DUPLICATE,
+                        member.span,
+                        format!(
+                            "method `{}` is declared more than once on `{adt_name}`",
+                            f.name
+                        ),
+                    ));
+                    continue;
+                }
+                if !f.contract.is_empty() {
+                    let has_non_result = f.contract.iter().any(|c| c.name != "result");
+                    if has_non_result {
+                        diags.push(diag::unsupported("function contracts", f.span));
+                    }
+                }
+                let (method_generics, method_lifetimes) = type_generics(
+                    mid,
+                    &f.generics,
+                    &items.modules,
+                    &items.mod_by_path,
+                    &items.adt_kinds,
+                    types,
+                    diags,
+                );
+                let mut combined_generics = host_generics.clone();
+                combined_generics.extend(method_generics);
+                let mut combined_lifetimes = host_lifetimes.clone();
+                combined_lifetimes.extend(method_lifetimes);
+                let combined_scope: Vec<String> =
+                    combined_generics.iter().map(|g| g.name.clone()).collect();
+                let fn_ref = FnRef(items.fns.len() as u32);
+                let mut params = Vec::with_capacity(f.params.len());
+                for p in &f.params {
+                    let ty = resolve_type_with_lifetimes(
+                        &p.ty,
+                        mid,
+                        &combined_scope,
+                        &combined_lifetimes,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(self_ty),
+                        Some(fn_ref),
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    params.push(ParamInfo {
+                        name: p.name.clone(),
+                        ty,
+                        span: p.span,
+                    });
+                }
+                let result = match &f.return_type {
+                    Some(t) => resolve_type_with_lifetimes(
+                        t,
+                        mid,
+                        &combined_scope,
+                        &combined_lifetimes,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(self_ty),
+                        Some(fn_ref),
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    }),
+                    None => types.unit(),
+                };
+                let has_self = f.params.first().is_some_and(|p| p.name == "self");
+                items.fns.push(FnDecl {
+                    module: mid,
+                    name: format!("{adt_name}::{}", f.name),
+                    generics: combined_generics,
+                    region_params: combined_lifetimes,
+                    params,
+                    result,
+                    self_ty: Some(self_ty),
+                    role: FnRoleSpec::Normal,
+                    ast: f,
+                });
+                items.adts[adt_ref.0 as usize]
+                    .methods
+                    .push(InlineMethodDecl {
+                        name: f.name.clone(),
+                        fn_ref,
+                        public: member.public,
+                        has_self,
+                        host_generic_count,
+                    });
+            }
+            ast::ItemKind::Import(_)
+            | ast::ItemKind::Aggregate(_)
+            | ast::ItemKind::Enum(_)
+            | ast::ItemKind::Extern { .. }
+            | ast::ItemKind::Impl(_)
+            | ast::ItemKind::Trait(_)
+            | ast::ItemKind::TypeAlias(_)
+            | ast::ItemKind::Const(_)
+            | ast::ItemKind::Meta(_) => {
+                diags.push(diag::unsupported(
+                    "non-function aggregate member",
+                    member.span,
+                ));
+            }
+        }
     }
 }
 
@@ -1749,6 +1940,7 @@ fn collect_fn<'a>(
         region_params,
         params,
         result,
+        self_ty: None,
         role: FnRoleSpec::Normal,
         ast: f,
     }
@@ -2093,6 +2285,7 @@ fn collect_impl<'a>(
             span: p.span,
         }],
         result: types.unit(),
+        self_ty: Some(self_desc),
         role: FnRoleSpec::Drop(target_adt),
         ast: f,
     });
@@ -2262,6 +2455,7 @@ fn collect_trait_impl<'a>(
                     region_params: Vec::new(),
                     params,
                     result,
+                    self_ty: Some(target),
                     role: FnRoleSpec::Normal,
                     ast: f,
                 });
@@ -2316,6 +2510,7 @@ fn collect_trait_impl<'a>(
             region_params: Vec::new(),
             params,
             result,
+            self_ty: Some(target),
             role: FnRoleSpec::Normal,
             ast: default_f,
         });
@@ -2341,6 +2536,19 @@ pub fn resolve_type(
     items: &Items<'_>,
     types: &mut Types,
 ) -> Result<Ty, Diagnostic> {
+    resolve_type_with_self(t, from, generics, lifetimes, None, items, types)
+}
+
+#[allow(clippy::result_large_err)] // `Diagnostic` is the workspace-wide error type.
+pub fn resolve_type_with_self(
+    t: &ast::TypeRef,
+    from: ModIdx,
+    generics: &[String],
+    lifetimes: &[String],
+    self_ty: Option<Ty>,
+    items: &Items<'_>,
+    types: &mut Types,
+) -> Result<Ty, Diagnostic> {
     resolve_type_with_lifetimes(
         t,
         from,
@@ -2349,7 +2557,7 @@ pub fn resolve_type(
         &items.modules,
         &items.mod_by_path,
         &items.adt_kinds,
-        None,
+        self_ty,
         None,
         types,
     )
@@ -2407,7 +2615,7 @@ fn resolve_type_with_lifetimes(
                         name: assoc.clone(),
                     }));
                 }
-                if let Some(i) = generics.iter().position(|g| g == base) {
+                if let Some(i) = generics.iter().rposition(|g| g == base) {
                     let base_ty = types.intern(TyData::Param(i as u32));
                     return Ok(types.intern(TyData::Assoc {
                         base: base_ty,
@@ -2428,7 +2636,7 @@ fn resolve_type_with_lifetimes(
                     }
                     return Ok(st);
                 }
-                if let Some(i) = generics.iter().position(|g| g == name) {
+                if let Some(i) = generics.iter().rposition(|g| g == name) {
                     if !args.is_empty() {
                         return Err(diag::error(
                             diag::TYPE_ARGUMENT,
@@ -2629,14 +2837,14 @@ fn resolve_type_with_lifetimes(
                                 types,
                             )?),
                             ast::GenericArg::Lifetime(lt) => {
-                                let r = lifetimes.iter().position(|l| l == lt).map(|i| i as u32);
+                                let r = lifetimes.iter().rposition(|l| l == lt).map(|i| i as u32);
                                 regions.push(r);
                             }
                             ast::GenericArg::Const(expr) => {
                                 if let Some(n) = eval_const_u32(expr, from, modules, mod_by_path) {
                                     tys.push(types.intern(TyData::ConstU32(n)));
                                 } else if let ast::ExprKind::Name(cname) = &expr.kind
-                                    && let Some(idx) = generics.iter().position(|g| g == cname)
+                                    && let Some(idx) = generics.iter().rposition(|g| g == cname)
                                 {
                                     tys.push(types.intern(TyData::ConstParam(idx as u32)));
                                 } else {
@@ -2688,7 +2896,7 @@ fn resolve_type_with_lifetimes(
                                 if let Some(n) = eval_const_u32(expr, from, modules, mod_by_path) {
                                     tys.push(types.intern(TyData::ConstU32(n)));
                                 } else if let ast::ExprKind::Name(cname) = &expr.kind
-                                    && let Some(idx) = generics.iter().position(|g| g == cname)
+                                    && let Some(idx) = generics.iter().rposition(|g| g == cname)
                                 {
                                     tys.push(types.intern(TyData::ConstParam(idx as u32)));
                                 } else {
@@ -2787,7 +2995,7 @@ fn resolve_type_with_lifetimes(
                 return Ok(types.intern(TyData::Array { element, length }));
             }
             if let ast::ExprKind::Name(cname) = &length.kind
-                && let Some(idx) = generics.iter().position(|g| g == cname)
+                && let Some(idx) = generics.iter().rposition(|g| g == cname)
             {
                 let len_ty = types.intern(TyData::ConstParam(idx as u32));
                 return Ok(types.intern(TyData::ArrayConst {
@@ -2833,7 +3041,7 @@ fn resolve_type_with_lifetimes(
             }
             let region = lifetime.as_deref().and_then(|lt| {
                 let name = lt.strip_prefix('\'').unwrap_or(lt);
-                lifetimes.iter().position(|r| r == name).map(|i| i as u32)
+                lifetimes.iter().rposition(|r| r == name).map(|i| i as u32)
             });
             Ok(types.intern(TyData::Ref {
                 region,
