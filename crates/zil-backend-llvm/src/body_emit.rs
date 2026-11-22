@@ -2785,12 +2785,45 @@ impl<'a> FnEmitter<'a> {
                 // Real OS-thread execution of scoped worker(arg) concurrently with parent().
                 let (worker_fn, _, _) = self.emit_operand(&args[0])?;
                 let (cell_v, cell_lt, _) = self.emit_operand(&args[1])?;
-                let Some(TyKind::Tuple(ret_elems)) = self.tys().get(d_ty).cloned() else {
-                    return Err(BodyEmitError::new("ThreadScope dest must be 3-tuple"));
+                let (is_enum_dest, r1_ty_id, r2_ty_id) = match self.tys().get(d_ty).cloned() {
+                    Some(TyKind::Tuple(ret_elems)) if ret_elems.len() == 3 => {
+                        (false, ret_elems[1], ret_elems[2])
+                    }
+                    Some(TyKind::Adt {
+                        adt,
+                        args: dest_args,
+                    }) => {
+                        let adef = self
+                            .tys()
+                            .get_adt(adt)
+                            .ok_or_else(|| BodyEmitError::new("ThreadScope missing result ADT"))?;
+                        if adef.kind != AdtKind::Enum
+                            || adef.variants.len() != 2
+                            || adef.variants[1].fields.len() != 2
+                        {
+                            return Err(BodyEmitError::new(
+                                "ThreadScope enum dest must be TaskThreadScopeResult",
+                            ));
+                        }
+                        let r1_id = self
+                            .tys()
+                            .subst_lookup(adef.variants[1].fields[0].ty, dest_args)
+                            .ok_or_else(|| BodyEmitError::new("ThreadScope missing R1 type"))?;
+                        let r2_id = self
+                            .tys()
+                            .subst_lookup(adef.variants[1].fields[1].ty, dest_args)
+                            .ok_or_else(|| BodyEmitError::new("ThreadScope missing R2 type"))?;
+                        (true, r1_id, r2_id)
+                    }
+                    _ => {
+                        return Err(BodyEmitError::new(
+                            "ThreadScope dest must be 3-tuple or TaskThreadScopeResult",
+                        ));
+                    }
                 };
-                let r1_ty = llvm_ty(self.tys(), ret_elems[1])?;
-                let r1_stor = llvm_storage_ty(self.tys(), ret_elems[1])?;
-                let r2_ty = llvm_ty(self.tys(), ret_elems[2])?;
+                let r1_ty = llvm_ty(self.tys(), r1_ty_id)?;
+                let r1_stor = llvm_storage_ty(self.tys(), r1_ty_id)?;
+                let r2_ty = llvm_ty(self.tys(), r2_ty_id)?;
                 let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
                 let (env_ptr, env_ty) = match &args[2] {
                     Operand::Copy(p) | Operand::Move(p) => self.emit_place_ptr(p)?,
@@ -2882,9 +2915,25 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "  {pc_ok} = icmp eq i32 {pc_rc}, 0");
                 let _ = writeln!(self.out, "  br i1 {pc_ok}, label %{l_ok}, label %{l_fail}");
 
-                // Thread creation failed -> (false, zero, zero)
+                // Thread creation failed:
+                // - Tuple dest: (false, zero, zero)
+                // - TaskThreadScopeResult enum dest: Failed(cell_v) (tag 0, returning unconsumed Task)
                 let _ = writeln!(self.out, "{l_fail}:");
                 let _ = writeln!(self.out, "  store {d_llvm} zeroinitializer, ptr {d_ptr}");
+                if is_enum_dest && cell_lt != "void" {
+                    let tag_p = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {tag_p} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                    );
+                    let _ = writeln!(self.out, "  store i32 0, ptr {tag_p}");
+                    let fail_p = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {fail_p} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1, i32 0"
+                    );
+                    let _ = writeln!(self.out, "  store {cell_lt} {cell_v}, ptr {fail_p}");
+                }
                 let _ = writeln!(self.out, "  br label %{l_done}");
 
                 // Thread created -> run parent concurrently, then pthread_join.
@@ -2915,41 +2964,76 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "  unreachable");
 
                 let _ = writeln!(self.out, "{l_joined}:");
-                let f0 = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {f0} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
-                );
-                let _ = writeln!(self.out, "  store i1 1, ptr {f0}");
-                let f1 = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {f1} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
-                );
-                if r1_ty == "void" {
-                    let _ = writeln!(self.out, "  store i8 0, ptr {f1}");
-                } else {
-                    let r1_p = self.fresh();
-                    let r1 = self.fresh();
+                if is_enum_dest {
+                    let tag_p = self.fresh();
                     let _ = writeln!(
                         self.out,
-                        "  {r1_p} = getelementptr inbounds {ctx_ty}, ptr {ctx}, i32 0, i32 2"
+                        "  {tag_p} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
                     );
-                    let _ = writeln!(self.out, "  {r1} = load {r1_ty}, ptr {r1_p}");
-                    let _ = writeln!(self.out, "  store {r1_ty} {r1}, ptr {f1}");
-                }
-                let f2 = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {f2} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
-                );
-                if r2_ty == "void" {
-                    let _ = writeln!(self.out, "  store i8 0, ptr {f2}");
+                    let _ = writeln!(self.out, "  store i32 1, ptr {tag_p}");
+                    let f1 = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {f1} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2, i32 0"
+                    );
+                    if r1_ty == "void" {
+                        let _ = writeln!(self.out, "  store i8 0, ptr {f1}");
+                    } else {
+                        let r1_p = self.fresh();
+                        let r1 = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {r1_p} = getelementptr inbounds {ctx_ty}, ptr {ctx}, i32 0, i32 2"
+                        );
+                        let _ = writeln!(self.out, "  {r1} = load {r1_ty}, ptr {r1_p}");
+                        let _ = writeln!(self.out, "  store {r1_ty} {r1}, ptr {f1}");
+                    }
+                    let f2 = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {f2} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2, i32 1"
+                    );
+                    if r2_ty == "void" {
+                        let _ = writeln!(self.out, "  store i8 0, ptr {f2}");
+                    } else {
+                        let _ = writeln!(self.out, "  store {r2_ty} {r2}, ptr {f2}");
+                    }
                 } else {
-                    let _ = writeln!(self.out, "  store {r2_ty} {r2}, ptr {f2}");
+                    let f0 = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {f0} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                    );
+                    let _ = writeln!(self.out, "  store i1 1, ptr {f0}");
+                    let f1 = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {f1} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                    );
+                    if r1_ty == "void" {
+                        let _ = writeln!(self.out, "  store i8 0, ptr {f1}");
+                    } else {
+                        let r1_p = self.fresh();
+                        let r1 = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {r1_p} = getelementptr inbounds {ctx_ty}, ptr {ctx}, i32 0, i32 2"
+                        );
+                        let _ = writeln!(self.out, "  {r1} = load {r1_ty}, ptr {r1_p}");
+                        let _ = writeln!(self.out, "  store {r1_ty} {r1}, ptr {f1}");
+                    }
+                    let f2 = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {f2} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
+                    );
+                    if r2_ty == "void" {
+                        let _ = writeln!(self.out, "  store i8 0, ptr {f2}");
+                    } else {
+                        let _ = writeln!(self.out, "  store {r2_ty} {r2}, ptr {f2}");
+                    }
                 }
                 let _ = writeln!(self.out, "  br label %{l_done}");
-
                 let _ = writeln!(self.out, "{l_done}:");
                 Ok(())
             }

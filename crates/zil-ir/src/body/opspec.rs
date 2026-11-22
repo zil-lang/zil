@@ -1503,6 +1503,62 @@ fn intrinsic_sig(
             let r2 = tys
                 .subst_lookup(cdef.result, *args)
                 .ok_or(ConstraintError::MissingType)?;
+            let is_task = match tys.get(*cell_ty) {
+                Some(TyKind::Managed(inner)) => match tys.get(*inner) {
+                    Some(TyKind::Opaque(OpaqueTy::Task { context: None, .. })) => true,
+                    Some(TyKind::Opaque(OpaqueTy::Task {
+                        context: Some(_), ..
+                    })) => {
+                        return Err(bad(
+                            "thread.scope cannot transfer a Task with a borrowed Context",
+                        ));
+                    }
+                    _ => false,
+                },
+                _ => false,
+            };
+            if is_task {
+                let Some(TyKind::Adt {
+                    adt,
+                    args: dest_args,
+                }) = tys.get(dest_ty)
+                else {
+                    return Err(bad(
+                        "thread.scope task transfer destination must be TaskThreadScopeResult enum",
+                    ));
+                };
+                let adef = tys.get_adt(*adt).ok_or(ConstraintError::MissingType)?;
+                if adef.kind != AdtKind::Enum || adef.variants.len() != 2 {
+                    return Err(bad(
+                        "thread.scope task transfer destination must be a 2-variant enum",
+                    ));
+                }
+                let v0 = &adef.variants[0].fields;
+                let v1 = &adef.variants[1].fields;
+                if v0.len() != 1 || v1.len() != 2 {
+                    return Err(bad(
+                        "thread.scope task transfer enum variants must be Failed(T) and Completed(R1, R2)",
+                    ));
+                }
+                let v0_t = tys
+                    .subst_lookup(v0[0].ty, *dest_args)
+                    .ok_or(ConstraintError::MissingType)?;
+                let v1_r1 = tys
+                    .subst_lookup(v1[0].ty, *dest_args)
+                    .ok_or(ConstraintError::MissingType)?;
+                let v1_r2 = tys
+                    .subst_lookup(v1[1].ty, *dest_args)
+                    .ok_or(ConstraintError::MissingType)?;
+                if !tys.same_erased_region(v0_t, *cell_ty)
+                    || !tys.same_erased_region(v1_r1, *r1)
+                    || !tys.same_erased_region(v1_r2, r2)
+                {
+                    return Err(bad(
+                        "thread.scope task transfer enum payload types do not match (Task, R1, R2)",
+                    ));
+                }
+                return Ok((vec![*worker_ty, *cell_ty, *parent_ty], dest_ty));
+            }
             let out_ty = cx.lookup(TyKind::Tuple(vec![bool_ty()?, *r1, r2]))?;
             Ok((vec![*worker_ty, *cell_ty, *parent_ty], out_ty))
         }
