@@ -8,8 +8,8 @@
 
 use crate::diag;
 use crate::items::{
-    ConstRef, FnDecl, ForeignDeclInfo, ItemRef, Items, ModIdx, VariantShape, resolve_type,
-    scalar_type,
+    ConstRef, FnDecl, ForeignDeclInfo, ItemRef, Items, ModIdx, VariantShape,
+    resolve_type_with_self, scalar_type,
 };
 use crate::literal;
 use crate::thir::*;
@@ -1092,11 +1092,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             )
             .unwrap_or_else(|| self.types.error());
         }
-        match resolve_type(
+        match resolve_type_with_self(
             t,
             self.decl.module,
             &self.generic_names,
             &self.decl.region_params,
+            self.decl.self_ty,
             self.items,
             self.types,
         ) {
@@ -1113,7 +1114,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             return self.types.intern(TyData::ConstU32(n));
         }
         if let ast::ExprKind::Name(cname) = &expr.kind
-            && let Some(idx) = self.generic_names.iter().position(|g| g == cname)
+            && let Some(idx) = self.generic_names.iter().rposition(|g| g == cname)
         {
             return self.types.intern(TyData::ConstParam(idx as u32));
         }
@@ -1147,6 +1148,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
 
     /// `Enum.Variant`, `Record`, `mod.Record`, or `mod.Enum.Variant`.
     fn resolve_variant_path(&mut self, path: &[String], span: Span) -> Option<(AdtRef, u32)> {
+        if path.len() == 1
+            && path[0] == "Self"
+            && let Some(self_ty) = self.decl.self_ty
+            && let TyData::Adt { adt, .. } = *self.types.data(self.types.shallow(self_ty))
+            && self.items.adt(adt).kind != AdtKind::Enum
+        {
+            return Some((adt, 0));
+        }
         if let Some(adt) = self
             .items
             .resolve_adt_of(self.decl.module, path, self.types)
@@ -2186,6 +2195,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     .generics
                     .iter()
                     .enumerate()
+                    .rev()
                     .find(|(_, g)| g.name == *n && g.const_ty.is_some())
                 {
                     let ty = g.const_ty.unwrap();
@@ -3501,6 +3511,53 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 span,
             };
         }
+        // Static inline method call with explicit host generics: `Host::<T>.method::<U>(args...)`.
+        if let ast::ExprKind::Member {
+            object,
+            member: ast::MemberName::Name(mname),
+        } = &callee.kind
+            && let ast::ExprKind::TypeApply {
+                callee: host_callee,
+                arguments: host_type_args,
+            } = &object.kind
+            && let Some(host_path) = Self::expr_path(host_callee).filter(|p| !self.path_is_value(p))
+            && let Some(adt) = self
+                .items
+                .resolve_adt_of(self.decl.module, &host_path, self.types)
+            && let Some(method) = self.items.adt(adt).method_named(mname).cloned()
+        {
+            if !method.public && self.decl.module != self.items.adt(adt).module {
+                self.error(
+                    "E-VISIBILITY",
+                    span,
+                    format!(
+                        "method `{mname}` on `{}` is private",
+                        self.items.adt(adt).name
+                    ),
+                );
+                return self.err_expr(span);
+            }
+            let Some(mut full_args) = self.resolve_explicit_type_args(
+                Some(host_type_args.as_slice()),
+                method.host_generic_count,
+                object.span,
+            ) else {
+                return self.err_expr(span);
+            };
+            let method_n = self
+                .items
+                .func(method.fn_ref)
+                .generics
+                .len()
+                .saturating_sub(method.host_generic_count);
+            let Some(method_args) =
+                self.resolve_explicit_type_args(explicit.map(Vec::as_slice), method_n, span)
+            else {
+                return self.err_expr(span);
+            };
+            full_args.extend(method_args);
+            return self.direct_call_with_args(method.fn_ref, full_args, None, arguments, span);
+        }
         if let Some(path) = Self::expr_path(callee).filter(|p| !self.path_is_value(p)) {
             if let [name] = path.as_slice()
                 && scalar_type(name).is_some()
@@ -3598,9 +3655,65 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     };
                 }
             }
+            if path.len() >= 2 {
+                let (host_path, mname) = (&path[..path.len() - 1], &path[path.len() - 1]);
+                let resolved_host = if host_path == ["Self"]
+                    && let Some(self_ty) = self.decl.self_ty
+                    && let TyData::Adt { adt, args, .. } =
+                        self.types.data(self.types.shallow(self_ty)).clone()
+                {
+                    Some((adt, Some(args)))
+                } else {
+                    self.items
+                        .resolve_adt_of(self.decl.module, host_path, self.types)
+                        .map(|adt| (adt, None))
+                };
+                if let Some((adt, self_args)) = resolved_host
+                    && let Some(method) = self.items.adt(adt).method_named(mname).cloned()
+                {
+                    if !method.public && self.decl.module != self.items.adt(adt).module {
+                        self.error(
+                            "E-VISIBILITY",
+                            span,
+                            format!(
+                                "method `{mname}` on `{}` is private",
+                                self.items.adt(adt).name
+                            ),
+                        );
+                        return self.err_expr(span);
+                    }
+                    let mut full_args = match self_args {
+                        Some(args) => args,
+                        None => (0..method.host_generic_count)
+                            .map(|_| self.types.fresh(VarKind::General))
+                            .collect(),
+                    };
+                    let method_n = self
+                        .items
+                        .func(method.fn_ref)
+                        .generics
+                        .len()
+                        .saturating_sub(method.host_generic_count);
+                    let Some(method_args) = self.resolve_explicit_type_args(
+                        explicit.map(Vec::as_slice),
+                        method_n,
+                        span,
+                    ) else {
+                        return self.err_expr(span);
+                    };
+                    full_args.extend(method_args);
+                    return self.direct_call_with_args(
+                        method.fn_ref,
+                        full_args,
+                        None,
+                        arguments,
+                        span,
+                    );
+                }
+            }
             if let [param_name, method_name] = path.as_slice()
                 && explicit.is_none()
-                && let Some(param_idx) = self.generic_names.iter().position(|g| g == param_name)
+                && let Some(param_idx) = self.generic_names.iter().rposition(|g| g == param_name)
             {
                 let bounds = self.decl.generics[param_idx].traits.clone();
                 let self_ty = self.types.intern(TyData::Param(param_idx as u32));
@@ -3656,17 +3769,16 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             return self.err_expr(span);
         }
 
-        // Built-in `.len()` method and method-syntax trait calls (`receiver.method(args...)`).
+        // Built-in `.len()`, inherent inline methods, and trait/dyn calls (`receiver.method(args...)`).
         let mut fallback_callee: Option<Expr> = None;
-        if explicit.is_none()
-            && let ast::ExprKind::Member {
-                object,
-                member: ast::MemberName::Name(mname),
-            } = &callee.kind
+        if let ast::ExprKind::Member {
+            object,
+            member: ast::MemberName::Name(mname),
+        } = &callee.kind
         {
             let receiver = self.infer(object);
             let rec_ty = self.types.shallow(receiver.ty);
-            if mname == "len" && arguments.is_empty() {
+            if explicit.is_none() && mname == "len" && arguments.is_empty() {
                 let derefed = self.auto_deref(receiver.clone());
                 let bt = self.types.shallow(derefed.ty);
                 if matches!(self.types.data(bt), TyData::Array { .. } | TyData::Slice(_)) {
@@ -3683,6 +3795,109 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             } else {
                 rec_ty
             };
+            let inherent_adt =
+                if let TyData::Adt { adt, args, .. } = self.types.data(self_ty).clone() {
+                    Some((adt, args, false))
+                } else if let TyData::Managed(inner) = *self.types.data(self_ty)
+                    && let TyData::Adt { adt, args, .. } =
+                        self.types.data(self.types.shallow(inner)).clone()
+                {
+                    Some((adt, args, true))
+                } else if let TyData::Desc(inner) = *self.types.data(self_ty)
+                    && let TyData::Adt { adt, args, .. } =
+                        self.types.data(self.types.shallow(inner)).clone()
+                {
+                    Some((adt, args, false))
+                } else {
+                    None
+                };
+            if let Some((adt, adt_args, is_managed)) = inherent_adt
+                && let Some(method) = self.items.adt(adt).method_named(mname).cloned()
+            {
+                if !method.public && self.decl.module != self.items.adt(adt).module {
+                    self.error(
+                        "E-VISIBILITY",
+                        span,
+                        format!(
+                            "method `{mname}` on `{}` is private",
+                            self.items.adt(adt).name
+                        ),
+                    );
+                    return self.err_expr(span);
+                }
+                if !method.has_self {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        format!("associated function `{mname}` takes no `self` receiver"),
+                    );
+                    return self.err_expr(span);
+                }
+                let method_n = self
+                    .items
+                    .func(method.fn_ref)
+                    .generics
+                    .len()
+                    .saturating_sub(method.host_generic_count);
+                let Some(method_args) =
+                    self.resolve_explicit_type_args(explicit.map(Vec::as_slice), method_n, span)
+                else {
+                    return self.err_expr(span);
+                };
+                let mut full_args = adt_args;
+                full_args.extend(method_args);
+                let expected_self = self
+                    .types
+                    .subst(self.items.func(method.fn_ref).params[0].ty, &full_args);
+                let expected_self = self.types.shallow(expected_self);
+                let rec_expr = if let TyData::Ref { mutable, .. } = *self.types.data(expected_self)
+                {
+                    if matches!(self.types.data(rec_ty), TyData::Ref { .. }) {
+                        receiver
+                    } else {
+                        if mutable {
+                            self.check_mutable_place(&receiver, "borrowed mutably");
+                        }
+                        let borrow_ty = self.types.intern(TyData::Ref {
+                            region: None,
+                            mutable,
+                            pointee: rec_ty,
+                        });
+                        Expr {
+                            kind: ExprKind::Borrow {
+                                mutable,
+                                place: Box::new(receiver),
+                            },
+                            ty: borrow_ty,
+                            span: object.span,
+                        }
+                    }
+                } else if is_managed && let TyData::Desc(inner) = *self.types.data(expected_self) {
+                    let desc_ty = self.types.intern(TyData::Desc(inner));
+                    Expr {
+                        kind: ExprKind::Describe(Box::new(receiver)),
+                        ty: desc_ty,
+                        span: object.span,
+                    }
+                } else {
+                    receiver
+                };
+                return self.direct_call_with_args(
+                    method.fn_ref,
+                    full_args,
+                    Some(rec_expr),
+                    arguments,
+                    span,
+                );
+            }
+            if explicit.is_some() {
+                self.error(
+                    diag::TYPE_ARGUMENT,
+                    span,
+                    format!("method `{mname}` does not accept explicit type arguments here"),
+                );
+                return self.err_expr(span);
+            }
             if let TyData::Dyn(tr) | TyData::OwnedDyn(tr) = *self.types.data(self_ty) {
                 let tr_decl = self.items.trait_decl(tr);
                 if let Some((slot, m)) = tr_decl
@@ -4600,17 +4815,18 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         })
     }
 
-    fn direct_call(
+    fn resolve_explicit_type_args(
         &mut self,
-        f: FnRef,
         explicit: Option<&[ast::GenericArg]>,
-        arguments: &[ast::Argument],
+        expected_n: usize,
         span: Span,
-    ) -> Expr {
-        let decl = self.items.func(f);
-        let n = decl.generics.len();
-        let type_args: Vec<Ty> = match explicit {
-            None => (0..n).map(|_| self.types.fresh(VarKind::General)).collect(),
+    ) -> Option<Vec<Ty>> {
+        match explicit {
+            None => Some(
+                (0..expected_n)
+                    .map(|_| self.types.fresh(VarKind::General))
+                    .collect(),
+            ),
             Some(given) => {
                 let mut out = Vec::new();
                 for g in given {
@@ -4622,37 +4838,61 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         }
                         ast::GenericArg::AssociatedBinding(_) => {
                             self.unsupported("non-type generic arguments", span);
-                            return self.err_expr(span);
+                            return None;
                         }
                     }
                 }
                 if out.is_empty() {
-                    (0..n).map(|_| self.types.fresh(VarKind::General)).collect()
-                } else if out.len() != n {
+                    Some(
+                        (0..expected_n)
+                            .map(|_| self.types.fresh(VarKind::General))
+                            .collect(),
+                    )
+                } else if out.len() != expected_n {
                     self.error(diag::TYPE_ARGUMENT, span, "wrong number of type arguments");
-                    return self.err_expr(span);
+                    None
                 } else {
-                    out
+                    Some(out)
                 }
             }
-        };
+        }
+    }
+
+    fn direct_call_with_args(
+        &mut self,
+        f: FnRef,
+        type_args: Vec<Ty>,
+        receiver: Option<Expr>,
+        arguments: &[ast::Argument],
+        span: Span,
+    ) -> Expr {
+        let decl = self.items.func(f);
         let param_tys: Vec<Ty> = decl.params.iter().map(|p| p.ty).collect();
         let result = decl.result;
-        if param_tys.len() != arguments.len() {
+        let rec_n = usize::from(receiver.is_some());
+        if param_tys.len() != arguments.len() + rec_n {
             self.error(
                 diag::CALL_ARITY,
                 span,
                 format!(
                     "`{}` takes {} arguments, {} given",
                     decl.name,
-                    param_tys.len(),
+                    param_tys.len().saturating_sub(rec_n),
                     arguments.len()
                 ),
             );
             return self.err_expr(span);
         }
-        let mut args = Vec::new();
-        for (p, a) in param_tys.iter().zip(arguments) {
+        let mut args = Vec::with_capacity(param_tys.len());
+        let mut param_iter = param_tys.iter();
+        if let Some(rec) = receiver {
+            let p0 = *param_iter.next().expect("receiver param");
+            let expected = self.types.subst(p0, &type_args);
+            let expected = self.types.erase_regions(expected);
+            let rec_span = rec.span;
+            args.push(self.coerce_arg(rec, expected, rec_span));
+        }
+        for (p, a) in param_iter.zip(arguments) {
             let expected = self.types.subst(*p, &type_args);
             let expected = self.types.erase_regions(expected);
             let value = self.infer_expected(&a.value, expected);
@@ -4670,6 +4910,20 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             ty,
             span,
         }
+    }
+
+    fn direct_call(
+        &mut self,
+        f: FnRef,
+        explicit: Option<&[ast::GenericArg]>,
+        arguments: &[ast::Argument],
+        span: Span,
+    ) -> Expr {
+        let n = self.items.func(f).generics.len();
+        let Some(type_args) = self.resolve_explicit_type_args(explicit, n, span) else {
+            return self.err_expr(span);
+        };
+        self.direct_call_with_args(f, type_args, None, arguments, span)
     }
 
     fn ty_contains_ref(&mut self, ty: Ty) -> bool {
