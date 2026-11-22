@@ -1550,6 +1550,31 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         }
         let ty = self.ty(e.ty, e.span);
         let p = self.place(e);
+        if matches!(
+            self.tys().kind(ty),
+            TyKind::Ref {
+                mutability: Mutability::Exclusive,
+                ..
+            }
+        ) && p
+            .projections
+            .iter()
+            .any(|pr| matches!(pr, Projection::Deref))
+        {
+            let mut derefed = p;
+            derefed.projections.push(Projection::Deref);
+            let tmp = self.temp(ty);
+            self.assign(
+                Place::local(tmp),
+                Rvalue::Ref {
+                    region: Region::Static,
+                    mutability: Mutability::Exclusive,
+                    place: derefed,
+                },
+                e.span,
+            );
+            return Operand::Move(Place::local(tmp));
+        }
         self.use_place(p, ty)
     }
 

@@ -30,6 +30,7 @@ struct CaptureEntry {
     source: CaptureSource,
     orig_ty: Ty,
     by_value: bool,
+    reborrow_mut: bool,
     mutable: bool,
     mutated: bool,
     consumed: bool,
@@ -2535,7 +2536,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         let idx = if let Some(pos) = env.captures.iter().position(|c| c.source == source) {
             pos
         } else {
-            let by_value = env.move_capture;
+            let orig_shallow = self.types.shallow(orig_ty);
+            let reborrow_mut = !env.move_capture
+                && matches!(
+                    self.types.data(orig_shallow),
+                    TyData::Ref { mutable: true, .. }
+                );
+            let by_value = env.move_capture || reborrow_mut;
             let mutable = outer_mut;
             let field_ty = if by_value {
                 orig_ty
@@ -2551,6 +2558,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 source,
                 orig_ty,
                 by_value,
+                reborrow_mut,
                 mutable,
                 mutated: false,
                 consumed: false,
@@ -2863,7 +2871,27 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     }
                 }
             };
-            capture_exprs.push(if c.by_value {
+            capture_exprs.push(if c.reborrow_mut {
+                let pointee = if let TyData::Ref { pointee, .. } =
+                    *self.types.data(self.types.shallow(c.orig_ty))
+                {
+                    pointee
+                } else {
+                    self.types.error()
+                };
+                Expr {
+                    kind: ExprKind::Borrow {
+                        mutable: true,
+                        place: Box::new(Expr {
+                            kind: ExprKind::Deref(Box::new(place)),
+                            ty: pointee,
+                            span,
+                        }),
+                    },
+                    ty: c.field_ty,
+                    span,
+                }
+            } else if c.by_value {
                 place
             } else {
                 Expr {
