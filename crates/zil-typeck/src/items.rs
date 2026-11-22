@@ -536,8 +536,15 @@ fn lookup_item_in(
             scope.names.get(name).copied()
         }
         parts if parts.len() >= 3 => {
-            if parts == ["std", "task", "Poll"] {
-                return Some(ItemRef::Adt(AdtRef(2)));
+            if parts.len() == 3 && parts[0] == "std" && parts[1] == "task" {
+                match parts[2].as_str() {
+                    "Poll" => return Some(ItemRef::Adt(AdtRef(2))),
+                    "TaskCreateError" => return Some(ItemRef::Adt(AdtRef(3))),
+                    "TaskPollError" | "TaskPollState" => return Some(ItemRef::Adt(AdtRef(4))),
+                    "TaskCreateOwnedFailure" => return Some(ItemRef::Adt(AdtRef(6))),
+                    "TaskThreadScopeResult" => return Some(ItemRef::Adt(AdtRef(7))),
+                    _ => {}
+                }
             }
             let mod_path = parts[..parts.len() - 1].join(".");
             let name = parts.last()?;
@@ -754,7 +761,7 @@ pub fn collect_program<'a>(
         args: Vec::new(),
         regions: Vec::new(),
     });
-    let _task_create_owned_failure_adt = AdtRef(6);
+    let task_create_owned_failure_adt = AdtRef(6);
     items.adt_kinds.push(AdtKind::Package);
     items.adts.push(AdtDecl {
         name: "TaskCreateOwnedFailure".to_string(),
@@ -777,6 +784,46 @@ pub fn collect_program<'a>(
                 },
             ],
         }],
+        module: ModIdx(0),
+        methods: Vec::new(),
+        user_drop: false,
+    });
+    let ts_r1 = types.intern(TyData::Param(1));
+    let ts_r2 = types.intern(TyData::Param(2));
+    let task_thread_scope_result_adt = AdtRef(7);
+    items.adt_kinds.push(AdtKind::Enum);
+    items.adts.push(AdtDecl {
+        name: "TaskThreadScopeResult".to_string(),
+        kind: AdtKind::Enum,
+        generics: vec!["T".to_string(), "R1".to_string(), "R2".to_string()],
+        region_params: 0,
+        variants: vec![
+            VariantDecl {
+                name: "Failed".to_string(),
+                shape: VariantShape::Tuple,
+                fields: vec![FieldDecl {
+                    name: "0".to_string(),
+                    ty: option_t,
+                    default: None,
+                }],
+            },
+            VariantDecl {
+                name: "Completed".to_string(),
+                shape: VariantShape::Tuple,
+                fields: vec![
+                    FieldDecl {
+                        name: "0".to_string(),
+                        ty: ts_r1,
+                        default: None,
+                    },
+                    FieldDecl {
+                        name: "1".to_string(),
+                        ty: ts_r2,
+                        default: None,
+                    },
+                ],
+            },
+        ],
         module: ModIdx(0),
         methods: Vec::new(),
         user_drop: false,
@@ -926,6 +973,14 @@ pub fn collect_program<'a>(
             .names
             .entry("MutexCreateError".to_string())
             .or_insert(ItemRef::Adt(mutex_create_error_adt));
+        items.modules[m_i]
+            .names
+            .entry("TaskCreateOwnedFailure".to_string())
+            .or_insert(ItemRef::Adt(task_create_owned_failure_adt));
+        items.modules[m_i]
+            .names
+            .entry("TaskThreadScopeResult".to_string())
+            .or_insert(ItemRef::Adt(task_thread_scope_result_adt));
     }
 
     // Pass 1a: evaluate integer const items for fixed array lengths `[T; N]`.

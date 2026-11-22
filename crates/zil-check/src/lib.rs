@@ -480,6 +480,94 @@ fn check_contracts(module: &Module, can_suspend: &[bool]) -> Result<(), CheckErr
             }
         }
 
+        // 2b. Fail-closed verification of cross-thread Task transfer via `ThreadScope`:
+        //     any `Managed<Task<...>>` transferred to another OS thread MUST originate
+        //     from a `TaskCreate` whose worker declares `ResumeMode::Transfer`.
+        let mut local_fn_ref: HashMap<Local, FnId> = HashMap::new();
+        let mut local_task_worker: HashMap<Local, FnId> = HashMap::new();
+        for block in &func.body.blocks {
+            for inst in &block.instructions {
+                if let InstructionKind::Assign {
+                    dest,
+                    value: Rvalue::FnRef(target),
+                } = &inst.kind
+                    && dest.projections.is_empty()
+                    && let PlaceRoot::Local(dl) = dest.root
+                {
+                    local_fn_ref.insert(dl, *target);
+                }
+            }
+        }
+        // Propagate TaskCreate worker FnId through ErrorUnion ok-payload and local moves.
+        for _ in 0..4 {
+            for block in &func.body.blocks {
+                if let Terminator::Call {
+                    callee: Callee::Intrinsic(IntrinsicOp::TaskCreate),
+                    args,
+                    dest,
+                    ..
+                } = &block.terminator
+                    && dest.projections.is_empty()
+                    && let PlaceRoot::Local(dl) = dest.root
+                    && let Some(Operand::Copy(w) | Operand::Move(w)) = args.first()
+                    && w.projections.is_empty()
+                    && let PlaceRoot::Local(wl) = w.root
+                    && let Some(&worker_fn) = local_fn_ref.get(&wl)
+                {
+                    local_task_worker.insert(dl, worker_fn);
+                }
+                for inst in &block.instructions {
+                    if let InstructionKind::Assign { dest, value } = &inst.kind
+                        && dest.projections.is_empty()
+                        && let PlaceRoot::Local(dl) = dest.root
+                        && let Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) = value
+                        && let PlaceRoot::Local(sl) = src.root
+                        && let Some(&worker_fn) = local_task_worker.get(&sl)
+                    {
+                        local_task_worker.insert(dl, worker_fn);
+                    }
+                }
+            }
+        }
+        for block in &func.body.blocks {
+            if let Terminator::Call {
+                callee: Callee::Intrinsic(IntrinsicOp::ThreadScope),
+                args,
+                ..
+            } = &block.terminator
+                && let Some(Operand::Copy(p) | Operand::Move(p)) = args.get(1)
+            {
+                let is_task = zil_ir::body::type_place(p, &func.body.cx(tys))
+                    .ok()
+                    .and_then(|t| match tys.get(t.ty()) {
+                        Some(TyKind::Managed(inner)) => Some(*inner),
+                        _ => None,
+                    })
+                    .is_some_and(|inner| {
+                        matches!(
+                            tys.get(inner),
+                            Some(TyKind::Opaque(zil_ir::body::OpaqueTy::Task { .. }))
+                        )
+                    });
+                if is_task {
+                    let worker_ok = p.projections.is_empty()
+                        && match p.root {
+                            PlaceRoot::Local(l) => local_task_worker
+                                .get(&l)
+                                .and_then(|wf| module.functions.get(wf.index()))
+                                .is_some_and(|wf| wf.sig.resume_mode == ResumeMode::Transfer),
+                            PlaceRoot::Capture(_) => false,
+                        };
+                    if !worker_ok {
+                        return Err(fail(
+                            fn_id,
+                            "thread_scope task transfer requires a Task created from a resume(transfer) worker",
+                        ));
+                    }
+                }
+            }
+        }
+
         // 3. Verify declared protocol-state contracts (`requires(state(...))`,
         //    `provides(retired(...))`, `provides(on_pending/on_ready(...))`).
         if !func.sig.state_contracts.is_empty() {

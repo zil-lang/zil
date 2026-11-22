@@ -4331,6 +4331,32 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 span,
             });
         }
+        if name == "task_await" {
+            if self.defer_depth > 0 {
+                self.error(
+                    diag::LOOP_CONTROL,
+                    span,
+                    "`task_await` is not allowed inside `defer` cleanup",
+                );
+                return Some(self.err_expr(span));
+            }
+            if explicit.is_some() {
+                self.error(
+                    diag::TYPE_ARGUMENT,
+                    span,
+                    "`task_await` takes no explicit type arguments",
+                );
+            }
+            let Some((callee_arg, rest_args)) = arguments.split_first() else {
+                self.error(
+                    diag::CALL_ARITY,
+                    span,
+                    "`task_await` requires a child function argument",
+                );
+                return Some(self.err_expr(span));
+            };
+            return Some(self.call(&callee_arg.value, rest_args, span));
+        }
         let op = match name {
             "bytes_new" => IntrinsicOp::ByteBufferNew,
             "bytes_reserve" => IntrinsicOp::ByteBufferReserve,
@@ -4516,7 +4542,24 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 );
                 self.types.error()
             };
-            let ret_ty = self.types.intern(TyData::Tuple(vec![bool_ty, r1, r2]));
+            let is_task_transfer =
+                if let TyData::Managed(inner) = self.types.data(self.types.shallow(c.ty)) {
+                    matches!(
+                        self.types.data(self.types.shallow(*inner)),
+                        TyData::Opaque(OpaqueKind::Task { .. })
+                    )
+                } else {
+                    false
+                };
+            let ret_ty = if is_task_transfer {
+                self.types.intern(TyData::Adt {
+                    adt: AdtRef(7),
+                    args: vec![cell_ty, r1, r2],
+                    regions: Vec::new(),
+                })
+            } else {
+                self.types.intern(TyData::Tuple(vec![bool_ty, r1, r2]))
+            };
             return Some(Expr {
                 kind: ExprKind::Intrinsic {
                     op,
