@@ -1,22 +1,22 @@
 # ZIL 实时任务看板
 
-> 更新：2026-11-21（Asia/Shanghai） · 唯一职责：仅追踪**未完成任务、优先级、依赖与可执行退出门**，不记录历史施工流水账。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；精简前历史快照固定于 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
+> 更新：2026-11-22（Asia/Shanghai） · 唯一职责：仅追踪**未完成任务、优先级、依赖与可执行退出门**，不记录历史施工流水账。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；精简前历史快照固定于 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
 
 [工作流规则](workflow.md) · [源码与恢复参考](README.md) · [分支与备份规则](AGENTS.md)
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@4618f14fe`](https://github.com/zil-lang/zil/commit/4618f14fe)（开放 PR：0；L1/L2/L3 与全部安全证明收口分支均已合入并清理）
-- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、L3 三批（[PR #103](https://github.com/zil-lang/zil/pull/103)–[#105](https://github.com/zil-lang/zil/pull/105)）及 **L3 安全证明收口**（[PR #106](https://github.com/zil-lang/zil/pull/106) + [PR #107](https://github.com/zil-lang/zil/pull/107)：`zil-check` 前向 CFG 格不动点逐路径来源证明、`OwnedDyn` 擦除 `MutexGuard` 保守拒绝、同根别名有效 3 函数证书与合法不相交对照精确 `LoanConflict` 证明、13+1 项 `RISKS.json` 精确阶段/诊断码/原因绑定）均已 4/4 远端 CI 全绿合入 `main`
-- **总体阻塞**：无活跃 P0 阻塞（PR #106 审核指出的 G7.2 同根别名测试空证书/未具名冲突缺陷已由 PR #107 闭合）；全仓 `tests/**/*.zil` Success 数 **`839 / 1,385`**（`489 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`）
-- **下一发布门**：按最新 `main@4618f14fe` 进入下一轮派工（L3 余项或并行 L4 标准库与 ABI）
+- **主线基线**：[`main@bdff56718`](https://github.com/zil-lang/zil/commit/bdff56718)（开放 PR：0；L1–L4 语言与安全证明收口分支均已合入并清理）
+- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、L3 全量闭环（[PR #103](https://github.com/zil-lang/zil/pull/103)–[#108](https://github.com/zil-lang/zil/pull/108)、[PR #110](https://github.com/zil-lang/zil/pull/110)、[PR #112](https://github.com/zil-lang/zil/pull/112)）与 **L4 标准库 / 借用 / C ABI 并行闭环**（[PR #109](https://github.com/zil-lang/zil/pull/109)、[PR #111](https://github.com/zil-lang/zil/pull/111)、[PR #113](https://github.com/zil-lang/zil/pull/113)）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入 `main`
+- **总体阻塞**：无活跃 P0 阻塞；全仓 `tests/**/*.zil` 原文件 `zil check` 计数 **`852 / 1,385`**（`476 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`；本轮同时修复了跨模块私有字段可见性、`StoreBorrow` 别名冲突、Direct 默认 `Drop` 未闭 `Task` 与 `Mutex<Resource>` FFI Drop 拒绝等 5 项安全误放行）
+- **下一发布门**：按最新 `main@bdff56718` 接受本轮 L3 + L4 终态验收，并转入剩余一般语言组合扩展或平台/ZUI 阶段（G10.4 / G9.4–G9.6）
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@4618f14fe 为基线）
+## 下一阶段施工安排（以 main@bdff56718 为基线）
 
-本轮 L3 Batch 1–3（PR #103/#104/#105）及安全证明收口（PR #106/#107）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收态，等待下一轮派工。编译性能专项独立保留，不在普通语言任务分支修改。
+本轮 L3 余项（PR #108 / #110 / #112）与 L4 标准库及 ABI 并行三批（PR #109 / #111 / #113）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收终态，等待验收与下一轮派工。编译性能专项（`research/full-push-native`、`integrate/scalar-codegen`）继续独立保留。
 
-**统一计量及安全门**：`839/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
+**统一计量及安全门**：`852/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
 ## 2. L1 · 基础语言与类型组合
 
@@ -43,19 +43,19 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable`、PR #105 作用域回调、PR #106 逐路径 CFG provider 身份证明及 PR #107 有效证书同根别名 `LoanConflict` + 合法不相交对照与 `RISKS.json` 精确诊断码绑定已合入） | 部分实现 | P0 | 继续推进一般借入环境与关闭合同；`body_captures_callback_alias.zil` 当前已被 PR #107 的 Source 测试精确证明为 Analyze/E-SAFETY-SOLVE/LoanConflict；`RISKS.json`、scoped-callback README 的 `current_source_coverage:false` 仍属旧记录、需同步修订；更广 `Address<Closure>`/`&mut` 捕获 profile 另行评估 |
-| G7.3 | 剩余：一般借入环境的外部 waker / 晚通知、no-future 与 drain，关闭后所有 raw 入口静止 | 部分实现 | P0 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
-| G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
-| G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
-| G8.5 | 剩余：显式 `MemoryOrder` 有序原子变体与一般 `Transfer`/`Share` trait 证明（PR #104 与 PR #106 已闭合 `AtomicI32`/`I64`/`Usize`、`atomic_scope`、CAS、`mutex_unlock`/`mutex_with`、7 项严格 `SafeReject` 负例及 `OwnedDyn` 擦除 `MutexGuard` 保守拒绝） | 部分实现 | P0 | 继续真实竞争与有序原子/一般 `Transfer`/`Share` 原生及安全负例验收 |
-| G8.6 | 剩余：一般拥有 Sum / result、借入 frame port、部分责任、ticket / defer 的任务组合（PR #103 与 PR #106 已闭合 `std.task.*`、`TaskThreadScopeResult`、逐路径 CFG worker `resume(transfer)` 格证明与 >4 级转发链原生执行、`task_await`） | 部分实现 | P0 | 继续帧/借入 port/取消联合原生验收与 Raw/Wire 证明 |
+| G7.2 | 剩余：一般跨线程借入环境（`Address<Closure>`/`&mut` 捕获 profile 扩展）；**核心闭环已合入**（PR #92/#105/#106/#107/#108：密封跨线程 `Registration`、作用域回调、逐路径 CFG provider 身份证明、有效证书同根别名 `LoanConflict` + 不相交对照、`RISKS.json` 14 项 1-to-1 绑定同步、`AsyncRegistrationStart` 角色门控） | 部分实现 | P1 | 仅余远期跨线程借入捕获扩展，现行规范与 14 项风险矩阵已全部双后端原生 + Raw/Wire 验收 |
+| G7.3 | 剩余：跨线程一般借入环境的外部 waker / 晚通知与 drain；**同线程/C-host 核心闭环已合入**（PR #108：8 份 `async-registration` queued/inline-tuple 原生 C-host + `calloc/realloc/free` 包装全绿、`raw-holder.zil` pthread 实测） | 部分实现 | P1 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
+| G7.4 | 剩余：跨线程借入环境 `Registration` 与异步任务取消联合；**核心闭环已合入**（PR #108/#112：取消嵌套清理、OOM 回退与 `task_create_owned` 所有权恢复双后端原生全绿） | 部分实现 | P1 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
+| G8.4 | 剩余：`FnOnce` 挂起根下的精细协议区分（`once-pending-callable/owned-result-cleanup`）；**核心闭环已合入**（PR #112：`PendingExit` 取消后拥有结果单次 Drop、枚举活跃变体 Drop、`task_create`/`task_create_owned` OOM 清理与 Direct 默认 Drop 强制拒绝） | 部分实现 | P1 | 覆盖嵌套取消清理、分配失败与非法 Direct 默认 Drop 负例 |
+| G8.5 | 剩余：用户自定义泛型对 `Transfer`/`Share` 的自动派生与跨模块约束；**核心闭环已合入**（PR #104/#106/#110：`MemoryOrder` 5 序与 `Sync*Ordered` 原子家族（Wire 43–47）、保留 `Transfer`/`Share` trait、`c_null()`（Wire 48）、`ForeignHandle ==/!=`、`thread_scope` 裸 `c_handle` 拒绝、`Mutex<Resource>` FFI Drop 拒绝） | 部分实现 | P1 | 真实竞争、有序原子与安全负例双后端原生全绿 |
+| G8.6 | 剩余：一般借入 frame port 与 ticket/defer 复杂组合；**核心闭环已合入**（PR #103/#106/#112：`std.task.*`、逐路径 CFG worker `resume(transfer)` 格证明、`task_await`、`EnumPartialDrop` 选择性枚举字段 Drop、`inline-task-enum/package` 双后端原生全绿） | 部分实现 | P1 | 继续帧/借入 port/取消联合原生验收与 Raw/Wire 证明 |
 
 ## 5. L4 · 标准库与 ABI
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G9.3 | 剩余：完整字符串 / 集合与一般 `Iterator` / lending 组合 | 部分实现 | P0 | 依赖 L1 泛型 / lending 收口；标准库真实消费原生测试全绿 |
-| G10.3 | 剩余：大型 closure / helper / foreign ABI 及浮点 / 匿名联合责任的一般组合 | 部分实现 | P0 | 覆盖跨模块与 C ABI 原生正例 + 越界/非法 ABI 负例 |
+| G9.3 | 剩余：更一般高阶集合算法与 GAT lending 迭代；**核心闭环已合入**（PR #109/#111：23 份 canonical `lib/std/*.zil` 内嵌加载与 `E-STD-RESERVED` 防伪造、跨模块私有字段 `E-VISIBILITY` 强制、`StoreBorrow` 借用跟踪修复 + Raw/Wire 有效证书证明、19 份标准库真实消费者与 `iterator`/`string_search`/`lending` 双后端原生全绿） | 部分实现 | P1 | 19 份标准库消费者 × 4 后端配置 + 迭代器/lending 原生测试全绿 |
+| G10.3 | 剩余：匿名联合 `T | U`（`TypeKind::Union`）及非 Linux ABI；**核心闭环已合入**（PR #113：`IntrinsicOp::CCallback`（Wire 49）、递归 POD Record C-ABI 引用、glibc `errno` 桥接、LLVM 浮点/有符号整数常量降级修复、`ffi.zil` / `float_roundtrip` 8,002 次 locale 零泄漏 / `float_status` / `complete-domains` / 大闭包与 16 参数辅助双后端原生全绿） | 部分实现 | P1 | 跨模块与 C ABI 原生正例 + 越界/非法 ABI 与 Raw/Wire `CCallback` 负例全绿 |
 
 ## 6. 平台与 ZUI
 
