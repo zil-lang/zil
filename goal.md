@@ -6,15 +6,15 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@895294064`](https://github.com/zil-lang/zil/commit/895294064)（开放 PR：0；L1/L2/L3 全部任务分支已合入并清理）
-- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）及 **L3 三批**（[PR #103](https://github.com/zil-lang/zil/pull/103)：`std.task.*` / `TaskThreadScopeResult` / `task_await`；[PR #104](https://github.com/zil-lang/zil/pull/104)：`AtomicI32`/`I64`/`Usize` / `atomic_scope` / CAS / `mutex_unlock` / `mutex_with` 与独立 `MutexGuard`/`Mutex<T>` 线程安全证明；[PR #105](https://github.com/zil-lang/zil/pull/105)：`scoped_callback_register`/`close` 角色、零堆分配 `c_with_callback` 运行时与非 `Copy` 捕获 `FnOnce` 推导）均已 4/4 远端 CI 全绿合入 `main`
-- **总体阻塞**：本轮未复现新的 Safe UB，但独立审核发现一个需 P0 级复核的潜在来源证明空隙：跨线程 Task worker 与 ScopedCallback foreign provider 的 `HashMap<Local, FnId/ForeignId>` 跨 CFG 汇总不具逐路径唯一性（PR #103/#105 审核评论）；先构造 Raw/Wire 反例并在不精确时保守拒绝，才能关闭完整迁移/作用域身份证明。；全仓 `tests/**/*.zil` Success 数 **`839 / 1,385`**（L3 三批累计 +75 合法正例，0 回归，0 误放行，0 `ResourceLimit`）
-- **下一发布门**：优先进行 G8.6/G7.2 来源资格证明定点收口与 Raw/Wire 反例；其后继续 L3 余项或可独立推进的 L4（标准库与 ABI）
+- **主线基线**：[`main@ac7f65ea6`](https://github.com/zil-lang/zil/commit/ac7f65ea6)（开放 PR：0；L1/L2/L3 与 P0 来源证明收口分支均已合入并清理）
+- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、L3 三批（[PR #103](https://github.com/zil-lang/zil/pull/103)–[#105](https://github.com/zil-lang/zil/pull/105)）及 **L3 安全证明收口**（[PR #106](https://github.com/zil-lang/zil/pull/106)：`zil-check` 前向 CFG 格不动点逐路径来源证明、`OwnedDyn` 擦除 `MutexGuard` 保守拒绝、7 项 Raw/Wire 反例与 6 级转发链原生正例、L3 全部覆盖负例升级为严格 `ResultCategory::SafeReject`）均已 4/4 远端 CI 全绿合入 `main`
+- **总体阻塞**：无活跃 P0 阻塞（第九轮审核指出的 G8.6/G7.2 来源证明空隙、G8.5 `OwnedDyn` 擦除 Guard 与负例 `SafeReject` 断言已由 PR #106 闭合）；全仓 `tests/**/*.zil` Success 数 **`839 / 1,385`**（`489 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`）
+- **下一发布门**：按最新 `main@ac7f65ea6` 进入下一轮派工（L3 余项或可独立推进的 L4 标准库与 ABI）
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@895294064 为基线）
+## 下一阶段施工安排（以 main@ac7f65ea6 为基线）
 
-本轮 L3 Batch 1–3（PR #103/#104/#105）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收态，等待下一轮派工。编译性能专项独立保留，不在普通语言任务分支修改。
+本轮 L3 Batch 1–3（PR #103/#104/#105）及第九轮审核安全证明收口（PR #106）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收态，等待下一轮派工。编译性能专项独立保留，不在普通语言任务分支修改。
 
 **统一计量及安全门**：`839/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
@@ -43,12 +43,12 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable` 及 PR #105 作用域回调 `scoped_callback_register`/`close` + `c_with_callback` 已合入） | 部分实现 | P0 | 新增审核：`ScopedCallback` provider 从 `ForeignFnRef` 至调用点的逐路径身份需证明；同 local 重赋值/CFG 分支 + Raw/Wire 反例，不精确 fail-closed；同时注意 `body_captures_callback_alias.zil` 在 `RISKS.json` 中明确标记 `current_source_coverage=false`、早期 Unsupported 不等于 SafeReject；其余借入环境与关闭合同继续开放 |
+| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable`、PR #105 作用域回调及 PR #106 逐路径 CFG provider 身份证明、13 项 `SafeReject` 断言与 Raw/Wire 同根别名反例已合入） | 部分实现 | P0 | 继续推进一般借入环境与关闭合同；`body_captures_callback_alias.zil` 待源码 `&mut` 捕获语法开放后补齐端到端源码 `SafeReject` 覆盖 |
 | G7.3 | 剩余：一般借入环境的外部 waker / 晚通知、no-future 与 drain，关闭后所有 raw 入口静止 | 部分实现 | P0 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
 | G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
 | G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
-| G8.5 | 剩余：显式 `MemoryOrder` 有序原子变体与一般 `Transfer`/`Share` trait 证明（PR #104 已闭合 `AtomicI32`/`AtomicI64`/`AtomicUsize`、`atomic_scope`、CAS、`mutex_unlock`/`mutex_with` 与独立 `MutexGuard`/`Mutex<T>` 线程安全检查） | 部分实现 | P0 | 继续真实竞争/Guard 负例；加强检查预期 SafeReject 而非任意非 Success；审核 `OwnedDyn` 擦除 Guard 资格在动态包装下的保守性 |
-| G8.6 | 剩余：一般拥有 Sum / result、借入 frame port、部分责任、ticket / defer 的任务组合（PR #103 已闭合 `std.task.*` 命名空间、`TaskThreadScopeResult` 跨线程任务迁移运行时与 `ResumeMode::Transfer` 独立证明、`task_await` 挂起调用） | 部分实现 | P0 | 新增审核：`TaskCreate` worker `resume(transfer)` 的跨 CFG 逐路径来源不能仅凭全函数 Local→FnId 映射；补不同 worker 合流、重赋值、深转发及 Raw/Wire 伪造证书并 fail-closed；继续帧/取消联合原生验收 |
+| G8.5 | 剩余：显式 `MemoryOrder` 有序原子变体与一般 `Transfer`/`Share` trait 证明（PR #104 与 PR #106 已闭合 `AtomicI32`/`I64`/`Usize`、`atomic_scope`、CAS、`mutex_unlock`/`mutex_with`、7 项严格 `SafeReject` 负例及 `OwnedDyn` 擦除 `MutexGuard` 保守拒绝） | 部分实现 | P0 | 继续真实竞争与有序原子/一般 `Transfer`/`Share` 原生及安全负例验收 |
+| G8.6 | 剩余：一般拥有 Sum / result、借入 frame port、部分责任、ticket / defer 的任务组合（PR #103 与 PR #106 已闭合 `std.task.*`、`TaskThreadScopeResult`、逐路径 CFG worker `resume(transfer)` 格证明与 >4 级转发链原生执行、`task_await`） | 部分实现 | P0 | 继续帧/借入 port/取消联合原生验收与 Raw/Wire 证明 |
 
 ## 5. L4 · 标准库与 ABI
 
