@@ -6,17 +6,17 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@68faf081a`](https://github.com/zil-lang/zil/commit/68faf081a)（开放 PR：0；所有 L1/L2 任务分支已合入并清理）
-- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 两批（[PR #100](https://github.com/zil-lang/zil/pull/100)、[PR #101](https://github.com/zil-lang/zil/pull/101)）以及 **PR #101 合同证明收口**（[PR #102](https://github.com/zil-lang/zil/pull/102)：`StateContractClause` IR/Wire 与独立 CFG 前后置证明、传递 `Suspend` 跨挂起活动借用证明、`resume(transfer)` 外部 Provider 角色/迁移 fail-closed）均已 4/4 远端 CI 全绿合入 `main`
-- **总体阻塞**：无 P0 安全阻断；全仓 `tests/**/*.zil` Success 数 **`764 / 1,385`**（0 回归，0 误放行，0 `ResourceLimit`；未证明的 `effects(spawn)` 与 `scoped_callback_*` 保持显式 `Unsupported`）
-- **下一发布门**：待新一轮 L3/L4 派工（如 `std.task` 命名空间、`TaskThreadScopeResult` 跨线程任务迁移、`c_with_callback` 作用域回调运行时与标准库/应用联合验收）
+- **主线基线**：[`main@3f83f7811`](https://github.com/zil-lang/zil/commit/3f83f7811)（开放 PR：0；L1/L2 及 L3 Batch 1 任务分支均已合入并清理）
+- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）以及 **L3 Batch 1**（[PR #103](https://github.com/zil-lang/zil/pull/103)：`std.task` 命名空间、`TaskThreadScopeResult` 跨线程任务迁移运行时与 `ResumeMode::Transfer` 独立 fail-closed 证明、`task_await` 挂起调用与 `defer` 拒绝）均已 4/4 远端 CI 全绿合入 `main`
+- **总体阻塞**：无 P0 安全阻断；全仓 `tests/**/*.zil` Success 数 **`799 / 1,385`**（较上批 +35 合法正例，0 回归，0 误放行，0 `ResourceLimit`）
+- **下一发布门**：推进 L3 Batch 2（`G8.5` 原子原语与 `mutex_unlock`）及 L3 Batch 3（`G7.2`/`G7.3` `c_with_callback` 作用域回调运行时）
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@68faf081a 为基线）
+## 下一阶段施工安排（以 main@3f83f7811 为基线）
 
-本轮排定的 L1 Batch 1–4、L2 Batch 1–2 与 PR #101 三项合同证明收口（PR #102）已全部验收合入，等待下一轮 L3/L4 派工。编译性能专项独立保留，不在普通语言任务分支修改。
+当前持续推进 L3 到可验收态：L3 Batch 1（PR #103）已合入，接下来依次实施 L3 Batch 2（`G8.5` Atomics & `mutex_unlock`）与 L3 Batch 3（`G7.2`/`G7.3` `c_with_callback`）。编译性能专项独立保留，不在普通语言任务分支修改。
 
-**统一计量及安全门**：`764/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
+**统一计量及安全门**：`799/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
 ## 2. L1 · 基础语言与类型组合
 
@@ -48,7 +48,7 @@
 | G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
 | G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
 | G8.5 | 剩余：一般 `Mutex<T>` / `Guard`、`Transfer`/`Share`、原子位宽与拥有同步构造 | 进行中 | P0 | 覆盖真实多线程竞争原生正例 + Guard 跨挂起/跨线程未授权负例 |
-| G8.6 | 剩余：一般拥有 Sum / result、借入 frame port、部分责任、ticket / defer 的任务组合及 `TaskThreadScopeResult` 跨线程任务迁移运行时（PR #102 已补齐 G6.1 传递 Suspend、Provider 角色及 driver-transfer fail-closed 前置证明） | 部分实现 | P0 | 覆盖原生多轮挂起/取消清理、跨线程任务迁移正例与帧逃逸负例 |
+| G8.6 | 剩余：一般拥有 Sum / result、借入 frame port、部分责任、ticket / defer 的任务组合（PR #103 已闭合 `std.task.*` 命名空间、`TaskThreadScopeResult` 跨线程任务迁移运行时与 `ResumeMode::Transfer` 独立证明、`task_await` 挂起调用） | 部分实现 | P0 | 覆盖原生多轮挂起/取消清理、跨线程任务迁移正例与帧逃逸负例 |
 
 ## 5. L4 · 标准库与 ABI
 
