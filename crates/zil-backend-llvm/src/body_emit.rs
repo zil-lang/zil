@@ -4464,6 +4464,205 @@ reject:\n\
                 );
                 Ok(())
             }
+            IntrinsicOp::ScopedCallback => {
+                if args.len() != 4 {
+                    return Err(BodyEmitError::new(
+                        "ScopedCallback expects 4 arguments (reg, close, &mut f, body)",
+                    ));
+                }
+                let (reg_fn, _, _) = self.emit_operand(&args[0])?;
+                let (close_fn, _, _) = self.emit_operand(&args[1])?;
+                let (f_ptr, _, f_ref_ty_opt) = self.emit_operand(&args[2])?;
+                let f_ref_ty = f_ref_ty_opt.ok_or_else(|| {
+                    BodyEmitError::new("ScopedCallback missing callback ref type")
+                })?;
+                let Some(TyKind::Ref { pointee: f_ty, .. }) = self.tys().get(f_ref_ty) else {
+                    return Err(BodyEmitError::new("ScopedCallback arg 2 must be &mut F"));
+                };
+                let f_ty = *f_ty;
+                let (body_ptr, body_ty) = match &args[3] {
+                    Operand::Copy(p) | Operand::Move(p) => self.emit_place_ptr(p)?,
+                    Operand::Const(_) | Operand::Pooled(_) => {
+                        return Err(BodyEmitError::new(
+                            "ScopedCallback body must be a closure or fn ptr place",
+                        ));
+                    }
+                };
+
+                let tid = self.tmp;
+                self.tmp += 1;
+                let tramp_sym = format!("__zil_scoped_tramp_f{}_{tid}", self.fn_id.0);
+                let f_closure_sym = match self.tys().get(f_ty) {
+                    Some(TyKind::Closure { def, .. }) => {
+                        let c_fn_id = self
+                            .module
+                            .functions
+                            .iter()
+                            .position(|f| f.body.closure == Some(*def))
+                            .map(FnId::from_index)
+                            .ok_or_else(|| {
+                                BodyEmitError::new("ScopedCallback callback closure body missing")
+                            })?;
+                        Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]))
+                    }
+                    Some(TyKind::FnPtr { .. }) => None,
+                    _ => {
+                        return Err(BodyEmitError::new(
+                            "ScopedCallback callback must be a closure or fn ptr",
+                        ));
+                    }
+                };
+
+                let _ = writeln!(
+                    self.extra_defs,
+                    "\ndefine internal i64 @{tramp_sym}(ptr %ctx, i32 %arg) {{"
+                );
+                self.extra_defs.push_str(
+                    "entry:\n\
+  %is_null = icmp eq ptr %ctx, null\n\
+  br i1 %is_null, label %reject, label %check\n\
+check:\n\
+  %gate_p = getelementptr inbounds { i32, ptr }, ptr %ctx, i32 0, i32 0\n\
+  %g = load i32, ptr %gate_p\n\
+  %is_open = icmp eq i32 %g, 0\n\
+  br i1 %is_open, label %run, label %reject\n\
+run:\n\
+  store i32 1, ptr %gate_p\n\
+  %env_slot = getelementptr inbounds { i32, ptr }, ptr %ctx, i32 0, i32 1\n\
+  %env_p = load ptr, ptr %env_slot\n",
+                );
+                if let Some(csym) = f_closure_sym {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "  %rv = call i32 @{csym}(ptr %env_p, i32 %arg)"
+                    );
+                } else {
+                    self.extra_defs
+                        .push_str("  %f_val = load ptr, ptr %env_p\n");
+                    self.extra_defs
+                        .push_str("  %rv = call i32 %f_val(i32 %arg)\n");
+                }
+                self.extra_defs.push_str(
+                    "  %g_after = load i32, ptr %gate_p\n\
+  %still_busy = icmp eq i32 %g_after, 1\n\
+  br i1 %still_busy, label %restore, label %ret_ok\n\
+restore:\n\
+  store i32 0, ptr %gate_p\n\
+  br label %ret_ok\n\
+ret_ok:\n\
+  %rv64 = zext i32 %rv to i64\n\
+  ret i64 %rv64\n\
+reject:\n\
+  ret i64 4294967296\n\
+}\n",
+                );
+
+                let (body_closure_sym, body_is_fn_once) = match self.tys().get(body_ty) {
+                    Some(TyKind::Closure { def, .. }) => {
+                        let c_fn_id = self
+                            .module
+                            .functions
+                            .iter()
+                            .position(|f| f.body.closure == Some(*def))
+                            .map(FnId::from_index)
+                            .ok_or_else(|| {
+                                BodyEmitError::new("ScopedCallback body closure missing")
+                            })?;
+                        let is_once = self
+                            .tys()
+                            .closure(*def)
+                            .is_some_and(|c| c.kind == zil_ir::body::ClosureKind::FnOnce);
+                        (
+                            Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()])),
+                            is_once,
+                        )
+                    }
+                    Some(TyKind::FnPtr { .. }) => (None, false),
+                    _ => {
+                        return Err(BodyEmitError::new(
+                            "ScopedCallback body must be a closure or fn ptr",
+                        ));
+                    }
+                };
+
+                let frame = self.fresh();
+                let gate_p = self.fresh();
+                let env_slot = self.fresh();
+                let tok = self.fresh();
+                let is_null = self.fresh();
+                let l_null = format!("sc_null_{tid}");
+                let l_ok = format!("sc_ok_{tid}");
+                let l_done = format!("sc_done_{tid}");
+                let _ = writeln!(self.out, "  {frame} = alloca {{ i32, ptr }}");
+                let _ = writeln!(
+                    self.out,
+                    "  {gate_p} = getelementptr inbounds {{ i32, ptr }}, ptr {frame}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i32 0, ptr {gate_p}");
+                let _ = writeln!(
+                    self.out,
+                    "  {env_slot} = getelementptr inbounds {{ i32, ptr }}, ptr {frame}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store ptr {f_ptr}, ptr {env_slot}");
+                let _ = writeln!(
+                    self.out,
+                    "  {tok} = call ptr {reg_fn}(ptr @{tramp_sym}, ptr {frame})"
+                );
+                let _ = writeln!(self.out, "  {is_null} = icmp eq ptr {tok}, null");
+                let _ = writeln!(
+                    self.out,
+                    "  br i1 {is_null}, label %{l_null}, label %{l_ok}"
+                );
+
+                // Registration returned NULL: skip body, deterministically drop body environment, return (false, 0).
+                let _ = writeln!(self.out, "{l_null}:");
+                self.emit_drop_ptr(&body_ptr, body_ty)?;
+                let p0_n = self.fresh();
+                let p1_n = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {p0_n} = getelementptr inbounds {{ i1, i32 }}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 false, ptr {p0_n}");
+                let _ = writeln!(
+                    self.out,
+                    "  {p1_n} = getelementptr inbounds {{ i1, i32 }}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store i32 0, ptr {p1_n}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                // Registration succeeded: run body, clean up body before close, mark gate closed, call close, return (true, bres).
+                let _ = writeln!(self.out, "{l_ok}:");
+                let bres = self.fresh();
+                if let Some(bsym) = body_closure_sym {
+                    let _ = writeln!(self.out, "  {bres} = call i32 @{bsym}(ptr {body_ptr})");
+                } else {
+                    let bfp = self.fresh();
+                    let _ = writeln!(self.out, "  {bfp} = load ptr, ptr {body_ptr}");
+                    let _ = writeln!(self.out, "  {bres} = call i32 {bfp}()");
+                }
+                if !body_is_fn_once {
+                    self.emit_drop_ptr(&body_ptr, body_ty)?;
+                }
+                let _ = writeln!(self.out, "  store i32 2, ptr {gate_p}");
+                let _ = writeln!(self.out, "  call void {close_fn}(ptr {tok})");
+                let p0_ok = self.fresh();
+                let p1_ok = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {p0_ok} = getelementptr inbounds {{ i1, i32 }}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store i1 true, ptr {p0_ok}");
+                let _ = writeln!(
+                    self.out,
+                    "  {p1_ok} = getelementptr inbounds {{ i1, i32 }}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store i32 {bres}, ptr {p1_ok}");
+                let _ = writeln!(self.out, "  br label %{l_done}");
+
+                let _ = writeln!(self.out, "{l_done}:");
+                Ok(())
+            }
             IntrinsicOp::TaskStart => Err(BodyEmitError::new(format!(
                 "intrinsic {op:?} native emission not yet implemented"
             ))),

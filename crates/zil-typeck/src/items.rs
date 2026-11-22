@@ -2328,6 +2328,12 @@ fn collect_foreign(
                         "thread_async_callback_poll_drain" => {
                             Some(zil_ir::body::ForeignCallbackRole::ThreadAsyncPollDrain)
                         }
+                        "scoped_callback_register" => {
+                            Some(zil_ir::body::ForeignCallbackRole::ScopedRegister)
+                        }
+                        "scoped_callback_close" => {
+                            Some(zil_ir::body::ForeignCallbackRole::ScopedClose)
+                        }
                         _ => None,
                     }
                 {
@@ -2409,6 +2415,31 @@ fn collect_foreign(
             span,
             "extern \"C\" return type is outside the C value ABI",
         ));
+    }
+    if let Some(zil_ir::body::ForeignCallbackRole::ScopedRegister) = callback_role {
+        let handle_ty = types.intern(TyData::Opaque(OpaqueKind::ForeignHandle));
+        let i32_ty = types.intern(TyData::Int(IntTy::I32));
+        let i64_ty = types.intern(TyData::Int(IntTy::I64));
+        let cb_ty = types.intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+            params: vec![handle_ty, i32_ty],
+            result: i64_ty,
+        }));
+        if params.as_slice() != [cb_ty, handle_ty] || result != handle_ty {
+            diags.push(diag::error(
+                diag::FFI_DECLARATION,
+                span,
+                "scoped_callback_register must have signature `extern \"C\" fn(extern \"C\" fn(c_handle, i32) -> i64, c_handle) -> c_handle`",
+            ));
+        }
+    } else if let Some(zil_ir::body::ForeignCallbackRole::ScopedClose) = callback_role {
+        let handle_ty = types.intern(TyData::Opaque(OpaqueKind::ForeignHandle));
+        if params.as_slice() != [handle_ty] || !matches!(types.data(result), TyData::Unit) {
+            diags.push(diag::error(
+                diag::FFI_DECLARATION,
+                span,
+                "scoped_callback_close must have signature `extern \"C\" fn(c_handle)`",
+            ));
+        }
     }
     ForeignDeclInfo {
         name: f.name.clone(),

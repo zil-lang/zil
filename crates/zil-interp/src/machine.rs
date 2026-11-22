@@ -253,6 +253,7 @@ fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::ManagedCreate => "intrinsic ManagedCreate",
         IntrinsicOp::OwnedDynCreate => "intrinsic OwnedDynCreate",
         IntrinsicOp::ThreadScope => "intrinsic ThreadScope",
+        IntrinsicOp::ScopedCallback => "intrinsic ScopedCallback",
     }
 }
 

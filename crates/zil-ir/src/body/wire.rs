@@ -1198,6 +1198,7 @@ fn encode_intrinsic(w: &mut Writer, op: IntrinsicOp) {
         IntrinsicOp::OwnedDynCreate => w.u8(39),
         IntrinsicOp::ThreadScope => w.u8(40),
         IntrinsicOp::SyncInit => w.u8(41),
+        IntrinsicOp::ScopedCallback => w.u8(42),
     }
 }
 fn decode_intrinsic(r: &mut Reader<'_>) -> Result<IntrinsicOp, WireError> {
@@ -1246,6 +1247,7 @@ fn decode_intrinsic(r: &mut Reader<'_>) -> Result<IntrinsicOp, WireError> {
         39 => Ok(IntrinsicOp::OwnedDynCreate),
         40 => Ok(IntrinsicOp::ThreadScope),
         41 => Ok(IntrinsicOp::SyncInit),
+        42 => Ok(IntrinsicOp::ScopedCallback),
         t => Err(WireError::InvalidTag("IntrinsicOp", t)),
     }
 }
@@ -1582,6 +1584,8 @@ fn encode_foreign_decl(w: &mut Writer, f: &ForeignDecl) {
         Some(ForeignCallbackRole::ThreadAsyncRegister) => 4,
         Some(ForeignCallbackRole::ThreadAsyncRequestClose) => 5,
         Some(ForeignCallbackRole::ThreadAsyncPollDrain) => 6,
+        Some(ForeignCallbackRole::ScopedRegister) => 7,
+        Some(ForeignCallbackRole::ScopedClose) => 8,
     });
     w.bool(f.thread_async_driver_transfer);
 }
@@ -1602,6 +1606,8 @@ fn decode_foreign_decl(r: &mut Reader<'_>) -> Result<ForeignDecl, WireError> {
         4 => Some(ForeignCallbackRole::ThreadAsyncRegister),
         5 => Some(ForeignCallbackRole::ThreadAsyncRequestClose),
         6 => Some(ForeignCallbackRole::ThreadAsyncPollDrain),
+        7 => Some(ForeignCallbackRole::ScopedRegister),
+        8 => Some(ForeignCallbackRole::ScopedClose),
         t => return Err(WireError::InvalidTag("ForeignCallbackRole", t)),
     };
     let thread_async_driver_transfer = r.bool()?;

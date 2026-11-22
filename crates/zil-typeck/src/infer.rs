@@ -2827,10 +2827,20 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         self.loop_depth = saved_loop;
         self.defer_depth = saved_defer;
         self.in_unsafe = saved_unsafe;
-        let env = self
+        let mut env = self
             .capture_stack
             .pop()
             .expect("capture_stack pushed above");
+        let mut moved_caps = Vec::new();
+        collect_moved_captures(&body_expr, &mut moved_caps);
+        for idx in moved_caps {
+            if let Some(cap) = env.captures.get_mut(idx as usize)
+                && cap.by_value
+                && ty_is_non_copy(self.items, self.types, cap.orig_ty)
+            {
+                cap.consumed = true;
+            }
+        }
 
         let kind = if env.captures.iter().any(|c| c.consumed) {
             ClosureKind::FnOnce
@@ -4252,6 +4262,23 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             );
         }
         let decl: ForeignDeclInfo = self.items.foreign(f).clone();
+        if matches!(
+            decl.callback_role,
+            Some(
+                zil_ir::body::ForeignCallbackRole::ScopedRegister
+                    | zil_ir::body::ForeignCallbackRole::ScopedClose
+            )
+        ) {
+            self.error(
+                diag::FFI_DECLARATION,
+                span,
+                format!(
+                    "`{}` declares a scoped callback provider role and may only be passed to `c_with_callback`",
+                    decl.name
+                ),
+            );
+            return self.err_expr(span);
+        }
         if arguments.len() != decl.params.len() {
             self.error(
                 diag::CALL_ARITY,
@@ -4797,6 +4824,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             "task_request_cancel" => IntrinsicOp::TaskRequestCancel,
             "task_poll_close" => IntrinsicOp::TaskPollClose,
             "task_finish_destroy" => IntrinsicOp::TaskFinishDestroy,
+            "c_with_callback" => IntrinsicOp::ScopedCallback,
             "c_register" => IntrinsicOp::RegistrationStart,
             "registration_valid" => IntrinsicOp::RegistrationValid,
             "registration_close" => IntrinsicOp::RegistrationClose,
@@ -4811,7 +4839,9 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         };
         if matches!(
             op,
-            IntrinsicOp::RegistrationStart | IntrinsicOp::AsyncRegistrationStart
+            IntrinsicOp::RegistrationStart
+                | IntrinsicOp::AsyncRegistrationStart
+                | IntrinsicOp::ScopedCallback
         ) && self.in_unsafe == 0
         {
             self.error(
@@ -5344,6 +5374,203 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 };
                 return Some(Expr {
                     kind: ExprKind::Intrinsic { op, args },
+                    ty: ret_ty,
+                    span,
+                });
+            }
+            IntrinsicOp::ScopedCallback => {
+                let [reg_arg, close_arg, f_arg, body_arg] = arguments else {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        "`c_with_callback` expects 4 arguments (register, close, &mut callback, body)",
+                    );
+                    return Some(self.err_expr(span));
+                };
+                let reg_expr = self.infer(&reg_arg.value);
+                let close_expr = self.infer(&close_arg.value);
+                let f_expr = self.infer(&f_arg.value);
+                let body_expr = self.infer(&body_arg.value);
+
+                let check_role = |this: &mut Self,
+                                  e: &Expr,
+                                  arg_span: Span,
+                                  want: zil_ir::body::ForeignCallbackRole,
+                                  label: &str| {
+                    if let ExprKind::ForeignRef(fref) = e.kind {
+                        if this.items.foreign(fref).callback_role != Some(want) {
+                            this.error(
+                                diag::FFI_DECLARATION,
+                                arg_span,
+                                format!(
+                                    "`c_with_callback` {label} must declare `provides(scoped_callback_{label}())`"
+                                ),
+                            );
+                        }
+                    } else {
+                        this.error(
+                            diag::FFI_DECLARATION,
+                            arg_span,
+                            format!(
+                                "`c_with_callback` {label} must be a direct `extern \"C\"` function with `scoped_callback_{label}()` role"
+                            ),
+                        );
+                    }
+                };
+                check_role(
+                    self,
+                    &reg_expr,
+                    reg_arg.span,
+                    zil_ir::body::ForeignCallbackRole::ScopedRegister,
+                    "register",
+                );
+                check_role(
+                    self,
+                    &close_expr,
+                    close_arg.span,
+                    zil_ir::body::ForeignCallbackRole::ScopedClose,
+                    "close",
+                );
+
+                let i32_ty = self.types.intern(TyData::Int(IntTy::I32));
+                let handle_ty = self.types.intern(TyData::Opaque(OpaqueKind::ForeignHandle));
+                let cb_ty = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                        params: vec![handle_ty, i32_ty],
+                        result: i64_ty,
+                    }));
+                let reg_expected = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                        params: vec![cb_ty, handle_ty],
+                        result: handle_ty,
+                    }));
+                let close_expected =
+                    self.types
+                        .intern(TyData::Opaque(OpaqueKind::ForeignCallback {
+                            params: vec![handle_ty],
+                            result: unit_ty,
+                        }));
+                let reg_expr = self.coerce_arg(reg_expr, reg_expected, reg_arg.span);
+                let close_expr = self.coerce_arg(close_expr, close_expected, close_arg.span);
+
+                let f_ref_ty = self.types.shallow(f_expr.ty);
+                if let TyData::Ref {
+                    mutable: true,
+                    pointee,
+                    ..
+                } = self.types.data(f_ref_ty).clone()
+                {
+                    let f_ty = self.types.shallow(pointee);
+                    let mut f_ok = false;
+                    let mut f_is_once = false;
+                    if let TyData::Closure {
+                        kind,
+                        params,
+                        result,
+                        ..
+                    } = self.types.data(f_ty).clone()
+                    {
+                        if kind == ClosureKind::FnOnce {
+                            f_is_once = true;
+                        } else if params.len() == 1 {
+                            self.unify(params[0], i32_ty, f_arg.span);
+                            self.unify(result, i32_ty, f_arg.span);
+                            f_ok = true;
+                        }
+                    } else if let TyData::ImplCallable {
+                        kind,
+                        params,
+                        result,
+                        ..
+                    } = self.types.data(f_ty).clone()
+                    {
+                        if kind == ClosureKind::FnOnce {
+                            f_is_once = true;
+                        } else if params.len() == 1 {
+                            self.unify(params[0], i32_ty, f_arg.span);
+                            self.unify(result, i32_ty, f_arg.span);
+                            f_ok = true;
+                        }
+                    } else if let TyData::Param(idx) = self.types.data(f_ty) {
+                        if let Some((kind, params, result)) = self
+                            .decl
+                            .generics
+                            .get(*idx as usize)
+                            .and_then(|g| g.callable.clone())
+                        {
+                            if kind == ClosureKind::FnOnce {
+                                f_is_once = true;
+                            } else if params.len() == 1 {
+                                self.unify(params[0], i32_ty, f_arg.span);
+                                self.unify(result, i32_ty, f_arg.span);
+                                f_ok = true;
+                            }
+                        }
+                    } else if let TyData::FnPtr { params, result } = self.types.data(f_ty).clone()
+                        && params.len() == 1
+                    {
+                        self.unify(params[0], i32_ty, f_arg.span);
+                        self.unify(result, i32_ty, f_arg.span);
+                        f_ok = true;
+                    }
+                    if f_is_once {
+                        self.error(
+                            diag::TYPE_MISMATCH,
+                            f_arg.span,
+                            "`c_with_callback` callback must be `Fn` or `FnMut`, not `FnOnce`",
+                        );
+                    } else if !f_ok {
+                        self.error(
+                            diag::TYPE_MISMATCH,
+                            f_arg.span,
+                            "`c_with_callback` callback must have signature `(i32) -> i32`",
+                        );
+                    }
+                } else {
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        f_arg.span,
+                        "`c_with_callback` third argument must be `&mut F`",
+                    );
+                }
+
+                let body_ty = self.types.shallow(body_expr.ty);
+                let mut body_ok = false;
+                if let TyData::Closure { params, result, .. }
+                | TyData::ImplCallable { params, result, .. }
+                | TyData::FnPtr { params, result } = self.types.data(body_ty).clone()
+                {
+                    if params.is_empty() {
+                        self.unify(result, i32_ty, body_arg.span);
+                        body_ok = true;
+                    }
+                } else if let TyData::Param(idx) = self.types.data(body_ty)
+                    && let Some((_, params, result)) = self
+                        .decl
+                        .generics
+                        .get(*idx as usize)
+                        .and_then(|g| g.callable.clone())
+                    && params.is_empty()
+                {
+                    self.unify(result, i32_ty, body_arg.span);
+                    body_ok = true;
+                }
+                if !body_ok {
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        body_arg.span,
+                        "`c_with_callback` body must be a 0-argument callable returning `i32`",
+                    );
+                }
+
+                let ret_ty = self.types.intern(TyData::Tuple(vec![bool_ty, i32_ty]));
+                return Some(Expr {
+                    kind: ExprKind::Intrinsic {
+                        op: IntrinsicOp::ScopedCallback,
+                        args: vec![reg_expr, close_expr, f_expr, body_expr],
+                    },
                     ty: ret_ty,
                     span,
                 });
@@ -7135,5 +7362,258 @@ pub fn check_defer_suspend_effects(
         for cl in &tf.closures {
             walk_for_defers(&cl.body, items, types, &fn_susp, &cl_susp, diags);
         }
+    }
+}
+
+fn ty_is_non_copy(items: &Items, types: &mut crate::ty::Types, ty: Ty) -> bool {
+    fn walk(items: &Items, types: &mut crate::ty::Types, ty: Ty, depth: u32) -> bool {
+        if depth > 32 {
+            return true;
+        }
+        let t = types.shallow(ty);
+        match types.data(t).clone() {
+            TyData::Managed(_) | TyData::OwnedDyn { .. } | TyData::Dyn(_) | TyData::Slice(_) => {
+                true
+            }
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer
+                | OpaqueKind::OwnedStore(_)
+                | OpaqueKind::Mutex(_)
+                | OpaqueKind::MutexGuard(_)
+                | OpaqueKind::Task { .. }
+                | OpaqueKind::Registration(_)
+                | OpaqueKind::AsyncRegistration(_)
+                | OpaqueKind::SyncCell(_),
+            ) => true,
+            TyData::Adt { adt, args, .. } => {
+                let decl = items.adt(adt);
+                match decl.kind {
+                    AdtKind::Package | AdtKind::Resource => true,
+                    AdtKind::Record | AdtKind::Enum => {
+                        decl.user_drop
+                            || decl.variants.iter().any(|v| {
+                                v.fields.iter().any(|f| {
+                                    let fty = types.subst(f.ty, &args);
+                                    walk(items, types, fty, depth + 1)
+                                })
+                            })
+                    }
+                }
+            }
+            TyData::Tuple(xs) => xs.iter().any(|x| walk(items, types, *x, depth + 1)),
+            TyData::Array { element, .. } => walk(items, types, element, depth + 1),
+            TyData::ErrorUnion { ok, err } => {
+                walk(items, types, ok, depth + 1) || walk(items, types, err, depth + 1)
+            }
+            TyData::Closure { kind, .. } | TyData::ImplCallable { kind, .. } => {
+                kind != ClosureKind::Fn
+            }
+            TyData::Unit
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Ref { .. }
+            | TyData::Desc(_)
+            | TyData::FnPtr { .. }
+            | TyData::Opaque(OpaqueKind::ForeignHandle | OpaqueKind::ForeignCallback { .. })
+            | TyData::Param(_)
+            | TyData::SelfParam
+            | TyData::Assoc { .. }
+            | TyData::ArrayConst { .. }
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
+            | TyData::Type
+            | TyData::Var(_)
+            | TyData::Error => false,
+        }
+    }
+    walk(items, types, ty, 0)
+}
+
+fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
+    fn walk_place(e: &Expr, out: &mut Vec<u32>) {
+        match &e.kind {
+            ExprKind::Field { base, .. }
+            | ExprKind::TupleField { base, .. }
+            | ExprKind::Deref(base) => walk_place(base, out),
+            ExprKind::Index { base, index } => {
+                walk_place(base, out);
+                collect_moved_captures(index, out);
+            }
+            ExprKind::Capture(_) | ExprKind::Local(_) => {}
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::Adt { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Tuple(_)
+            | ExprKind::Array(_)
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Unary { .. }
+            | ExprKind::Binary { .. }
+            | ExprKind::Logical { .. }
+            | ExprKind::Convert { .. }
+            | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Describe(_)
+            | ExprKind::Give(_)
+            | ExprKind::Len(_)
+            | ExprKind::Call { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
+            | ExprKind::Block(_)
+            | ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Loop(_)
+            | ExprKind::While { .. }
+            | ExprKind::Break
+            | ExprKind::Continue
+            | ExprKind::Return(_)
+            | ExprKind::Assign { .. } => collect_moved_captures(e, out),
+        }
+    }
+
+    match &expr.kind {
+        ExprKind::Capture(idx) => {
+            if !out.contains(idx) {
+                out.push(*idx);
+            }
+        }
+        ExprKind::Field { base, .. }
+        | ExprKind::TupleField { base, .. }
+        | ExprKind::Deref(base)
+        | ExprKind::Borrow { place: base, .. }
+        | ExprKind::Describe(base)
+        | ExprKind::Len(base) => walk_place(base, out),
+        ExprKind::SliceBorrow {
+            place, start, end, ..
+        } => {
+            walk_place(place, out);
+            if let Some(s) = start {
+                collect_moved_captures(s, out);
+            }
+            if let Some(e) = end {
+                collect_moved_captures(e, out);
+            }
+        }
+        ExprKind::Index { base, index } => {
+            walk_place(base, out);
+            collect_moved_captures(index, out);
+        }
+        ExprKind::Give(inner)
+        | ExprKind::Try(inner)
+        | ExprKind::ErrorInject { value: inner, .. }
+        | ExprKind::Unary { operand: inner, .. }
+        | ExprKind::Convert { operand: inner, .. }
+        | ExprKind::Loop(inner) => collect_moved_captures(inner, out),
+        ExprKind::Binary { lhs, rhs, .. } | ExprKind::Logical { lhs, rhs, .. } => {
+            collect_moved_captures(lhs, out);
+            collect_moved_captures(rhs, out);
+        }
+        ExprKind::Assign { place, value, .. } => {
+            walk_place(place, out);
+            collect_moved_captures(value, out);
+        }
+        ExprKind::Adt { fields, .. } | ExprKind::ManagedCreate { fields, .. } => {
+            for f in fields {
+                collect_moved_captures(f, out);
+            }
+        }
+        ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
+            for x in xs {
+                collect_moved_captures(x, out);
+            }
+        }
+        ExprKind::Closure { captures, .. } => {
+            for c in captures {
+                collect_moved_captures(c, out);
+            }
+        }
+        ExprKind::Call { args, .. }
+        | ExprKind::ForeignCall { args, .. }
+        | ExprKind::TraitCall { args, .. }
+        | ExprKind::Intrinsic { args, .. } => {
+            for a in args {
+                collect_moved_captures(a, out);
+            }
+        }
+        ExprKind::IndirectCall { callee, args } => {
+            collect_moved_captures(callee, out);
+            for a in args {
+                collect_moved_captures(a, out);
+            }
+        }
+        ExprKind::ClosureCall {
+            closure,
+            mode,
+            args,
+        } => {
+            if *mode == ClosureCallMode::Once {
+                collect_moved_captures(closure, out);
+            } else {
+                walk_place(closure, out);
+            }
+            for a in args {
+                collect_moved_captures(a, out);
+            }
+        }
+        ExprKind::DynCall { object, args, .. } => {
+            walk_place(object, out);
+            for a in args {
+                collect_moved_captures(a, out);
+            }
+        }
+        ExprKind::Block(stmts) => {
+            for s in stmts {
+                match s {
+                    Stmt::Let { init, .. } => collect_moved_captures(init, out),
+                    Stmt::Expr(e) | Stmt::Defer(e) => collect_moved_captures(e, out),
+                }
+            }
+        }
+        ExprKind::If {
+            cond,
+            then,
+            otherwise,
+        } => {
+            collect_moved_captures(cond, out);
+            collect_moved_captures(then, out);
+            if let Some(o) = otherwise {
+                collect_moved_captures(o, out);
+            }
+        }
+        ExprKind::Match { scrutinee, arms } => {
+            walk_place(scrutinee, out);
+            for arm in arms {
+                collect_moved_captures(&arm.body, out);
+            }
+        }
+        ExprKind::While { cond, body } => {
+            collect_moved_captures(cond, out);
+            collect_moved_captures(body, out);
+        }
+        ExprKind::Return(Some(v)) => collect_moved_captures(v, out),
+        ExprKind::Return(None)
+        | ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Local(_)
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
+        | ExprKind::CtEval(_)
+        | ExprKind::Break
+        | ExprKind::Continue => {}
     }
 }

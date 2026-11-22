@@ -279,6 +279,8 @@ pub enum IntrinsicOp {
     ThreadScope,
     /// Initialize an in-place `SyncCell` slot (`atomic_scope`).
     SyncInit,
+    /// Run a scoped foreign callback registration (`c_with_callback`).
+    ScopedCallback,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -575,6 +577,8 @@ pub enum ForeignCallbackRole {
     ThreadAsyncRegister,
     ThreadAsyncRequestClose,
     ThreadAsyncPollDrain,
+    ScopedRegister,
+    ScopedClose,
 }
 
 impl ForeignCallbackRole {
