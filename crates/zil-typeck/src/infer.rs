@@ -4357,6 +4357,410 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             };
             return Some(self.call(&callee_arg.value, rest_args, span));
         }
+        if name == "atomic_scope" {
+            if explicit.is_some() {
+                self.error(
+                    diag::TYPE_ARGUMENT,
+                    span,
+                    "`atomic_scope` takes no explicit type arguments",
+                );
+            }
+            let [init_arg, body_arg] = arguments else {
+                self.error(diag::CALL_ARITY, span, "`atomic_scope` expects 2 arguments");
+                return Some(self.err_expr(span));
+            };
+            let init_expr = self.infer(&init_arg.value);
+            let body_expr = self.infer(&body_arg.value);
+            let body_ty = self.types.shallow(body_expr.ty);
+            let callable = if let TyData::Closure {
+                kind,
+                params,
+                result,
+                ..
+            }
+            | TyData::ImplCallable {
+                kind,
+                params,
+                result,
+                ..
+            } = self.types.data(body_ty).clone()
+            {
+                Some((
+                    Some(match kind {
+                        ClosureKind::Fn => ClosureCallMode::Shared,
+                        ClosureKind::FnMut => ClosureCallMode::Mut,
+                        ClosureKind::FnOnce => ClosureCallMode::Once,
+                    }),
+                    params,
+                    result,
+                ))
+            } else if let TyData::Param(idx) = self.types.data(body_ty) {
+                self.decl
+                    .generics
+                    .get(*idx as usize)
+                    .and_then(|g| g.callable.clone())
+                    .map(|(kind, params, result)| {
+                        (
+                            Some(match kind {
+                                ClosureKind::Fn => ClosureCallMode::Shared,
+                                ClosureKind::FnMut => ClosureCallMode::Mut,
+                                ClosureKind::FnOnce => ClosureCallMode::Once,
+                            }),
+                            params,
+                            result,
+                        )
+                    })
+            } else if let TyData::FnPtr { params, result } = self.types.data(body_ty).clone() {
+                Some((None, params, result))
+            } else {
+                None
+            };
+            let Some((call_mode, params, ret_ty)) = callable else {
+                self.error(
+                    diag::TYPE_MISMATCH,
+                    body_arg.span,
+                    "`atomic_scope` second argument must be a 1-argument callable",
+                );
+                return Some(self.err_expr(span));
+            };
+            if params.len() != 1 {
+                self.error(
+                    diag::CALL_ARITY,
+                    body_arg.span,
+                    "`atomic_scope` body must take 1 argument (`&Atomic*`)",
+                );
+                return Some(self.err_expr(span));
+            }
+            let param_ty = self.types.shallow(params[0]);
+            let cell_kind = if let TyData::Ref {
+                mutable: false,
+                pointee,
+                ..
+            } = self.types.data(param_ty).clone()
+                && let TyData::Opaque(OpaqueKind::SyncCell(k)) =
+                    self.types.data(self.types.shallow(pointee))
+            {
+                Some(*k)
+            } else if let TyData::Int(IntTy::I32) =
+                self.types.data(self.types.shallow(init_expr.ty))
+            {
+                Some(zil_ir::body::SyncCellKind::I32)
+            } else if let TyData::Int(IntTy::I64) =
+                self.types.data(self.types.shallow(init_expr.ty))
+            {
+                Some(zil_ir::body::SyncCellKind::I64)
+            } else if let TyData::Int(IntTy::Usize) =
+                self.types.data(self.types.shallow(init_expr.ty))
+            {
+                Some(zil_ir::body::SyncCellKind::Usize)
+            } else if let TyData::Var(_) = self.types.data(self.types.shallow(init_expr.ty)) {
+                Some(zil_ir::body::SyncCellKind::I32)
+            } else {
+                None
+            };
+            let Some(cell_kind) = cell_kind else {
+                self.error(
+                    diag::TYPE_MISMATCH,
+                    body_arg.span,
+                    "`atomic_scope` requires an `&AtomicI32`, `&AtomicI64`, or `&AtomicUsize` body parameter",
+                );
+                return Some(self.err_expr(span));
+            };
+            let elem_int = match cell_kind {
+                zil_ir::body::SyncCellKind::I32 => IntTy::I32,
+                zil_ir::body::SyncCellKind::I64 => IntTy::I64,
+                zil_ir::body::SyncCellKind::Usize => IntTy::Usize,
+            };
+            let elem_ty = self.types.intern(TyData::Int(elem_int));
+            let cell_ty = self
+                .types
+                .intern(TyData::Opaque(OpaqueKind::SyncCell(cell_kind)));
+            let cell_ref_ty = self.types.intern(TyData::Ref {
+                region: None,
+                mutable: false,
+                pointee: cell_ty,
+            });
+            let bool_ty = self.types.intern(TyData::Bool);
+            let init_expr = self.coerce_arg(init_expr, elem_ty, init_arg.span);
+            self.unify(param_ty, cell_ref_ty, body_arg.span);
+
+            self.scopes.push(Vec::new());
+            let cell_local = self.declare("__atomic_cell", cell_ty, false, span);
+            let res_local = self.declare("__atomic_res", ret_ty, false, span);
+            let cell_ref_expr = Expr {
+                kind: ExprKind::Borrow {
+                    mutable: false,
+                    place: Box::new(Expr {
+                        kind: ExprKind::Local(cell_local),
+                        ty: cell_ty,
+                        span,
+                    }),
+                },
+                ty: cell_ref_ty,
+                span,
+            };
+            let call_expr = match call_mode {
+                Some(mode) => {
+                    if mode == ClosureCallMode::Mut && is_place(&body_expr.kind) {
+                        self.check_mutable_place(&body_expr, "called as a mutable closure");
+                    }
+                    Expr {
+                        kind: ExprKind::ClosureCall {
+                            closure: Box::new(body_expr),
+                            mode,
+                            args: vec![cell_ref_expr],
+                        },
+                        ty: ret_ty,
+                        span,
+                    }
+                }
+                None => Expr {
+                    kind: ExprKind::IndirectCall {
+                        callee: Box::new(body_expr),
+                        args: vec![cell_ref_expr],
+                    },
+                    ty: ret_ty,
+                    span,
+                },
+            };
+            let tuple_ty = self.types.intern(TyData::Tuple(vec![bool_ty, ret_ty]));
+            let block = Expr {
+                kind: ExprKind::Block(vec![
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(cell_local),
+                            ty: cell_ty,
+                            span,
+                        },
+                        init: Expr {
+                            kind: ExprKind::Intrinsic {
+                                op: IntrinsicOp::SyncInit,
+                                args: vec![init_expr],
+                            },
+                            ty: cell_ty,
+                            span,
+                        },
+                    },
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(res_local),
+                            ty: ret_ty,
+                            span,
+                        },
+                        init: call_expr,
+                    },
+                    Stmt::Expr(Expr {
+                        kind: ExprKind::Tuple(vec![
+                            Expr {
+                                kind: ExprKind::Lit(Lit::Bool(true)),
+                                ty: bool_ty,
+                                span,
+                            },
+                            Expr {
+                                kind: ExprKind::Local(res_local),
+                                ty: ret_ty,
+                                span,
+                            },
+                        ]),
+                        ty: tuple_ty,
+                        span,
+                    }),
+                ]),
+                ty: tuple_ty,
+                span,
+            };
+            self.scopes.pop();
+            return Some(block);
+        }
+        if name == "mutex_with" {
+            if explicit.is_some() {
+                self.error(
+                    diag::TYPE_ARGUMENT,
+                    span,
+                    "`mutex_with` takes no explicit type arguments",
+                );
+            }
+            let [cell_arg, body_arg] = arguments else {
+                self.error(diag::CALL_ARITY, span, "`mutex_with` expects 2 arguments");
+                return Some(self.err_expr(span));
+            };
+            let cell_expr = self.infer(&cell_arg.value);
+            let body_expr = self.infer(&body_arg.value);
+            let elem = self.types.fresh(VarKind::General);
+            let mutex_inner = self.types.intern(TyData::Opaque(OpaqueKind::Mutex(elem)));
+            let mutex_desc = self.types.intern(TyData::Desc(mutex_inner));
+            let cell_expr = self.coerce_value(cell_expr, mutex_desc, cell_arg.span);
+            let guard_ty = self
+                .types
+                .intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)));
+            let guard_mut_ref = self.types.intern(TyData::Ref {
+                region: None,
+                mutable: true,
+                pointee: guard_ty,
+            });
+            let val_mut_ref = self.types.intern(TyData::Ref {
+                region: None,
+                mutable: true,
+                pointee: elem,
+            });
+            let body_ty = self.types.shallow(body_expr.ty);
+            let callable = if let TyData::Closure {
+                kind,
+                params,
+                result,
+                ..
+            }
+            | TyData::ImplCallable {
+                kind,
+                params,
+                result,
+                ..
+            } = self.types.data(body_ty).clone()
+            {
+                Some((
+                    Some(match kind {
+                        ClosureKind::Fn => ClosureCallMode::Shared,
+                        ClosureKind::FnMut => ClosureCallMode::Mut,
+                        ClosureKind::FnOnce => ClosureCallMode::Once,
+                    }),
+                    params,
+                    result,
+                ))
+            } else if let TyData::Param(idx) = self.types.data(body_ty) {
+                self.decl
+                    .generics
+                    .get(*idx as usize)
+                    .and_then(|g| g.callable.clone())
+                    .map(|(kind, params, result)| {
+                        (
+                            Some(match kind {
+                                ClosureKind::Fn => ClosureCallMode::Shared,
+                                ClosureKind::FnMut => ClosureCallMode::Mut,
+                                ClosureKind::FnOnce => ClosureCallMode::Once,
+                            }),
+                            params,
+                            result,
+                        )
+                    })
+            } else if let TyData::FnPtr { params, result } = self.types.data(body_ty).clone() {
+                Some((None, params, result))
+            } else {
+                None
+            };
+            let Some((call_mode, params, ret_ty)) = callable else {
+                self.error(
+                    diag::TYPE_MISMATCH,
+                    body_arg.span,
+                    "`mutex_with` second argument must be a 1-argument callable",
+                );
+                return Some(self.err_expr(span));
+            };
+            if params.len() != 1 {
+                self.error(
+                    diag::CALL_ARITY,
+                    body_arg.span,
+                    "`mutex_with` body must take 1 argument (`&mut T`)",
+                );
+                return Some(self.err_expr(span));
+            }
+            self.unify(params[0], val_mut_ref, body_arg.span);
+
+            self.scopes.push(Vec::new());
+            let guard_local = self.declare("__mutex_guard", guard_ty, true, span);
+            let val_local = self.declare("__mutex_val", val_mut_ref, false, span);
+            let res_local = self.declare("__mutex_res", ret_ty, false, span);
+            let val_arg_expr = Expr {
+                kind: ExprKind::Local(val_local),
+                ty: val_mut_ref,
+                span,
+            };
+            let call_expr = match call_mode {
+                Some(mode) => {
+                    if mode == ClosureCallMode::Mut && is_place(&body_expr.kind) {
+                        self.check_mutable_place(&body_expr, "called as a mutable closure");
+                    }
+                    Expr {
+                        kind: ExprKind::ClosureCall {
+                            closure: Box::new(body_expr),
+                            mode,
+                            args: vec![val_arg_expr],
+                        },
+                        ty: ret_ty,
+                        span,
+                    }
+                }
+                None => Expr {
+                    kind: ExprKind::IndirectCall {
+                        callee: Box::new(body_expr),
+                        args: vec![val_arg_expr],
+                    },
+                    ty: ret_ty,
+                    span,
+                },
+            };
+            let block = Expr {
+                kind: ExprKind::Block(vec![
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(guard_local),
+                            ty: guard_ty,
+                            span,
+                        },
+                        init: Expr {
+                            kind: ExprKind::Intrinsic {
+                                op: IntrinsicOp::MutexLock,
+                                args: vec![cell_expr],
+                            },
+                            ty: guard_ty,
+                            span,
+                        },
+                    },
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(val_local),
+                            ty: val_mut_ref,
+                            span,
+                        },
+                        init: Expr {
+                            kind: ExprKind::Intrinsic {
+                                op: IntrinsicOp::MutexValue,
+                                args: vec![Expr {
+                                    kind: ExprKind::Borrow {
+                                        mutable: true,
+                                        place: Box::new(Expr {
+                                            kind: ExprKind::Local(guard_local),
+                                            ty: guard_ty,
+                                            span,
+                                        }),
+                                    },
+                                    ty: guard_mut_ref,
+                                    span,
+                                }],
+                            },
+                            ty: val_mut_ref,
+                            span,
+                        },
+                    },
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(res_local),
+                            ty: ret_ty,
+                            span,
+                        },
+                        init: call_expr,
+                    },
+                    Stmt::Expr(Expr {
+                        kind: ExprKind::Local(res_local),
+                        ty: ret_ty,
+                        span,
+                    }),
+                ]),
+                ty: ret_ty,
+                span,
+            };
+            self.scopes.pop();
+            return Some(block);
+        }
         let op = match name {
             "bytes_new" => IntrinsicOp::ByteBufferNew,
             "bytes_reserve" => IntrinsicOp::ByteBufferReserve,
@@ -4380,6 +4784,11 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             "mutex_create" => IntrinsicOp::MutexCreate,
             "mutex_lock" => IntrinsicOp::MutexLock,
             "mutex_value" => IntrinsicOp::MutexValue,
+            "mutex_unlock" => IntrinsicOp::MutexUnlock,
+            "atomic_load" => IntrinsicOp::SyncLoad,
+            "atomic_store" => IntrinsicOp::SyncStore,
+            "atomic_fetch_add" => IntrinsicOp::SyncFetchAdd,
+            "atomic_compare_exchange" => IntrinsicOp::SyncCompareExchange,
             "thread_scope" => IntrinsicOp::ThreadScope,
             "task_create" | "task_create_owned" => IntrinsicOp::TaskCreate,
             "task_valid" => IntrinsicOp::TaskValid,
@@ -4862,15 +5271,88 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let managed = self.types.intern(TyData::Managed(inner));
                 (vec![managed], unit_ty)
             }
-            IntrinsicOp::MutexUnlock
-            | IntrinsicOp::SyncLoad
+            IntrinsicOp::MutexUnlock => {
+                let elem = self.types.fresh(VarKind::General);
+                let guard = self
+                    .types
+                    .intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)));
+                (vec![guard], unit_ty)
+            }
+            IntrinsicOp::SyncLoad
             | IntrinsicOp::SyncStore
             | IntrinsicOp::SyncFetchAdd
-            | IntrinsicOp::SyncCompareExchange
-            | IntrinsicOp::TaskStart
+            | IntrinsicOp::SyncCompareExchange => {
+                let expected_arity = if op == IntrinsicOp::SyncLoad {
+                    1
+                } else if op == IntrinsicOp::SyncCompareExchange {
+                    3
+                } else {
+                    2
+                };
+                if arguments.len() != expected_arity {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        format!(
+                            "`{name}` expects {expected_arity} argument(s), found {}",
+                            arguments.len()
+                        ),
+                    );
+                    return Some(self.err_expr(span));
+                }
+                let cell_expr = self.infer(&arguments[0].value);
+                let cell_ty = self.types.shallow(cell_expr.ty);
+                let cell_kind = if let TyData::Ref {
+                    mutable: false,
+                    pointee,
+                    ..
+                } = self.types.data(cell_ty).clone()
+                    && let TyData::Opaque(OpaqueKind::SyncCell(k)) =
+                        self.types.data(self.types.shallow(pointee))
+                {
+                    Some(*k)
+                } else {
+                    None
+                };
+                let Some(cell_kind) = cell_kind else {
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        arguments[0].span,
+                        format!(
+                            "`{name}` first argument must be `&AtomicI32`, `&AtomicI64`, or `&AtomicUsize`"
+                        ),
+                    );
+                    return Some(self.err_expr(span));
+                };
+                let elem_int = match cell_kind {
+                    zil_ir::body::SyncCellKind::I32 => IntTy::I32,
+                    zil_ir::body::SyncCellKind::I64 => IntTy::I64,
+                    zil_ir::body::SyncCellKind::Usize => IntTy::Usize,
+                };
+                let elem_ty = self.types.intern(TyData::Int(elem_int));
+                let mut args = vec![cell_expr];
+                for a in &arguments[1..] {
+                    let v = self.infer(&a.value);
+                    args.push(self.coerce_arg(v, elem_ty, a.span));
+                }
+                let ret_ty = if op == IntrinsicOp::SyncStore {
+                    unit_ty
+                } else if op == IntrinsicOp::SyncCompareExchange {
+                    self.types.intern(TyData::Tuple(vec![elem_ty, bool_ty]))
+                } else {
+                    elem_ty
+                };
+                return Some(Expr {
+                    kind: ExprKind::Intrinsic { op, args },
+                    ty: ret_ty,
+                    span,
+                });
+            }
+            IntrinsicOp::TaskStart
             | IntrinsicOp::ManagedCreate
             | IntrinsicOp::OwnedDynCreate
-            | IntrinsicOp::ThreadScope => return None,
+            | IntrinsicOp::ThreadScope
+            | IntrinsicOp::SyncInit => return None,
         };
         if arguments.len() != param_tys.len() {
             self.error(
@@ -5059,7 +5541,8 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 TyData::Opaque(
                     OpaqueKind::ByteBuffer
                     | OpaqueKind::ForeignHandle
-                    | OpaqueKind::ForeignCallback { .. },
+                    | OpaqueKind::ForeignCallback { .. }
+                    | OpaqueKind::SyncCell(_),
                 )
                 | TyData::ImplCallable { .. }
                 | TyData::SelfParam
@@ -5353,7 +5836,8 @@ impl Finalizer<'_, '_> {
                 | OpaqueKind::MutexGuard(_)
                 | OpaqueKind::Task { .. }
                 | OpaqueKind::Registration(_)
-                | OpaqueKind::AsyncRegistration(_),
+                | OpaqueKind::AsyncRegistration(_)
+                | OpaqueKind::SyncCell(_),
             ) => false,
             TyData::ErrorUnion { ok, err } => {
                 self.is_copy_depth(ok, depth + 1) && self.is_copy_depth(err, depth + 1)

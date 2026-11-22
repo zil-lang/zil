@@ -821,6 +821,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     result: self.lower_ty(result, span)?,
                 })
             }
+            TyData::Opaque(OpaqueKind::SyncCell(k)) => TyKind::Opaque(OpaqueTy::SyncCell(k)),
             TyData::ErrorUnion { ok, err } => TyKind::ErrorUnion {
                 ok: self.lower_ty(ok, span)?,
                 err: self.lower_ty(err, span)?,
@@ -2136,8 +2137,30 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     self.emit_ct_value(dest, &val, ty, span);
                 }
             }
+            ExprKind::Block(stmts) => {
+                self.enter_frame();
+                let last_idx = stmts.len().saturating_sub(1);
+                for (i, s) in stmts.iter().enumerate() {
+                    match s {
+                        Stmt::Let { pattern, init } => self.let_stmt(pattern, init),
+                        Stmt::Expr(x) if i == last_idx => self.into(dest.clone(), x),
+                        Stmt::Expr(x) => self.effect(x),
+                        Stmt::Defer(x) => {
+                            if let Some(f) = self.frames.last_mut() {
+                                f.cleanups.push(FrameCleanup::Defer(x.clone()));
+                            }
+                        }
+                    }
+                }
+                if !matches!(stmts.last(), Some(Stmt::Expr(_))) {
+                    let unit = self.tys().lookup(&TyKind::Unit);
+                    if Some(self.ty(e.ty, span)) == unit {
+                        self.assign(dest, Rvalue::Use(Operand::Const(ConstValue::Unit)), span);
+                    }
+                }
+                self.exit_frame(span);
+            }
             ExprKind::Match { .. }
-            | ExprKind::Block(_)
             | ExprKind::Loop(_)
             | ExprKind::While { .. }
             | ExprKind::Break

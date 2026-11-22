@@ -697,6 +697,7 @@ impl TyTable {
                     }
                 },
             },
+            TyKind::Opaque(OpaqueTy::SyncCell(_)) => false,
             TyKind::Param(_) | TyKind::Opaque(_) => self.class(ty, env) != ValueClass::Copy,
         };
         visiting.pop();

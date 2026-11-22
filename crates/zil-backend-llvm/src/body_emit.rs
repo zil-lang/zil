@@ -618,6 +618,7 @@ fn llvm_ty(tys: &TyTable, id: TyId) -> Result<String, BodyEmitError> {
             _ => "ptr".into(),
         },
         TyKind::Dyn(_) | TyKind::OwnedDyn { .. } => "{ ptr, ptr }".into(),
+        TyKind::Opaque(OpaqueTy::SyncCell(_)) => "i64".into(),
         TyKind::Desc(_) | TyKind::FnPtr { .. } | TyKind::Opaque(_) => "ptr".into(),
         TyKind::Slice(_) => "{ ptr, i64 }".into(),
         TyKind::Array { element, length } => {
@@ -2736,6 +2737,14 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "{l_ok}:");
                 Ok(())
             }
+            IntrinsicOp::SyncInit => {
+                let (val, lt, _) = self.emit_operand(&args[0])?;
+                let _ = writeln!(
+                    self.out,
+                    "  store atomic {lt} {val}, ptr {d_ptr} seq_cst, align 8"
+                );
+                Ok(())
+            }
             IntrinsicOp::SyncLoad => {
                 let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
                 let lt = llvm_ty(self.tys(), d_ty)?;
@@ -2776,9 +2785,22 @@ impl<'a> FnEmitter<'a> {
                     self.out,
                     "  {pair} = cmpxchg ptr {cell_ptr}, {lt} {expected}, {lt} {desired} seq_cst seq_cst"
                 );
+                let obs = self.fresh();
                 let ok = self.fresh();
+                let p0 = self.fresh();
+                let p1 = self.fresh();
+                let _ = writeln!(self.out, "  {obs} = extractvalue {{ {lt}, i1 }} {pair}, 0");
                 let _ = writeln!(self.out, "  {ok} = extractvalue {{ {lt}, i1 }} {pair}, 1");
-                let _ = writeln!(self.out, "  store i1 {ok}, ptr {d_ptr}");
+                let _ = writeln!(
+                    self.out,
+                    "  {p0} = getelementptr inbounds {{ {lt}, i1 }}, ptr {d_ptr}, i32 0, i32 0"
+                );
+                let _ = writeln!(self.out, "  store {lt} {obs}, ptr {p0}");
+                let _ = writeln!(
+                    self.out,
+                    "  {p1} = getelementptr inbounds {{ {lt}, i1 }}, ptr {d_ptr}, i32 0, i32 1"
+                );
+                let _ = writeln!(self.out, "  store i1 {ok}, ptr {p1}");
                 Ok(())
             }
             IntrinsicOp::ThreadScope => {

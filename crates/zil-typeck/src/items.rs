@@ -358,7 +358,9 @@ impl<'a> Items<'a> {
                     result,
                 }))
             }
-            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle | OpaqueKind::SyncCell(_),
+            ) => ty,
             TyData::ErrorUnion { ok, err } => {
                 let ok = self.normalize_ty_depth(ok, types, depth + 1);
                 let err = self.normalize_ty_depth(err, types, depth + 1);
@@ -577,6 +579,9 @@ pub fn scalar_type(name: &str) -> Option<TyData> {
         "void" => TyData::Unit,
         "Type" => TyData::Type,
         "c_handle" => TyData::Opaque(OpaqueKind::ForeignHandle),
+        "AtomicI32" => TyData::Opaque(OpaqueKind::SyncCell(zil_ir::body::SyncCellKind::I32)),
+        "AtomicI64" => TyData::Opaque(OpaqueKind::SyncCell(zil_ir::body::SyncCellKind::I64)),
+        "AtomicUsize" => TyData::Opaque(OpaqueKind::SyncCell(zil_ir::body::SyncCellKind::Usize)),
         _ => return None,
     })
 }

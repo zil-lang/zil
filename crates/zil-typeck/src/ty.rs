@@ -46,6 +46,7 @@ pub enum OpaqueKind {
     AsyncRegistration(Ty),
     ForeignHandle,
     ForeignCallback { params: Vec<Ty>, result: Ty },
+    SyncCell(zil_ir::body::SyncCellKind),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -236,7 +237,9 @@ impl Types {
             TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
                 params.iter().any(|t| self.occurs(v, *t)) || self.occurs(v, *result)
             }
-            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => false,
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle | OpaqueKind::SyncCell(_),
+            ) => false,
             TyData::ErrorUnion { ok, err } => self.occurs(v, *ok) || self.occurs(v, *err),
             TyData::FnPtr { params, result } => {
                 params.iter().any(|t| self.occurs(v, *t)) || self.occurs(v, *result)
@@ -621,7 +624,9 @@ impl Types {
                     result,
                 }))
             }
-            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle | OpaqueKind::SyncCell(_),
+            ) => ty,
             TyData::ErrorUnion { ok, err } => {
                 let ok = self.zonk(ok)?;
                 let err = self.zonk(err)?;
@@ -812,7 +817,9 @@ impl Types {
                     result,
                 }))
             }
-            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle | OpaqueKind::SyncCell(_),
+            ) => ty,
             TyData::ErrorUnion { ok, err } => {
                 let ok = self.subst_with_self(ok, args, self_ty);
                 let err = self.subst_with_self(err, args, self_ty);
@@ -988,7 +995,9 @@ impl Types {
                     result,
                 }))
             }
-            TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle) => ty,
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle | OpaqueKind::SyncCell(_),
+            ) => ty,
             TyData::ErrorUnion { ok, err } => {
                 let ok = self.subst(ok, args);
                 let err = self.subst(err, args);
@@ -1124,7 +1133,9 @@ impl Types {
                         params: params.iter().map(|t| self.erase_regions(*t)).collect(),
                         result: self.erase_regions(result),
                     },
-                    OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle => o,
+                    OpaqueKind::ByteBuffer
+                    | OpaqueKind::ForeignHandle
+                    | OpaqueKind::SyncCell(_) => o,
                 };
                 self.intern(TyData::Opaque(o))
             }

@@ -1875,12 +1875,138 @@ fn intrinsic_sig(
             }
             Ok((vec![*reg_ty], cx.lookup(TyKind::Unit)?))
         }
-        IntrinsicOp::MutexUnlock
-        | IntrinsicOp::SyncLoad
-        | IntrinsicOp::SyncStore
-        | IntrinsicOp::SyncFetchAdd
-        | IntrinsicOp::SyncCompareExchange
-        | IntrinsicOp::TaskStart => Err(ConstraintError::Unspecified(intrinsic_name(op))),
+        IntrinsicOp::MutexUnlock => {
+            let [guard_ty] = found else {
+                return Err(bad("mutex.unlock takes one MutexGuard<T>"));
+            };
+            if !matches!(
+                tys.get(*guard_ty),
+                Some(TyKind::Opaque(OpaqueTy::MutexGuard { .. }))
+            ) {
+                return Err(bad("mutex.unlock requires MutexGuard<T>"));
+            }
+            Ok((vec![*guard_ty], cx.lookup(TyKind::Unit)?))
+        }
+        IntrinsicOp::SyncInit => {
+            let [init_ty] = found else {
+                return Err(bad("sync.init takes one initial integer value"));
+            };
+            let Some(TyKind::Opaque(OpaqueTy::SyncCell(kind))) = tys.get(dest_ty) else {
+                return Err(bad("sync.init destination must be SyncCell"));
+            };
+            let elem_ty = cx.lookup(TyKind::Int(match kind {
+                super::ty::SyncCellKind::I32 => IntTy::I32,
+                super::ty::SyncCellKind::I64 => IntTy::I64,
+                super::ty::SyncCellKind::Usize => IntTy::Usize,
+            }))?;
+            if *init_ty != elem_ty {
+                return Err(bad("sync.init initial value does not match SyncCell width"));
+            }
+            Ok((vec![elem_ty], dest_ty))
+        }
+        IntrinsicOp::SyncLoad => {
+            let [cell_ref] = found else {
+                return Err(bad("sync.load takes &Atomic*"));
+            };
+            let Some(TyKind::Ref {
+                mutability: Mutability::Shared,
+                pointee,
+                ..
+            }) = tys.get(*cell_ref)
+            else {
+                return Err(bad("sync.load requires &Atomic*"));
+            };
+            let Some(TyKind::Opaque(OpaqueTy::SyncCell(kind))) = tys.get(*pointee) else {
+                return Err(bad("sync.load requires &Atomic*"));
+            };
+            let elem_ty = cx.lookup(TyKind::Int(match kind {
+                super::ty::SyncCellKind::I32 => IntTy::I32,
+                super::ty::SyncCellKind::I64 => IntTy::I64,
+                super::ty::SyncCellKind::Usize => IntTy::Usize,
+            }))?;
+            Ok((vec![*cell_ref], elem_ty))
+        }
+        IntrinsicOp::SyncStore => {
+            let [cell_ref, val_ty] = found else {
+                return Err(bad("sync.store takes (&Atomic*, value)"));
+            };
+            let Some(TyKind::Ref {
+                mutability: Mutability::Shared,
+                pointee,
+                ..
+            }) = tys.get(*cell_ref)
+            else {
+                return Err(bad("sync.store requires &Atomic*"));
+            };
+            let Some(TyKind::Opaque(OpaqueTy::SyncCell(kind))) = tys.get(*pointee) else {
+                return Err(bad("sync.store requires &Atomic*"));
+            };
+            let elem_ty = cx.lookup(TyKind::Int(match kind {
+                super::ty::SyncCellKind::I32 => IntTy::I32,
+                super::ty::SyncCellKind::I64 => IntTy::I64,
+                super::ty::SyncCellKind::Usize => IntTy::Usize,
+            }))?;
+            if *val_ty != elem_ty {
+                return Err(bad("sync.store value does not match SyncCell width"));
+            }
+            Ok((vec![*cell_ref, elem_ty], cx.lookup(TyKind::Unit)?))
+        }
+        IntrinsicOp::SyncFetchAdd => {
+            let [cell_ref, delta_ty] = found else {
+                return Err(bad("sync.fetch_add takes (&Atomic*, delta)"));
+            };
+            let Some(TyKind::Ref {
+                mutability: Mutability::Shared,
+                pointee,
+                ..
+            }) = tys.get(*cell_ref)
+            else {
+                return Err(bad("sync.fetch_add requires &Atomic*"));
+            };
+            let Some(TyKind::Opaque(OpaqueTy::SyncCell(kind))) = tys.get(*pointee) else {
+                return Err(bad("sync.fetch_add requires &Atomic*"));
+            };
+            let elem_ty = cx.lookup(TyKind::Int(match kind {
+                super::ty::SyncCellKind::I32 => IntTy::I32,
+                super::ty::SyncCellKind::I64 => IntTy::I64,
+                super::ty::SyncCellKind::Usize => IntTy::Usize,
+            }))?;
+            if *delta_ty != elem_ty {
+                return Err(bad("sync.fetch_add delta does not match SyncCell width"));
+            }
+            Ok((vec![*cell_ref, elem_ty], elem_ty))
+        }
+        IntrinsicOp::SyncCompareExchange => {
+            let [cell_ref, exp_ty, des_ty] = found else {
+                return Err(bad(
+                    "sync.compare_exchange takes (&Atomic*, expected, desired)",
+                ));
+            };
+            let Some(TyKind::Ref {
+                mutability: Mutability::Shared,
+                pointee,
+                ..
+            }) = tys.get(*cell_ref)
+            else {
+                return Err(bad("sync.compare_exchange requires &Atomic*"));
+            };
+            let Some(TyKind::Opaque(OpaqueTy::SyncCell(kind))) = tys.get(*pointee) else {
+                return Err(bad("sync.compare_exchange requires &Atomic*"));
+            };
+            let elem_ty = cx.lookup(TyKind::Int(match kind {
+                super::ty::SyncCellKind::I32 => IntTy::I32,
+                super::ty::SyncCellKind::I64 => IntTy::I64,
+                super::ty::SyncCellKind::Usize => IntTy::Usize,
+            }))?;
+            if *exp_ty != elem_ty || *des_ty != elem_ty {
+                return Err(bad(
+                    "sync.compare_exchange operands do not match SyncCell width",
+                ));
+            }
+            let out_ty = cx.lookup(TyKind::Tuple(vec![elem_ty, bool_ty()?]))?;
+            Ok((vec![*cell_ref, elem_ty, elem_ty], out_ty))
+        }
+        IntrinsicOp::TaskStart => Err(ConstraintError::Unspecified(intrinsic_name(op))),
     }
 }
 
@@ -1910,6 +2036,7 @@ pub const fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::MutexLock => "mutex.lock",
         IntrinsicOp::MutexValue => "mutex.value",
         IntrinsicOp::MutexUnlock => "mutex.unlock",
+        IntrinsicOp::SyncInit => "sync.init",
         IntrinsicOp::SyncLoad => "sync.load",
         IntrinsicOp::SyncStore => "sync.store",
         IntrinsicOp::SyncFetchAdd => "sync.fetch_add",
