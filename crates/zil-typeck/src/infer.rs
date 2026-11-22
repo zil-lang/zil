@@ -1974,14 +1974,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let args = self.fresh_args(adt);
                 let t = self.adt_ty(adt, &args);
                 self.unify(t, expected, span);
-                let decl_fields: Vec<String> = self.items.adt(adt).variants[variant as usize]
+                let decl = self.items.adt(adt);
+                let is_cross_mod = decl.kind != AdtKind::Enum && decl.module != self.decl.module;
+                let adt_name = decl.name.clone();
+                let decl_fields: Vec<(String, bool)> = decl.variants[variant as usize]
                     .fields
                     .iter()
-                    .map(|f| f.name.clone())
+                    .map(|f| (f.name.clone(), f.public))
                     .collect();
                 let mut slots: Vec<Option<Pat>> = vec![None; decl_fields.len()];
                 for f in fields {
-                    let Some(i) = decl_fields.iter().position(|n| *n == f.name) else {
+                    let Some(i) = decl_fields.iter().position(|(n, _)| *n == f.name) else {
                         self.error(
                             diag::RECORD_UNKNOWN_FIELD,
                             f.span,
@@ -1989,6 +1992,16 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         );
                         continue;
                     };
+                    if is_cross_mod && !decl_fields[i].1 {
+                        self.error(
+                            "E-VISIBILITY",
+                            f.span,
+                            format!("field `{}` on `{adt_name}` is private", f.name),
+                        );
+                        let ft = self.field_ty(adt, variant, i as u32, &args);
+                        slots[i] = Some(self.wild(ft, f.span));
+                        continue;
+                    }
                     if slots[i].is_some() {
                         self.error(
                             diag::RECORD_DUPLICATE_FIELD,
@@ -2005,11 +2018,25 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     match s {
                         Some(p) => out.push(p),
                         None => {
-                            self.error(
-                                diag::RECORD_MISSING_FIELD,
-                                span,
-                                format!("field `{}` is missing from the pattern", decl_fields[i]),
-                            );
+                            if is_cross_mod && !decl_fields[i].1 {
+                                self.error(
+                                    "E-VISIBILITY",
+                                    span,
+                                    format!(
+                                        "field `{}` on `{adt_name}` is private",
+                                        decl_fields[i].0
+                                    ),
+                                );
+                            } else {
+                                self.error(
+                                    diag::RECORD_MISSING_FIELD,
+                                    span,
+                                    format!(
+                                        "field `{}` is missing from the pattern",
+                                        decl_fields[i].0
+                                    ),
+                                );
+                            }
                             let ft = self.field_ty(adt, variant, i as u32, &args);
                             out.push(self.wild(ft, span));
                         }
@@ -3304,6 +3331,15 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     self.error(diag::UNKNOWN_FIELD, span, format!("no field `{name}`"));
                     return self.err_expr(span);
                 };
+                if decl.module != self.decl.module && !decl.variants[0].fields[field].public {
+                    let adt_name = decl.name.clone();
+                    self.error(
+                        "E-VISIBILITY",
+                        span,
+                        format!("field `{name}` on `{adt_name}` is private"),
+                    );
+                    return self.err_expr(span);
+                }
                 let ty = self.field_ty(adt, 0, field as u32, &args);
                 Expr {
                     kind: ExprKind::Field {
@@ -3345,12 +3381,15 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         fields: &[ast::RecordField],
         span: Span,
     ) -> Expr {
-        let decl_fields: Vec<String> = self.items.adt(adt).variants[variant as usize]
+        let decl = self.items.adt(adt);
+        let is_cross_mod = decl.kind != AdtKind::Enum && decl.module != self.decl.module;
+        let adt_name = decl.name.clone();
+        let decl_fields: Vec<(String, bool)> = decl.variants[variant as usize]
             .fields
             .iter()
-            .map(|f| f.name.clone())
+            .map(|f| (f.name.clone(), f.public))
             .collect();
-        if self.items.adt(adt).variants[variant as usize].shape != VariantShape::Record {
+        if decl.variants[variant as usize].shape != VariantShape::Record {
             self.error(
                 diag::ENUM_ARITY,
                 span,
@@ -3388,7 +3427,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         };
         let mut slots: Vec<Option<Expr>> = vec![None; decl_fields.len()];
         for f in fields {
-            let Some(i) = decl_fields.iter().position(|n| *n == f.name) else {
+            let Some(i) = decl_fields.iter().position(|(n, _)| *n == f.name) else {
                 self.error(
                     diag::RECORD_UNKNOWN_FIELD,
                     f.span,
@@ -3396,6 +3435,15 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 );
                 continue;
             };
+            if is_cross_mod && !decl_fields[i].1 {
+                self.error(
+                    "E-VISIBILITY",
+                    f.span,
+                    format!("field `{}` on `{adt_name}` is private", f.name),
+                );
+                slots[i] = Some(self.err_expr(f.span));
+                continue;
+            }
             if slots[i].is_some() {
                 self.error(
                     diag::RECORD_DUPLICATE_FIELD,
@@ -3421,6 +3469,15 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             match s {
                 Some(v) => out.push(v),
                 None => {
+                    if is_cross_mod && !decl_fields[i].1 {
+                        self.error(
+                            "E-VISIBILITY",
+                            span,
+                            format!("field `{}` on `{adt_name}` is private", decl_fields[i].0),
+                        );
+                        out.push(self.err_expr(span));
+                        continue;
+                    }
                     let default_expr = self.items.adt(adt).variants[variant as usize].fields[i]
                         .default
                         .clone();
@@ -3432,7 +3489,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         self.error(
                             diag::RECORD_MISSING_FIELD,
                             span,
-                            format!("field `{}` is missing", decl_fields[i]),
+                            format!("field `{}` is missing", decl_fields[i].0),
                         );
                         out.push(self.err_expr(span));
                     }

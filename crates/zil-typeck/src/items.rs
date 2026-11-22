@@ -141,6 +141,7 @@ pub struct FieldDecl {
     pub name: String,
     pub ty: Ty,
     pub default: Option<ast::Expr>,
+    pub public: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -651,6 +652,7 @@ pub fn collect_program<'a>(
                     name: "0".to_string(),
                     ty: option_t,
                     default: None,
+                    public: true,
                 }],
             },
         ],
@@ -694,6 +696,7 @@ pub fn collect_program<'a>(
                     name: "0".to_string(),
                     ty: option_t,
                     default: None,
+                    public: true,
                 }],
             },
         ],
@@ -781,11 +784,13 @@ pub fn collect_program<'a>(
                     name: "reason".to_string(),
                     ty: task_create_error_ty,
                     default: None,
+                    public: true,
                 },
                 FieldDecl {
                     name: "inputs".to_string(),
                     ty: option_t,
                     default: None,
+                    public: true,
                 },
             ],
         }],
@@ -810,6 +815,7 @@ pub fn collect_program<'a>(
                     name: "0".to_string(),
                     ty: option_t,
                     default: None,
+                    public: true,
                 }],
             },
             VariantDecl {
@@ -820,11 +826,13 @@ pub fn collect_program<'a>(
                         name: "0".to_string(),
                         ty: ts_r1,
                         default: None,
+                        public: true,
                     },
                     FieldDecl {
                         name: "1".to_string(),
                         ty: ts_r2,
                         default: None,
+                        public: true,
                     },
                 ],
             },
@@ -1646,6 +1654,7 @@ fn collect_adt(
                     name: f.name.clone(),
                     ty,
                     default: f.default.clone(),
+                    public: owner_kind == AdtKind::Enum || f.public,
                 });
             }
             out
@@ -1690,6 +1699,7 @@ fn collect_adt(
                                 name: i.to_string(),
                                 ty,
                                 default: None,
+                                public: true,
                             });
                         }
                         (VariantShape::Tuple, fs)
