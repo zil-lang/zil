@@ -2745,45 +2745,78 @@ impl<'a> FnEmitter<'a> {
                 );
                 Ok(())
             }
-            IntrinsicOp::SyncLoad => {
+            IntrinsicOp::SyncLoad | IntrinsicOp::SyncLoadOrdered(_) => {
+                let ord = if let IntrinsicOp::SyncLoadOrdered(o) = op {
+                    o.llvm_name()
+                } else {
+                    "seq_cst"
+                };
                 let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
                 let lt = llvm_ty(self.tys(), d_ty)?;
                 let val = self.fresh();
                 let _ = writeln!(
                     self.out,
-                    "  {val} = load atomic {lt}, ptr {cell_ptr} seq_cst, align 8"
+                    "  {val} = load atomic {lt}, ptr {cell_ptr} {ord}, align 8"
                 );
                 let _ = writeln!(self.out, "  store {lt} {val}, ptr {d_ptr}");
                 Ok(())
             }
-            IntrinsicOp::SyncStore => {
+            IntrinsicOp::SyncStore | IntrinsicOp::SyncStoreOrdered(_) => {
+                let ord = if let IntrinsicOp::SyncStoreOrdered(o) = op {
+                    o.llvm_name()
+                } else {
+                    "seq_cst"
+                };
                 let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
                 let (val, lt, _) = self.emit_operand(&args[1])?;
                 let _ = writeln!(
                     self.out,
-                    "  store atomic {lt} {val}, ptr {cell_ptr} seq_cst, align 8"
+                    "  store atomic {lt} {val}, ptr {cell_ptr} {ord}, align 8"
                 );
                 Ok(())
             }
-            IntrinsicOp::SyncFetchAdd => {
+            IntrinsicOp::SyncFetchAdd | IntrinsicOp::SyncFetchAddOrdered(_) => {
+                let ord = if let IntrinsicOp::SyncFetchAddOrdered(o) = op {
+                    o.llvm_name()
+                } else {
+                    "seq_cst"
+                };
                 let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
                 let (delta, lt, _) = self.emit_operand(&args[1])?;
                 let old = self.fresh();
                 let _ = writeln!(
                     self.out,
-                    "  {old} = atomicrmw add ptr {cell_ptr}, {lt} {delta} seq_cst"
+                    "  {old} = atomicrmw add ptr {cell_ptr}, {lt} {delta} {ord}"
                 );
                 let _ = writeln!(self.out, "  store {lt} {old}, ptr {d_ptr}");
                 Ok(())
             }
-            IntrinsicOp::SyncCompareExchange => {
+            IntrinsicOp::SyncExchangeOrdered(o) => {
+                let ord = o.llvm_name();
+                let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
+                let (val, lt, _) = self.emit_operand(&args[1])?;
+                let old = self.fresh();
+                let _ = writeln!(
+                    self.out,
+                    "  {old} = atomicrmw xchg ptr {cell_ptr}, {lt} {val} {ord}"
+                );
+                let _ = writeln!(self.out, "  store {lt} {old}, ptr {d_ptr}");
+                Ok(())
+            }
+            IntrinsicOp::SyncCompareExchange | IntrinsicOp::SyncCompareExchangeOrdered { .. } => {
+                let (succ_ord, fail_ord) =
+                    if let IntrinsicOp::SyncCompareExchangeOrdered { success, failure } = op {
+                        (success.llvm_name(), failure.llvm_name())
+                    } else {
+                        ("seq_cst", "seq_cst")
+                    };
                 let (cell_ptr, _, _) = self.emit_operand(&args[0])?;
                 let (expected, lt, _) = self.emit_operand(&args[1])?;
                 let (desired, _, _) = self.emit_operand(&args[2])?;
                 let pair = self.fresh();
                 let _ = writeln!(
                     self.out,
-                    "  {pair} = cmpxchg ptr {cell_ptr}, {lt} {expected}, {lt} {desired} seq_cst seq_cst"
+                    "  {pair} = cmpxchg ptr {cell_ptr}, {lt} {expected}, {lt} {desired} {succ_ord} {fail_ord}"
                 );
                 let obs = self.fresh();
                 let ok = self.fresh();
@@ -2801,6 +2834,10 @@ impl<'a> FnEmitter<'a> {
                     "  {p1} = getelementptr inbounds {{ {lt}, i1 }}, ptr {d_ptr}, i32 0, i32 1"
                 );
                 let _ = writeln!(self.out, "  store i1 {ok}, ptr {p1}");
+                Ok(())
+            }
+            IntrinsicOp::CNull => {
+                let _ = writeln!(self.out, "  store ptr null, ptr {d_ptr}");
                 Ok(())
             }
             IntrinsicOp::ThreadScope => {

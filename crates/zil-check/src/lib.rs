@@ -1267,6 +1267,18 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<Vec<bool>,
                             "MutexGuard cannot be transferred across threads via thread_scope",
                         ));
                     }
+                    let mut seen_handle = Vec::new();
+                    if ty_contains_raw_foreign_handle(
+                        &module.tys,
+                        &module.dyn_impls,
+                        cell_ty,
+                        &mut seen_handle,
+                    ) {
+                        return Err(fail(
+                            fid,
+                            "raw c_handle (ForeignHandle) is not Transfer and cannot cross thread_scope",
+                        ));
+                    }
                     let mut seen_drop = Vec::new();
                     let mut drop_fns = Vec::new();
                     collect_mutex_payload_drop_fns(
@@ -1556,7 +1568,12 @@ fn verify_sealed_thread_callable(
                         | IntrinsicOp::SyncLoad
                         | IntrinsicOp::SyncStore
                         | IntrinsicOp::SyncFetchAdd
-                        | IntrinsicOp::SyncCompareExchange => {}
+                        | IntrinsicOp::SyncCompareExchange
+                        | IntrinsicOp::SyncLoadOrdered(_)
+                        | IntrinsicOp::SyncStoreOrdered(_)
+                        | IntrinsicOp::SyncFetchAddOrdered(_)
+                        | IntrinsicOp::SyncExchangeOrdered(_)
+                        | IntrinsicOp::SyncCompareExchangeOrdered { .. } => {}
                         IntrinsicOp::StoreNew
                         | IntrinsicOp::StoreReserve
                         | IntrinsicOp::StorePush
@@ -1590,7 +1607,8 @@ fn verify_sealed_thread_callable(
                         | IntrinsicOp::OwnedDynCreate
                         | IntrinsicOp::ThreadScope
                         | IntrinsicOp::SyncInit
-                        | IntrinsicOp::ScopedCallback => {
+                        | IntrinsicOp::ScopedCallback
+                        | IntrinsicOp::CNull => {
                             return Err(fail(
                                 "ThreadCallable callback cannot invoke non-sealed runtime intrinsic",
                             ));
@@ -1648,6 +1666,68 @@ fn ty_contains_mutex_guard(
             .iter()
             .filter(|di| di.dyn_id == *dyn_id)
             .any(|di| ty_contains_mutex_guard(tys, dyn_impls, di.concrete_ty, seen)),
+        Some(
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. }
+            | TyKind::Param(_)
+            | TyKind::Opaque(_),
+        )
+        | None => false,
+    }
+}
+
+fn ty_contains_raw_foreign_handle(
+    tys: &zil_ir::body::TyTable,
+    dyn_impls: &[zil_ir::body::DynImpl],
+    ty: zil_ir::body::TyId,
+    seen: &mut Vec<zil_ir::body::TyId>,
+) -> bool {
+    use zil_ir::body::OpaqueTy;
+    if seen.contains(&ty) {
+        return false;
+    }
+    seen.push(ty);
+    match tys.get(ty) {
+        Some(TyKind::Opaque(OpaqueTy::ForeignHandle)) => true,
+        Some(TyKind::Opaque(OpaqueTy::Mutex { payload })) => {
+            ty_contains_raw_foreign_handle(tys, dyn_impls, *payload, seen)
+        }
+        Some(TyKind::Tuple(elems)) => elems
+            .iter()
+            .any(|e| ty_contains_raw_foreign_handle(tys, dyn_impls, *e, seen)),
+        Some(
+            TyKind::Array { element: inner, .. }
+            | TyKind::Slice(inner)
+            | TyKind::Ref { pointee: inner, .. }
+            | TyKind::Managed(inner)
+            | TyKind::Desc(inner),
+        ) => ty_contains_raw_foreign_handle(tys, dyn_impls, *inner, seen),
+        Some(TyKind::ErrorUnion { ok, err }) => {
+            ty_contains_raw_foreign_handle(tys, dyn_impls, *ok, seen)
+                || ty_contains_raw_foreign_handle(tys, dyn_impls, *err, seen)
+        }
+        Some(TyKind::Adt { adt, args }) => tys.get_adt(*adt).is_some_and(|def| {
+            def.variants.iter().any(|v| {
+                v.fields.iter().any(|f| {
+                    let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                    ty_contains_raw_foreign_handle(tys, dyn_impls, fty, seen)
+                })
+            })
+        }),
+        Some(TyKind::Closure { def, args }) => tys.closure(*def).is_some_and(|cdef| {
+            cdef.captures.iter().any(|cap| {
+                let cty = tys.subst_lookup(*cap, *args).unwrap_or(*cap);
+                ty_contains_raw_foreign_handle(tys, dyn_impls, cty, seen)
+            })
+        }),
+        Some(TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
+            .iter()
+            .filter(|di| di.dyn_id == *dyn_id)
+            .any(|di| ty_contains_raw_foreign_handle(tys, dyn_impls, di.concrete_ty, seen)),
         Some(
             TyKind::Unit
             | TyKind::Bool

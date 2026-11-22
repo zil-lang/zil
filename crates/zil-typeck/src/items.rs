@@ -833,6 +833,44 @@ pub fn collect_program<'a>(
         methods: Vec::new(),
         user_drop: false,
     });
+    let memory_order_adt = AdtRef(8);
+    items.adt_kinds.push(AdtKind::Enum);
+    items.adts.push(AdtDecl {
+        name: "MemoryOrder".to_string(),
+        kind: AdtKind::Enum,
+        generics: Vec::new(),
+        region_params: 0,
+        variants: vec![
+            VariantDecl {
+                name: "Relaxed".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "Acquire".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "Release".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "AcqRel".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+            VariantDecl {
+                name: "SeqCst".to_string(),
+                shape: VariantShape::Unit,
+                fields: Vec::new(),
+            },
+        ],
+        module: ModIdx(0),
+        methods: Vec::new(),
+        user_drop: false,
+    });
 
     // Pass 1: top-level names, ADT kinds and module imports.
     let mut adt_asts: Vec<(ModIdx, AdtAst<'a>)> = Vec::new();
@@ -986,6 +1024,10 @@ pub fn collect_program<'a>(
             .names
             .entry("TaskThreadScopeResult".to_string())
             .or_insert(ItemRef::Adt(task_thread_scope_result_adt));
+        items.modules[m_i]
+            .names
+            .entry("MemoryOrder".to_string())
+            .or_insert(ItemRef::Adt(memory_order_adt));
     }
 
     // Pass 1a: evaluate integer const items for fixed array lengths `[T; N]`.
@@ -1309,7 +1351,8 @@ fn type_generics(
                                 path.as_slice(),
                                 [s] if matches!(
                                     s.as_str(),
-                                    "Value" | "ClosedEnvironment" | "Transfer" | "ThreadCallable"
+                                    "Value" | "ClosedEnvironment" | "Transfer" | "Share"
+                                        | "ThreadCallable"
                                 )
                             )
                         {
@@ -2461,6 +2504,23 @@ fn collect_impl<'a>(
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) {
+    if let Some(t) = &imp.trait_type
+        && let ast::TypeKind::Named { path, .. } = &t.kind
+        && let [trait_name] = path.as_slice()
+        && matches!(
+            trait_name.as_str(),
+            "Transfer" | "Share" | "Copy" | "SyncDrop" | "ClosedEnvironment" | "ThreadCallable"
+        )
+    {
+        diags.push(diag::error(
+            diag::GENERIC_BOUND,
+            t.span,
+            format!(
+                "`{trait_name}` is a compiler-derived capability trait and cannot be explicitly implemented"
+            ),
+        ));
+        return;
+    }
     let is_drop = matches!(
         &imp.trait_type,
         Some(t) if matches!(&t.kind, ast::TypeKind::Named { path, args } if path == &["Drop"] && args.is_empty())
@@ -3151,7 +3211,24 @@ fn resolve_type_with_lifetimes(
                             Ok(types.intern(TyData::Desc(inner)))
                         }
                         "Mutex" => {
-                            let inner = types.intern(TyData::Opaque(OpaqueKind::Mutex(elem)));
+                            let resource_inner = if let TyData::Desc(inner) = types.data(elem) {
+                                Some(*inner)
+                            } else if matches!(types.data(elem), TyData::Adt { .. }) {
+                                Some(elem)
+                            } else {
+                                None
+                            };
+                            let payload = if let Some(r_inner) = resource_inner
+                                && let TyData::Adt { adt, .. } = types.data(r_inner)
+                                && adt_kinds
+                                    .get(adt.0 as usize)
+                                    .is_some_and(|k| *k == AdtKind::Resource)
+                            {
+                                types.intern(TyData::Managed(r_inner))
+                            } else {
+                                elem
+                            };
+                            let inner = types.intern(TyData::Opaque(OpaqueKind::Mutex(payload)));
                             Ok(types.intern(TyData::Desc(inner)))
                         }
                         "MutexGuard" => {

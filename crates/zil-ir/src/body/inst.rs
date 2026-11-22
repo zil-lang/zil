@@ -281,6 +281,55 @@ pub enum IntrinsicOp {
     SyncInit,
     /// Run a scoped foreign callback registration (`c_with_callback`).
     ScopedCallback,
+    /// Ordered atomic operations with statically verified memory orderings.
+    SyncLoadOrdered(MemoryOrder),
+    SyncStoreOrdered(MemoryOrder),
+    SyncFetchAddOrdered(MemoryOrder),
+    SyncExchangeOrdered(MemoryOrder),
+    SyncCompareExchangeOrdered {
+        success: MemoryOrder,
+        failure: MemoryOrder,
+    },
+    /// Produce a null `c_handle` value (`c_null()`).
+    CNull,
+}
+
+/// Explicit atomic memory ordering (`MemoryOrder`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MemoryOrder {
+    Relaxed,
+    Acquire,
+    Release,
+    AcqRel,
+    SeqCst,
+}
+
+impl MemoryOrder {
+    pub const fn is_valid_load(self) -> bool {
+        matches!(self, Self::Relaxed | Self::Acquire | Self::SeqCst)
+    }
+
+    pub const fn is_valid_store(self) -> bool {
+        matches!(self, Self::Relaxed | Self::Release | Self::SeqCst)
+    }
+
+    pub const fn is_valid_cas(success: Self, failure: Self) -> bool {
+        match success {
+            Self::Relaxed | Self::Release => matches!(failure, Self::Relaxed),
+            Self::Acquire | Self::AcqRel => matches!(failure, Self::Relaxed | Self::Acquire),
+            Self::SeqCst => matches!(failure, Self::Relaxed | Self::Acquire | Self::SeqCst),
+        }
+    }
+
+    pub const fn llvm_name(self) -> &'static str {
+        match self {
+            Self::Relaxed => "monotonic",
+            Self::Acquire => "acquire",
+            Self::Release => "release",
+            Self::AcqRel => "acq_rel",
+            Self::SeqCst => "seq_cst",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
