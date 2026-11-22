@@ -6,17 +6,17 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@3f83f7811`](https://github.com/zil-lang/zil/commit/3f83f7811)（开放 PR：0；L1/L2 及 L3 Batch 1 任务分支均已合入并清理）
-- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）以及 **L3 Batch 1**（[PR #103](https://github.com/zil-lang/zil/pull/103)：`std.task` 命名空间、`TaskThreadScopeResult` 跨线程任务迁移运行时与 `ResumeMode::Transfer` 独立 fail-closed 证明、`task_await` 挂起调用与 `defer` 拒绝）均已 4/4 远端 CI 全绿合入 `main`
-- **总体阻塞**：无 P0 安全阻断；全仓 `tests/**/*.zil` Success 数 **`799 / 1,385`**（较上批 +35 合法正例，0 回归，0 误放行，0 `ResourceLimit`）
-- **下一发布门**：推进 L3 Batch 2（`G8.5` 原子原语与 `mutex_unlock`）及 L3 Batch 3（`G7.2`/`G7.3` `c_with_callback` 作用域回调运行时）
+- **主线基线**：[`main@462d4fec4`](https://github.com/zil-lang/zil/commit/462d4fec4)（开放 PR：1 — [PR #105](https://github.com/zil-lang/zil/pull/105) L3 Batch 3 远端 CI 验收中）
+- **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、**L3 Batch 1**（[PR #103](https://github.com/zil-lang/zil/pull/103)：`std.task.*`、`TaskThreadScopeResult` 跨线程任务迁移、`task_await`）及 **L3 Batch 2**（[PR #104](https://github.com/zil-lang/zil/pull/104)：`AtomicI32`/`AtomicI64`/`AtomicUsize`、`atomic_scope`、CAS、`mutex_unlock`/`mutex_with` 与独立 `MutexGuard`/`Mutex<T>` 线程安全证明）均已 4/4 远端 CI 全绿合入 `main`
+- **总体阻塞**：无 P0 安全阻断；全仓 `tests/**/*.zil` Success 数 **`809 / 1,385`**（PR #105 含 `c_with_callback` 与非 `Copy` 捕获 `FnOnce` 推导，预计升至 **`839 / 1,385`**，0 回归，0 误放行，0 `ResourceLimit`）
+- **下一发布门**：完成 [PR #105](https://github.com/zil-lang/zil/pull/105)（L3 Batch 3：`G7.2`/`G7.3` `c_with_callback`）4/4 远端 CI 并合入 `main`
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@3f83f7811 为基线）
+## 下一阶段施工安排（以 main@462d4fec4 为基线）
 
-当前持续推进 L3 到可验收态：L3 Batch 1（PR #103）已合入，接下来依次实施 L3 Batch 2（`G8.5` Atomics & `mutex_unlock`）与 L3 Batch 3（`G7.2`/`G7.3` `c_with_callback`）。编译性能专项独立保留，不在普通语言任务分支修改。
+当前持续推进 L3 到可验收态：L3 Batch 1（PR #103）与 L3 Batch 2（PR #104）已 4/4 CI 全绿合入，L3 Batch 3（PR #105：`c_with_callback`）正在跑 4/4 远端 CI。编译性能专项独立保留，不在普通语言任务分支修改。
 
-**统一计量及安全门**：`799/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
+**统一计量及安全门**：`809/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
 ## 2. L1 · 基础语言与类型组合
 
@@ -47,7 +47,7 @@
 | G7.3 | 剩余：一般借入环境的外部 waker / 晚通知、no-future 与 drain，关闭后所有 raw 入口静止 | 部分实现 | P0 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
 | G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
 | G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
-| G8.5 | 剩余：一般 `Mutex<T>` / `Guard`、`Transfer`/`Share`、原子位宽与拥有同步构造 | 进行中 | P0 | 覆盖真实多线程竞争原生正例 + Guard 跨挂起/跨线程未授权负例 |
+| G8.5 | 剩余：显式 `MemoryOrder` 有序原子变体与一般 `Transfer`/`Share` trait 证明（PR #104 已闭合 `AtomicI32`/`AtomicI64`/`AtomicUsize`、`atomic_scope`、CAS、`mutex_unlock`/`mutex_with` 与独立 `MutexGuard`/`Mutex<T>` 线程安全检查） | 部分实现 | P0 | 覆盖真实多线程竞争原生正例 + Guard 跨挂起/跨线程未授权负例 |
 | G8.6 | 剩余：一般拥有 Sum / result、借入 frame port、部分责任、ticket / defer 的任务组合（PR #103 已闭合 `std.task.*` 命名空间、`TaskThreadScopeResult` 跨线程任务迁移运行时与 `ResumeMode::Transfer` 独立证明、`task_await` 挂起调用） | 部分实现 | P0 | 覆盖原生多轮挂起/取消清理、跨线程任务迁移正例与帧逃逸负例 |
 
 ## 5. L4 · 标准库与 ABI
