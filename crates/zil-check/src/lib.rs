@@ -1245,21 +1245,9 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<Vec<bool>,
                             }
                         }
                     }
-                    if *op == IntrinsicOp::AsyncRegistrationStart {
-                        let Some(entry_fn) = resolved_cfn else {
-                            return Err(fail(
-                                fid,
-                                "async_registration.start callback must resolve to a statically proved sealed ThreadCallable closure",
-                            ));
-                        };
-                        verify_sealed_thread_callable(
-                            module,
-                            fid,
-                            entry_fn,
-                            &closure_to_fn,
-                            &drop_fn_by_adt,
-                        )?;
-                    }
+                    // Note: `AsyncRegistrationStart` sealed ThreadCallable verification
+                    // is enforced path-sensitively in `verify_fn_provenance`, gated on
+                    // whether the proven provider roles are threaded (or unknown/mixed).
                 }
                 if *op == IntrinsicOp::ThreadScope
                     && let Some(Operand::Copy(cell_p) | Operand::Move(cell_p)) = args.get(1)
@@ -2223,6 +2211,7 @@ fn verify_fn_provenance(
             }
             Callee::Intrinsic(IntrinsicOp::AsyncRegistrationStart) => {
                 let mut family_threaded: Option<bool> = None;
+                let mut proved_single_thread_slots = 0usize;
                 for (slot_idx, arg) in args.iter().take(3).enumerate() {
                     let Some(fid) = state.exact_foreign(arg) else {
                         if transfer_reachable {
@@ -2283,7 +2272,53 @@ fn verify_fn_provenance(
                         } else {
                             family_threaded = Some(threaded);
                         }
+                        if !threaded {
+                            proved_single_thread_slots += 1;
+                        }
                     }
+                }
+                let proved_single_thread = !transfer_reachable
+                    && family_threaded == Some(false)
+                    && proved_single_thread_slots == 3;
+                if !proved_single_thread {
+                    let cb_fn = args.get(3).and_then(|arg| match arg {
+                        Operand::Copy(p) | Operand::Move(p) => {
+                            let ty = zil_ir::body::type_place(p, &func.body.cx(&module.tys))
+                                .ok()?
+                                .ty();
+                            if let TyKind::Closure { def, .. } = module.tys.kind(ty) {
+                                module.functions.iter().enumerate().find_map(|(i, f)| {
+                                    (f.body.closure == Some(*def)).then_some(FnId::from_index(i))
+                                })
+                            } else {
+                                None
+                            }
+                        }
+                        Operand::Const(_) | Operand::Pooled(_) => None,
+                    });
+                    let Some(entry_fn) = cb_fn else {
+                        return Err(fail(
+                            "async_registration.start callback must resolve to a statically proved sealed ThreadCallable closure",
+                        ));
+                    };
+                    let mut closure_to_fn = std::collections::HashMap::new();
+                    let mut drop_fn_by_adt = std::collections::HashMap::new();
+                    for (i, f) in module.functions.iter().enumerate() {
+                        let id = FnId::from_index(i);
+                        if let Some(cid) = f.body.closure {
+                            closure_to_fn.insert(cid, id);
+                        }
+                        if let FnRole::Drop(adt) = f.sig.role {
+                            drop_fn_by_adt.insert(adt, id);
+                        }
+                    }
+                    verify_sealed_thread_callable(
+                        module,
+                        fn_id,
+                        entry_fn,
+                        &closure_to_fn,
+                        &drop_fn_by_adt,
+                    )?;
                 }
             }
             Callee::Intrinsic(IntrinsicOp::ScopedCallback) => {

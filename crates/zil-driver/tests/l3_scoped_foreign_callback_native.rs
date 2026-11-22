@@ -231,10 +231,23 @@ fn l3_b3_project_main_modes_0_to_7_native() {
 #[test]
 fn l3_b3_all_14_negative_controls_rejected() {
     let root = repo_root().join("tests/foreign-scoped-callback/negative");
-    // 13 negative controls marked `current_source_coverage: true` in RISKS.json:
-    // each MUST fail as a semantic SafeReject with the exact phase, diagnostic
-    // code, and reason matching RISKS.json (never Unsupported or unrelated error).
-    let semantic_safe_reject_cases: [(&str, Phase, &str, &str); 13] = [
+    // Dynamically read RISKS.json so any added/renamed negative control cannot
+    // silently drift out of sync with the Rust diagnostic assertions.
+    let risks_raw = std::fs::read_to_string(root.join("RISKS.json")).expect("read RISKS.json");
+    let mut risks_sources: Vec<String> = Vec::new();
+    for line in risks_raw.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("\"source\": \"")
+            && let Some(end) = rest.find('"')
+        {
+            risks_sources.push(rest[..end].to_string());
+        }
+    }
+
+    // All 14 negative controls from RISKS.json: each MUST fail as a semantic
+    // SafeReject with the exact phase, diagnostic code, and reason matching
+    // RISKS.json (never Unsupported or unrelated error).
+    let semantic_safe_reject_cases: [(&str, Phase, &str, &str); 14] = [
         (
             "fn_once_callback.zil",
             Phase::Types,
@@ -258,6 +271,12 @@ fn l3_b3_all_14_negative_controls_rejected() {
             Phase::Analyze,
             "E-SAFETY-SOLVE",
             "UseOfUninit",
+        ),
+        (
+            "body_captures_callback_alias.zil",
+            Phase::Analyze,
+            "E-SAFETY-SOLVE",
+            "LoanConflict",
         ),
         (
             "missing_unsafe_region.zil",
@@ -314,6 +333,16 @@ fn l3_b3_all_14_negative_controls_rejected() {
             "LoanConflict",
         ),
     ];
+
+    let bound_sources: Vec<String> = semantic_safe_reject_cases
+        .iter()
+        .map(|(name, _, _, _)| (*name).to_string())
+        .collect();
+    assert_eq!(
+        risks_sources, bound_sources,
+        "RISKS.json negative source list must match the Rust diagnostic table 1-to-1"
+    );
+
     for (name, expected_phase, expected_code, expected_reason) in semantic_safe_reject_cases {
         let entry = root.join(name);
         let mut session = CompilationSession::new();
@@ -339,35 +368,6 @@ fn l3_b3_all_14_negative_controls_rejected() {
             report.diagnostics
         );
     }
-
-    // `body_captures_callback_alias.zil` is historically recorded with
-    // `current_source_coverage: false` in RISKS.json (kept separate from the
-    // 13-item group above; independent Raw/Wire proof lives in
-    // `l3_provenance_closure.rs`). Verify it is also rejected specifically for
-    // `LoanConflict` rather than an unrelated or Unsupported failure.
-    let alias_entry = root.join("body_captures_callback_alias.zil");
-    let mut session = CompilationSession::new();
-    let opts = CompileOptions {
-        stop_after: Stage::Verify,
-        ..CompileOptions::default()
-    };
-    let report = session.compile_path(&alias_entry, &opts);
-    assert_eq!(
-        report.status,
-        ResultCategory::SafeReject,
-        "negative control body_captures_callback_alias.zil must fail with SafeReject (got {:?}): {:?}",
-        report.status,
-        report.diagnostics
-    );
-    assert!(
-        report.diagnostics.iter().any(|d| {
-            d.phase == Phase::Analyze
-                && d.code == "E-SAFETY-SOLVE"
-                && d.message.contains("LoanConflict")
-        }),
-        "expected LoanConflict for body_captures_callback_alias.zil, got: {:?}",
-        report.diagnostics
-    );
 }
 
 #[test]
