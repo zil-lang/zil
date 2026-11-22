@@ -43,7 +43,7 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable`、PR #105 作用域回调、PR #106 逐路径 CFG provider 身份证明及 PR #107 有效证书同根别名 `LoanConflict` + 合法不相交对照与 `RISKS.json` 精确诊断码绑定已合入） | 部分实现 | P0 | 继续推进一般借入环境与关闭合同；`body_captures_callback_alias.zil` 在 `RISKS.json` 中保持历史缺口标注（源码端待显式 `&mut` 捕获 profile 决策后统一收口） |
+| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable`、PR #105 作用域回调、PR #106 逐路径 CFG provider 身份证明及 PR #107 有效证书同根别名 `LoanConflict` + 合法不相交对照与 `RISKS.json` 精确诊断码绑定已合入） | 部分实现 | P0 | 继续推进一般借入环境与关闭合同；`body_captures_callback_alias.zil` 当前已被 PR #107 的 Source 测试精确证明为 Analyze/E-SAFETY-SOLVE/LoanConflict；`RISKS.json`、scoped-callback README 的 `current_source_coverage:false` 仍属旧记录、需同步修订；更广 `Address<Closure>`/`&mut` 捕获 profile 另行评估 |
 | G7.3 | 剩余：一般借入环境的外部 waker / 晚通知、no-future 与 drain，关闭后所有 raw 入口静止 | 部分实现 | P0 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
 | G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
 | G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
