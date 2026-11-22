@@ -43,7 +43,7 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable` 及 PR #105 作用域回调 `scoped_callback_register`/`close` + `c_with_callback` 已合入） | 部分实现 | P0 | 新增审核：`ScopedCallback` provider 从 `ForeignFnRef` 至调用点的逐路径身份需证明；同 local 重赋值/CFG 分支 + Raw/Wire 反例，不精确 fail-closed；其余借入环境与关闭合同继续开放 |
+| G7.2 | 剩余：一般借入 / 跨线程环境的持久 `Registration` 与关闭合同（密封 `ClosedEnvironment + Transfer + SyncDrop + ThreadCallable` 及 PR #105 作用域回调 `scoped_callback_register`/`close` + `c_with_callback` 已合入） | 部分实现 | P0 | 新增审核：`ScopedCallback` provider 从 `ForeignFnRef` 至调用点的逐路径身份需证明；同 local 重赋值/CFG 分支 + Raw/Wire 反例，不精确 fail-closed；同时注意 `body_captures_callback_alias.zil` 在 `RISKS.json` 中明确标记 `current_source_coverage=false`、早期 Unsupported 不等于 SafeReject；其余借入环境与关闭合同继续开放 |
 | G7.3 | 剩余：一般借入环境的外部 waker / 晚通知、no-future 与 drain，关闭后所有 raw 入口静止 | 部分实现 | P0 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
 | G7.4 | 剩余：`Registration` 与异步任务责任的失败 / 取消 / 完成组合 | 部分实现 | P0 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
 | G8.4 | 剩余：通用 `PendingExit`、挂起 / 取消排空、外部 waker 与晚通知 | 部分实现 | P0 | 覆盖嵌套取消清理、分配失败与非法 `task_yield` 负例 |
