@@ -1197,6 +1197,7 @@ fn encode_intrinsic(w: &mut Writer, op: IntrinsicOp) {
         IntrinsicOp::ManagedCreate => w.u8(38),
         IntrinsicOp::OwnedDynCreate => w.u8(39),
         IntrinsicOp::ThreadScope => w.u8(40),
+        IntrinsicOp::SyncInit => w.u8(41),
     }
 }
 fn decode_intrinsic(r: &mut Reader<'_>) -> Result<IntrinsicOp, WireError> {
@@ -1244,6 +1245,7 @@ fn decode_intrinsic(r: &mut Reader<'_>) -> Result<IntrinsicOp, WireError> {
         38 => Ok(IntrinsicOp::ManagedCreate),
         39 => Ok(IntrinsicOp::OwnedDynCreate),
         40 => Ok(IntrinsicOp::ThreadScope),
+        41 => Ok(IntrinsicOp::SyncInit),
         t => Err(WireError::InvalidTag("IntrinsicOp", t)),
     }
 }

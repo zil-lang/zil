@@ -277,6 +277,8 @@ pub enum IntrinsicOp {
     OwnedDynCreate,
     /// Run a scoped child thread alongside a parent callback (`thread_scope`).
     ThreadScope,
+    /// Initialize an in-place `SyncCell` slot (`atomic_scope`).
+    SyncInit,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

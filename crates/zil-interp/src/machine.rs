@@ -229,6 +229,7 @@ fn intrinsic_name(op: IntrinsicOp) -> &'static str {
         IntrinsicOp::MutexLock => "intrinsic MutexLock",
         IntrinsicOp::MutexValue => "intrinsic MutexValue",
         IntrinsicOp::MutexUnlock => "intrinsic MutexUnlock",
+        IntrinsicOp::SyncInit => "intrinsic SyncInit",
         IntrinsicOp::SyncLoad => "intrinsic SyncLoad",
         IntrinsicOp::SyncStore => "intrinsic SyncStore",
         IntrinsicOp::SyncFetchAdd => "intrinsic SyncFetchAdd",

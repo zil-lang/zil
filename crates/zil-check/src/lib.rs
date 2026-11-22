@@ -1447,6 +1447,37 @@ fn check_suspend_effects(module: &Module, sccs: &[CallScc]) -> Result<Vec<bool>,
                         )?;
                     }
                 }
+                if *op == IntrinsicOp::ThreadScope
+                    && let Some(Operand::Copy(cell_p) | Operand::Move(cell_p)) = args.get(1)
+                    && let Ok(cell_ty_res) =
+                        zil_ir::body::type_place(cell_p, &func.body.cx(&module.tys))
+                {
+                    let cell_ty = cell_ty_res.ty();
+                    let mut seen_guard = Vec::new();
+                    if ty_contains_mutex_guard(&module.tys, cell_ty, &mut seen_guard) {
+                        return Err(fail(
+                            fid,
+                            "MutexGuard cannot be transferred across threads via thread_scope",
+                        ));
+                    }
+                    let mut seen_drop = Vec::new();
+                    let mut drop_fns = Vec::new();
+                    collect_mutex_payload_drop_fns(
+                        &module.tys,
+                        cell_ty,
+                        &drop_fn_by_adt,
+                        &mut seen_drop,
+                        &mut drop_fns,
+                    );
+                    for dfn in drop_fns {
+                        if fn_transitively_calls_foreign(module, dfn, &closure_to_fn) {
+                            return Err(fail(
+                                fid,
+                                "Mutex payload with non-thread-safe foreign Drop cannot cross thread_scope",
+                            ));
+                        }
+                    }
+                }
             }
         }
     }
@@ -1750,7 +1781,8 @@ fn verify_sealed_thread_callable(
                         | IntrinsicOp::AsyncRegistrationFinishDestroy
                         | IntrinsicOp::ManagedCreate
                         | IntrinsicOp::OwnedDynCreate
-                        | IntrinsicOp::ThreadScope => {
+                        | IntrinsicOp::ThreadScope
+                        | IntrinsicOp::SyncInit => {
                             return Err(fail(
                                 "ThreadCallable callback cannot invoke non-sealed runtime intrinsic",
                             ));
@@ -1761,4 +1793,215 @@ fn verify_sealed_thread_callable(
         }
     }
     Ok(())
+}
+
+fn ty_contains_mutex_guard(
+    tys: &zil_ir::body::TyTable,
+    ty: zil_ir::body::TyId,
+    seen: &mut Vec<zil_ir::body::TyId>,
+) -> bool {
+    use zil_ir::body::OpaqueTy;
+    if seen.contains(&ty) {
+        return false;
+    }
+    seen.push(ty);
+    match tys.get(ty) {
+        Some(TyKind::Opaque(OpaqueTy::MutexGuard { .. })) => true,
+        Some(TyKind::Tuple(elems)) => elems.iter().any(|e| ty_contains_mutex_guard(tys, *e, seen)),
+        Some(
+            TyKind::Array { element: inner, .. }
+            | TyKind::Slice(inner)
+            | TyKind::Ref { pointee: inner, .. }
+            | TyKind::Managed(inner)
+            | TyKind::Desc(inner),
+        ) => ty_contains_mutex_guard(tys, *inner, seen),
+        Some(TyKind::ErrorUnion { ok, err }) => {
+            ty_contains_mutex_guard(tys, *ok, seen) || ty_contains_mutex_guard(tys, *err, seen)
+        }
+        Some(TyKind::Adt { adt, args }) => tys.get_adt(*adt).is_some_and(|def| {
+            def.variants.iter().any(|v| {
+                v.fields.iter().any(|f| {
+                    let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                    ty_contains_mutex_guard(tys, fty, seen)
+                })
+            })
+        }),
+        Some(TyKind::Closure { def, args }) => tys.closure(*def).is_some_and(|cdef| {
+            cdef.captures.iter().any(|cap| {
+                let cty = tys.subst_lookup(*cap, *args).unwrap_or(*cap);
+                ty_contains_mutex_guard(tys, cty, seen)
+            })
+        }),
+        Some(
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. }
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn { .. }
+            | TyKind::Param(_)
+            | TyKind::Opaque(_),
+        )
+        | None => false,
+    }
+}
+
+fn collect_drop_fns_recursive(
+    tys: &zil_ir::body::TyTable,
+    ty: zil_ir::body::TyId,
+    drop_fn_by_adt: &std::collections::HashMap<zil_ir::body::AdtId, FnId>,
+    seen: &mut Vec<zil_ir::body::TyId>,
+    out: &mut Vec<FnId>,
+) {
+    use zil_ir::body::OpaqueTy;
+    if seen.contains(&ty) {
+        return;
+    }
+    seen.push(ty);
+    match tys.get(ty) {
+        Some(TyKind::Adt { adt, args }) => {
+            if let Some(&dfn) = drop_fn_by_adt.get(adt)
+                && !out.contains(&dfn)
+            {
+                out.push(dfn);
+            }
+            if let Some(def) = tys.get_adt(*adt) {
+                for v in &def.variants {
+                    for f in &v.fields {
+                        let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                        collect_drop_fns_recursive(tys, fty, drop_fn_by_adt, seen, out);
+                    }
+                }
+            }
+        }
+        Some(TyKind::Tuple(elems)) => {
+            for e in elems {
+                collect_drop_fns_recursive(tys, *e, drop_fn_by_adt, seen, out);
+            }
+        }
+        Some(
+            TyKind::Array { element: inner, .. } | TyKind::Managed(inner) | TyKind::Desc(inner),
+        ) => collect_drop_fns_recursive(tys, *inner, drop_fn_by_adt, seen, out),
+        Some(TyKind::ErrorUnion { ok, err }) => {
+            collect_drop_fns_recursive(tys, *ok, drop_fn_by_adt, seen, out);
+            collect_drop_fns_recursive(tys, *err, drop_fn_by_adt, seen, out);
+        }
+        Some(TyKind::Opaque(
+            OpaqueTy::Mutex { payload } | OpaqueTy::OwnedStore { element: payload },
+        )) => {
+            collect_drop_fns_recursive(tys, *payload, drop_fn_by_adt, seen, out);
+        }
+        Some(
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::Slice(_)
+            | TyKind::Ref { .. }
+            | TyKind::FnPtr { .. }
+            | TyKind::Closure { .. }
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn { .. }
+            | TyKind::Param(_)
+            | TyKind::Opaque(_),
+        )
+        | None => {}
+    }
+}
+
+fn collect_mutex_payload_drop_fns(
+    tys: &zil_ir::body::TyTable,
+    ty: zil_ir::body::TyId,
+    drop_fn_by_adt: &std::collections::HashMap<zil_ir::body::AdtId, FnId>,
+    seen: &mut Vec<zil_ir::body::TyId>,
+    out: &mut Vec<FnId>,
+) {
+    use zil_ir::body::OpaqueTy;
+    if seen.contains(&ty) {
+        return;
+    }
+    seen.push(ty);
+    match tys.get(ty) {
+        Some(TyKind::Opaque(OpaqueTy::Mutex { payload })) => {
+            let mut inner_seen = Vec::new();
+            collect_drop_fns_recursive(tys, *payload, drop_fn_by_adt, &mut inner_seen, out);
+        }
+        Some(
+            TyKind::Managed(inner)
+            | TyKind::Desc(inner)
+            | TyKind::Ref { pointee: inner, .. }
+            | TyKind::Array { element: inner, .. },
+        ) => collect_mutex_payload_drop_fns(tys, *inner, drop_fn_by_adt, seen, out),
+        Some(TyKind::Tuple(elems)) => {
+            for e in elems {
+                collect_mutex_payload_drop_fns(tys, *e, drop_fn_by_adt, seen, out);
+            }
+        }
+        Some(TyKind::Adt { adt, args }) => {
+            if let Some(def) = tys.get_adt(*adt) {
+                for v in &def.variants {
+                    for f in &v.fields {
+                        let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                        collect_mutex_payload_drop_fns(tys, fty, drop_fn_by_adt, seen, out);
+                    }
+                }
+            }
+        }
+        Some(
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::Slice(_)
+            | TyKind::ErrorUnion { .. }
+            | TyKind::FnPtr { .. }
+            | TyKind::Closure { .. }
+            | TyKind::Dyn(_)
+            | TyKind::OwnedDyn { .. }
+            | TyKind::Param(_)
+            | TyKind::Opaque(_),
+        )
+        | None => {}
+    }
+}
+
+fn fn_transitively_calls_foreign(
+    module: &Module,
+    entry: FnId,
+    closure_to_fn: &std::collections::HashMap<zil_ir::body::ClosureId, FnId>,
+) -> bool {
+    use zil_ir::body::{Callee, Terminator};
+    let mut visited = std::collections::HashSet::new();
+    let mut worklist = vec![entry];
+    while let Some(cur) = worklist.pop() {
+        if !visited.insert(cur) {
+            continue;
+        }
+        let Some(func) = module.functions.get(cur.index()) else {
+            continue;
+        };
+        for block in &func.body.blocks {
+            if let Terminator::Call { callee, .. } = &block.terminator {
+                match callee {
+                    Callee::Foreign(_) => return true,
+                    Callee::Direct(target) => worklist.push(*target),
+                    Callee::Closure { closure, .. } => {
+                        if let Ok(cty) =
+                            zil_ir::body::type_place(closure, &func.body.cx(&module.tys))
+                            && let Some(TyKind::Closure { def, .. }) = module.tys.get(cty.ty())
+                            && let Some(&cfn) = closure_to_fn.get(def)
+                        {
+                            worklist.push(cfn);
+                        }
+                    }
+                    Callee::Indirect(_) | Callee::DynSlot { .. } | Callee::Intrinsic(_) => {}
+                }
+            }
+        }
+    }
+    false
 }
