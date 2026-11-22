@@ -5,7 +5,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use zil_base::ResultCategory;
+use zil_base::{Phase, ResultCategory};
 use zil_driver::{
     CodegenOptions, CompilationSession, CompileOptions, NativeBackend, Optimization, Stage,
 };
@@ -232,23 +232,89 @@ fn l3_b3_project_main_modes_0_to_7_native() {
 fn l3_b3_all_14_negative_controls_rejected() {
     let root = repo_root().join("tests/foreign-scoped-callback/negative");
     // 13 negative controls marked `current_source_coverage: true` in RISKS.json:
-    // each MUST fail as a semantic SafeReject (never Unsupported or Success).
-    let semantic_safe_reject_cases = [
-        "fn_once_callback.zil",
-        "borrowed_callback_environment.zil",
-        "body_captures_same_callback.zil",
-        "body_moves_same_callback.zil",
-        "missing_unsafe_region.zil",
-        "swapped_roles.zil",
-        "missing_register_role.zil",
-        "wrong_register_signature.zil",
-        "ordinary_role_call.zil",
-        "wrong_body_result.zil",
-        "wrong_callback_signature.zil",
-        "body_used_after_consumption.zil",
-        "caller_keeps_live_callback_alias.zil",
+    // each MUST fail as a semantic SafeReject with the exact phase, diagnostic
+    // code, and reason matching RISKS.json (never Unsupported or unrelated error).
+    let semantic_safe_reject_cases: [(&str, Phase, &str, &str); 13] = [
+        (
+            "fn_once_callback.zil",
+            Phase::Types,
+            "E-TYPE-MISMATCH",
+            "not `FnOnce`",
+        ),
+        (
+            "borrowed_callback_environment.zil",
+            Phase::Analyze,
+            "E-SAFETY-SOLVE",
+            "cannot capture borrowed addresses",
+        ),
+        (
+            "body_captures_same_callback.zil",
+            Phase::Analyze,
+            "E-SAFETY-SOLVE",
+            "LoanConflict",
+        ),
+        (
+            "body_moves_same_callback.zil",
+            Phase::Analyze,
+            "E-SAFETY-SOLVE",
+            "UseOfUninit",
+        ),
+        (
+            "missing_unsafe_region.zil",
+            Phase::Types,
+            "E-FFI-UNSAFE",
+            "requires an `unsafe` block",
+        ),
+        (
+            "swapped_roles.zil",
+            Phase::Types,
+            "E-FFI-DECLARATION",
+            "scoped_callback_register()",
+        ),
+        (
+            "missing_register_role.zil",
+            Phase::Types,
+            "E-FFI-DECLARATION",
+            "scoped_callback_register()",
+        ),
+        (
+            "wrong_register_signature.zil",
+            Phase::Types,
+            "E-FFI-DECLARATION",
+            "scoped_callback_register must have signature",
+        ),
+        (
+            "ordinary_role_call.zil",
+            Phase::Types,
+            "E-FFI-DECLARATION",
+            "may only be passed to `c_with_callback`",
+        ),
+        (
+            "wrong_body_result.zil",
+            Phase::Types,
+            "E-TYPE-MISMATCH",
+            "mismatched types",
+        ),
+        (
+            "wrong_callback_signature.zil",
+            Phase::Types,
+            "E-TYPE-MISMATCH",
+            "mismatched types",
+        ),
+        (
+            "body_used_after_consumption.zil",
+            Phase::Analyze,
+            "E-SAFETY-SOLVE",
+            "UseOfUninit",
+        ),
+        (
+            "caller_keeps_live_callback_alias.zil",
+            Phase::Analyze,
+            "E-SAFETY-SOLVE",
+            "LoanConflict",
+        ),
     ];
-    for name in semantic_safe_reject_cases {
+    for (name, expected_phase, expected_code, expected_reason) in semantic_safe_reject_cases {
         let entry = root.join(name);
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
@@ -264,15 +330,21 @@ fn l3_b3_all_14_negative_controls_rejected() {
             report.diagnostics
         );
         assert!(
-            !report.diagnostics.is_empty(),
-            "negative control {name} must emit at least one diagnostic"
+            report.diagnostics.iter().any(|d| {
+                d.phase == expected_phase
+                    && d.code == expected_code
+                    && d.message.contains(expected_reason)
+            }),
+            "negative control {name} expected ({expected_phase:?}, `{expected_code}`, `{expected_reason}`), got: {:?}",
+            report.diagnostics
         );
     }
 
-    // `body_captures_callback_alias.zil` is explicitly recorded as
-    // `current_source_coverage: false` in RISKS.json because surface syntax does
-    // not yet accept `&mut` capture bindings; its independent Raw/Wire same-root
-    // alias conflict proof lives in `l3_provenance_closure.rs`.
+    // `body_captures_callback_alias.zil` is historically recorded with
+    // `current_source_coverage: false` in RISKS.json (kept separate from the
+    // 13-item group above; independent Raw/Wire proof lives in
+    // `l3_provenance_closure.rs`). Verify it is also rejected specifically for
+    // `LoanConflict` rather than an unrelated or Unsupported failure.
     let alias_entry = root.join("body_captures_callback_alias.zil");
     let mut session = CompilationSession::new();
     let opts = CompileOptions {
@@ -280,10 +352,21 @@ fn l3_b3_all_14_negative_controls_rejected() {
         ..CompileOptions::default()
     };
     let report = session.compile_path(&alias_entry, &opts);
-    assert_ne!(
+    assert_eq!(
         report.status,
-        ResultCategory::Success,
-        "negative control body_captures_callback_alias.zil must not succeed"
+        ResultCategory::SafeReject,
+        "negative control body_captures_callback_alias.zil must fail with SafeReject (got {:?}): {:?}",
+        report.status,
+        report.diagnostics
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.phase == Phase::Analyze
+                && d.code == "E-SAFETY-SOLVE"
+                && d.message.contains("LoanConflict")
+        }),
+        "expected LoanConflict for body_captures_callback_alias.zil, got: {:?}",
+        report.diagnostics
     );
 }
 
