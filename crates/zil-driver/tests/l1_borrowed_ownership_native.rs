@@ -170,7 +170,7 @@ fn main() -> i32 {
     return 0
 }
 "#,
-        "E-RESOURCE-TYPE",
+        "E-PARSE-MANAGED-FIELD",
     );
 }
 
@@ -183,19 +183,26 @@ package Session<life a> {
     pointer: &'a mut i32
 }
 
-fn advance<life a>(session: &mut Session<'a>) {
-    let p = session.pointer
-    *p += 10
-    bytes_push(&mut session.bytes, 65u8)
+fn make_session<life a>(pointer: &'a mut i32) -> Session<'a> {
+    var bytes = bytes_new()
+    bytes_reserve(bytes, 2)
+    bytes_push(bytes, 65u8)
+    return Session::<'a> { bytes: give bytes, pointer: pointer }
 }
 
 fn main() -> i32 {
     var n: i32 = 32
-    var s = Session::<'_> { bytes: bytes_new(), pointer: &mut n }
-    advance(&mut s)
-    let len_ok: i32 = if bytes_len(&s.bytes) == 1 { 1 } else { 0 }
-    let observed: i32 = *s.pointer
-    return observed + len_ok
+    var extra: i32 = 0
+    if true {
+        var s = make_session(&mut n)
+        let sref = &mut s
+        let p = sref.pointer
+        *p += 10
+        if bytes_len(s.bytes) == 1 {
+            extra = 1
+        }
+    }
+    return n + extra
 }
 "#;
     let entry = write_source(&dir, "pos.zil", pos_src);

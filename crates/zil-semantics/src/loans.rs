@@ -112,18 +112,12 @@ impl LoanTable {
                 let stores_addresses = type_place(place, &cx)
                     .map(|t| tys.holds_address(t.ty()))
                     .unwrap_or(true);
-                let closure_kind = body
-                    .closure
-                    .and_then(|c| tys.closure(c))
-                    .map(|c| c.kind);
+                let closure_kind = body.closure.and_then(|c| tys.closure(c)).map(|c| c.kind);
                 let anchored = place.first_deref().is_none()
                     || (matches!(place.root, PlaceRoot::Capture(_))
                         && matches!(
                             closure_kind,
-                            Some(
-                                zil_ir::body::ClosureKind::Fn
-                                    | zil_ir::body::ClosureKind::FnMut
-                            )
+                            Some(zil_ir::body::ClosureKind::Fn | zil_ir::body::ClosureKind::FnMut)
                         )
                         && kind == LoanKind::Exclusive);
                 loans.push(Some(Loan {
