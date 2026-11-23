@@ -26,6 +26,7 @@ pub fn duplicate(fd:i32)->Error!File contract {result(create)} {
 }
 pub fn stdin()->Error!File contract {result(create)} {return duplicate(0)}
 pub fn stdout()->Error!File contract {result(create)} {return duplicate(1)}
+pub fn stderr()->Error!File contract {result(create)} {return duplicate(2)}
 
 // Path bytes must be nonempty and contain no NUL. The private owned buffer
 // supplies exactly one terminator and stays live throughout the C call.
@@ -116,10 +117,10 @@ pub fn read_to_end(file:&File,byte_limit:i64)->Error!ByteBuffer contract {result
     return give data
 }
 
-// Complete writes of arbitrary borrowed bytes using one fixed C ABI buffer.
+// Complete writes of arbitrary borrowed bytes to a raw fd using one fixed C ABI buffer.
 // A short write is retried with the unwritten prefix; source is unchanged.
 // On error, a prefix may already have reached the fd.
-pub fn write_all(file:&File,source:&[u8])->Error!void {
+fn write_fd(fd:i32,source:&[u8])->Error!void {
     var block=empty_buffer()
     var at:i64=0
     while at<source.len() {
@@ -130,7 +131,7 @@ pub fn write_all(file:&File,source:&[u8])->Error!void {
         var remaining=length
         while remaining>0 {
             var written:i64=0
-            unsafe{written=write(file.fd,&block,remaining)}
+            unsafe{written=write(fd,&block,remaining)}
             if written<0 {return Error.Write}
             if written==0 {return Error.NoProgress}
             if written>remaining {return Error.InvalidResult}
@@ -141,6 +142,54 @@ pub fn write_all(file:&File,source:&[u8])->Error!void {
         at+=length
     }
     return ()
+}
+
+pub fn write_all(file:&File,source:&[u8])->Error!void {
+    return write_fd(file.fd,source)
+}
+
+pub fn print(bytes:&[u8])->Error!void {
+    return write_fd(1,bytes)
+}
+
+pub fn println(bytes:&[u8])->Error!void {
+    write_fd(1,bytes)?
+    return write_fd(1,"\n")
+}
+
+pub fn eprint(bytes:&[u8])->Error!void {
+    return write_fd(2,bytes)
+}
+
+pub fn eprintln(bytes:&[u8])->Error!void {
+    write_fd(2,bytes)?
+    return write_fd(2,"\n")
+}
+
+pub fn print_i64(value:i64)->Error!void {
+    if value==0 {return write_fd(1,"0")}
+    var buf=empty_buffer()
+    var pos:i64=64
+    var cur=value
+    let neg=cur<0
+    if !neg {cur=0-cur}
+    while cur<0 {
+        let rem=cur%10
+        let digit:u8=u8(48-(rem))
+        pos-=1
+        buf[pos]=digit
+        cur/=10
+    }
+    if neg {
+        pos-=1
+        buf[pos]=45u8
+    }
+    return write_fd(1,&buf[pos..64])
+}
+
+pub fn println_i64(value:i64)->Error!void {
+    print_i64(value)?
+    return write_fd(1,"\n")
 }
 
 // One POSIX write. The caller owns all 64 initialized bytes; only the requested
