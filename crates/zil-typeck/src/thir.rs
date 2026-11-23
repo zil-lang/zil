@@ -302,6 +302,10 @@ pub enum Stmt {
 pub struct Arm {
     pub pattern: Pat,
     pub guard: Option<Box<Expr>>,
+    /// Maps pattern locals that are non-Copy or `ref mut` to their guard-scope
+    /// shared-reference (`&T`) locals so guard evaluation never consumes or
+    /// mutably borrows the scrutinee before the guard succeeds.
+    pub guard_refs: Vec<(LocalId, LocalId)>,
     pub body: Expr,
     pub span: Span,
 }

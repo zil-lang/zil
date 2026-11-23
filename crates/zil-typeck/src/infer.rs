@@ -739,6 +739,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 span: pattern.span,
                             },
                             guard: None,
+                            guard_refs: Vec::new(),
                             body: body_expr,
                             span: body.span,
                         },
@@ -754,6 +755,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 span: iterable.span,
                             },
                             guard: None,
+                            guard_refs: Vec::new(),
                             body: Expr {
                                 kind: ExprKind::Break,
                                 ty: never,
@@ -1546,12 +1548,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                     Arm {
                                         pattern: pat,
                                         guard: None,
+                                        guard_refs: Vec::new(),
                                         body,
                                         span,
                                     },
                                     Arm {
                                         pattern: wild,
                                         guard: None,
+                                        guard_refs: Vec::new(),
                                         body: brk,
                                         span,
                                     },
@@ -1581,10 +1585,45 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 for arm in arms {
                     self.scopes.push(Vec::new());
                     let pattern = self.pattern(&arm.pattern, scrutinee.ty, false);
+                    let mut guard_refs = Vec::new();
                     let guard = arm.guard.as_ref().map(|g| {
+                        let mut ref_mut_locals = std::collections::HashSet::new();
+                        collect_ref_mut_bindings(&pattern, &mut ref_mut_locals);
+                        let arm_entries = self.scopes.last().cloned().unwrap_or_default();
+                        self.scopes.push(Vec::new());
+                        for (name, arm_local) in arm_entries {
+                            let info = self.locals[arm_local.0 as usize].clone();
+                            let ty = self.types.shallow(info.ty);
+                            if ref_mut_locals.contains(&arm_local) {
+                                if let TyData::Ref { pointee, .. } = *self.types.data(ty) {
+                                    let guard_ref_ty = self.types.intern(TyData::Ref {
+                                        region: None,
+                                        mutable: false,
+                                        pointee,
+                                    });
+                                    let guard_local =
+                                        self.declare(&name, guard_ref_ty, false, info.span);
+                                    guard_refs.push((arm_local, guard_local));
+                                }
+                            } else if !self.items.is_copy_in_env(
+                                ty,
+                                &self.decl.generics,
+                                self.types,
+                            ) {
+                                let guard_ref_ty = self.types.intern(TyData::Ref {
+                                    region: None,
+                                    mutable: false,
+                                    pointee: ty,
+                                });
+                                let guard_local =
+                                    self.declare(&name, guard_ref_ty, false, info.span);
+                                guard_refs.push((arm_local, guard_local));
+                            }
+                        }
                         let bool_ty = self.types.bool();
                         let ge = self.infer_expected(g, bool_ty);
                         let ge = self.coerce_value(ge, bool_ty, g.span);
+                        self.scopes.pop();
                         Box::new(ge)
                     });
                     let body = match &arm.body {
@@ -1596,6 +1635,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     out.push(Arm {
                         pattern,
                         guard,
+                        guard_refs,
                         body,
                         span: arm.span,
                     });
@@ -1986,12 +2026,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             Arm {
                                 pattern: pat,
                                 guard: None,
+                                guard_refs: Vec::new(),
                                 body: then,
                                 span,
                             },
                             Arm {
                                 pattern: wild,
                                 guard: None,
+                                guard_refs: Vec::new(),
                                 body: else_expr,
                                 span,
                             },
@@ -4991,6 +5033,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Lit(Lit::Bool(is_some)),
                                                 ty: bool_ty,
@@ -5010,6 +5053,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Lit(Lit::Bool(!is_some)),
                                                 ty: bool_ty,
@@ -5055,6 +5099,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Local(val_local),
                                                 ty: ok_ty,
@@ -5074,6 +5119,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Trap,
                                                 ty: never_ty,
@@ -5100,52 +5146,87 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             let def_expr = self.infer_expected(def_arg, ok_ty);
                             let def_expr = self.coerce_value(def_expr, ok_ty, def_arg.span);
                             self.scopes.push(Vec::new());
+                            let scrut_local = self.declare("__opt_scrut", bt, false, span);
+                            let def_local =
+                                self.declare("__opt_default", ok_ty, false, def_arg.span);
                             let val_local = self.declare("__opt_val", ok_ty, false, span);
                             self.scopes.pop();
                             return Expr {
-                                kind: ExprKind::Match {
-                                    scrutinee: Box::new(derefed),
-                                    arms: vec![
-                                        Arm {
-                                            pattern: Pat {
-                                                kind: PatKind::Adt {
-                                                    adt: AdtRef(0),
-                                                    variant: 1,
-                                                    args: args.clone(),
-                                                    fields: vec![Pat {
-                                                        kind: PatKind::Binding(val_local),
+                                kind: ExprKind::Block(vec![
+                                    Stmt::Let {
+                                        pattern: Pat {
+                                            kind: PatKind::Binding(scrut_local),
+                                            ty: bt,
+                                            span,
+                                        },
+                                        init: derefed,
+                                    },
+                                    Stmt::Let {
+                                        pattern: Pat {
+                                            kind: PatKind::Binding(def_local),
+                                            ty: ok_ty,
+                                            span: def_arg.span,
+                                        },
+                                        init: def_expr,
+                                    },
+                                    Stmt::Expr(Expr {
+                                        kind: ExprKind::Match {
+                                            scrutinee: Box::new(Expr {
+                                                kind: ExprKind::Local(scrut_local),
+                                                ty: bt,
+                                                span,
+                                            }),
+                                            arms: vec![
+                                                Arm {
+                                                    pattern: Pat {
+                                                        kind: PatKind::Adt {
+                                                            adt: AdtRef(0),
+                                                            variant: 1,
+                                                            args: args.clone(),
+                                                            fields: vec![Pat {
+                                                                kind: PatKind::Binding(val_local),
+                                                                ty: ok_ty,
+                                                                span,
+                                                            }],
+                                                        },
+                                                        ty: bt,
+                                                        span,
+                                                    },
+                                                    guard: None,
+                                                    guard_refs: Vec::new(),
+                                                    body: Expr {
+                                                        kind: ExprKind::Local(val_local),
                                                         ty: ok_ty,
                                                         span,
-                                                    }],
+                                                    },
+                                                    span,
                                                 },
-                                                ty: bt,
-                                                span,
-                                            },
-                                            guard: None,
-                                            body: Expr {
-                                                kind: ExprKind::Local(val_local),
-                                                ty: ok_ty,
-                                                span,
-                                            },
-                                            span,
-                                        },
-                                        Arm {
-                                            pattern: Pat {
-                                                kind: PatKind::Adt {
-                                                    adt: AdtRef(0),
-                                                    variant: 0,
-                                                    args,
-                                                    fields: Vec::new(),
+                                                Arm {
+                                                    pattern: Pat {
+                                                        kind: PatKind::Adt {
+                                                            adt: AdtRef(0),
+                                                            variant: 0,
+                                                            args,
+                                                            fields: Vec::new(),
+                                                        },
+                                                        ty: bt,
+                                                        span,
+                                                    },
+                                                    guard: None,
+                                                    guard_refs: Vec::new(),
+                                                    body: Expr {
+                                                        kind: ExprKind::Local(def_local),
+                                                        ty: ok_ty,
+                                                        span: def_arg.span,
+                                                    },
+                                                    span,
                                                 },
-                                                ty: bt,
-                                                span,
-                                            },
-                                            guard: None,
-                                            body: def_expr,
-                                            span,
+                                            ],
                                         },
-                                    ],
-                                },
+                                        ty: ok_ty,
+                                        span,
+                                    }),
+                                ]),
                                 ty: ok_ty,
                                 span,
                             };
@@ -5185,6 +5266,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Lit(Lit::Bool(is_ok)),
                                                 ty: bool_ty,
@@ -5202,6 +5284,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Lit(Lit::Bool(!is_ok)),
                                                 ty: bool_ty,
@@ -5245,6 +5328,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Local(val_local),
                                                 ty: ok_ty,
@@ -5262,6 +5346,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                                 span,
                                             },
                                             guard: None,
+                                            guard_refs: Vec::new(),
                                             body: Expr {
                                                 kind: ExprKind::Trap,
                                                 ty: never_ty,
@@ -5288,48 +5373,85 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             let def_expr = self.infer_expected(def_arg, ok_ty);
                             let def_expr = self.coerce_value(def_expr, ok_ty, def_arg.span);
                             self.scopes.push(Vec::new());
+                            let scrut_local = self.declare("__err_scrut", bt, false, span);
+                            let def_local =
+                                self.declare("__err_default", ok_ty, false, def_arg.span);
                             let val_local = self.declare("__ok_val", ok_ty, false, span);
                             self.scopes.pop();
                             return Expr {
-                                kind: ExprKind::Match {
-                                    scrutinee: Box::new(derefed),
-                                    arms: vec![
-                                        Arm {
-                                            pattern: Pat {
-                                                kind: PatKind::ErrorArm {
-                                                    ok: true,
-                                                    inner: Box::new(Pat {
-                                                        kind: PatKind::Binding(val_local),
+                                kind: ExprKind::Block(vec![
+                                    Stmt::Let {
+                                        pattern: Pat {
+                                            kind: PatKind::Binding(scrut_local),
+                                            ty: bt,
+                                            span,
+                                        },
+                                        init: derefed,
+                                    },
+                                    Stmt::Let {
+                                        pattern: Pat {
+                                            kind: PatKind::Binding(def_local),
+                                            ty: ok_ty,
+                                            span: def_arg.span,
+                                        },
+                                        init: def_expr,
+                                    },
+                                    Stmt::Expr(Expr {
+                                        kind: ExprKind::Match {
+                                            scrutinee: Box::new(Expr {
+                                                kind: ExprKind::Local(scrut_local),
+                                                ty: bt,
+                                                span,
+                                            }),
+                                            arms: vec![
+                                                Arm {
+                                                    pattern: Pat {
+                                                        kind: PatKind::ErrorArm {
+                                                            ok: true,
+                                                            inner: Box::new(Pat {
+                                                                kind: PatKind::Binding(val_local),
+                                                                ty: ok_ty,
+                                                                span,
+                                                            }),
+                                                        },
+                                                        ty: bt,
+                                                        span,
+                                                    },
+                                                    guard: None,
+                                                    guard_refs: Vec::new(),
+                                                    body: Expr {
+                                                        kind: ExprKind::Local(val_local),
                                                         ty: ok_ty,
                                                         span,
-                                                    }),
+                                                    },
+                                                    span,
                                                 },
-                                                ty: bt,
-                                                span,
-                                            },
-                                            guard: None,
-                                            body: Expr {
-                                                kind: ExprKind::Local(val_local),
-                                                ty: ok_ty,
-                                                span,
-                                            },
-                                            span,
-                                        },
-                                        Arm {
-                                            pattern: Pat {
-                                                kind: PatKind::ErrorArm {
-                                                    ok: false,
-                                                    inner: Box::new(self.wild(err_ty, span)),
+                                                Arm {
+                                                    pattern: Pat {
+                                                        kind: PatKind::ErrorArm {
+                                                            ok: false,
+                                                            inner: Box::new(
+                                                                self.wild(err_ty, span),
+                                                            ),
+                                                        },
+                                                        ty: bt,
+                                                        span,
+                                                    },
+                                                    guard: None,
+                                                    guard_refs: Vec::new(),
+                                                    body: Expr {
+                                                        kind: ExprKind::Local(def_local),
+                                                        ty: ok_ty,
+                                                        span: def_arg.span,
+                                                    },
+                                                    span,
                                                 },
-                                                ty: bt,
-                                                span,
-                                            },
-                                            guard: None,
-                                            body: def_expr,
-                                            span,
+                                            ],
                                         },
-                                    ],
-                                },
+                                        ty: ok_ty,
+                                        span,
+                                    }),
+                                ]),
                                 ty: ok_ty,
                                 span,
                             };
@@ -11118,4 +11240,32 @@ fn scan_closure_usage(params: &[ast::ClosureParam], body: &ast::ArrowBody) -> Cl
     let mut bound = vec![params.iter().map(|p| p.name.clone()).collect()];
     scan_arrow_body(body, false, &mut bound, &mut out);
     out
+}
+
+fn collect_ref_mut_bindings(pat: &Pat, out: &mut std::collections::HashSet<LocalId>) {
+    match &pat.kind {
+        PatKind::RefBinding {
+            local,
+            mutable: true,
+        } => {
+            out.insert(*local);
+        }
+        PatKind::Deref(inner)
+        | PatKind::ErrorArm { inner, .. }
+        | PatKind::UnionArm { inner, .. } => collect_ref_mut_bindings(inner, out),
+        PatKind::Tuple(items) => {
+            for item in items {
+                collect_ref_mut_bindings(item, out);
+            }
+        }
+        PatKind::Adt { fields, .. } => {
+            for field in fields {
+                collect_ref_mut_bindings(field, out);
+            }
+        }
+        PatKind::Wild
+        | PatKind::Binding(_)
+        | PatKind::RefBinding { mutable: false, .. }
+        | PatKind::Lit(_) => {}
+    }
 }

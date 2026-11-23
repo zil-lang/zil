@@ -71,6 +71,44 @@ fn compile_and_run_status(
         .unwrap_or_else(|e| panic!("failed to run {}: {e}", exe.display()))
 }
 
+fn compile_and_run_output(
+    dir: &Path,
+    label: &str,
+    src: &str,
+    backend: NativeBackend,
+    opt: Optimization,
+) -> (ExitStatus, String) {
+    let entry = dir.join(format!("{label}.zil"));
+    let exe = dir.join(format!("{label}.bin"));
+    std::fs::write(&entry, src).expect("write source");
+
+    let mut session = CompilationSession::new();
+    let opts = CompileOptions {
+        stop_after: Stage::Build,
+        optimization: opt,
+        backend,
+        output: Some(exe.clone()),
+        codegen: CodegenOptions { units: 1, jobs: 1 },
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&entry, &opts);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "build failed for {label} ({backend:?}, {opt:?}): {:?}",
+        report.diagnostics
+    );
+
+    let out = Command::new(&exe)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap_or_else(|e| panic!("failed to run {}: {e}", exe.display()));
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    (out.status, stdout)
+}
+
 fn assert_traps(status: ExitStatus, label: &str) {
     assert!(
         !status.success(),
@@ -508,5 +546,290 @@ fn main() -> i32 {
             opt,
         );
         assert_traps(s_over, &format!("oob-over-{label}"));
+    }
+}
+
+#[test]
+fn match_guard_owned_resource_single_drop_dual_backend() {
+    let dir = temp_dir("match-guard-owned");
+    let src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+resource Ticket {
+    tag: i32,
+}
+
+impl Drop for Ticket {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+
+package Token {
+    manages ticket: Ticket;
+    code: i64,
+}
+
+fn inspect(opt_tok: Option<Token>) -> i64 {
+    match opt_tok {
+        Option.Some(t) if t.code == 99 => {
+            unsafe { putchar(49) }
+            return t.code
+        }
+        Option.Some(t) => {
+            unsafe { putchar(50) }
+            return t.code
+        }
+        Option.None() => {
+            unsafe { putchar(51) }
+            return 0
+        }
+    }
+}
+
+fn main() -> i32 {
+    // Guard fails: t must stay intact, move into arm 2, and Drop runs ONCE ('A').
+    let a = inspect(Option.Some(Token { ticket: Ticket { tag: 65 }, code: 42 }))
+    if a != 42 { return 1 }
+
+    // Guard succeeds: arm 1 runs, arm 2 is skipped, and Drop runs ONCE ('B').
+    let b = inspect(Option.Some(Token { ticket: Ticket { tag: 66 }, code: 99 }))
+    if b != 99 { return 2 }
+
+    // None arm runs cleanly with no Token drop.
+    let c = inspect(Option.None())
+    if c != 0 { return 3 }
+
+    return 0
+}
+"#;
+
+    for (label, backend, opt) in backend_configs() {
+        let (status, stdout) = compile_and_run_output(&dir, label, src, backend, opt);
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "{label}: unexpected status {status:?}, stdout={stdout:?}"
+        );
+        assert_eq!(
+            stdout, "2A1B3",
+            "{label}: expected exact single-Drop stdout '2A1B3', got {stdout:?}"
+        );
+    }
+
+    // Negative test: consuming an owned resource inside a match guard must be rejected.
+    let bad_move_in_guard_src = r#"
+resource Ticket {
+    tag: i32,
+}
+
+impl Drop for Ticket {
+    fn drop(self: Self) {}
+}
+
+package Token {
+    manages ticket: Ticket;
+    code: i64,
+}
+
+fn consume(t: Token) -> bool {
+    return t.code == 99
+}
+
+fn bad(opt_tok: Option<Token>) -> i64 {
+    match opt_tok {
+        Option.Some(t) if consume(t) => { return 1 }
+        Option.Some(t) => { return t.code }
+        Option.None() => { return 0 }
+    }
+}
+
+fn main() -> i32 {
+    return i32(bad(Option.Some(Token { ticket: Ticket { tag: 65 }, code: 1 })))
+}
+"#;
+    let bad_entry = dir.join("move_in_guard.zil");
+    std::fs::write(&bad_entry, bad_move_in_guard_src).expect("write bad source");
+    let mut session = CompilationSession::new();
+    let opts = CompileOptions {
+        stop_after: Stage::Types,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&bad_entry, &opts);
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "moving an owned resource inside a match guard must be rejected"
+    );
+}
+
+#[test]
+fn unwrap_or_evaluates_default_eagerly_dual_backend() {
+    let dir = temp_dir("unwrap-or-eager");
+    let src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+enum E {
+    Fail,
+}
+
+resource Ticket {
+    tag: i32,
+}
+
+impl Drop for Ticket {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+
+package Token {
+    manages ticket: Ticket;
+    code: i64,
+}
+
+fn default_with_tag(tag: i32, val: i64) -> i64 {
+    unsafe { putchar(tag) }
+    return val
+}
+
+fn mk_some() -> Option<i64> {
+    return Option.Some(10)
+}
+
+fn mk_none() -> Option<i64> {
+    return Option.None()
+}
+
+fn mk_ok() -> E!i64 {
+    return 20
+}
+
+fn mk_err() -> E!i64 {
+    return E.Fail()
+}
+
+fn mk_token(tag: i32, code: i64) -> Token {
+    return Token { ticket: Ticket { tag: tag }, code: code }
+}
+
+fn check_owned_unwrap_or() -> i64 {
+    let t = Option.Some(mk_token(69, 11)).unwrap_or(mk_token(70, 22))
+    return t.code
+}
+
+fn main() -> i32 {
+    // Eager evaluation: default_with_tag must run even on Some and ok!
+    let a = mk_some().unwrap_or(default_with_tag(65, 99))
+    if a != 10 { return 1 }
+
+    let b = mk_none().unwrap_or(default_with_tag(66, 77))
+    if b != 77 { return 2 }
+
+    let c = mk_ok().unwrap_or(default_with_tag(67, 88))
+    if c != 20 { return 3 }
+
+    let d = mk_err().unwrap_or(default_with_tag(68, 55))
+    if d != 55 { return 4 }
+
+    // Owned resource default: on Some('E'), default('F') is eagerly constructed and
+    // dropped immediately when unwrap_or returns; 'E' drops at helper return.
+    if check_owned_unwrap_or() != 11 { return 5 }
+
+    return 0
+}
+"#;
+
+    for (label, backend, opt) in backend_configs() {
+        let (status, stdout) = compile_and_run_output(&dir, label, src, backend, opt);
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "{label}: unexpected status {status:?}, stdout={stdout:?}"
+        );
+        assert_eq!(
+            stdout, "ABCDFE",
+            "{label}: expected eager default side-effects and drops 'ABCDFE', got {stdout:?}"
+        );
+    }
+}
+
+#[test]
+fn negative_array_index_and_slice_bound_traps_dual_backend() {
+    let dir = temp_dir("negative-bounds");
+
+    let neg_array_index_src = r#"
+fn main() -> i32 {
+    let arr: [i64; 4] = [10, 20, 30, 40]
+    var idx: i64 = -1
+    let v = arr[idx]
+    return i32(v)
+}
+"#;
+
+    let neg_slice_index_src = r#"
+fn main() -> i32 {
+    let arr: [i64; 4] = [10, 20, 30, 40]
+    let s = &arr[0..4]
+    var idx: i64 = -1
+    let v = s[idx]
+    return i32(v)
+}
+"#;
+
+    let neg_slice_start_src = r#"
+fn main() -> i32 {
+    let arr: [i64; 4] = [10, 20, 30, 40]
+    var start: i64 = -1
+    let s = &arr[start..2]
+    return i32(s.len())
+}
+"#;
+
+    let neg_slice_end_src = r#"
+fn main() -> i32 {
+    let arr: [i64; 4] = [10, 20, 30, 40]
+    var end: i64 = -1
+    let s = &arr[0..end]
+    return i32(s.len())
+}
+"#;
+
+    for (label, backend, opt) in backend_configs() {
+        let s_neg_arr = compile_and_run_status(
+            &dir,
+            &format!("neg-arr-{label}"),
+            neg_array_index_src,
+            backend,
+            opt,
+        );
+        assert_traps(s_neg_arr, &format!("neg-arr-{label}"));
+
+        let s_neg_sl = compile_and_run_status(
+            &dir,
+            &format!("neg-slice-{label}"),
+            neg_slice_index_src,
+            backend,
+            opt,
+        );
+        assert_traps(s_neg_sl, &format!("neg-slice-{label}"));
+
+        let s_neg_start = compile_and_run_status(
+            &dir,
+            &format!("neg-start-{label}"),
+            neg_slice_start_src,
+            backend,
+            opt,
+        );
+        assert_traps(s_neg_start, &format!("neg-start-{label}"));
+
+        let s_neg_end = compile_and_run_status(
+            &dir,
+            &format!("neg-end-{label}"),
+            neg_slice_end_src,
+            backend,
+            opt,
+        );
+        assert_traps(s_neg_end, &format!("neg-end-{label}"));
     }
 }
