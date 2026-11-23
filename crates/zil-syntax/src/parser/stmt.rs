@@ -400,6 +400,26 @@ impl Parser<'_> {
                     mutable,
                     pattern: Box::new(p.pattern()?),
                 }
+            } else if p.eat(Symbol::AmpAmp) {
+                let inner_mutable = p.eat_word("mut");
+                let inner_pat = p.pattern()?;
+                let inner_span = p.span_from(start);
+                PatternKind::Deref {
+                    mutable: false,
+                    pattern: Box::new(Pattern {
+                        kind: PatternKind::Deref {
+                            mutable: inner_mutable,
+                            pattern: Box::new(inner_pat),
+                        },
+                        span: inner_span,
+                    }),
+                }
+            } else if p.eat(Symbol::Amp) {
+                let mutable = p.eat_word("mut");
+                PatternKind::Deref {
+                    mutable,
+                    pattern: Box::new(p.pattern()?),
+                }
             } else if p.eat(Symbol::Dot) {
                 let is_error = if p.eat_word("ok") {
                     false

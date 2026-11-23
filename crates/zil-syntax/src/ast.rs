@@ -421,6 +421,12 @@ pub enum PatternKind {
         mutable: bool,
         pattern: Box<Pattern>,
     },
+    /// Dereference pattern `&pat` (`mutable = false`) or `&mut pat` (`mutable = true`),
+    /// projecting through a reference scrutinee and matching `pattern` against the pointee.
+    Deref {
+        mutable: bool,
+        pattern: Box<Pattern>,
+    },
     /// Explicit `.ok(pattern)` / `.err(pattern)` ErrorUnion tag selection.
     /// Ordinary type, active-tag, place and ownership checks still apply.
     ErrorArm {

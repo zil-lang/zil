@@ -505,7 +505,9 @@ impl Checker<'_, '_, '_> {
                 }
                 Ok(())
             }
-            s::PatternKind::Reference { .. } | s::PatternKind::ErrorArm { .. } => Err(bad(
+            s::PatternKind::Reference { .. }
+            | s::PatternKind::Deref { .. }
+            | s::PatternKind::ErrorArm { .. } => Err(bad(
                 span,
                 "pure CT patterns cannot carry runtime borrow or ErrorUnion obligations",
             )),
@@ -542,6 +544,7 @@ impl Checker<'_, '_, '_> {
                 }
             }
             s::PatternKind::Reference { pattern, .. }
+            | s::PatternKind::Deref { pattern, .. }
             | s::PatternKind::ErrorArm { pattern, .. } => {
                 self.pattern_names(pattern, names, depth + 1)?
             }

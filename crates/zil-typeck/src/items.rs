@@ -3703,6 +3703,7 @@ fn inherent_target_adt(ty: Ty, types: &Types) -> Option<AdtRef> {
         | TyData::SelfParam
         | TyData::Assoc { .. }
         | TyData::Var(_)
+        | TyData::Union(_)
         | TyData::Error => None,
     }
 }
@@ -3740,6 +3741,7 @@ fn inherent_targets_overlap(a: Ty, b: Ty, types: &Types) -> bool {
         | TyData::SelfParam
         | TyData::Assoc { .. }
         | TyData::Var(_)
+        | TyData::Union(_)
         | TyData::Error => a,
     };
     let ub = match *types.data(b) {
@@ -3771,6 +3773,7 @@ fn inherent_targets_overlap(a: Ty, b: Ty, types: &Types) -> bool {
         | TyData::SelfParam
         | TyData::Assoc { .. }
         | TyData::Var(_)
+        | TyData::Union(_)
         | TyData::Error => b,
     };
     if ua == ub {

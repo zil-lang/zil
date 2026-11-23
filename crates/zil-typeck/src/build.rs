@@ -2857,6 +2857,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                         };
                         row.bindings.push((local, place, Some(m)));
                     }
+                    PatKind::Deref(inner) => {
+                        let mut sub = place.clone();
+                        sub.projections.push(Projection::Deref);
+                        work.push_back((sub, inner.as_ref()));
+                    }
                     PatKind::Tuple(items) => {
                         for (i, p) in items.iter().enumerate() {
                             let mut sub = place.clone();
@@ -3190,6 +3195,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             PatKind::Wild
             | PatKind::Binding(_)
             | PatKind::RefBinding { .. }
+            | PatKind::Deref(_)
             | PatKind::Tuple(_) => {
                 // `simplify` removed these columns.
                 self.failed = true;

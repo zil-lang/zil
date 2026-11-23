@@ -318,6 +318,9 @@ pub enum PatKind {
         local: LocalId,
         mutable: bool,
     },
+    /// Dereference pattern `&pat` / `&mut pat`: projects `Projection::Deref` onto
+    /// the scrutinee place and matches the inner pattern against the pointee.
+    Deref(Box<Pat>),
     Lit(Lit),
     Tuple(Vec<Pat>),
     /// A variant of an Enum, or the single variant of a Record/Package;

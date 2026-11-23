@@ -639,8 +639,16 @@ impl<'a> Kernel<'a> {
         } else {
             Vec::new()
         };
+        let inline_subplace = |sub: &Place, container: &Place| -> bool {
+            sub.relation(container) == PlaceRelation::ContainedBy
+                && !sub.projections[container.projections.len()..]
+                    .iter()
+                    .any(|pr| matches!(pr, Projection::Deref))
+        };
         let stale = |p: &Place| {
-            if deref_write {
+            if inline_subplace(written, p) {
+                false
+            } else if deref_write {
                 p.first_deref().is_some()
                     || deref_targets.iter().any(|t| {
                         !matches!(
@@ -648,6 +656,12 @@ impl<'a> Kernel<'a> {
                             PlaceRelation::Disjoint | PlaceRelation::ContainedBy
                         )
                     })
+            } else if p.first_deref().is_some() && written.root != p.root {
+                self.reach(state, p.root).iter().any(|id| {
+                    self.loans.get(id).is_some_and(|loan| {
+                        loan.anchored && loan.place.relation(written) != PlaceRelation::Disjoint
+                    })
+                })
             } else {
                 !matches!(
                     written.relation(p),
@@ -665,13 +679,25 @@ impl<'a> Kernel<'a> {
                 written.root == PlaceRoot::Local(*l)
             }
         };
-        state.variants.retain(|p, _| !stale(p));
-        state.tags.retain(|l, p| !stale(p) && !key_written(l));
+        let drop_variants: Vec<Place> = state
+            .variants
+            .iter()
+            .filter(|(p, _)| stale(p))
+            .map(|(p, _)| p.clone())
+            .collect();
+        let drop_tags: Vec<Local> = state
+            .tags
+            .iter()
+            .filter(|(l, p)| stale(p) || key_written(l))
+            .map(|(l, _)| *l)
+            .collect();
+        state.variants.retain(|p, _| !drop_variants.contains(p));
+        state.tags.retain(|l, _| !drop_tags.contains(l));
         // Any change inside a flagged place changes its initialization,
         // whereas a write behind a Deref cannot initialize or deinitialize
         // an inline flagged place (OpSpec forbids moves/drops behind Deref),
-        // and moving/writing an active enum variant's field cannot affect the
-        // initialization tracking of an inactive sibling variant's field.
+        // and moving/writing an active enum variant's field or ErrorUnion arm
+        // cannot affect the initialization tracking of an inactive sibling.
         state.flags.retain(|l, p| {
             !key_written(l)
                 && (deref_write

@@ -82,17 +82,15 @@ fn step_instruction(
                 PlaceAccess::Move
                 | PlaceAccess::Drop
                 | PlaceAccess::CallClosure(zil_ir::body::ClosureCallMode::Once) => {
-                    if let (
-                        zil_ir::body::PlaceRoot::Local(l),
-                        [zil_ir::body::Projection::ErrorArm(_)],
-                    ) = (a.place.root, a.place.projections.as_slice())
-                    {
-                        state[l.index()] = Init::UNINIT;
-                    }
                     uninit_fields.insert(a.place.as_ref().clone());
                 }
                 PlaceAccess::Init | PlaceAccess::ReplaceInstance => {
-                    uninit_fields.remove(a.place.as_ref());
+                    let target = a.place.as_ref();
+                    uninit_fields.retain(|p| {
+                        !(p.root == target.root
+                            && p.projections.len() >= target.projections.len()
+                            && p.projections[..target.projections.len()] == target.projections[..])
+                    });
                 }
                 PlaceAccess::Copy
                 | PlaceAccess::Borrow(_)
@@ -162,6 +160,27 @@ fn active_moved_variant(
     found
 }
 
+/// If `ufields` records one or more moved places under `place` belonging to a
+/// single ErrorUnion arm (`ok` or `err`), returns that arm (`true` = ok, `false` = err).
+fn active_moved_error_arm(place: &Place, ufields: &HashSet<Place>) -> Option<bool> {
+    let prefix_len = place.projections.len();
+    let mut found: Option<bool> = None;
+    for u in ufields {
+        if u.root == place.root
+            && u.projections.len() > prefix_len
+            && u.projections.starts_with(&place.projections)
+            && let zil_ir::body::Projection::ErrorArm(ok) = u.projections[prefix_len]
+        {
+            match found {
+                None => found = Some(ok),
+                Some(prev) if prev == ok => {}
+                Some(_) => return None,
+            }
+        }
+    }
+    found
+}
+
 fn place_cleanup_uninit(
     place: &Place,
     ty: zil_ir::body::TyId,
@@ -201,27 +220,35 @@ fn place_cleanup_uninit(
             } else {
                 return false;
             };
-            let arg_tys = tys.args(args);
             def.variants[variant.0 as usize]
                 .fields
                 .iter()
                 .enumerate()
                 .all(|(fi, f)| {
-                    let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
-                        arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
-                    } else {
-                        f.ty
-                    };
+                    let fidx = zil_ir::body::FieldIdx(fi as u32);
+                    let fty = tys.field_ty(adt, variant, fidx, args).unwrap_or(f.ty);
                     let mut sub = place.clone();
                     sub.projections
                         .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
                             adt,
                             variant,
-                            field: zil_ir::body::FieldIdx(fi as u32),
+                            field: fidx,
                             args,
                         }));
                     place_cleanup_uninit(&sub, fty, tys, ufields)
                 })
+        }
+        TyKind::ErrorUnion { ok, err } => {
+            let ok_ty = *ok;
+            let err_ty = *err;
+            let Some(arm_ok) = active_moved_error_arm(place, ufields) else {
+                return false;
+            };
+            let arm_ty = if arm_ok { ok_ty } else { err_ty };
+            let sub = place
+                .clone()
+                .project(zil_ir::body::Projection::ErrorArm(arm_ok));
+            place_cleanup_uninit(&sub, arm_ty, tys, ufields)
         }
         TyKind::Unit
         | TyKind::Bool
@@ -236,7 +263,6 @@ fn place_cleanup_uninit(
         | TyKind::Closure { .. }
         | TyKind::Dyn(_)
         | TyKind::OwnedDyn { .. }
-        | TyKind::ErrorUnion { .. }
         | TyKind::Managed(_)
         | TyKind::Desc(_)
         | TyKind::Opaque(_) => false,
@@ -256,8 +282,7 @@ fn all_cleanup_fields_uninit(
 }
 
 /// When a composite local has some (but not all) fields moved out, expands a
-/// whole-local drop into per-field drops for the surviving cleanup fields in
-/// reverse declaration order.
+/// whole-local drop into per-field drops for the surviving cleanup fields.
 fn collect_live_cleanup_places(
     place: &Place,
     ty: zil_ir::body::TyId,
@@ -303,23 +328,185 @@ fn collect_live_cleanup_places(
                 out.push(place.clone());
                 return;
             };
-            let arg_tys = tys.args(args);
             for (fi, f) in def.variants[variant.0 as usize].fields.iter().enumerate() {
-                let fty = if let TyKind::Param(idx) = *tys.kind(f.ty) {
-                    arg_tys.tys.get(idx as usize).copied().unwrap_or(f.ty)
-                } else {
-                    f.ty
-                };
+                let fidx = zil_ir::body::FieldIdx(fi as u32);
+                let fty = tys.field_ty(adt, variant, fidx, args).unwrap_or(f.ty);
                 let mut sub = place.clone();
                 sub.projections
                     .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
                         adt,
                         variant,
-                        field: zil_ir::body::FieldIdx(fi as u32),
+                        field: fidx,
                         args,
                     }));
                 collect_live_cleanup_places(&sub, fty, tys, ufields, out);
             }
+        }
+        TyKind::ErrorUnion { ok, err } => {
+            let ok_ty = *ok;
+            let err_ty = *err;
+            if let Some(arm_ok) = active_moved_error_arm(place, ufields) {
+                let arm_ty = if arm_ok { ok_ty } else { err_ty };
+                let sub = place
+                    .clone()
+                    .project(zil_ir::body::Projection::ErrorArm(arm_ok));
+                collect_live_cleanup_places(&sub, arm_ty, tys, ufields, out);
+            } else {
+                out.push(place.clone());
+            }
+        }
+        TyKind::Unit
+        | TyKind::Bool
+        | TyKind::Int(_)
+        | TyKind::Float(_)
+        | TyKind::Never
+        | TyKind::Param(_)
+        | TyKind::Array { .. }
+        | TyKind::Slice(_)
+        | TyKind::Ref { .. }
+        | TyKind::FnPtr { .. }
+        | TyKind::Closure { .. }
+        | TyKind::Dyn(_)
+        | TyKind::OwnedDyn { .. }
+        | TyKind::Managed(_)
+        | TyKind::Desc(_)
+        | TyKind::Opaque(_) => {
+            out.push(place.clone());
+        }
+    }
+}
+
+fn alloc_drop_flag(
+    locals: &mut Vec<LocalDecl>,
+    drop_flags: &mut Vec<DropFlag>,
+    tys: &mut TyTable,
+    flagged: &mut HashMap<Place, Local>,
+    place: &Place,
+) -> Local {
+    *flagged.entry(place.clone()).or_insert_with(|| {
+        let bool_ty = tys.intern(TyKind::Bool);
+        let flag = Local::from_index(locals.len());
+        locals.push(LocalDecl {
+            ty: bool_ty,
+            name: None,
+        });
+        drop_flags.push(DropFlag {
+            flag,
+            place: place.clone(),
+        });
+        flag
+    })
+}
+
+/// Expands `place` into per-field `(sub_place, opt_drop_flag)` cleanups when
+/// one or more sub-fields of a product (`Tuple`, `Record`, `Package`,
+/// `Resource`, or single-variant `Enum` without `user_drop`) are conditionally
+/// or unconditionally moved out.
+///
+/// Returns `false` if a live sub-place with moved descendants cannot be
+/// expanded as a flat product (e.g., `user_drop`, multi-variant `Enum`, or
+/// `ErrorUnion`).
+#[allow(clippy::too_many_arguments)]
+fn collect_conditional_cleanup_places(
+    place: &Place,
+    ty: zil_ir::body::TyId,
+    tys: &mut TyTable,
+    locals: &mut Vec<LocalDecl>,
+    drop_flags: &mut Vec<DropFlag>,
+    ufields: &HashSet<Place>,
+    may_ufields: &HashSet<Place>,
+    ancestor_may_uninit: bool,
+    flagged: &mut HashMap<Place, Local>,
+    out: &mut Vec<(Place, Option<Local>)>,
+) -> bool {
+    if !tys.needs_cleanup(ty, &zil_ir::body::ParamEnv::default()) || ufields.contains(place) {
+        return true;
+    }
+    let place_may_uninit = ancestor_may_uninit || may_ufields.contains(place);
+    let has_moved_descendant = may_ufields.iter().any(|u| {
+        u.root == place.root
+            && u.projections.len() > place.projections.len()
+            && u.projections.starts_with(&place.projections)
+    });
+    if !has_moved_descendant {
+        let opt_flag = if place_may_uninit {
+            Some(alloc_drop_flag(locals, drop_flags, tys, flagged, place))
+        } else {
+            None
+        };
+        out.push((place.clone(), opt_flag));
+        return true;
+    }
+    match tys.kind(ty).clone() {
+        TyKind::Tuple(elems) => {
+            for (i, ety) in elems.into_iter().enumerate() {
+                let mut sub = place.clone();
+                sub.projections
+                    .push(zil_ir::body::Projection::TupleField(i as u32));
+                if !collect_conditional_cleanup_places(
+                    &sub,
+                    ety,
+                    tys,
+                    locals,
+                    drop_flags,
+                    ufields,
+                    may_ufields,
+                    place_may_uninit,
+                    flagged,
+                    out,
+                ) {
+                    return false;
+                }
+            }
+            true
+        }
+        TyKind::Adt { adt, args } => {
+            let (is_flat_product, field_tys) = {
+                let def = tys.adt(adt);
+                if def.user_drop || def.variants.len() != 1 {
+                    (false, Vec::new())
+                } else {
+                    let variant = zil_ir::body::VariantIdx(0);
+                    let ftys: Vec<zil_ir::body::TyId> = def.variants[0]
+                        .fields
+                        .iter()
+                        .enumerate()
+                        .map(|(fi, f)| {
+                            tys.field_ty(adt, variant, zil_ir::body::FieldIdx(fi as u32), args)
+                                .unwrap_or(f.ty)
+                        })
+                        .collect();
+                    (true, ftys)
+                }
+            };
+            if !is_flat_product {
+                return false;
+            }
+            for (fi, fty) in field_tys.into_iter().enumerate() {
+                let mut sub = place.clone();
+                sub.projections
+                    .push(zil_ir::body::Projection::Field(zil_ir::body::FieldRef {
+                        adt,
+                        variant: zil_ir::body::VariantIdx(0),
+                        field: zil_ir::body::FieldIdx(fi as u32),
+                        args,
+                    }));
+                if !collect_conditional_cleanup_places(
+                    &sub,
+                    fty,
+                    tys,
+                    locals,
+                    drop_flags,
+                    ufields,
+                    may_ufields,
+                    place_may_uninit,
+                    flagged,
+                    out,
+                ) {
+                    return false;
+                }
+            }
+            true
         }
         TyKind::Unit
         | TyKind::Bool
@@ -337,9 +524,7 @@ fn collect_live_cleanup_places(
         | TyKind::ErrorUnion { .. }
         | TyKind::Managed(_)
         | TyKind::Desc(_)
-        | TyKind::Opaque(_) => {
-            out.push(place.clone());
-        }
+        | TyKind::Opaque(_) => false,
     }
 }
 
@@ -382,10 +567,24 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
             let mut uf = ufields.clone();
             let mut muf = may_ufields.clone();
             for a in block.terminator.edge_accesses(edge_kind) {
-                if let (PlaceAccess::Init, Some(l)) = (a.access, a.place.as_local()) {
-                    s[l.index()] = Init::INIT;
-                    uf.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
-                    muf.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
+                if a.access == PlaceAccess::Init {
+                    if let Some(l) = a.place.as_local() {
+                        s[l.index()] = Init::INIT;
+                        uf.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
+                        muf.retain(|p| p.root != zil_ir::body::PlaceRoot::Local(l));
+                    } else {
+                        let target = a.place.as_ref();
+                        let clear = |set: &mut HashSet<Place>| {
+                            set.retain(|p| {
+                                !(p.root == target.root
+                                    && p.projections.len() >= target.projections.len()
+                                    && p.projections[..target.projections.len()]
+                                        == target.projections[..])
+                            });
+                        };
+                        clear(&mut uf);
+                        clear(&mut muf);
+                    }
                 }
             }
             let changed = match &mut entry[target.index()] {
@@ -424,6 +623,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
 
     // 2. Decide which places need a drop flag (only those observed as Maybe
     //    at some reachable auto-drop point).
+    type DropPlan = Vec<(Place, Option<Local>)>;
     #[derive(Clone)]
     enum PartialDropStep {
         Field {
@@ -438,13 +638,24 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
     }
     struct EnumPartialDrop {
         discr: Local,
+        outer_flag: Option<Local>,
         variants: Vec<Vec<PartialDropStep>>,
+        local: Local,
+    }
+    struct ErrorUnionPartialDrop {
+        discr: Local,
+        outer_flag: Option<Local>,
+        err_drops: DropPlan,
+        ok_drops: DropPlan,
+        local: Local,
     }
     #[allow(clippy::too_many_arguments)]
     fn plan_enum_partial_drop(
         lp: &Place,
         adt: zil_ir::body::AdtId,
         args: zil_ir::body::ArgsId,
+        local: Local,
+        outer_flag: Option<Local>,
         tys: &mut TyTable,
         locals: &mut Vec<LocalDecl>,
         drop_flags: &mut Vec<DropFlag>,
@@ -457,10 +668,16 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
             let def = tys.adt(adt);
             def.variants
                 .iter()
-                .map(|v| {
+                .enumerate()
+                .map(|(vi, v)| {
+                    let vidx = zil_ir::body::VariantIdx(vi as u32);
                     v.fields
                         .iter()
-                        .map(|f| tys.subst_lookup(f.ty, args).unwrap_or(f.ty))
+                        .enumerate()
+                        .map(|(fi, f)| {
+                            tys.field_ty(adt, vidx, zil_ir::body::FieldIdx(fi as u32), args)
+                                .unwrap_or(f.ty)
+                        })
                         .collect()
                 })
                 .collect()
@@ -510,6 +727,8 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         &sub,
                         sub_adt,
                         sub_args,
+                        local,
+                        None,
                         tys,
                         locals,
                         drop_flags,
@@ -524,28 +743,33 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         variants: sub_epd.variants,
                     });
                 } else {
-                    let opt_flag = if may_ufields.contains(&sub) {
-                        let flag = *flagged.entry(sub.clone()).or_insert_with(|| {
-                            let bool_ty = tys.intern(TyKind::Bool);
-                            let fl = Local::from_index(locals.len());
-                            locals.push(LocalDecl {
-                                ty: bool_ty,
-                                name: None,
-                            });
-                            drop_flags.push(DropFlag {
-                                flag: fl,
-                                place: sub.clone(),
-                            });
-                            fl
-                        });
-                        Some(flag)
+                    let mut field_drops = Vec::new();
+                    if collect_conditional_cleanup_places(
+                        &sub,
+                        fty,
+                        tys,
+                        locals,
+                        drop_flags,
+                        ufields,
+                        may_ufields,
+                        false,
+                        flagged,
+                        &mut field_drops,
+                    ) {
+                        for (place, flag) in field_drops {
+                            drops.push(PartialDropStep::Field { place, flag });
+                        }
                     } else {
-                        None
-                    };
-                    drops.push(PartialDropStep::Field {
-                        place: sub,
-                        flag: opt_flag,
-                    });
+                        let opt_flag = if may_ufields.contains(&sub) {
+                            Some(alloc_drop_flag(locals, drop_flags, tys, flagged, &sub))
+                        } else {
+                            None
+                        };
+                        drops.push(PartialDropStep::Field {
+                            place: sub,
+                            flag: opt_flag,
+                        });
+                    }
                 }
             }
             variants_plan.push(drops);
@@ -558,13 +782,16 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
         });
         EnumPartialDrop {
             discr,
+            outer_flag,
             variants: variants_plan,
+            local,
         }
     }
     let mut flagged: HashMap<Place, Local> = HashMap::new();
     let mut per_point: HashMap<(BlockId, usize), Init> = HashMap::new();
-    let mut partial_drops: HashMap<(BlockId, usize), Vec<Place>> = HashMap::new();
+    let mut partial_drops: HashMap<(BlockId, usize), DropPlan> = HashMap::new();
     let mut enum_partial_drops: HashMap<(BlockId, usize), EnumPartialDrop> = HashMap::new();
+    let mut error_partial_drops: HashMap<(BlockId, usize), ErrorUnionPartialDrop> = HashMap::new();
     let mut replace_to_assign: HashSet<(BlockId, usize)> = HashSet::new();
     for (b_idx, block) in body.blocks.iter().enumerate() {
         let Some((mut state, mut ufields, mut may_ufields)) = entry[b_idx].clone() else {
@@ -595,19 +822,7 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     let has_may_moved = may_ufields.iter().any(|u| {
                         u.root == zil_ir::body::PlaceRoot::Local(l) && !u.projections.is_empty()
                     });
-                    if st.is_maybe() && !flagged.contains_key(&lp) {
-                        let bool_ty = tys.intern(TyKind::Bool);
-                        let flag = Local::from_index(body.locals.len());
-                        body.locals.push(LocalDecl {
-                            ty: bool_ty,
-                            name: None,
-                        });
-                        body.drop_flags.push(DropFlag {
-                            flag,
-                            place: lp.clone(),
-                        });
-                        flagged.insert(lp, flag);
-                    } else if !st.is_definitely_uninit() && !st.is_maybe() && has_may_moved {
+                    if !st.is_definitely_uninit() && has_may_moved {
                         let local_ty = body.locals[l.index()].ty;
                         let is_multi_enum = if let TyKind::Adt { adt, args } = tys.kind(local_ty) {
                             let def = tys.adt(*adt);
@@ -619,26 +834,146 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         } else {
                             None
                         };
+                        let is_error_union =
+                            if let TyKind::ErrorUnion { ok, err } = tys.kind(local_ty) {
+                                Some((*ok, *err))
+                            } else {
+                                None
+                            };
                         let has_must_moved = ufields.iter().any(|u| {
                             u.root == zil_ir::body::PlaceRoot::Local(l) && !u.projections.is_empty()
                         });
-                        let use_simple_partial = has_must_moved
+                        let has_strictly_may_moved = may_ufields.iter().any(|u| {
+                            u.root == zil_ir::body::PlaceRoot::Local(l)
+                                && !u.projections.is_empty()
+                                && !ufields.contains(u)
+                        });
+                        let use_simple_partial = !st.is_maybe()
+                            && has_must_moved
+                            && !has_strictly_may_moved
                             && is_multi_enum.is_none_or(|(adt, _)| {
                                 active_moved_variant(&lp, adt, &ufields).is_some()
-                                    && !may_ufields.iter().any(|u| {
-                                        u.root == zil_ir::body::PlaceRoot::Local(l)
-                                            && !ufields.contains(u)
-                                    })
-                            });
+                            })
+                            && is_error_union
+                                .is_none_or(|_| active_moved_error_arm(&lp, &ufields).is_some());
                         if use_simple_partial {
                             let mut subs = Vec::new();
                             collect_live_cleanup_places(&lp, local_ty, tys, &ufields, &mut subs);
-                            partial_drops.insert((bid, i), subs);
+                            partial_drops
+                                .insert((bid, i), subs.into_iter().map(|p| (p, None)).collect());
+                        } else if let Some((ok_ty, err_ty)) = is_error_union {
+                            let outer_flag = if st.is_maybe() {
+                                Some(alloc_drop_flag(
+                                    &mut body.locals,
+                                    &mut body.drop_flags,
+                                    tys,
+                                    &mut flagged,
+                                    &lp,
+                                ))
+                            } else {
+                                None
+                            };
+                            let err_place = lp
+                                .clone()
+                                .project(zil_ir::body::Projection::ErrorArm(false));
+                            let mut err_drops = Vec::new();
+                            if !collect_conditional_cleanup_places(
+                                &err_place,
+                                err_ty,
+                                tys,
+                                &mut body.locals,
+                                &mut body.drop_flags,
+                                &ufields,
+                                &may_ufields,
+                                false,
+                                &mut flagged,
+                                &mut err_drops,
+                            ) {
+                                err_drops.clear();
+                                if tys.needs_cleanup(err_ty, &zil_ir::body::ParamEnv::default())
+                                    && !ufields.contains(&err_place)
+                                {
+                                    let opt_flag = if may_ufields.contains(&err_place) {
+                                        Some(alloc_drop_flag(
+                                            &mut body.locals,
+                                            &mut body.drop_flags,
+                                            tys,
+                                            &mut flagged,
+                                            &err_place,
+                                        ))
+                                    } else {
+                                        None
+                                    };
+                                    err_drops.push((err_place, opt_flag));
+                                }
+                            }
+                            let ok_place =
+                                lp.clone().project(zil_ir::body::Projection::ErrorArm(true));
+                            let mut ok_drops = Vec::new();
+                            if !collect_conditional_cleanup_places(
+                                &ok_place,
+                                ok_ty,
+                                tys,
+                                &mut body.locals,
+                                &mut body.drop_flags,
+                                &ufields,
+                                &may_ufields,
+                                false,
+                                &mut flagged,
+                                &mut ok_drops,
+                            ) {
+                                ok_drops.clear();
+                                if tys.needs_cleanup(ok_ty, &zil_ir::body::ParamEnv::default())
+                                    && !ufields.contains(&ok_place)
+                                {
+                                    let opt_flag = if may_ufields.contains(&ok_place) {
+                                        Some(alloc_drop_flag(
+                                            &mut body.locals,
+                                            &mut body.drop_flags,
+                                            tys,
+                                            &mut flagged,
+                                            &ok_place,
+                                        ))
+                                    } else {
+                                        None
+                                    };
+                                    ok_drops.push((ok_place, opt_flag));
+                                }
+                            }
+                            let bool_ty = tys.intern(TyKind::Bool);
+                            let discr = Local::from_index(body.locals.len());
+                            body.locals.push(LocalDecl {
+                                ty: bool_ty,
+                                name: None,
+                            });
+                            error_partial_drops.insert(
+                                (bid, i),
+                                ErrorUnionPartialDrop {
+                                    discr,
+                                    outer_flag,
+                                    err_drops,
+                                    ok_drops,
+                                    local: l,
+                                },
+                            );
                         } else if let Some((adt, args)) = is_multi_enum {
+                            let outer_flag = if st.is_maybe() {
+                                Some(alloc_drop_flag(
+                                    &mut body.locals,
+                                    &mut body.drop_flags,
+                                    tys,
+                                    &mut flagged,
+                                    &lp,
+                                ))
+                            } else {
+                                None
+                            };
                             let epd = plan_enum_partial_drop(
                                 &lp,
                                 adt,
                                 args,
+                                l,
+                                outer_flag,
                                 tys,
                                 &mut body.locals,
                                 &mut body.drop_flags,
@@ -648,25 +983,51 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                                 0,
                             );
                             enum_partial_drops.insert((bid, i), epd);
+                        } else {
+                            let mut subs = Vec::new();
+                            if collect_conditional_cleanup_places(
+                                &lp,
+                                local_ty,
+                                tys,
+                                &mut body.locals,
+                                &mut body.drop_flags,
+                                &ufields,
+                                &may_ufields,
+                                st.is_maybe(),
+                                &mut flagged,
+                                &mut subs,
+                            ) {
+                                partial_drops.insert((bid, i), subs);
+                            } else if st.is_maybe() {
+                                alloc_drop_flag(
+                                    &mut body.locals,
+                                    &mut body.drop_flags,
+                                    tys,
+                                    &mut flagged,
+                                    &lp,
+                                );
+                            }
                         }
+                    } else if st.is_maybe() {
+                        alloc_drop_flag(
+                            &mut body.locals,
+                            &mut body.drop_flags,
+                            tys,
+                            &mut flagged,
+                            &lp,
+                        );
                     }
                 } else if ufields.contains(place) {
                     per_point.insert((bid, i), Init::UNINIT);
                 } else if may_ufields.contains(place) {
                     per_point.insert((bid, i), Init::INIT.join(Init::UNINIT));
-                    if !flagged.contains_key(place) {
-                        let bool_ty = tys.intern(TyKind::Bool);
-                        let flag = Local::from_index(body.locals.len());
-                        body.locals.push(LocalDecl {
-                            ty: bool_ty,
-                            name: None,
-                        });
-                        body.drop_flags.push(DropFlag {
-                            flag,
-                            place: place.clone(),
-                        });
-                        flagged.insert(place.clone(), flag);
-                    }
+                    alloc_drop_flag(
+                        &mut body.locals,
+                        &mut body.drop_flags,
+                        tys,
+                        &mut flagged,
+                        place,
+                    );
                 } else {
                     per_point.insert((bid, i), Init::INIT);
                 }
@@ -742,9 +1103,85 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
             }
         };
 
+        let emit_drop_chain = |extra: &mut Vec<Block>,
+                               drops: &[(Place, Option<Local>)],
+                               end_target: BlockId,
+                               trailing_dead: Option<Local>,
+                               span: Span|
+         -> BlockId {
+            let mut next_target = if let Some(dead_local) = trailing_dead {
+                alloc_block(
+                    extra,
+                    Block {
+                        instructions: vec![Instruction {
+                            kind: InstructionKind::StorageDead(dead_local),
+                            span,
+                        }],
+                        terminator: Terminator::Goto { target: end_target },
+                        terminator_span: span,
+                    },
+                )
+            } else {
+                end_target
+            };
+            for (sub, opt_flag) in drops.iter().rev() {
+                if let Some(flag) = opt_flag {
+                    let do_drop = alloc_block(
+                        extra,
+                        Block {
+                            instructions: vec![
+                                Instruction {
+                                    kind: InstructionKind::Drop { place: sub.clone() },
+                                    span,
+                                },
+                                bool_assign(*flag, false, span),
+                            ],
+                            terminator: Terminator::Goto {
+                                target: next_target,
+                            },
+                            terminator_span: span,
+                        },
+                    );
+                    next_target = alloc_block(
+                        extra,
+                        Block {
+                            instructions: Vec::new(),
+                            terminator: Terminator::Switch {
+                                discr: Operand::Copy(Place::local(*flag)),
+                                arms: vec![(0, next_target)],
+                                otherwise: do_drop,
+                            },
+                            terminator_span: span,
+                        },
+                    );
+                } else {
+                    next_target = alloc_block(
+                        extra,
+                        Block {
+                            instructions: vec![Instruction {
+                                kind: InstructionKind::Drop { place: sub.clone() },
+                                span,
+                            }],
+                            terminator: Terminator::Goto {
+                                target: next_target,
+                            },
+                            terminator_span: span,
+                        },
+                    );
+                }
+            }
+            next_target
+        };
+
         let mut skip_drop_old: Option<Local> = None;
+        let mut skip_storage_dead: Option<Local> = None;
         for (i, inst) in orig.instructions.into_iter().enumerate() {
             let span = inst.span;
+            if let Some(dead_l) = skip_storage_dead.take()
+                && matches!(&inst.kind, InstructionKind::StorageDead(l) if *l == dead_l)
+            {
+                continue;
+            }
             if let Some(old_l) = skip_drop_old.take()
                 && matches!(&inst.kind, InstructionKind::Drop { place } if place.as_local() == Some(old_l))
             {
@@ -781,9 +1218,8 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     // Already moved on every path: omit drop.
                     continue;
                 }
-                if st.is_maybe() {
-                    let flag = flagged[place];
-                    let drop_place = place.clone();
+                let drop_place = place.clone();
+                if let Some(eupd) = error_partial_drops.get(&(bid, i)) {
                     let after = alloc_block(
                         &mut extra_blocks,
                         Block {
@@ -792,40 +1228,76 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                             terminator_span: span,
                         },
                     );
-                    let do_drop = alloc_block(
+                    let err_target = emit_drop_chain(
                         &mut extra_blocks,
-                        Block {
-                            instructions: vec![
-                                Instruction {
-                                    kind: InstructionKind::Drop { place: drop_place },
-                                    span,
-                                },
-                                bool_assign(flag, false, span),
-                            ],
-                            terminator: Terminator::Goto { target: after },
-                            terminator_span: span,
-                        },
-                    );
-                    let term = Terminator::Switch {
-                        discr: Operand::Copy(Place::local(flag)),
-                        arms: vec![(0, after)],
-                        otherwise: do_drop,
-                    };
-                    flush_block(
-                        &mut body.blocks,
-                        &mut extra_blocks,
-                        cur_id,
-                        std::mem::take(&mut cur_insts),
-                        term,
+                        &eupd.err_drops,
+                        after,
+                        Some(eupd.local),
                         span,
                     );
+                    let ok_target = emit_drop_chain(
+                        &mut extra_blocks,
+                        &eupd.ok_drops,
+                        after,
+                        Some(eupd.local),
+                        span,
+                    );
+                    skip_storage_dead = Some(eupd.local);
+                    let switch_term = Terminator::Switch {
+                        discr: Operand::Copy(Place::local(eupd.discr)),
+                        arms: vec![(0, err_target)],
+                        otherwise: ok_target,
+                    };
+                    if let Some(outer_flag) = eupd.outer_flag {
+                        let inspect_bb = alloc_block(
+                            &mut extra_blocks,
+                            Block {
+                                instructions: vec![
+                                    Instruction {
+                                        kind: InstructionKind::Assign {
+                                            dest: Place::local(eupd.discr),
+                                            value: Rvalue::ErrorArm(drop_place.clone()),
+                                        },
+                                        span,
+                                    },
+                                    bool_assign(outer_flag, false, span),
+                                ],
+                                terminator: switch_term,
+                                terminator_span: span,
+                            },
+                        );
+                        flush_block(
+                            &mut body.blocks,
+                            &mut extra_blocks,
+                            cur_id,
+                            std::mem::take(&mut cur_insts),
+                            Terminator::Switch {
+                                discr: Operand::Copy(Place::local(outer_flag)),
+                                arms: vec![(0, after)],
+                                otherwise: inspect_bb,
+                            },
+                            span,
+                        );
+                    } else {
+                        cur_insts.push(Instruction {
+                            kind: InstructionKind::Assign {
+                                dest: Place::local(eupd.discr),
+                                value: Rvalue::ErrorArm(drop_place.clone()),
+                            },
+                            span,
+                        });
+                        flush_block(
+                            &mut body.blocks,
+                            &mut extra_blocks,
+                            cur_id,
+                            std::mem::take(&mut cur_insts),
+                            switch_term,
+                            span,
+                        );
+                    }
                     cur_id = after;
                     continue;
-                }
-                // Definitely initialized: keep the drop (or expand partial-move field drops).
-                let drop_place = place.clone();
-                if let Some(epd) = enum_partial_drops.get(&(bid, i)) {
-                    let root_local = drop_place.as_local();
+                } else if let Some(epd) = enum_partial_drops.get(&(bid, i)) {
                     #[allow(clippy::too_many_arguments)]
                     fn emit_steps(
                         steps: &[PartialDropStep],
@@ -959,13 +1431,6 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         }
                     }
 
-                    cur_insts.push(Instruction {
-                        kind: InstructionKind::Assign {
-                            dest: Place::local(epd.discr),
-                            value: Rvalue::Discriminant(drop_place.clone()),
-                        },
-                        span,
-                    });
                     let after = alloc_block(
                         &mut extra_blocks,
                         Block {
@@ -974,20 +1439,20 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                             terminator_span: span,
                         },
                     );
-                    let base_len = body.blocks.len();
                     let mut arm_targets = Vec::with_capacity(epd.variants.len());
                     for vdrops in &epd.variants {
                         arm_targets.push(emit_steps(
                             vdrops,
-                            root_local,
+                            Some(epd.local),
                             after,
                             span,
-                            base_len,
+                            orig_len,
                             &mut extra_blocks,
                         ));
                     }
+                    skip_storage_dead = Some(epd.local);
                     let last_idx = arm_targets.len() - 1;
-                    let term = Terminator::Switch {
+                    let switch_term = Terminator::Switch {
                         discr: Operand::Copy(Place::local(epd.discr)),
                         arms: arm_targets[..last_idx]
                             .iter()
@@ -995,6 +1460,114 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                             .map(|(vi, &tgt)| (vi as u128, tgt))
                             .collect(),
                         otherwise: arm_targets[last_idx],
+                    };
+                    if let Some(outer_flag) = epd.outer_flag {
+                        let inspect_bb = alloc_block(
+                            &mut extra_blocks,
+                            Block {
+                                instructions: vec![
+                                    Instruction {
+                                        kind: InstructionKind::Assign {
+                                            dest: Place::local(epd.discr),
+                                            value: Rvalue::Discriminant(drop_place.clone()),
+                                        },
+                                        span,
+                                    },
+                                    bool_assign(outer_flag, false, span),
+                                ],
+                                terminator: switch_term,
+                                terminator_span: span,
+                            },
+                        );
+                        flush_block(
+                            &mut body.blocks,
+                            &mut extra_blocks,
+                            cur_id,
+                            std::mem::take(&mut cur_insts),
+                            Terminator::Switch {
+                                discr: Operand::Copy(Place::local(outer_flag)),
+                                arms: vec![(0, after)],
+                                otherwise: inspect_bb,
+                            },
+                            span,
+                        );
+                    } else {
+                        cur_insts.push(Instruction {
+                            kind: InstructionKind::Assign {
+                                dest: Place::local(epd.discr),
+                                value: Rvalue::Discriminant(drop_place.clone()),
+                            },
+                            span,
+                        });
+                        flush_block(
+                            &mut body.blocks,
+                            &mut extra_blocks,
+                            cur_id,
+                            std::mem::take(&mut cur_insts),
+                            switch_term,
+                            span,
+                        );
+                    }
+                    cur_id = after;
+                    continue;
+                } else if let Some(sub_drops) = partial_drops.get(&(bid, i)) {
+                    let has_flags = sub_drops.iter().any(|(_, f)| f.is_some());
+                    if has_flags {
+                        let after = alloc_block(
+                            &mut extra_blocks,
+                            Block {
+                                instructions: Vec::new(),
+                                terminator: Terminator::Unreachable,
+                                terminator_span: span,
+                            },
+                        );
+                        let chain_head =
+                            emit_drop_chain(&mut extra_blocks, sub_drops, after, None, span);
+                        flush_block(
+                            &mut body.blocks,
+                            &mut extra_blocks,
+                            cur_id,
+                            std::mem::take(&mut cur_insts),
+                            Terminator::Goto { target: chain_head },
+                            span,
+                        );
+                        cur_id = after;
+                        continue;
+                    }
+                    for (sub, _) in sub_drops {
+                        cur_insts.push(Instruction {
+                            kind: InstructionKind::Drop { place: sub.clone() },
+                            span,
+                        });
+                    }
+                } else if st.is_maybe() {
+                    let flag = flagged[place];
+                    let after = alloc_block(
+                        &mut extra_blocks,
+                        Block {
+                            instructions: Vec::new(),
+                            terminator: Terminator::Unreachable,
+                            terminator_span: span,
+                        },
+                    );
+                    let do_drop = alloc_block(
+                        &mut extra_blocks,
+                        Block {
+                            instructions: vec![
+                                Instruction {
+                                    kind: InstructionKind::Drop { place: drop_place },
+                                    span,
+                                },
+                                bool_assign(flag, false, span),
+                            ],
+                            terminator: Terminator::Goto { target: after },
+                            terminator_span: span,
+                        },
+                    );
+                    let term = Terminator::Switch {
+                        discr: Operand::Copy(Place::local(flag)),
+                        arms: vec![(0, after)],
+                        otherwise: do_drop,
                     };
                     flush_block(
                         &mut body.blocks,
@@ -1006,13 +1579,6 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                     );
                     cur_id = after;
                     continue;
-                } else if let Some(sub_places) = partial_drops.get(&(bid, i)) {
-                    for sub in sub_places {
-                        cur_insts.push(Instruction {
-                            kind: InstructionKind::Drop { place: sub.clone() },
-                            span,
-                        });
-                    }
                 } else {
                     cur_insts.push(inst);
                 }
@@ -1050,14 +1616,6 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                                     {
                                         updates.push((flag, false));
                                     }
-                                }
-                                if let (
-                                    zil_ir::body::PlaceRoot::Local(l),
-                                    [zil_ir::body::Projection::ErrorArm(_)],
-                                ) = (a.place.root, a.place.projections.as_slice())
-                                    && let Some(&flag) = flagged.get(&Place::local(l))
-                                {
-                                    updates.push((flag, false));
                                 }
                             }
                             PlaceAccess::Init | PlaceAccess::ReplaceInstance => {

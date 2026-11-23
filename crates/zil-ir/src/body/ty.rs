@@ -576,18 +576,7 @@ impl TyTable {
                                 }
                             }
                         }
-                        let class = all(&mut fields.into_iter());
-                        // A Record cannot own cleanup-needing resources (that requires
-                        // `package`), but a Record carrying only affine `&mut` views is
-                        // itself an Affine value (non-Copy, movable once).
-                        if def.kind == AdtKind::Record
-                            && class == ValueClass::Affine
-                            && self.needs_cleanup(ty, env)
-                        {
-                            ValueClass::NotValue
-                        } else {
-                            class
-                        }
+                        all(&mut fields.into_iter())
                     }
                 }
             }
@@ -678,8 +667,7 @@ impl TyTable {
                 None => true,
                 Some(def) => match def.kind {
                     AdtKind::Package | AdtKind::Resource => true,
-                    AdtKind::Record => def.user_drop,
-                    AdtKind::Enum => {
+                    AdtKind::Record | AdtKind::Enum => {
                         def.user_drop
                             || def.variants.iter().enumerate().any(|(v, variant)| {
                                 (0..variant.fields.len()).any(|f| {
