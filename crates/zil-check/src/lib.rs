@@ -700,6 +700,10 @@ fn verify_fn_state_contracts(
         alias: HashMap<Local, usize>,
         /// May-alias map: local -> all protocol handle indices it may alias (unioned on join; conservatively widened on writes).
         may_alias: HashMap<Local, BTreeSet<usize>>,
+        /// May-map: local (closure / dyn / aggregate wrapper) -> parameter projections reachable via captured `&mut`/`Desc`.
+        mut_cap_params: HashMap<Local, ParamAliasSet>,
+        /// May-map: local (closure / dyn / aggregate wrapper) -> protocol handle indices reachable via captured `&mut`/`Desc`.
+        mut_cap_handles: HashMap<Local, BTreeSet<usize>>,
         /// Must-map: local holding copied `handle.state` field -> root handle index (intersected on join).
         state_field_of: HashMap<Local, usize>,
         /// Must-map: exact enum variant for locals constructed via `AggregateKind::Adt` (intersected on join).
@@ -749,7 +753,7 @@ fn verify_fn_state_contracts(
                     changed = true;
                 }
             }
-            // Union may-alias maps so invalidations and writes on merged references stay conservative.
+            // Union may-alias and mutable-capability maps so merged references/closures stay conservative.
             for (k, other_set) in &other.param_alias {
                 let entry = self.param_alias.entry(*k).or_default();
                 for item in other_set {
@@ -760,6 +764,22 @@ fn verify_fn_state_contracts(
             }
             for (k, other_set) in &other.may_alias {
                 let entry = self.may_alias.entry(*k).or_default();
+                for &h in other_set {
+                    if entry.insert(h) {
+                        changed = true;
+                    }
+                }
+            }
+            for (k, other_set) in &other.mut_cap_params {
+                let entry = self.mut_cap_params.entry(*k).or_default();
+                for item in other_set {
+                    if entry.insert(item.clone()) {
+                        changed = true;
+                    }
+                }
+            }
+            for (k, other_set) in &other.mut_cap_handles {
+                let entry = self.mut_cap_handles.entry(*k).or_default();
                 for &h in other_set {
                     if entry.insert(h) {
                         changed = true;
@@ -817,6 +837,19 @@ fn verify_fn_state_contracts(
                 self.rolled_back[h_idx] = true;
             }
             self.states[h_idx] = new_state;
+            self.history[h_idx] = self.history[h_idx].union(new_state);
+        }
+
+        /// Conservative weak update for a handle that *may* alias the written handle.
+        /// Accounts for both the non-aliasing branch (state unchanged) and the aliasing branch
+        /// (transition to `new_state`, recording departures and potential rollback).
+        fn weak_update_handle_state(&mut self, h_idx: usize, new_state: ProtocolStateSet) {
+            let aliased_departed = self.states[h_idx].subtract(new_state);
+            self.departed_from[h_idx] = self.departed_from[h_idx].union(aliased_departed);
+            if !new_state.intersect(self.departed_from[h_idx]).is_empty() {
+                self.rolled_back[h_idx] = true;
+            }
+            self.states[h_idx] = self.states[h_idx].union(new_state);
             self.history[h_idx] = self.history[h_idx].union(new_state);
         }
 
@@ -901,11 +934,23 @@ fn verify_fn_state_contracts(
         }
     };
 
+    let strip_indirection = |mut ty: zil_ir::body::TyId| -> zil_ir::body::TyId {
+        for _ in 0..4 {
+            match tys.get(ty) {
+                Some(
+                    TyKind::Ref { pointee, .. } | TyKind::Managed(pointee) | TyKind::Desc(pointee),
+                ) => ty = *pointee,
+                _ => break,
+            }
+        }
+        ty
+    };
+
     let mut entry_alias = HashMap::new();
     let mut entry_may_alias: HashMap<Local, BTreeSet<usize>> = HashMap::new();
     for (i, info) in local_info.iter().enumerate() {
+        entry_alias.insert(Local(i as u32), i);
         if info.is_some() {
-            entry_alias.insert(Local(i as u32), i);
             let mut s = BTreeSet::new();
             s.insert(i);
             entry_may_alias.insert(Local(i as u32), s);
@@ -916,6 +961,72 @@ fn verify_fn_state_contracts(
         let mut s = ParamAliasSet::new();
         s.insert((i, Vec::new()));
         entry_param_alias.insert(Local(i as u32), s);
+    }
+    // Cross-parameter Desc may-aliasing: two `Desc` parameters (or a `Desc` and a shared `&`
+    // parameter) with compatible pointee types may alias at function entry unless the function
+    // explicitly declares `requires(apart(a, b))`.
+    for i in 0..param_count {
+        for j in (i + 1)..param_count {
+            let declared_apart = func.sig.state_contracts.iter().any(|c| {
+                matches!(
+                    *c,
+                    StateContractClause::RequiresApart { param_a, param_b }
+                        if (param_a as usize == i && param_b as usize == j)
+                            || (param_a as usize == j && param_b as usize == i)
+                )
+            });
+            if declared_apart {
+                continue;
+            }
+            let ti = func.body.locals[i].ty;
+            let tj = func.body.locals[j].ty;
+            let is_desc = |ty| matches!(tys.get(ty), Some(TyKind::Desc(_)));
+            let is_shared_ref = |ty| {
+                matches!(
+                    tys.get(ty),
+                    Some(TyKind::Ref {
+                        mutability: Mutability::Shared,
+                        ..
+                    })
+                )
+            };
+            let pair_can_alias = (is_desc(ti) && (is_desc(tj) || is_shared_ref(tj)))
+                || (is_desc(tj) && is_shared_ref(ti));
+            if !pair_can_alias {
+                continue;
+            }
+            let inner_i = strip_indirection(ti);
+            let inner_j = strip_indirection(tj);
+            let types_compatible = inner_i == inner_j
+                || matches!(
+                    tys.get(inner_i),
+                    Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                )
+                || matches!(
+                    tys.get(inner_j),
+                    Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                );
+            if types_compatible {
+                entry_param_alias
+                    .entry(Local(i as u32))
+                    .or_default()
+                    .insert((j, Vec::new()));
+                entry_param_alias
+                    .entry(Local(j as u32))
+                    .or_default()
+                    .insert((i, Vec::new()));
+                if local_info[i].is_some() && local_info[j].is_some() {
+                    entry_may_alias
+                        .entry(Local(i as u32))
+                        .or_default()
+                        .insert(j);
+                    entry_may_alias
+                        .entry(Local(j as u32))
+                        .or_default()
+                        .insert(i);
+                }
+            }
+        }
     }
     let entry_init_states = init_states.clone();
     let entry_state = ProtoState {
@@ -928,6 +1039,8 @@ fn verify_fn_state_contracts(
         param_alias: entry_param_alias,
         alias: entry_alias,
         may_alias: entry_may_alias,
+        mut_cap_params: HashMap::new(),
+        mut_cap_handles: HashMap::new(),
         state_field_of: HashMap::new(),
         enum_variant: HashMap::new(),
         error_arm_const: HashMap::new(),
@@ -984,13 +1097,15 @@ fn verify_fn_state_contracts(
                     continue;
                 }
                 InstructionKind::Replace { place, value, old } => {
-                    // P0-1: `Replace` mutates `place` (e.g. assigning to an owning/Drop field)
+                    // `Replace` mutates `place` (e.g. assigning to an owning/Drop field)
                     // and moves the previous instance into `old`.
                     st.record_place_invalidation(place);
                     // Clear stale alias/value facts on `old`.
                     st.alias.remove(old);
                     st.may_alias.remove(old);
                     st.param_alias.remove(old);
+                    st.mut_cap_params.remove(old);
+                    st.mut_cap_handles.remove(old);
                     st.state_field_of.remove(old);
                     st.enum_variant.remove(old);
                     st.error_arm_const.remove(old);
@@ -1018,6 +1133,16 @@ fn verify_fn_state_contracts(
                         };
                         st.set_handle_state(h_idx, new_state);
                         st.invalidate_handle(h_idx);
+                        if let PlaceRoot::Local(rl) = place.root
+                            && let Some(targets) = st.may_alias.get(&rl).cloned()
+                        {
+                            for other_h in targets {
+                                if other_h != h_idx {
+                                    st.weak_update_handle_state(other_h, new_state);
+                                    st.invalidate_handle(other_h);
+                                }
+                            }
+                        }
                     } else if let PlaceRoot::Local(rl) = place.root {
                         let may_targets = st.may_alias.get(&rl).cloned();
                         if let Some(targets) = may_targets {
@@ -1058,6 +1183,8 @@ fn verify_fn_state_contracts(
                     st.alias.remove(dl);
                     st.may_alias.remove(dl);
                     st.param_alias.remove(dl);
+                    st.mut_cap_params.remove(dl);
+                    st.mut_cap_handles.remove(dl);
                     st.state_field_of.remove(dl);
                     st.enum_variant.remove(dl);
                     st.error_arm_const.remove(dl);
@@ -1096,6 +1223,16 @@ fn verify_fn_state_contracts(
                         };
                         st.set_handle_state(h_idx, new_state);
                         st.invalidate_handle(h_idx);
+                        if let PlaceRoot::Local(rl) = dest.root
+                            && let Some(targets) = st.may_alias.get(&rl).cloned()
+                        {
+                            for other_h in targets {
+                                if other_h != h_idx {
+                                    st.weak_update_handle_state(other_h, new_state);
+                                    st.invalidate_handle(other_h);
+                                }
+                            }
+                        }
                         continue;
                     }
 
@@ -1178,6 +1315,14 @@ fn verify_fn_state_contracts(
                         };
                         st.set_handle_state(h_idx, new_state);
                         st.invalidate_handle(h_idx);
+                        if let Some(targets) = st.may_alias.get(&rl).cloned() {
+                            for other_h in targets {
+                                if other_h != h_idx {
+                                    st.weak_update_handle_state(other_h, new_state);
+                                    st.invalidate_handle(other_h);
+                                }
+                            }
+                        }
                         continue;
                     }
 
@@ -1189,10 +1334,18 @@ fn verify_fn_state_contracts(
                         st.alias.remove(&dl);
                         st.may_alias.remove(&dl);
                         st.param_alias.remove(&dl);
+                        st.mut_cap_params.remove(&dl);
+                        st.mut_cap_handles.remove(&dl);
                         if di < param_count {
                             let mut s = ParamAliasSet::new();
                             s.insert((di, Vec::new()));
                             st.param_alias.insert(dl, s);
+                        }
+                        if !matches!(
+                            tys.get(func.body.locals[di].ty),
+                            Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                        ) {
+                            st.alias.insert(dl, di);
                         }
                         if local_info.get(di).is_some_and(Option::is_some) {
                             st.alias.insert(dl, di);
@@ -1209,6 +1362,14 @@ fn verify_fn_state_contracts(
                         st.discr_of.remove(&dl);
                         match value {
                             Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
+                                if let PlaceRoot::Local(sl) = src.root {
+                                    if let Some(mcp) = st.mut_cap_params.get(&sl).cloned() {
+                                        st.mut_cap_params.insert(dl, mcp);
+                                    }
+                                    if let Some(mch) = st.mut_cap_handles.get(&sl).cloned() {
+                                        st.mut_cap_handles.insert(dl, mch);
+                                    }
+                                }
                                 if src.projections.is_empty()
                                     && let PlaceRoot::Local(sl) = src.root
                                     && let Some(pa) = st.param_alias.get(&sl).cloned()
@@ -1281,6 +1442,14 @@ fn verify_fn_state_contracts(
                                 }
                             }
                             Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
+                                if let PlaceRoot::Local(sl) = src.root {
+                                    if let Some(mcp) = st.mut_cap_params.get(&sl).cloned() {
+                                        st.mut_cap_params.insert(dl, mcp);
+                                    }
+                                    if let Some(mch) = st.mut_cap_handles.get(&sl).cloned() {
+                                        st.mut_cap_handles.insert(dl, mch);
+                                    }
+                                }
                                 let pa = st.resolve_param_places(src);
                                 if !pa.is_empty() {
                                     st.param_alias.insert(dl, pa);
@@ -1330,41 +1499,138 @@ fn verify_fn_state_contracts(
                                     st.discr_of.insert(dl, DiscrTarget::ErrorUnion(sl));
                                 }
                             }
-                            Rvalue::ErrorUnion { ok, .. } => {
-                                st.error_arm_const.insert(dl, *ok);
-                            }
-                            Rvalue::Aggregate {
-                                kind: AggregateKind::Adt { variant, .. },
-                                operands,
+                            Rvalue::ErrorUnion {
+                                ok, value: operand, ..
                             } => {
-                                st.enum_variant.insert(dl, variant.0);
-                                if let Some(Some(info)) = local_info.get(di) {
-                                    if let Some((_, sf)) = info.state_field {
-                                        let field_state = operands
-                                            .get(sf.0 as usize)
-                                            .and_then(|op| match op {
-                                                Operand::Copy(p) | Operand::Move(p)
-                                                    if p.projections.is_empty() =>
-                                                {
-                                                    if let PlaceRoot::Local(sl) = p.root {
-                                                        st.enum_variant
-                                                            .get(&sl)
-                                                            .map(|&v| ProtocolStateSet::single(v))
-                                                    } else {
-                                                        None
+                                st.error_arm_const.insert(dl, *ok);
+                                if let Operand::Copy(p) | Operand::Move(p) = operand
+                                    && let PlaceRoot::Local(sl) = p.root
+                                {
+                                    if let Some(mcp) = st.mut_cap_params.get(&sl).cloned() {
+                                        st.mut_cap_params.insert(dl, mcp);
+                                    }
+                                    if let Some(mch) = st.mut_cap_handles.get(&sl).cloned() {
+                                        st.mut_cap_handles.insert(dl, mch);
+                                    }
+                                }
+                            }
+                            Rvalue::Aggregate { kind, operands } => {
+                                // Track mutable capabilities captured inside closures or wrapped in aggregates.
+                                let mut cap_params = ParamAliasSet::new();
+                                let mut cap_handles = BTreeSet::new();
+                                for op in operands {
+                                    if let Operand::Copy(p) | Operand::Move(p) = op
+                                        && let PlaceRoot::Local(sl) = p.root
+                                    {
+                                        if let Some(mcp) = st.mut_cap_params.get(&sl) {
+                                            cap_params.extend(mcp.iter().cloned());
+                                        }
+                                        if let Some(mch) = st.mut_cap_handles.get(&sl) {
+                                            cap_handles.extend(mch.iter().copied());
+                                        }
+                                        if p.projections.is_empty()
+                                            && func
+                                                .body
+                                                .locals
+                                                .get(sl.index())
+                                                .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
+                                        {
+                                            if let Some(pa) = st.param_alias.get(&sl) {
+                                                cap_params.extend(pa.iter().cloned());
+                                            }
+                                            if let Some(ma) = st.may_alias.get(&sl) {
+                                                cap_handles.extend(ma.iter().copied());
+                                            }
+                                        }
+                                    }
+                                }
+                                if !cap_params.is_empty() {
+                                    st.mut_cap_params.insert(dl, cap_params);
+                                }
+                                if !cap_handles.is_empty() {
+                                    st.mut_cap_handles.insert(dl, cap_handles);
+                                }
+                                if let AggregateKind::Adt { variant, .. } = kind {
+                                    st.enum_variant.insert(dl, variant.0);
+                                    if let Some(Some(info)) = local_info.get(di) {
+                                        if let Some((_, sf)) = info.state_field {
+                                            let field_state = operands
+                                                .get(sf.0 as usize)
+                                                .and_then(|op| match op {
+                                                    Operand::Copy(p) | Operand::Move(p)
+                                                        if p.projections.is_empty() =>
+                                                    {
+                                                        if let PlaceRoot::Local(sl) = p.root {
+                                                            st.enum_variant.get(&sl).map(|&v| {
+                                                                ProtocolStateSet::single(v)
+                                                            })
+                                                        } else {
+                                                            None
+                                                        }
                                                     }
-                                                }
-                                                Operand::Copy(_)
-                                                | Operand::Move(_)
-                                                | Operand::Const(_)
-                                                | Operand::Pooled(_) => None,
-                                            })
-                                            .unwrap_or_else(|| {
-                                                ProtocolStateSet::all_variants(info.variant_count)
-                                            });
-                                        st.states[di] = field_state;
-                                    } else {
-                                        st.states[di] = ProtocolStateSet::single(variant.0);
+                                                    Operand::Copy(_)
+                                                    | Operand::Move(_)
+                                                    | Operand::Const(_)
+                                                    | Operand::Pooled(_) => None,
+                                                })
+                                                .unwrap_or_else(|| {
+                                                    ProtocolStateSet::all_variants(
+                                                        info.variant_count,
+                                                    )
+                                                });
+                                            st.states[di] = field_state;
+                                        } else {
+                                            st.states[di] = ProtocolStateSet::single(variant.0);
+                                        }
+                                    }
+                                }
+                            }
+                            Rvalue::Convert { operand, to } => {
+                                if let Operand::Copy(p) | Operand::Move(p) = operand
+                                    && let PlaceRoot::Local(sl) = p.root
+                                {
+                                    let mut cap_params =
+                                        st.mut_cap_params.get(&sl).cloned().unwrap_or_default();
+                                    let mut cap_handles =
+                                        st.mut_cap_handles.get(&sl).cloned().unwrap_or_default();
+                                    if p.projections.is_empty() {
+                                        if matches!(
+                                            tys.get(*to),
+                                            Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                        ) {
+                                            if let Some(pa) = st.param_alias.get(&sl).cloned() {
+                                                st.param_alias.insert(dl, pa);
+                                            }
+                                            if let Some(ma) = st.may_alias.get(&sl).cloned() {
+                                                st.may_alias.insert(dl, ma);
+                                            }
+                                            if let Some(&h) = st.alias.get(&sl) {
+                                                st.alias.insert(dl, h);
+                                            } else {
+                                                st.alias.remove(&dl);
+                                            }
+                                        } else if matches!(
+                                            tys.get(*to),
+                                            Some(TyKind::OwnedDyn { .. })
+                                        ) && func
+                                            .body
+                                            .locals
+                                            .get(sl.index())
+                                            .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
+                                        {
+                                            if let Some(pa) = st.param_alias.get(&sl) {
+                                                cap_params.extend(pa.iter().cloned());
+                                            }
+                                            if let Some(ma) = st.may_alias.get(&sl) {
+                                                cap_handles.extend(ma.iter().copied());
+                                            }
+                                        }
+                                    }
+                                    if !cap_params.is_empty() {
+                                        st.mut_cap_params.insert(dl, cap_params);
+                                    }
+                                    if !cap_handles.is_empty() {
+                                        st.mut_cap_handles.insert(dl, cap_handles);
                                     }
                                 }
                             }
@@ -1389,10 +1655,8 @@ fn verify_fn_state_contracts(
                             }
                             Rvalue::Use(_)
                             | Rvalue::SliceRef { .. }
-                            | Rvalue::Aggregate { .. }
                             | Rvalue::Unary { .. }
                             | Rvalue::Binary { .. }
-                            | Rvalue::Convert { .. }
                             | Rvalue::Len(_)
                             | Rvalue::FnRef(_)
                             | Rvalue::ForeignFnRef(_)
@@ -1525,6 +1789,7 @@ fn verify_fn_state_contracts(
                 if let Some(cancel_target) = cancel {
                     enqueue(*cancel_target, st.clone(), &mut in_states, &mut queue);
                 }
+                st.record_place_invalidation(dest);
                 let dest_local = if dest.projections.is_empty() {
                     match dest.root {
                         PlaceRoot::Local(l) => Some(l),
@@ -1533,37 +1798,148 @@ fn verify_fn_state_contracts(
                 } else {
                     None
                 };
-                let widen_mut_args = |st: &mut ProtoState| {
-                    for arg in args {
-                        if let Operand::Copy(p) | Operand::Move(p) = arg
-                            && p.projections.is_empty()
-                            && let PlaceRoot::Local(al) = p.root
+                if let Some(dl) = dest_local {
+                    st.mut_cap_params.remove(&dl);
+                    st.mut_cap_handles.remove(&dl);
+                }
+                let apply_local_effects =
+                    |st: &mut ProtoState,
+                     local: Local,
+                     include_direct_mut_or_desc: bool,
+                     excluded_handles: &[usize]| {
+                        if let Some(mcp) = st.mut_cap_params.get(&local).cloned() {
+                            for item in mcp {
+                                st.invalidated.insert(item);
+                            }
+                        }
+                        if let Some(mch) = st.mut_cap_handles.get(&local).cloned() {
+                            for h_idx in mch {
+                                if !excluded_handles.contains(&h_idx)
+                                    && let Some(Some(info)) = local_info.get(h_idx)
+                                {
+                                    st.set_handle_state(
+                                        h_idx,
+                                        ProtocolStateSet::all_variants(info.variant_count),
+                                    );
+                                    st.rolled_back[h_idx] = true;
+                                    st.invalidate_handle(h_idx);
+                                }
+                            }
+                        }
+                        if include_direct_mut_or_desc
                             && func
                                 .body
                                 .locals
-                                .get(al.index())
+                                .get(local.index())
                                 .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
                         {
-                            if let Some(pa_set) = st.param_alias.get(&al).cloned() {
+                            if let Some(pa_set) = st.param_alias.get(&local).cloned() {
                                 for item in pa_set {
                                     st.invalidated.insert(item);
                                 }
                             }
-                            if let Some(ma_set) = st.may_alias.get(&al).cloned() {
+                            if let Some(ma_set) = st.may_alias.get(&local).cloned() {
                                 for h_idx in ma_set {
-                                    if let Some(Some(info)) = local_info.get(h_idx) {
+                                    if !excluded_handles.contains(&h_idx)
+                                        && let Some(Some(info)) = local_info.get(h_idx)
+                                    {
                                         st.set_handle_state(
                                             h_idx,
                                             ProtocolStateSet::all_variants(info.variant_count),
                                         );
+                                        st.rolled_back[h_idx] = true;
                                         st.invalidate_handle(h_idx);
                                     }
                                 }
                             }
                         }
+                    };
+                let apply_place_effects =
+                    |st: &mut ProtoState,
+                     place: &Place,
+                     include_direct_mut_or_desc: bool,
+                     excluded_handles: &[usize]| {
+                        if let PlaceRoot::Local(al) = place.root {
+                            if place.projections.is_empty() {
+                                apply_local_effects(
+                                    st,
+                                    al,
+                                    include_direct_mut_or_desc,
+                                    excluded_handles,
+                                );
+                            } else {
+                                apply_local_effects(st, al, true, excluded_handles);
+                                if include_direct_mut_or_desc {
+                                    st.record_place_invalidation(place);
+                                }
+                            }
+                        }
+                    };
+                let apply_operand_effects =
+                    |st: &mut ProtoState,
+                     op: &Operand,
+                     include_direct_mut_or_desc: bool,
+                     excluded_handles: &[usize]| {
+                        if let Operand::Copy(p) | Operand::Move(p) = op {
+                            apply_place_effects(
+                                st,
+                                p,
+                                include_direct_mut_or_desc,
+                                excluded_handles,
+                            );
+                        }
+                    };
+                let apply_all_args = |st: &mut ProtoState, excluded_handles: &[usize]| {
+                    for arg in args {
+                        apply_operand_effects(st, arg, true, excluded_handles);
                     }
                 };
                 match callee {
+                    Callee::Intrinsic(IntrinsicOp::OwnedDynCreate) => {
+                        if let Some(dl) = dest_local {
+                            let mut cap_params = ParamAliasSet::new();
+                            let mut cap_handles = BTreeSet::new();
+                            for arg in args {
+                                if let Operand::Copy(p) | Operand::Move(p) = arg
+                                    && let PlaceRoot::Local(al) = p.root
+                                {
+                                    if let Some(mcp) = st.mut_cap_params.get(&al) {
+                                        cap_params.extend(mcp.iter().cloned());
+                                    }
+                                    if let Some(mch) = st.mut_cap_handles.get(&al) {
+                                        cap_handles.extend(mch.iter().copied());
+                                    }
+                                    if p.projections.is_empty()
+                                        && func
+                                            .body
+                                            .locals
+                                            .get(al.index())
+                                            .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
+                                    {
+                                        if let Some(pa) = st.param_alias.get(&al) {
+                                            cap_params.extend(pa.iter().cloned());
+                                        }
+                                        if let Some(ma) = st.may_alias.get(&al) {
+                                            cap_handles.extend(ma.iter().copied());
+                                        }
+                                    }
+                                }
+                            }
+                            if !cap_params.is_empty() {
+                                st.mut_cap_params.insert(dl, cap_params);
+                            }
+                            if !cap_handles.is_empty() {
+                                st.mut_cap_handles.insert(dl, cap_handles);
+                            }
+                        }
+                    }
+                    Callee::Intrinsic(
+                        IntrinsicOp::StoreLen
+                        | IntrinsicOp::StoreCapacity
+                        | IntrinsicOp::StoreBorrow {
+                            mutability: Mutability::Shared,
+                        },
+                    ) => {}
                     Callee::Intrinsic(IntrinsicOp::AsyncRegistrationValid) => {
                         if let Some(a0) = args.first()
                             && let Some(h_idx) = st.resolve_handle(a0)
@@ -1803,6 +2179,20 @@ fn verify_fn_state_contracts(
                                             st.set_handle_state(h_idx, states);
                                             st.invalidate_handle(h_idx);
                                             contracted_handles.push(h_idx);
+                                            if let Operand::Copy(p) | Operand::Move(p) = arg
+                                                && p.projections.is_empty()
+                                                && let PlaceRoot::Local(al) = p.root
+                                                && let Some(ma_set) = st.may_alias.get(&al).cloned()
+                                            {
+                                                for other_h in ma_set {
+                                                    if other_h != h_idx {
+                                                        st.weak_update_handle_state(
+                                                            other_h, states,
+                                                        );
+                                                        st.invalidate_handle(other_h);
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                     StateContractClause::ProvidesOnPending { param, states } => {
@@ -1847,24 +2237,31 @@ fn verify_fn_state_contracts(
                                         args.get(c_param)
                                         && p.projections.is_empty()
                                         && let PlaceRoot::Local(al) = p.root
-                                        && let Some(ma_set) = st.may_alias.get(&al).cloned()
                                     {
-                                        for h_idx in ma_set {
-                                            if !contracted_handles.contains(&h_idx)
-                                                && let Some(Some(info)) = local_info.get(h_idx)
-                                            {
-                                                let touches_state = match info.state_field {
-                                                    None => true,
-                                                    Some((_, sf)) => path.overlaps(&[sf]),
-                                                };
-                                                if touches_state {
-                                                    st.set_handle_state(
-                                                        h_idx,
-                                                        ProtocolStateSet::all_variants(
-                                                            info.variant_count,
-                                                        ),
-                                                    );
-                                                    st.invalidate_handle(h_idx);
+                                        apply_local_effects(
+                                            &mut st,
+                                            al,
+                                            false,
+                                            &contracted_handles,
+                                        );
+                                        if let Some(ma_set) = st.may_alias.get(&al).cloned() {
+                                            for h_idx in ma_set {
+                                                if !contracted_handles.contains(&h_idx)
+                                                    && let Some(Some(info)) = local_info.get(h_idx)
+                                                {
+                                                    let touches_state = match info.state_field {
+                                                        None => true,
+                                                        Some((_, sf)) => path.overlaps(&[sf]),
+                                                    };
+                                                    if touches_state {
+                                                        st.set_handle_state(
+                                                            h_idx,
+                                                            ProtocolStateSet::all_variants(
+                                                                info.variant_count,
+                                                            ),
+                                                        );
+                                                        st.invalidate_handle(h_idx);
+                                                    }
                                                 }
                                             }
                                         }
@@ -1872,23 +2269,9 @@ fn verify_fn_state_contracts(
                                 }
                             } else {
                                 // Callee has no closed invalidation upper bound: conservatively
-                                // record invalidation for any &mut/Desc argument.
-                                for arg in args {
-                                    if let Operand::Copy(p) | Operand::Move(p) = arg
-                                        && p.projections.is_empty()
-                                        && let PlaceRoot::Local(al) = p.root
-                                        && func
-                                            .body
-                                            .locals
-                                            .get(al.index())
-                                            .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
-                                        && let Some(pa_set) = st.param_alias.get(&al).cloned()
-                                    {
-                                        for item in pa_set {
-                                            st.invalidated.insert(item);
-                                        }
-                                    }
-                                }
+                                // apply effects to all &mut/Desc/capability-bearing arguments
+                                // while preserving explicitly contracted handle postconditions.
+                                apply_all_args(&mut st, &contracted_handles);
                             }
                             if let Some(dl) = dest_local {
                                 for (&h_idx, &pend) in &pend_by_handle {
@@ -1929,15 +2312,40 @@ fn verify_fn_state_contracts(
                                 }
                             }
                         } else {
-                            widen_mut_args(&mut st);
+                            apply_all_args(&mut st, &[]);
                         }
                     }
-                    Callee::Intrinsic(_)
-                    | Callee::Indirect(_)
-                    | Callee::Closure { .. }
-                    | Callee::DynSlot { .. }
-                    | Callee::Foreign(_) => {
-                        widen_mut_args(&mut st);
+                    Callee::Closure { closure, .. } => {
+                        apply_place_effects(&mut st, closure, true, &[]);
+                        apply_all_args(&mut st, &[]);
+                    }
+                    Callee::DynSlot { object, slot } => {
+                        let slot_is_mut = match object {
+                            Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
+                                if let PlaceRoot::Local(ol) = p.root
+                                    && let Some(ld) = func.body.locals.get(ol.index())
+                                    && let Some(TyKind::Ref { pointee, .. }) = tys.get(ld.ty)
+                                    && let Some(
+                                        TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. },
+                                    ) = tys.get(*pointee)
+                                    && let Some(def) = tys.get_dyn(*dyn_id)
+                                    && let Some(sig) = def.slots.get(*slot as usize)
+                                {
+                                    !matches!(sig.receiver, Some(Mutability::Shared))
+                                } else {
+                                    true
+                                }
+                            }
+                            Operand::Copy(_)
+                            | Operand::Move(_)
+                            | Operand::Const(_)
+                            | Operand::Pooled(_) => true,
+                        };
+                        apply_operand_effects(&mut st, object, slot_is_mut, &[]);
+                        apply_all_args(&mut st, &[]);
+                    }
+                    Callee::Intrinsic(_) | Callee::Indirect(_) | Callee::Foreign(_) => {
+                        apply_all_args(&mut st, &[]);
                     }
                 }
                 enqueue(*target, st, &mut in_states, &mut queue);

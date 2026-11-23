@@ -2345,3 +2345,767 @@ fn raw_wire_replace_cfg_alias_join_and_branch_rollback_are_rejected_by_checker()
         ));
     }
 }
+
+#[test]
+fn unified_call_effects_and_apart_desc_execute_natively_on_dual_backends() {
+    let dir = temp_dir("unified-call-effects-native");
+    let src = r#"
+struct Pair { a: i32, b: i32 }
+
+trait Reader {
+    fn read(self: &Self) -> i32;
+}
+
+impl Reader for Pair {
+    fn read(self: &Self) -> i32 {
+        return self.a + self.b
+    }
+}
+
+fn read_via_closure(p: &Pair) -> i32
+    contract { effects(invalidates()); }
+{
+    let f = () -> i32 => p.a + p.b
+    return f()
+}
+
+fn read_via_dyn(r: &OwnedDyn<dyn Reader>) -> i32
+    contract { effects(invalidates()); }
+{
+    return r.read()
+}
+
+fn push_apart_store(a: Store<i64>, b: Store<i64>) -> i64
+    contract {
+        requires(apart(a, b));
+        effects(invalidates(a));
+    }
+{
+    store_push(a, 7)
+    return store_len(a) + store_len(b)
+}
+
+fn main() -> i32 {
+    var p = Pair { a: 10, b: 32 }
+    let c = read_via_closure(&p)
+    var d1: i32 = 0
+    match owned_dyn::<dyn Reader>(Pair { a: 10, b: 32 }) {
+        .err(_) => { return 89 }
+        .ok(owner) => {
+            d1 = read_via_dyn(&owner)
+        }
+    }
+    let s1: Store<i64> = store_new()
+    let s2: Store<i64> = store_new()
+    if !store_reserve(s1, 2) || !store_reserve(s2, 2) {
+        return 90
+    }
+    let total = push_apart_store(s1, s2)
+    if c == 42 && d1 == 42 && total == 1 {
+        return 0
+    }
+    return 1
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert!(stdout.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn unified_call_effects_closure_dynslot_and_desc_alias_are_rejected() {
+    let dir = temp_dir("unified-call-effects-reject");
+
+    // 1. Closure capturing `&mut Pair` mutating `p.a` rejected under `effects(invalidates())`.
+    check_rejected(
+        &dir,
+        "closure_mut_capture_violates_empty_invalidates",
+        r#"
+struct Pair { a: i32, b: i32 }
+fn bad(p: &mut Pair) contract { effects(invalidates()); } {
+    var f = () -> i32 => {
+        p.a = 1
+        return p.a
+    }
+    let _ = f()
+}
+fn main() -> i32 {
+    var p = Pair { a: 0, b: 0 }
+    bad(&mut p)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 2. Closure capturing `&mut Channel` hiding rollback Open->Closed->Open rejected.
+    check_rejected(
+        &dir,
+        "closure_mut_capture_hides_protocol_rollback",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState }
+fn sneaky(ch: &mut Channel)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open));
+    }
+{
+    var f = () -> i32 => {
+        ch.state = ChanState.Closed
+        ch.state = ChanState.Open
+        return 0
+    }
+    let _ = f()
+}
+fn main() -> i32 {
+    var ch = Channel { state: ChanState.Open }
+    sneaky(&mut ch)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 3. Direct `&mut OwnedDyn<dyn Mutator>` slot call rejected under `effects(invalidates())`.
+    check_rejected(
+        &dir,
+        "dynslot_mut_param_violates_empty_invalidates",
+        r#"
+struct Counter { n: i32 }
+trait Mutator {
+    fn bump(self: &mut Self) -> i32;
+}
+impl Mutator for Counter {
+    fn bump(self: &mut Self) -> i32 {
+        self.n = self.n + 1
+        return self.n
+    }
+}
+fn bad(m: &mut OwnedDyn<dyn Mutator>) contract { effects(invalidates()); } {
+    let _ = m.bump()
+}
+fn main() -> i32 {
+    match owned_dyn::<dyn Mutator>(Counter { n: 0 }) {
+        .err(_) => { return 1 }
+        .ok(c) => {
+            var mc = c
+            bad(&mut mc)
+        }
+    }
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 4. Borrowed provider `OwnedDyn<dyn Mutator, Context<'a>>` wrapping `p: &'a mut Pair`
+    //    rejected under `effects(invalidates())`.
+    check_rejected(
+        &dir,
+        "dynslot_borrowed_provider_mut_param_violates_empty_invalidates",
+        r#"
+struct Pair { a: i32, b: i32 }
+struct Context<life a> { leaf: &'a mut Pair }
+struct Provider<life a> { target: &'a mut Pair }
+trait Mutator {
+    fn bump(self: &mut Self) -> i32;
+}
+impl<life a> Mutator for Provider<'a> {
+    fn bump(self: &mut Self) -> i32 {
+        self.target.a = self.target.a + 1
+        return self.target.a
+    }
+}
+fn bad<life a>(p: &'a mut Pair) contract { effects(invalidates()); } {
+    match owned_dyn::<dyn Mutator, Context<'a>>(Provider::<'a> { target: p }) {
+        .err(_) => {}
+        .ok(m) => {
+            var mm = m
+            let _ = mm.bump()
+        }
+    }
+}
+fn main() -> i32 {
+    var p = Pair { a: 0, b: 0 }
+    bad(&mut p)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 5. Borrowed provider `OwnedDyn<dyn Mutator, Context<'a>>` wrapping `ch: &'a mut Channel`
+    //    violates protocol state preservation / rollback.
+    check_rejected(
+        &dir,
+        "dynslot_borrowed_provider_protocol_handle_violates_state_preservation",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState }
+struct Context<life a> { leaf: &'a mut Channel }
+struct ChanProvider<life a> { target: &'a mut Channel }
+trait Mutator {
+    fn flip(self: &mut Self) -> i32;
+}
+impl<life a> Mutator for ChanProvider<'a> {
+    fn flip(self: &mut Self) -> i32 {
+        self.target.state = ChanState.Closed
+        self.target.state = ChanState.Open
+        return 0
+    }
+}
+fn bad<life a>(ch: &'a mut Channel)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open));
+    }
+{
+    match owned_dyn::<dyn Mutator, Context<'a>>(ChanProvider::<'a> { target: ch }) {
+        .err(_) => {}
+        .ok(m) => {
+            var mm = m
+            let _ = mm.flip()
+        }
+    }
+}
+fn main() -> i32 {
+    var ch = Channel { state: ChanState.Open }
+    bad(&mut ch)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 6. Cross-parameter `Desc` aliasing without `apart(a, b)`: mutating `a` also invalidates `b`.
+    check_rejected(
+        &dir,
+        "cross_desc_alias_without_apart_violates_invalidates_a_only",
+        r#"
+fn bad(a: Store<i64>, b: Store<i64>)
+    contract { effects(invalidates(a)); }
+{
+    store_push(a, 1)
+}
+fn main() -> i32 {
+    let s: Store<i64> = store_new()
+    if !store_reserve(s, 2) { return 1 }
+    bad(s, s)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_unified_call_effects_closure_dynslot_and_desc_alias_checked() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, AggregateKind, Block, BlockId, Body, Callee, ClosureDef, ClosureKind,
+        ConstValue, ContractFieldPath, DynDef, DynSlotSig, FieldDef, FieldIdx, FieldRef, FnId,
+        FnRole, FnSig, Function, GenericArgs, Instruction, InstructionKind, IntTy, Local,
+        LocalDecl, Module, Mutability, Operand, ParamEnv, Place, PlaceRoot, Projection,
+        ProtocolStateSet, Region, ResumeMode, Rvalue, StateContractClause, Terminator, TyKind,
+        TyTable, VariantDef, VariantIdx, decode_module, encode_module,
+    };
+
+    // --- Part A: Cross-parameter Desc aliasing (positive with RequiresApart, negative without,
+    //     and negative hidden rollback through aliased Desc) ---
+    let build_desc_alias_module = |with_apart: bool, do_rollback: bool| -> Module {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let empty_args = tys.intern_args(GenericArgs {
+            tys: vec![],
+            regions: vec![],
+        });
+        let st_adt = tys.add_adt(AdtDef {
+            name: "ChanState".into(),
+            kind: AdtKind::Enum,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![
+                VariantDef {
+                    name: "Init".into(),
+                    fields: vec![],
+                },
+                VariantDef {
+                    name: "Open".into(),
+                    fields: vec![],
+                },
+                VariantDef {
+                    name: "Closed".into(),
+                    fields: vec![],
+                },
+            ],
+            user_drop: false,
+        });
+        let st_ty = tys.intern(TyKind::Adt {
+            adt: st_adt,
+            args: empty_args,
+        });
+        let ch_adt = tys.add_adt(AdtDef {
+            name: "Channel".into(),
+            kind: AdtKind::Record,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![VariantDef {
+                name: "Channel".into(),
+                fields: vec![FieldDef {
+                    name: "state".into(),
+                    ty: st_ty,
+                }],
+            }],
+            user_drop: false,
+        });
+        let ch_ty = tys.intern(TyKind::Adt {
+            adt: ch_adt,
+            args: empty_args,
+        });
+        let desc_ch = tys.intern(TyKind::Desc(ch_ty));
+        let a_state = Place {
+            root: PlaceRoot::Local(Local(0)),
+            projections: vec![
+                Projection::Deref,
+                Projection::Field(FieldRef {
+                    adt: ch_adt,
+                    args: empty_args,
+                    variant: VariantIdx(0),
+                    field: FieldIdx(0),
+                }),
+            ],
+        };
+        let mk_variant = |v: u32| Rvalue::Aggregate {
+            kind: AggregateKind::Adt {
+                adt: st_adt,
+                args: empty_args,
+                variant: VariantIdx(v),
+            },
+            operands: vec![],
+        };
+        let mut contracts = vec![
+            StateContractClause::RequiresState {
+                param: 1,
+                states: ProtocolStateSet::single(1),
+            },
+            StateContractClause::ProvidesState {
+                param: 1,
+                states: ProtocolStateSet::single(1),
+            },
+            StateContractClause::InvalidationUpperBound,
+            StateContractClause::Invalidates {
+                param: 0,
+                path: ContractFieldPath::from_slice(&[FieldIdx(0)]).unwrap(),
+            },
+        ];
+        if with_apart {
+            contracts.push(StateContractClause::RequiresApart {
+                param_a: 0,
+                param_b: 1,
+            });
+        }
+        let mut insts = vec![Instruction {
+            kind: InstructionKind::Assign {
+                dest: a_state.clone(),
+                value: mk_variant(2),
+            },
+            span: zil_base::Span::default(),
+        }];
+        if do_rollback {
+            // Allow invalidating both `a.state` and `b.state` so rejection specifically proves
+            // hidden rollback detection on aliased `b`.
+            contracts.push(StateContractClause::Invalidates {
+                param: 1,
+                path: ContractFieldPath::from_slice(&[FieldIdx(0)]).unwrap(),
+            });
+            insts.push(Instruction {
+                kind: InstructionKind::Assign {
+                    dest: a_state,
+                    value: mk_variant(1),
+                },
+                span: zil_base::Span::default(),
+            });
+        }
+        let func = Function {
+            name: "desc_alias_probe".into(),
+            sig: FnSig {
+                params: vec![desc_ch, desc_ch],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: contracts,
+            },
+            body: Body {
+                param_count: 2,
+                locals: vec![
+                    LocalDecl {
+                        ty: desc_ch,
+                        name: Some("a".into()),
+                    },
+                    LocalDecl {
+                        ty: desc_ch,
+                        name: Some("b".into()),
+                    },
+                ],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![Block {
+                    instructions: insts,
+                    terminator: Terminator::Return {
+                        value: Operand::Const(ConstValue::Unit),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                }],
+            },
+        };
+        Module {
+            tys,
+            functions: vec![func],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![],
+        }
+    };
+
+    // A1. Positive: with RequiresApart(a, b), mutating a.state preserves b=Open.
+    {
+        let m = build_desc_alias_module(true, false);
+        let decoded = decode_module(&encode_module(&m)).expect("decode apart desc module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve apart desc module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept disjoint Desc pair with RequiresApart");
+    }
+    // A2. Negative: without RequiresApart(a, b), mutating a.state violates b=Open and invalidates(a.state).
+    {
+        let m = build_desc_alias_module(false, false);
+        let decoded = decode_module(&encode_module(&m)).expect("decode aliased desc module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve aliased desc module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject aliased Desc mutation without RequiresApart");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+    // A3. Negative: without RequiresApart(a, b), a.state = Closed; a.state = Open triggers rollback on b.
+    {
+        let m = build_desc_alias_module(false, true);
+        let decoded = decode_module(&encode_module(&m)).expect("decode aliased desc rollback");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve aliased desc rollback");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject hidden rollback through aliased Desc parameter");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+
+    // --- Part B: Closure capture effects (positive read-only vs negative mutable capture) ---
+    let build_closure_module = |capture_mut: bool| -> Module {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+        let empty_args = tys.intern_args(GenericArgs {
+            tys: vec![],
+            regions: vec![],
+        });
+        let cap_mut = if capture_mut {
+            Mutability::Exclusive
+        } else {
+            Mutability::Shared
+        };
+        let ref_i32 = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: cap_mut,
+            pointee: i32_ty,
+        });
+        let clo_kind = if capture_mut {
+            ClosureKind::FnMut
+        } else {
+            ClosureKind::Fn
+        };
+        let clo_def = tys.add_closure(ClosureDef {
+            kind: clo_kind,
+            type_params: 0,
+            captures: vec![ref_i32],
+            params: vec![],
+            result: unit_ty,
+        });
+        let clo_ty = tys.intern(TyKind::Closure {
+            def: clo_def,
+            args: empty_args,
+        });
+        let caller = Function {
+            name: "closure_effect_probe".into(),
+            sig: FnSig {
+                params: vec![ref_i32],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![StateContractClause::InvalidationUpperBound],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![
+                    LocalDecl {
+                        ty: ref_i32,
+                        name: Some("p".into()),
+                    },
+                    LocalDecl {
+                        ty: clo_ty,
+                        name: Some("cb".into()),
+                    },
+                    LocalDecl {
+                        ty: unit_ty,
+                        name: Some("res".into()),
+                    },
+                ],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![
+                    Block {
+                        instructions: vec![Instruction {
+                            kind: InstructionKind::Assign {
+                                dest: Place::local(Local(1)),
+                                value: Rvalue::Aggregate {
+                                    kind: AggregateKind::Closure {
+                                        def: clo_def,
+                                        args: empty_args,
+                                    },
+                                    operands: vec![Operand::Move(Place::local(Local(0)))],
+                                },
+                            },
+                            span: zil_base::Span::default(),
+                        }],
+                        terminator: Terminator::Call {
+                            callee: Callee::Closure {
+                                closure: Place::local(Local(1)),
+                                mode: if capture_mut {
+                                    zil_ir::body::ClosureCallMode::Mut
+                                } else {
+                                    zil_ir::body::ClosureCallMode::Shared
+                                },
+                            },
+                            args: vec![],
+                            dest: Place::local(Local(2)),
+                            target: BlockId(1),
+                            cancel: None,
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                ],
+            },
+        };
+        let clo_body = Function {
+            name: "closure_body".into(),
+            sig: FnSig {
+                params: vec![],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![],
+            },
+            body: Body {
+                param_count: 0,
+                locals: vec![],
+                captures: vec![ref_i32],
+                closure: Some(clo_def),
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![Block {
+                    instructions: vec![],
+                    terminator: Terminator::Return {
+                        value: Operand::Const(ConstValue::Unit),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                }],
+            },
+        };
+        Module {
+            tys,
+            functions: vec![caller, clo_body],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![],
+        }
+    };
+
+    // B1. Positive: read-only closure capturing `&i32` accepted under empty InvalidationUpperBound.
+    {
+        let m = build_closure_module(false);
+        let decoded = decode_module(&encode_module(&m)).expect("decode readonly closure module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve readonly closure module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept read-only closure under empty InvalidationUpperBound");
+    }
+    // B2. Negative: mutating closure capturing `&mut i32` rejected under empty InvalidationUpperBound.
+    {
+        let m = build_closure_module(true);
+        let decoded = decode_module(&encode_module(&m)).expect("decode mut closure module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve mut closure module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err(
+                    "checker must reject closure with &mut capture under empty upper bound",
+                );
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+
+    // --- Part C: DynSlot receiver effects (positive &self vs negative &mut self) ---
+    let build_dynslot_module = |slot_mut: bool| -> Module {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let recv_mut = if slot_mut {
+            Mutability::Exclusive
+        } else {
+            Mutability::Shared
+        };
+        let dyn_id = tys.add_dyn(DynDef {
+            name: "Op".into(),
+            slots: vec![DynSlotSig {
+                name: "run".into(),
+                receiver: Some(recv_mut),
+                params: vec![],
+                result: unit_ty,
+            }],
+        });
+        let dyn_ty = tys.intern(TyKind::Dyn(dyn_id));
+        let ref_dyn = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: recv_mut,
+            pointee: dyn_ty,
+        });
+        let func = Function {
+            name: "dynslot_effect_probe".into(),
+            sig: FnSig {
+                params: vec![ref_dyn],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![StateContractClause::InvalidationUpperBound],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![
+                    LocalDecl {
+                        ty: ref_dyn,
+                        name: Some("obj".into()),
+                    },
+                    LocalDecl {
+                        ty: unit_ty,
+                        name: Some("res".into()),
+                    },
+                ],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Call {
+                            callee: Callee::DynSlot {
+                                object: if slot_mut {
+                                    Operand::Move(Place::local(Local(0)))
+                                } else {
+                                    Operand::Copy(Place::local(Local(0)))
+                                },
+                                slot: 0,
+                            },
+                            args: vec![],
+                            dest: Place::local(Local(1)),
+                            target: BlockId(1),
+                            cancel: None,
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                ],
+            },
+        };
+        Module {
+            tys,
+            functions: vec![func],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![],
+        }
+    };
+
+    // C1. Positive: `&dyn Op` (`&self` slot) accepted under empty InvalidationUpperBound.
+    {
+        let m = build_dynslot_module(false);
+        let decoded = decode_module(&encode_module(&m)).expect("decode shared dynslot module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve shared dynslot module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept shared &dyn slot under empty InvalidationUpperBound");
+    }
+    // C2. Negative: `&mut dyn Op` (`&mut self` slot) rejected under empty InvalidationUpperBound.
+    {
+        let m = build_dynslot_module(true);
+        let decoded = decode_module(&encode_module(&m)).expect("decode mut dynslot module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve mut dynslot module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject &mut dyn slot under empty InvalidationUpperBound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+}
