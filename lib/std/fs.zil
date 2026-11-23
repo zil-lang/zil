@@ -54,6 +54,6 @@ pub fn remove_file(path:&[u8])->io.Error!void {
     let name=c_path(path)?
     var status:i32=-1
     unsafe{status=unlink(&bytes_view(name)[0])}
-    if status!=0 {return io.Error.Remove}
+    if status!=0 {return io.Error.Write}
     return ()
 }

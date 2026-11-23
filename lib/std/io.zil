@@ -1,5 +1,3 @@
-import std.int
-
 // Linux x86_64 POSIX byte I/O. The foreign calls are synchronous, do not
 // retain buffer addresses, reenter ZIL, or unwind. A File owns exactly one fd.
 extern "C" fn read(fd:i32,buffer:&mut [u8;64],count:i64)->i64
@@ -13,7 +11,7 @@ contract {provides(noescape(path));effects(ffi);};
 extern "C" fn creat(path:&u8,mode:i32)->i32
 contract {provides(noescape(path));effects(ffi);};
 
-pub enum Error { Duplicate, Open, InvalidPath, Capacity, Allocation, Read, Write, NoProgress, InvalidResult, Remove }
+pub enum Error { Duplicate, Open, InvalidPath, Capacity, Allocation, Read, Write, NoProgress, InvalidResult }
 pub struct ReadResult { pub count:i64; pub eof:bool }
 pub resource File { fd:i32 }
 impl Drop for File {fn drop(self:Self){unsafe{close(.fd)}}}
@@ -169,8 +167,24 @@ pub fn eprintln(bytes:&[u8])->Error!void {
 }
 
 pub fn print_i64(value:i64)->Error!void {
-    let formatted=int.format_i64(value)
-    return write_fd(1,&formatted.bytes[..formatted.len])
+    if value==0 {return write_fd(1,"0")}
+    var buf=empty_buffer()
+    var pos:i64=64
+    var cur=value
+    let neg=cur<0
+    if !neg {cur=0-cur}
+    while cur<0 {
+        let rem=cur%10
+        let digit:u8=u8(48-(rem))
+        pos-=1
+        buf[pos]=digit
+        cur/=10
+    }
+    if neg {
+        pos-=1
+        buf[pos]=45u8
+    }
+    return write_fd(1,&buf[pos..64])
 }
 
 pub fn println_i64(value:i64)->Error!void {
