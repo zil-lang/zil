@@ -77,6 +77,41 @@ pub fn int_bits(v: i128, ty: IntTy, pointer_bits: u32) -> u128 {
     (v as u128) & mask
 }
 
+/// Unicode scalar value of a character literal (`'a'`, `'\n'`, `'\u{1F600}'`).
+pub fn parse_char(text: &str) -> Option<u32> {
+    let inner = text.strip_prefix('\'')?.strip_suffix('\'')?;
+    let mut chars = inner.chars();
+    let ch = match chars.next()? {
+        '\\' => match chars.next()? {
+            'n' => '\n',
+            'r' => '\r',
+            't' => '\t',
+            '0' => '\0',
+            '\\' => '\\',
+            '\'' => '\'',
+            '"' => '"',
+            'u' => {
+                if chars.next() != Some('{') {
+                    return None;
+                }
+                let rest: String = chars.collect();
+                let hex = rest.strip_suffix('}')?;
+                if hex.is_empty() || hex.len() > 6 {
+                    return None;
+                }
+                let scalar = u32::from_str_radix(hex, 16).ok()?;
+                return char::from_u32(scalar).map(|c| c as u32);
+            }
+            _ => return None,
+        },
+        c => c,
+    };
+    if chars.next().is_some() {
+        return None;
+    }
+    Some(ch as u32)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,5 +142,18 @@ mod tests {
     fn floats() {
         assert_eq!(parse_float("4294967295.0"), Some((4_294_967_295.0, None)));
         assert_eq!(parse_float("1.5f32"), Some((1.5, Some(FloatTy::F32))));
+    }
+
+    #[test]
+    fn chars() {
+        assert_eq!(parse_char("'a'"), Some(b'a' as u32));
+        assert_eq!(parse_char("'\\n'"), Some(b'\n' as u32));
+        assert_eq!(parse_char("'\\t'"), Some(b'\t' as u32));
+        assert_eq!(parse_char("'\\0'"), Some(0));
+        assert_eq!(parse_char("'\\\\'"), Some(b'\\' as u32));
+        assert_eq!(parse_char("'\\''"), Some(b'\'' as u32));
+        assert_eq!(parse_char("'\\u{1F600}'"), Some(0x1F600));
+        assert_eq!(parse_char("''"), None);
+        assert_eq!(parse_char("'ab'"), None);
     }
 }
