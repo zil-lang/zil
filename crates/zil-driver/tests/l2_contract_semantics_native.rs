@@ -1746,3 +1746,602 @@ fn raw_wire_forged_projection_invalidation_upper_bound_is_rejected_by_checker() 
         err.kind
     );
 }
+
+#[test]
+fn owning_replace_and_branch_rollback_controls_execute_natively_on_dual_backends() {
+    let dir = temp_dir("replace-and-rollback-native");
+    let src = r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState, code: i32 }
+package Holder { manages payload: ByteBuffer; pub tag: i32 }
+
+fn swap_payload(h: &mut Holder)
+    contract { effects(invalidates(h.payload)); }
+{
+    let fresh = bytes_new()
+    bytes_push(fresh, 42u8)
+    h.payload = give fresh
+}
+
+fn branch_reconnect(ch: &mut Channel, do_reconnect: bool)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open, ChanState.Closed));
+        effects(rollback(ch));
+    }
+{
+    if do_reconnect {
+        ch.state = ChanState.Closed
+        ch.state = ChanState.Open
+    } else {
+        ch.state = ChanState.Closed
+    }
+}
+
+fn main() -> i32 {
+    var h = Holder { payload: bytes_new(), tag: 7 }
+    swap_payload(&mut h)
+    var ch = Channel { state: ChanState.Open, code: 1 }
+    branch_reconnect(&mut ch, true)
+    let b = bytes_view(h.payload)[0]
+    if b == 42u8 && h.tag == 7 {
+        return 0
+    }
+    return 1
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert!(stdout.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn verifier_soundness_replace_cfg_alias_join_and_path_rollback_are_rejected() {
+    let dir = temp_dir("verifier-soundness-reject");
+
+    // P0-1a: Owning field Replace (`h.payload = bytes_new()`) rejected under empty invalidates().
+    check_rejected(
+        &dir,
+        "replace_owning_field_violates_empty_invalidates",
+        r#"
+package Holder { manages payload: ByteBuffer; pub tag: i32 }
+fn bad(h: &mut Holder) contract { effects(invalidates()); } {
+    h.payload = bytes_new()
+}
+fn main() -> i32 {
+    var h = Holder { payload: bytes_new(), tag: 0 }
+    bad(&mut h)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // P0-1b: Owning field Replace on `h.payload` rejected when only `h.tag` is declared invalidated.
+    check_rejected(
+        &dir,
+        "replace_owning_field_violates_disjoint_invalidates",
+        r#"
+package Holder { manages payload: ByteBuffer; pub tag: i32 }
+fn bad(h: &mut Holder) contract { effects(invalidates(h.tag)); } {
+    h.payload = bytes_new()
+}
+fn main() -> i32 {
+    var h = Holder { payload: bytes_new(), tag: 0 }
+    bad(&mut h)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // P0-2a: CFG join of `alias` (Open on then-branch, Closed on else-branch) must fail closed.
+    check_rejected(
+        &dir,
+        "cfg_join_alias_open_then_closed_rejected",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState }
+fn require_open(ch: &Channel) contract { requires(state(ch, ChanState.Open)); } {}
+fn bad(flag: bool) {
+    let a = Channel { state: ChanState.Open }
+    let b = Channel { state: ChanState.Closed }
+    var r = &a
+    if flag {
+        r = &a
+    } else {
+        r = &b
+    }
+    require_open(r)
+}
+fn main() -> i32 {
+    bad(false)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // P0-2b: Reversed branch order (Closed on then-branch, Open on else-branch) must also fail closed.
+    check_rejected(
+        &dir,
+        "cfg_join_alias_closed_then_open_rejected",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState }
+fn require_open(ch: &Channel) contract { requires(state(ch, ChanState.Open)); } {}
+fn bad(flag: bool) {
+    let a = Channel { state: ChanState.Open }
+    let b = Channel { state: ChanState.Closed }
+    var r = &b
+    if flag {
+        r = &b
+    } else {
+        r = &a
+    }
+    require_open(r)
+}
+fn main() -> i32 {
+    bad(true)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // P0-2c: CFG join of `param_alias` (p.a on then-branch, p.b on else-branch) must invalidate both.
+    check_rejected(
+        &dir,
+        "cfg_join_param_alias_a_then_b_rejected",
+        r#"
+struct Pair { a: i32, b: i32 }
+fn bad(p: &mut Pair, flag: bool) contract { effects(invalidates(p.a)); } {
+    if flag {
+        let r = &mut p.a
+        *r = 1
+    } else {
+        let r = &mut p.b
+        *r = 2
+    }
+}
+fn main() -> i32 {
+    var p = Pair { a: 0, b: 0 }
+    bad(&mut p, false)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // P0-2d: Merged mutable ref to p.a vs p.b written after join (both branch orders).
+    check_rejected(
+        &dir,
+        "cfg_join_merged_param_ref_a_then_b_rejected",
+        r#"
+struct Pair { a: i32, b: i32 }
+fn bad(p: &mut Pair, flag: bool) contract { effects(invalidates(p.a)); } {
+    var r = &mut p.a
+    if flag {
+        r = &mut p.a
+    } else {
+        r = &mut p.b
+    }
+    *r = 9
+}
+fn main() -> i32 {
+    var p = Pair { a: 0, b: 0 }
+    bad(&mut p, false)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    check_rejected(
+        &dir,
+        "cfg_join_merged_param_ref_b_then_a_rejected",
+        r#"
+struct Pair { a: i32, b: i32 }
+fn bad(p: &mut Pair, flag: bool) contract { effects(invalidates(p.a)); } {
+    var r = &mut p.b
+    if flag {
+        r = &mut p.b
+    } else {
+        r = &mut p.a
+    }
+    *r = 9
+}
+fn main() -> i32 {
+    var p = Pair { a: 0, b: 0 }
+    bad(&mut p, true)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // P0-3a: Path-correlated rollback H: Branch A does Open->Closed->Open, Branch B does Open->Closed.
+    check_rejected(
+        &dir,
+        "branch_rollback_hidden_by_other_branch_rejected",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState }
+fn sneaky(ch: &mut Channel, flag: bool)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open, ChanState.Closed));
+    }
+{
+    if flag {
+        ch.state = ChanState.Closed
+        ch.state = ChanState.Open
+    } else {
+        ch.state = ChanState.Closed
+    }
+}
+fn main() -> i32 {
+    var ch = Channel { state: ChanState.Open }
+    sneaky(&mut ch, true)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // P0-3b: Reversed branch order (Branch A normal Open->Closed, Branch B rollback Open->Closed->Open).
+    check_rejected(
+        &dir,
+        "branch_rollback_hidden_reversed_order_rejected",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState }
+fn sneaky(ch: &mut Channel, flag: bool)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open, ChanState.Closed));
+    }
+{
+    if flag {
+        ch.state = ChanState.Closed
+    } else {
+        ch.state = ChanState.Closed
+        ch.state = ChanState.Open
+    }
+}
+fn main() -> i32 {
+    var ch = Channel { state: ChanState.Open }
+    sneaky(&mut ch, false)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_replace_cfg_alias_join_and_branch_rollback_are_rejected_by_checker() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, AggregateKind, Block, BlockId, Body, ConstValue, FieldDef, FieldIdx,
+        FieldRef, FnId, FnRole, FnSig, Function, GenericArgs, Instruction, InstructionKind, IntTy,
+        Local, LocalDecl, Module, Mutability, Operand, ParamEnv, Place, PlaceRoot, Projection,
+        ProtocolStateSet, Region, ResumeMode, Rvalue, StateContractClause, Terminator, TyKind,
+        TyTable, VariantDef, VariantIdx, decode_module, encode_module,
+    };
+
+    // Case 1 (P0-1 Raw/Wire): `InstructionKind::Replace` on `(*p).a` under empty `InvalidationUpperBound`.
+    {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+        let empty_args = tys.intern_args(GenericArgs {
+            tys: vec![],
+            regions: vec![],
+        });
+        let box_adt = tys.add_adt(AdtDef {
+            name: "Boxed".into(),
+            kind: AdtKind::Record,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![VariantDef {
+                name: "Boxed".into(),
+                fields: vec![FieldDef {
+                    name: "a".into(),
+                    ty: i32_ty,
+                }],
+            }],
+            user_drop: false,
+        });
+        let box_ty = tys.intern(TyKind::Adt {
+            adt: box_adt,
+            args: empty_args,
+        });
+        let mut_box = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Exclusive,
+            pointee: box_ty,
+        });
+        let func = Function {
+            name: "forged_replace".into(),
+            sig: FnSig {
+                params: vec![mut_box],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![StateContractClause::InvalidationUpperBound],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![
+                    LocalDecl {
+                        ty: mut_box,
+                        name: Some("p".into()),
+                    },
+                    LocalDecl {
+                        ty: i32_ty,
+                        name: Some("old".into()),
+                    },
+                ],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![Block {
+                    instructions: vec![Instruction {
+                        kind: InstructionKind::Replace {
+                            place: Place {
+                                root: PlaceRoot::Local(Local(0)),
+                                projections: vec![
+                                    Projection::Deref,
+                                    Projection::Field(FieldRef {
+                                        adt: box_adt,
+                                        args: empty_args,
+                                        variant: VariantIdx(0),
+                                        field: FieldIdx(0),
+                                    }),
+                                ],
+                            },
+                            value: Operand::Const(ConstValue::Int {
+                                ty: IntTy::I32,
+                                bits: 7,
+                            }),
+                            old: Local(1),
+                        },
+                        span: zil_base::Span::default(),
+                    }],
+                    terminator: Terminator::Return {
+                        value: Operand::Const(ConstValue::Unit),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                }],
+            },
+        };
+        let module = Module {
+            tys,
+            functions: vec![func],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![],
+        };
+        let bytes = encode_module(&module);
+        let decoded = decode_module(&bytes).expect("wire decode Replace module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solver produces valid certificate for Replace");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject Replace under empty invalidation upper bound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+
+    // Case 2 (P0-3 Raw/Wire): Branch A does Open->Closed->Open, Branch B does Open->Closed,
+    // merging to Return with RequiresState(Open) & ProvidesState(Open | Closed), NO AllowsRollback.
+    {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let bool_ty = tys.intern(TyKind::Bool);
+        let empty_args = tys.intern_args(GenericArgs {
+            tys: vec![],
+            regions: vec![],
+        });
+        let st_adt = tys.add_adt(AdtDef {
+            name: "ChanState".into(),
+            kind: AdtKind::Enum,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![
+                VariantDef {
+                    name: "Init".into(),
+                    fields: vec![],
+                },
+                VariantDef {
+                    name: "Open".into(),
+                    fields: vec![],
+                },
+                VariantDef {
+                    name: "Closed".into(),
+                    fields: vec![],
+                },
+            ],
+            user_drop: false,
+        });
+        let st_ty = tys.intern(TyKind::Adt {
+            adt: st_adt,
+            args: empty_args,
+        });
+        let ch_adt = tys.add_adt(AdtDef {
+            name: "Channel".into(),
+            kind: AdtKind::Record,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![VariantDef {
+                name: "Channel".into(),
+                fields: vec![FieldDef {
+                    name: "state".into(),
+                    ty: st_ty,
+                }],
+            }],
+            user_drop: false,
+        });
+        let ch_ty = tys.intern(TyKind::Adt {
+            adt: ch_adt,
+            args: empty_args,
+        });
+        let mut_ch = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Exclusive,
+            pointee: ch_ty,
+        });
+        let state_place = || Place {
+            root: PlaceRoot::Local(Local(0)),
+            projections: vec![
+                Projection::Deref,
+                Projection::Field(FieldRef {
+                    adt: ch_adt,
+                    args: empty_args,
+                    variant: VariantIdx(0),
+                    field: FieldIdx(0),
+                }),
+            ],
+        };
+        let mk_variant = |v: u32| Rvalue::Aggregate {
+            kind: AggregateKind::Adt {
+                adt: st_adt,
+                args: empty_args,
+                variant: VariantIdx(v),
+            },
+            operands: vec![],
+        };
+        let func = Function {
+            name: "forged_branch_rollback".into(),
+            sig: FnSig {
+                params: vec![mut_ch, bool_ty],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![
+                    StateContractClause::RequiresState {
+                        param: 0,
+                        states: ProtocolStateSet::single(1),
+                    },
+                    StateContractClause::ProvidesState {
+                        param: 0,
+                        states: ProtocolStateSet::single(1).union(ProtocolStateSet::single(2)),
+                    },
+                ],
+            },
+            body: Body {
+                param_count: 2,
+                locals: vec![
+                    LocalDecl {
+                        ty: mut_ch,
+                        name: Some("ch".into()),
+                    },
+                    LocalDecl {
+                        ty: bool_ty,
+                        name: Some("flag".into()),
+                    },
+                ],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Switch {
+                            discr: Operand::Copy(Place::local(Local(1))),
+                            arms: vec![(1, BlockId(1))],
+                            otherwise: BlockId(2),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                    // Branch A: Open -> Closed -> Open (hidden rollback!)
+                    Block {
+                        instructions: vec![
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: state_place(),
+                                    value: mk_variant(2),
+                                },
+                                span: zil_base::Span::default(),
+                            },
+                            Instruction {
+                                kind: InstructionKind::Assign {
+                                    dest: state_place(),
+                                    value: mk_variant(1),
+                                },
+                                span: zil_base::Span::default(),
+                            },
+                        ],
+                        terminator: Terminator::Goto { target: BlockId(3) },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                    // Branch B: Open -> Closed (normal)
+                    Block {
+                        instructions: vec![Instruction {
+                            kind: InstructionKind::Assign {
+                                dest: state_place(),
+                                value: mk_variant(2),
+                            },
+                            span: zil_base::Span::default(),
+                        }],
+                        terminator: Terminator::Goto { target: BlockId(3) },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                    // Join + Return
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                ],
+            },
+        };
+        let module = Module {
+            tys,
+            functions: vec![func],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![],
+        };
+        let bytes = encode_module(&module);
+        let decoded = decode_module(&bytes).expect("wire decode branch rollback module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solver produces valid certificate for branch rollback");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err(
+                    "checker must reject path-correlated hidden rollback H across CFG merge",
+                );
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+}
