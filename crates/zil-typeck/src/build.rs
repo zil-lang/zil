@@ -1657,7 +1657,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Break
             | ExprKind::Continue
             | ExprKind::Return(_)
-            | ExprKind::Assign { .. } => {
+            | ExprKind::Assign { .. }
+            | ExprKind::Trap => {
                 let ty = self.ty(e.ty, e.span);
                 let t = self.temp(ty);
                 self.into(Place::local(t), e);
@@ -1848,8 +1849,12 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 end,
             } => {
                 let place = self.place(place);
-                let start = start.as_ref().map(|s| self.operand(s));
-                let end = end.as_ref().map(|e| self.operand(e));
+                let start = start
+                    .as_ref()
+                    .map(|s| Operand::Copy(Place::local(self.index_local(s))));
+                let end = end
+                    .as_ref()
+                    .map(|e| Operand::Copy(Place::local(self.index_local(e))));
                 Rvalue::SliceRef {
                     region: Region::Static,
                     mutability: if *mutable {
@@ -1970,7 +1975,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Break
             | ExprKind::Continue
             | ExprKind::Return(_)
-            | ExprKind::Assign { .. } => Rvalue::Use(self.operand(e)),
+            | ExprKind::Assign { .. }
+            | ExprKind::Trap => Rvalue::Use(self.operand(e)),
         }
     }
 
@@ -2261,58 +2267,137 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 let is_temp = !is_place(&inner.kind);
                 let src = self.place(inner);
                 let inner_ty = self.ty(inner.ty, inner.span);
-                let TyKind::ErrorUnion {
+                if let TyKind::ErrorUnion {
                     ok: ok_ty,
                     err: err_ty,
                 } = self.tys().kind(inner_ty).clone()
-                else {
-                    self.failed = true;
-                    return;
-                };
-                let bool_ty = self.mono.module.tys.intern(TyKind::Bool);
-                let tag = self.temp(bool_ty);
-                self.assign(Place::local(tag), Rvalue::ErrorArm(src.clone()), span);
-                let ok_bb = self.new_block(span);
-                let err_bb = self.new_block(span);
-                self.terminate(
-                    Terminator::Switch {
-                        discr: Operand::Copy(Place::local(tag)),
-                        arms: vec![(1, ok_bb)],
-                        otherwise: err_bb,
-                    },
-                    span,
-                );
-                // Error arm: extract error payload, settle temp, wrap into enclosing error union, unwind and return.
-                self.cur = err_bb;
-                let err_place = src.clone().project(Projection::ErrorArm(false));
-                let err_val = self.use_place(err_place, err_ty);
-                if let Some(r) = self.ret {
-                    self.assign(
-                        Place::local(r),
-                        Rvalue::ErrorUnion {
-                            ok: false,
-                            value: err_val,
-                            ty: self.sig.result,
+                {
+                    let bool_ty = self.mono.module.tys.intern(TyKind::Bool);
+                    let tag = self.temp(bool_ty);
+                    self.assign(Place::local(tag), Rvalue::ErrorArm(src.clone()), span);
+                    let ok_bb = self.new_block(span);
+                    let err_bb = self.new_block(span);
+                    self.terminate(
+                        Terminator::Switch {
+                            discr: Operand::Copy(Place::local(tag)),
+                            arms: vec![(1, ok_bb)],
+                            otherwise: err_bb,
                         },
                         span,
                     );
-                }
-                if is_temp && let Some(tl) = src.as_local() {
-                    self.push(InstructionKind::StorageDead(tl), span);
-                }
-                self.unwind_to(0, span);
-                let ret_op = match self.ret {
-                    Some(r) => self.use_place(Place::local(r), self.sig.result),
-                    None => Operand::Const(ConstValue::Unit),
-                };
-                self.terminate(Terminator::Return { value: ret_op }, span);
-                // Success arm: extract ok payload into `dest` and settle the temp immediately.
-                self.cur = ok_bb;
-                let ok_place = src.clone().project(Projection::ErrorArm(true));
-                let ok_val = self.use_place(ok_place, ok_ty);
-                self.assign(dest, Rvalue::Use(ok_val), span);
-                if is_temp && let Some(tl) = src.as_local() {
-                    self.push(InstructionKind::StorageDead(tl), span);
+                    // Error arm: extract error payload, settle temp, wrap into enclosing error union, unwind and return.
+                    self.cur = err_bb;
+                    let err_place = src.clone().project(Projection::ErrorArm(false));
+                    let err_val = self.use_place(err_place, err_ty);
+                    if let Some(r) = self.ret {
+                        self.assign(
+                            Place::local(r),
+                            Rvalue::ErrorUnion {
+                                ok: false,
+                                value: err_val,
+                                ty: self.sig.result,
+                            },
+                            span,
+                        );
+                    }
+                    if is_temp && let Some(tl) = src.as_local() {
+                        self.push(InstructionKind::StorageDead(tl), span);
+                    }
+                    self.unwind_to(0, span);
+                    let ret_op = match self.ret {
+                        Some(r) => self.use_place(Place::local(r), self.sig.result),
+                        None => Operand::Const(ConstValue::Unit),
+                    };
+                    self.terminate(Terminator::Return { value: ret_op }, span);
+                    // Success arm: extract ok payload into `dest` and settle the temp immediately.
+                    self.cur = ok_bb;
+                    let ok_place = src.clone().project(Projection::ErrorArm(true));
+                    let ok_val = self.use_place(ok_place, ok_ty);
+                    self.assign(dest, Rvalue::Use(ok_val), span);
+                    if is_temp && let Some(tl) = src.as_local() {
+                        self.push(InstructionKind::StorageDead(tl), span);
+                    }
+                } else if matches!(self.tys().kind(inner_ty), TyKind::Adt { .. }) {
+                    let t = self.mono.types.subst(inner.ty, &self.subst);
+                    let closed = self.mono.items.normalize_ty(t, self.mono.types);
+                    let closed = self.mono.types.shallow(closed);
+                    let TyData::Adt {
+                        adt: AdtRef(0),
+                        args,
+                        ..
+                    } = self.mono.types.data(closed).clone()
+                    else {
+                        self.failed = true;
+                        return;
+                    };
+                    if args.len() != 1 {
+                        self.failed = true;
+                        return;
+                    }
+                    let ok_ty = self.ty(args[0], inner.span);
+                    let i32_ty = self.mono.module.tys.intern(TyKind::Int(IntTy::I32));
+                    let tag = self.temp(i32_ty);
+                    self.assign(Place::local(tag), Rvalue::Discriminant(src.clone()), span);
+                    let ok_bb = self.new_block(span);
+                    let none_bb = self.new_block(span);
+                    self.terminate(
+                        Terminator::Switch {
+                            discr: Operand::Copy(Place::local(tag)),
+                            arms: vec![(1, ok_bb)],
+                            otherwise: none_bb,
+                        },
+                        span,
+                    );
+                    // None arm: return Option.None of enclosing return type.
+                    self.cur = none_bb;
+                    if let Some(r) = self.ret {
+                        let TyKind::Adt {
+                            adt: ret_adt,
+                            args: ret_args,
+                        } = *self.tys().kind(self.sig.result)
+                        else {
+                            self.failed = true;
+                            return;
+                        };
+                        self.assign(
+                            Place::local(r),
+                            Rvalue::Aggregate {
+                                kind: AggregateKind::Adt {
+                                    adt: ret_adt,
+                                    variant: VariantIdx(0),
+                                    args: ret_args,
+                                },
+                                operands: Vec::new(),
+                            },
+                            span,
+                        );
+                    }
+                    if is_temp && let Some(tl) = src.as_local() {
+                        self.push(InstructionKind::StorageDead(tl), span);
+                    }
+                    self.unwind_to(0, span);
+                    let ret_op = match self.ret {
+                        Some(r) => self.use_place(Place::local(r), self.sig.result),
+                        None => Operand::Const(ConstValue::Unit),
+                    };
+                    self.terminate(Terminator::Return { value: ret_op }, span);
+                    // Some arm: extract payload field 0 into `dest` and settle temp.
+                    self.cur = ok_bb;
+                    let mut ok_place = src.clone();
+                    match self.field_ref(&src, AdtRef(0), 1, 0, &args, span) {
+                        Some(f) => ok_place.projections.push(Projection::Field(f)),
+                        None => {
+                            self.failed = true;
+                            return;
+                        }
+                    }
+                    let ok_val = self.use_place(ok_place, ok_ty);
+                    self.assign(dest, Rvalue::Use(ok_val), span);
+                    if is_temp && let Some(tl) = src.as_local() {
+                        self.push(InstructionKind::StorageDead(tl), span);
+                    }
+                } else {
+                    self.failed = true;
                 }
             }
             ExprKind::CtEval(inner) => {
@@ -2344,8 +2429,19 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 }
                 self.exit_frame(span);
             }
-            ExprKind::Match { .. }
-            | ExprKind::Loop(_)
+            ExprKind::Match { scrutinee, arms } => {
+                let unit = self.tys().lookup(&TyKind::Unit);
+                if Some(self.ty(e.ty, span)) == unit {
+                    self.lower_match(scrutinee, arms, None, span);
+                    self.assign(dest, Rvalue::Use(Operand::Const(ConstValue::Unit)), span);
+                } else {
+                    self.lower_match(scrutinee, arms, Some(dest), span);
+                }
+            }
+            ExprKind::Trap => {
+                self.terminate(Terminator::Trap(zil_ir::body::TrapKind::Explicit), span);
+            }
+            ExprKind::Loop(_)
             | ExprKind::While { .. }
             | ExprKind::Break
             | ExprKind::Continue
@@ -2779,6 +2875,9 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 self.goto(head, span);
                 self.cur = exit;
             }
+            ExprKind::Trap => {
+                self.terminate(Terminator::Trap(zil_ir::body::TrapKind::Explicit), span);
+            }
             ExprKind::Break | ExprKind::Continue => {
                 let Some(l) = self.loops.last() else {
                     self.failed = true;
@@ -2965,7 +3064,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             })
             .collect();
         let mut arm_bindings: Vec<Vec<Local>> = vec![Vec::new(); arms.len()];
-        self.decide(rows, &arm_blocks, &mut arm_bindings, span);
+        self.decide(rows, arms, &arm_blocks, &mut arm_bindings, span);
         self.frames.pop();
         for (i, arm) in arms.iter().enumerate() {
             self.cur = arm_blocks[i];
@@ -3066,6 +3165,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     fn decide<'t>(
         &mut self,
         mut rows: Vec<Row<'t>>,
+        match_arms: &[Arm],
         arm_blocks: &[BlockId],
         arm_bindings: &mut [Vec<Local>],
         span: Span,
@@ -3085,9 +3185,11 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             return;
         };
         let Some((test_place, test_pat)) = first.cols.first().cloned() else {
-            // Leaf: bind and enter the arm.
+            // Leaf: bind and enter the arm (or evaluate guard and fall through on false).
+            let mut bound_locals = Vec::new();
             for (local, place, ref_mut) in first.bindings {
                 self.push(InstructionKind::StorageLive(local), span);
+                bound_locals.push(local);
                 if !arm_bindings[first.arm].contains(&local) {
                     arm_bindings[first.arm].push(local);
                 }
@@ -3104,7 +3206,31 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 };
                 self.assign(Place::local(local), rv, span);
             }
-            self.goto(arm_blocks[first.arm], span);
+            if let Some(guard) = &match_arms[first.arm].guard {
+                let cond = self.operand(guard);
+                let else_bb = self.new_block(guard.span);
+                self.terminate(
+                    Terminator::Switch {
+                        discr: cond,
+                        arms: vec![(1, arm_blocks[first.arm])],
+                        otherwise: else_bb,
+                    },
+                    guard.span,
+                );
+                self.cur = else_bb;
+                for local in bound_locals.into_iter().rev() {
+                    self.push(InstructionKind::StorageDead(local), guard.span);
+                }
+                self.decide(
+                    rows[1..].to_vec(),
+                    match_arms,
+                    arm_blocks,
+                    arm_bindings,
+                    span,
+                );
+            } else {
+                self.goto(arm_blocks[first.arm], span);
+            }
             return;
         };
         match &test_pat.kind {
@@ -3169,7 +3295,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 );
                 for (bb, sub_rows) in specialized {
                     self.cur = bb;
-                    self.decide(sub_rows, arm_blocks, arm_bindings, span);
+                    self.decide(sub_rows, match_arms, arm_blocks, arm_bindings, span);
                 }
             }
             PatKind::Lit(_) => {
@@ -3240,7 +3366,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 );
                 for (bb, sub_rows) in pending {
                     self.cur = bb;
-                    self.decide(sub_rows, arm_blocks, arm_bindings, span);
+                    self.decide(sub_rows, match_arms, arm_blocks, arm_bindings, span);
                 }
             }
             PatKind::ErrorArm { .. } => {
@@ -3287,7 +3413,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 );
                 for (bb, sub_rows) in specialized {
                     self.cur = bb;
-                    self.decide(sub_rows, arm_blocks, arm_bindings, span);
+                    self.decide(sub_rows, match_arms, arm_blocks, arm_bindings, span);
                 }
             }
             PatKind::UnionArm { .. } => {
@@ -3358,7 +3484,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 );
                 for (bb, sub_rows) in specialized {
                     self.cur = bb;
-                    self.decide(sub_rows, arm_blocks, arm_bindings, span);
+                    self.decide(sub_rows, match_arms, arm_blocks, arm_bindings, span);
                 }
             }
             PatKind::Wild

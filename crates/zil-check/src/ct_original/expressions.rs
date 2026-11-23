@@ -125,7 +125,7 @@ impl Checker<'_, '_, '_> {
                 value
             }
             s::ExprKind::Binary { op, left, right } => {
-                if *op == s::BinaryOp::Range {
+                if matches!(op, s::BinaryOp::Range | s::BinaryOp::RangeInclusive) {
                     return Err(bad(
                         span,
                         "CT range is valid only as an original for iterable",

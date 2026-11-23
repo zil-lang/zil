@@ -678,6 +678,7 @@ fn binary(kind: TokenKind) -> Option<(u8, Option<BinaryOp>)> {
         Symbol::Gt => (4, Some(BinaryOp::Greater)),
         Symbol::GtEq => (4, Some(BinaryOp::GreaterEqual)),
         Symbol::DotDot => (5, Some(BinaryOp::Range)),
+        Symbol::DotDotEq => (5, Some(BinaryOp::RangeInclusive)),
         Symbol::Bar => (6, Some(BinaryOp::BitOr)),
         Symbol::Caret => (7, Some(BinaryOp::BitXor)),
         Symbol::Amp => (8, Some(BinaryOp::BitAnd)),

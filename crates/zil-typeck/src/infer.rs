@@ -263,8 +263,27 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         if mutable && is_place(&base.kind) {
             self.check_mutable_place(&base, "borrowed exclusively");
         }
-        let start = start.map(|e| Box::new(self.infer(e)));
-        let end = end.map(|e| Box::new(self.infer(e)));
+        let usize_ty = self.types.int(IntTy::Usize);
+        let start = start.map(|e| {
+            let idx = self.infer(e);
+            let it = self.types.shallow(idx.ty);
+            if let TyData::Var(_) = self.types.data(it) {
+                let _ = self.types.unify(idx.ty, usize_ty);
+            } else if !matches!(self.types.data(it), TyData::Int(_) | TyData::Error) {
+                self.error(diag::OPERATOR_TYPE, e.span, "slice bounds must be integers");
+            }
+            Box::new(idx)
+        });
+        let end = end.map(|e| {
+            let idx = self.infer(e);
+            let it = self.types.shallow(idx.ty);
+            if let TyData::Var(_) = self.types.data(it) {
+                let _ = self.types.unify(idx.ty, usize_ty);
+            } else if !matches!(self.types.data(it), TyData::Int(_) | TyData::Error) {
+                self.error(diag::OPERATOR_TYPE, e.span, "slice bounds must be integers");
+            }
+            Box::new(idx)
+        });
         let bt = self.types.shallow(base.ty);
         let elem =
             if let TyData::Array { element, .. } | TyData::Slice(element) = *self.types.data(bt) {
@@ -719,6 +738,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 ty: next_ty,
                                 span: pattern.span,
                             },
+                            guard: None,
                             body: body_expr,
                             span: body.span,
                         },
@@ -733,6 +753,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 ty: next_ty,
                                 span: iterable.span,
                             },
+                            guard: None,
                             body: Expr {
                                 kind: ExprKind::Break,
                                 ty: never,
@@ -1524,11 +1545,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 arms: vec![
                                     Arm {
                                         pattern: pat,
+                                        guard: None,
                                         body,
                                         span,
                                     },
                                     Arm {
                                         pattern: wild,
+                                        guard: None,
                                         body: brk,
                                         span,
                                     },
@@ -1558,6 +1581,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 for arm in arms {
                     self.scopes.push(Vec::new());
                     let pattern = self.pattern(&arm.pattern, scrutinee.ty, false);
+                    let guard = arm.guard.as_ref().map(|g| {
+                        let bool_ty = self.types.bool();
+                        let ge = self.infer_expected(g, bool_ty);
+                        let ge = self.coerce_value(ge, bool_ty, g.span);
+                        Box::new(ge)
+                    });
                     let body = match &arm.body {
                         ast::ArrowBody::Block(b) => self.block(b),
                         ast::ArrowBody::Expression(x) => self.infer(x),
@@ -1566,6 +1595,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     all_never &= self.types.is_never(body.ty);
                     out.push(Arm {
                         pattern,
+                        guard,
                         body,
                         span: arm.span,
                     });
@@ -1670,11 +1700,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 body,
             } => {
                 if let ast::ExprKind::Binary {
-                    op: ast::BinaryOp::Range,
+                    op: op @ (ast::BinaryOp::Range | ast::BinaryOp::RangeInclusive),
                     left,
                     right,
                 } = &iterable.kind
                 {
+                    let inclusive = *op == ast::BinaryOp::RangeInclusive;
                     let start_expr = self.infer(left);
                     let end_expr = self.infer(right);
                     let iter_ty = start_expr.ty;
@@ -1683,6 +1714,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     self.scopes.push(Vec::new());
                     let cur_local = self.declare("__for_cur", iter_ty, true, left.span);
                     let end_local = self.declare("__for_end", iter_ty, false, right.span);
+                    let bool_ty = self.types.bool();
+                    let done_local = if inclusive {
+                        Some(self.declare("__for_done", bool_ty, true, iterable.span))
+                    } else {
+                        None
+                    };
 
                     let cur_place = Expr {
                         kind: ExprKind::Local(cur_local),
@@ -1694,14 +1731,22 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         ty: iter_ty,
                         span: right.span,
                     };
-                    let cond = Expr {
-                        kind: ExprKind::Binary {
-                            op: BinOp::Ge,
-                            lhs: Box::new(cur_place.clone()),
-                            rhs: Box::new(end_place),
-                        },
-                        ty: self.types.bool(),
-                        span: iterable.span,
+                    let cond = if let Some(dl) = done_local {
+                        Expr {
+                            kind: ExprKind::Local(dl),
+                            ty: bool_ty,
+                            span: iterable.span,
+                        }
+                    } else {
+                        Expr {
+                            kind: ExprKind::Binary {
+                                op: BinOp::Ge,
+                                lhs: Box::new(cur_place.clone()),
+                                rhs: Box::new(end_place.clone()),
+                            },
+                            ty: bool_ty,
+                            span: iterable.span,
+                        }
                     };
                     let break_stmt = Stmt::Expr(Expr {
                         kind: ExprKind::If {
@@ -1729,9 +1774,9 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     };
                     let one_ty = self.types.fresh(VarKind::Int);
                     let _ = self.types.unify(one_ty, iter_ty);
-                    let inc_stmt = Stmt::Expr(Expr {
+                    let inc_only = Expr {
                         kind: ExprKind::Assign {
-                            place: Box::new(cur_place),
+                            place: Box::new(cur_place.clone()),
                             op: Some(BinOp::Add),
                             value: Box::new(Expr {
                                 kind: ExprKind::Lit(Lit::Int(1)),
@@ -1741,7 +1786,52 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         },
                         ty: unit,
                         span: iterable.span,
-                    });
+                    };
+                    let inc_stmt = if let Some(dl) = done_local {
+                        Stmt::Expr(Expr {
+                            kind: ExprKind::If {
+                                cond: Box::new(Expr {
+                                    kind: ExprKind::Binary {
+                                        op: BinOp::Eq,
+                                        lhs: Box::new(cur_place.clone()),
+                                        rhs: Box::new(end_place.clone()),
+                                    },
+                                    ty: bool_ty,
+                                    span: iterable.span,
+                                }),
+                                then: Box::new(Expr {
+                                    kind: ExprKind::Block(vec![Stmt::Expr(Expr {
+                                        kind: ExprKind::Assign {
+                                            place: Box::new(Expr {
+                                                kind: ExprKind::Local(dl),
+                                                ty: bool_ty,
+                                                span: iterable.span,
+                                            }),
+                                            op: None,
+                                            value: Box::new(Expr {
+                                                kind: ExprKind::Lit(Lit::Bool(true)),
+                                                ty: bool_ty,
+                                                span: iterable.span,
+                                            }),
+                                        },
+                                        ty: unit,
+                                        span: iterable.span,
+                                    })]),
+                                    ty: unit,
+                                    span: iterable.span,
+                                }),
+                                otherwise: Some(Box::new(Expr {
+                                    kind: ExprKind::Block(vec![Stmt::Expr(inc_only)]),
+                                    ty: unit,
+                                    span: iterable.span,
+                                })),
+                            },
+                            ty: unit,
+                            span: iterable.span,
+                        })
+                    } else {
+                        Stmt::Expr(inc_only)
+                    };
 
                     self.loop_depth += 1;
                     let body_expr = self.block(body);
@@ -1764,26 +1854,45 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     };
                     self.scopes.pop();
 
+                    let mut outer_stmts = vec![
+                        Stmt::Let {
+                            pattern: Pat {
+                                kind: PatKind::Binding(cur_local),
+                                ty: iter_ty,
+                                span: left.span,
+                            },
+                            init: start_expr,
+                        },
+                        Stmt::Let {
+                            pattern: Pat {
+                                kind: PatKind::Binding(end_local),
+                                ty: iter_ty,
+                                span: right.span,
+                            },
+                            init: end_expr,
+                        },
+                    ];
+                    if let Some(dl) = done_local {
+                        outer_stmts.push(Stmt::Let {
+                            pattern: Pat {
+                                kind: PatKind::Binding(dl),
+                                ty: bool_ty,
+                                span: iterable.span,
+                            },
+                            init: Expr {
+                                kind: ExprKind::Binary {
+                                    op: BinOp::Gt,
+                                    lhs: Box::new(cur_place),
+                                    rhs: Box::new(end_place),
+                                },
+                                ty: bool_ty,
+                                span: iterable.span,
+                            },
+                        });
+                    }
+                    outer_stmts.push(Stmt::Expr(loop_expr));
                     let outer_block = Expr {
-                        kind: ExprKind::Block(vec![
-                            Stmt::Let {
-                                pattern: Pat {
-                                    kind: PatKind::Binding(cur_local),
-                                    ty: iter_ty,
-                                    span: left.span,
-                                },
-                                init: start_expr,
-                            },
-                            Stmt::Let {
-                                pattern: Pat {
-                                    kind: PatKind::Binding(end_local),
-                                    ty: iter_ty,
-                                    span: right.span,
-                                },
-                                init: end_expr,
-                            },
-                            Stmt::Expr(loop_expr),
-                        ]),
+                        kind: ExprKind::Block(outer_stmts),
                         ty: unit,
                         span,
                     };
@@ -1876,11 +1985,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         arms: vec![
                             Arm {
                                 pattern: pat,
+                                guard: None,
                                 body: then,
                                 span,
                             },
                             Arm {
                                 pattern: wild,
+                                guard: None,
                                 body: else_expr,
                                 span,
                             },
@@ -1989,6 +2100,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 | ExprKind::While { .. }
                 | ExprKind::Break
                 | ExprKind::Continue
+                | ExprKind::Trap
                 | ExprKind::Return(_)
                 | ExprKind::Assign { .. } => {
                     self.error(
@@ -2139,7 +2251,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     }
                 }
             }
-            ast::PatternKind::RecordConstructor { path, fields } => {
+            ast::PatternKind::RecordConstructor { path, fields, rest } => {
                 let Some((adt, variant)) = self.resolve_variant_path(path, span) else {
                     return self.wild(expected, span);
                 };
@@ -2190,24 +2302,26 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     match s {
                         Some(p) => out.push(p),
                         None => {
-                            if is_cross_mod && !decl_fields[i].1 {
-                                self.error(
-                                    "E-VISIBILITY",
-                                    span,
-                                    format!(
-                                        "field `{}` on `{adt_name}` is private",
-                                        decl_fields[i].0
-                                    ),
-                                );
-                            } else {
-                                self.error(
-                                    diag::RECORD_MISSING_FIELD,
-                                    span,
-                                    format!(
-                                        "field `{}` is missing from the pattern",
-                                        decl_fields[i].0
-                                    ),
-                                );
+                            if !*rest {
+                                if is_cross_mod && !decl_fields[i].1 {
+                                    self.error(
+                                        "E-VISIBILITY",
+                                        span,
+                                        format!(
+                                            "field `{}` on `{adt_name}` is private",
+                                            decl_fields[i].0
+                                        ),
+                                    );
+                                } else {
+                                    self.error(
+                                        diag::RECORD_MISSING_FIELD,
+                                        span,
+                                        format!(
+                                            "field `{}` is missing from the pattern",
+                                            decl_fields[i].0
+                                        ),
+                                    );
+                                }
                             }
                             let ft = self.field_ty(adt, variant, i as u32, &args);
                             out.push(self.wild(ft, span));
@@ -2791,36 +2905,60 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
                 let x = self.infer(inner);
                 let xt = self.types.shallow(x.ty);
-                let (ok_ty, err_ty) =
-                    if let TyData::ErrorUnion { ok, err } = self.types.data(xt).clone() {
-                        (ok, err)
-                    } else if matches!(self.types.data(xt), TyData::Error) {
-                        return self.err_expr(span);
-                    } else {
+                let xt_data = self.types.data(xt).clone();
+                if let TyData::ErrorUnion {
+                    ok: ok_ty,
+                    err: err_ty,
+                } = xt_data
+                {
+                    let ret_t = self.types.shallow(self.ret_ty);
+                    if let TyData::ErrorUnion { err: ret_err, .. } = self.types.data(ret_t).clone()
+                    {
+                        if self.types.unify(err_ty, ret_err).is_err() {
+                            self.error(
+                                diag::TRY_ERROR_TYPE,
+                                span,
+                                "`?` error type does not match the enclosing function's error type",
+                            );
+                        }
+                    } else if !matches!(self.types.data(ret_t), TyData::Error) {
                         self.error(
-                            diag::TRY_NOT_ERROR,
+                            diag::TRY_RETURN_TYPE,
                             span,
-                            "`?` requires an error union operand",
-                        );
-                        return self.err_expr(span);
-                    };
-                let ret_t = self.types.shallow(self.ret_ty);
-                if let TyData::ErrorUnion { err: ret_err, .. } = self.types.data(ret_t).clone() {
-                    if self.types.unify(err_ty, ret_err).is_err() {
-                        self.error(
-                            diag::TRY_ERROR_TYPE,
-                            span,
-                            "`?` error type does not match the enclosing function's error type",
+                            "`?` requires the enclosing function to return an error union",
                         );
                     }
-                } else if !matches!(self.types.data(ret_t), TyData::Error) {
+                    mk(ExprKind::Try(Box::new(x)), ok_ty)
+                } else if let TyData::Adt {
+                    adt: AdtRef(0),
+                    ref args,
+                    ..
+                } = xt_data
+                    && args.len() == 1
+                {
+                    let ok_ty = args[0];
+                    let ret_t = self.types.shallow(self.ret_ty);
+                    if !matches!(
+                        self.types.data(ret_t),
+                        TyData::Adt { adt: AdtRef(0), .. } | TyData::Error
+                    ) {
+                        self.error(
+                            diag::TRY_RETURN_TYPE,
+                            span,
+                            "`?` on `Option` requires the enclosing function to return `Option`",
+                        );
+                    }
+                    mk(ExprKind::Try(Box::new(x)), ok_ty)
+                } else if matches!(xt_data, TyData::Error) {
+                    self.err_expr(span)
+                } else {
                     self.error(
-                        diag::TRY_RETURN_TYPE,
+                        diag::TRY_NOT_ERROR,
                         span,
-                        "`?` requires the enclosing function to return an error union",
+                        "`?` requires an error union or `Option` operand",
                     );
+                    self.err_expr(span)
                 }
-                mk(ExprKind::Try(Box::new(x)), ok_ty)
             }
             ast::ExprKind::Closure {
                 move_capture,
@@ -3704,7 +3842,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     span,
                 };
             }
-            ast::BinaryOp::Range => {
+            ast::BinaryOp::Range | ast::BinaryOp::RangeInclusive => {
                 self.unsupported("ranges", span);
                 return self.err_expr(span);
             }
@@ -4800,6 +4938,404 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         ty: i64_ty,
                         span,
                     };
+                }
+            }
+            if explicit.is_none()
+                && matches!(
+                    mname.as_str(),
+                    "is_some" | "is_none" | "is_ok" | "is_err" | "unwrap" | "unwrap_or"
+                )
+            {
+                let derefed = self.auto_deref(receiver.clone());
+                let bt = self.types.shallow(derefed.ty);
+                let bt_data = self.types.data(bt).clone();
+                if let TyData::Adt {
+                    adt: AdtRef(0),
+                    ref args,
+                    ..
+                } = bt_data
+                    && args.len() == 1
+                    && matches!(
+                        mname.as_str(),
+                        "is_some" | "is_none" | "unwrap" | "unwrap_or"
+                    )
+                {
+                    let args = args.clone();
+                    let ok_ty = args[0];
+                    let bool_ty = self.types.bool();
+                    let never_ty = self.types.never();
+                    match mname.as_str() {
+                        "is_some" | "is_none" => {
+                            if !arguments.is_empty() {
+                                self.error(
+                                    diag::CALL_ARITY,
+                                    span,
+                                    format!("`Option.{mname}` takes 0 arguments"),
+                                );
+                                return self.err_expr(span);
+                            }
+                            let is_some = mname == "is_some";
+                            return Expr {
+                                kind: ExprKind::Match {
+                                    scrutinee: Box::new(derefed),
+                                    arms: vec![
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::Adt {
+                                                    adt: AdtRef(0),
+                                                    variant: 1,
+                                                    args: args.clone(),
+                                                    fields: vec![self.wild(ok_ty, span)],
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Lit(Lit::Bool(is_some)),
+                                                ty: bool_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::Adt {
+                                                    adt: AdtRef(0),
+                                                    variant: 0,
+                                                    args,
+                                                    fields: Vec::new(),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Lit(Lit::Bool(!is_some)),
+                                                ty: bool_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                    ],
+                                },
+                                ty: bool_ty,
+                                span,
+                            };
+                        }
+                        "unwrap" => {
+                            if !arguments.is_empty() {
+                                self.error(
+                                    diag::CALL_ARITY,
+                                    span,
+                                    "`Option.unwrap` takes 0 arguments",
+                                );
+                                return self.err_expr(span);
+                            }
+                            self.scopes.push(Vec::new());
+                            let val_local = self.declare("__opt_val", ok_ty, false, span);
+                            self.scopes.pop();
+                            return Expr {
+                                kind: ExprKind::Match {
+                                    scrutinee: Box::new(derefed),
+                                    arms: vec![
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::Adt {
+                                                    adt: AdtRef(0),
+                                                    variant: 1,
+                                                    args: args.clone(),
+                                                    fields: vec![Pat {
+                                                        kind: PatKind::Binding(val_local),
+                                                        ty: ok_ty,
+                                                        span,
+                                                    }],
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Local(val_local),
+                                                ty: ok_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::Adt {
+                                                    adt: AdtRef(0),
+                                                    variant: 0,
+                                                    args,
+                                                    fields: Vec::new(),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Trap,
+                                                ty: never_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                    ],
+                                },
+                                ty: ok_ty,
+                                span,
+                            };
+                        }
+                        "unwrap_or" => {
+                            if arguments.len() != 1 {
+                                self.error(
+                                    diag::CALL_ARITY,
+                                    span,
+                                    "`Option.unwrap_or` takes 1 argument",
+                                );
+                                return self.err_expr(span);
+                            }
+                            let def_arg = &arguments[0].value;
+                            let def_expr = self.infer_expected(def_arg, ok_ty);
+                            let def_expr = self.coerce_value(def_expr, ok_ty, def_arg.span);
+                            self.scopes.push(Vec::new());
+                            let val_local = self.declare("__opt_val", ok_ty, false, span);
+                            self.scopes.pop();
+                            return Expr {
+                                kind: ExprKind::Match {
+                                    scrutinee: Box::new(derefed),
+                                    arms: vec![
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::Adt {
+                                                    adt: AdtRef(0),
+                                                    variant: 1,
+                                                    args: args.clone(),
+                                                    fields: vec![Pat {
+                                                        kind: PatKind::Binding(val_local),
+                                                        ty: ok_ty,
+                                                        span,
+                                                    }],
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Local(val_local),
+                                                ty: ok_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::Adt {
+                                                    adt: AdtRef(0),
+                                                    variant: 0,
+                                                    args,
+                                                    fields: Vec::new(),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: def_expr,
+                                            span,
+                                        },
+                                    ],
+                                },
+                                ty: ok_ty,
+                                span,
+                            };
+                        }
+                        _ => {}
+                    }
+                } else if let TyData::ErrorUnion {
+                    ok: ok_ty,
+                    err: err_ty,
+                } = bt_data
+                    && matches!(mname.as_str(), "is_ok" | "is_err" | "unwrap" | "unwrap_or")
+                {
+                    let bool_ty = self.types.bool();
+                    let never_ty = self.types.never();
+                    match mname.as_str() {
+                        "is_ok" | "is_err" => {
+                            if !arguments.is_empty() {
+                                self.error(
+                                    diag::CALL_ARITY,
+                                    span,
+                                    format!("error union `.{mname}` takes 0 arguments"),
+                                );
+                                return self.err_expr(span);
+                            }
+                            let is_ok = mname == "is_ok";
+                            return Expr {
+                                kind: ExprKind::Match {
+                                    scrutinee: Box::new(derefed),
+                                    arms: vec![
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::ErrorArm {
+                                                    ok: true,
+                                                    inner: Box::new(self.wild(ok_ty, span)),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Lit(Lit::Bool(is_ok)),
+                                                ty: bool_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::ErrorArm {
+                                                    ok: false,
+                                                    inner: Box::new(self.wild(err_ty, span)),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Lit(Lit::Bool(!is_ok)),
+                                                ty: bool_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                    ],
+                                },
+                                ty: bool_ty,
+                                span,
+                            };
+                        }
+                        "unwrap" => {
+                            if !arguments.is_empty() {
+                                self.error(
+                                    diag::CALL_ARITY,
+                                    span,
+                                    "error union `.unwrap` takes 0 arguments",
+                                );
+                                return self.err_expr(span);
+                            }
+                            self.scopes.push(Vec::new());
+                            let val_local = self.declare("__ok_val", ok_ty, false, span);
+                            self.scopes.pop();
+                            return Expr {
+                                kind: ExprKind::Match {
+                                    scrutinee: Box::new(derefed),
+                                    arms: vec![
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::ErrorArm {
+                                                    ok: true,
+                                                    inner: Box::new(Pat {
+                                                        kind: PatKind::Binding(val_local),
+                                                        ty: ok_ty,
+                                                        span,
+                                                    }),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Local(val_local),
+                                                ty: ok_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::ErrorArm {
+                                                    ok: false,
+                                                    inner: Box::new(self.wild(err_ty, span)),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Trap,
+                                                ty: never_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                    ],
+                                },
+                                ty: ok_ty,
+                                span,
+                            };
+                        }
+                        "unwrap_or" => {
+                            if arguments.len() != 1 {
+                                self.error(
+                                    diag::CALL_ARITY,
+                                    span,
+                                    "error union `.unwrap_or` takes 1 argument",
+                                );
+                                return self.err_expr(span);
+                            }
+                            let def_arg = &arguments[0].value;
+                            let def_expr = self.infer_expected(def_arg, ok_ty);
+                            let def_expr = self.coerce_value(def_expr, ok_ty, def_arg.span);
+                            self.scopes.push(Vec::new());
+                            let val_local = self.declare("__ok_val", ok_ty, false, span);
+                            self.scopes.pop();
+                            return Expr {
+                                kind: ExprKind::Match {
+                                    scrutinee: Box::new(derefed),
+                                    arms: vec![
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::ErrorArm {
+                                                    ok: true,
+                                                    inner: Box::new(Pat {
+                                                        kind: PatKind::Binding(val_local),
+                                                        ty: ok_ty,
+                                                        span,
+                                                    }),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: Expr {
+                                                kind: ExprKind::Local(val_local),
+                                                ty: ok_ty,
+                                                span,
+                                            },
+                                            span,
+                                        },
+                                        Arm {
+                                            pattern: Pat {
+                                                kind: PatKind::ErrorArm {
+                                                    ok: false,
+                                                    inner: Box::new(self.wild(err_ty, span)),
+                                                },
+                                                ty: bt,
+                                                span,
+                                            },
+                                            guard: None,
+                                            body: def_expr,
+                                            span,
+                                        },
+                                    ],
+                                },
+                                ty: ok_ty,
+                                span,
+                            };
+                        }
+                        _ => {}
+                    }
                 }
             }
             let self_ty = if let TyData::Ref { pointee, .. } = *self.types.data(rec_ty) {
@@ -7259,7 +7795,10 @@ fn contains_break(e: &Expr) -> bool {
                 otherwise,
             } => walk(cond) || walk(then) || otherwise.as_deref().is_some_and(walk),
             ExprKind::Match { scrutinee, arms } => {
-                walk(scrutinee) || arms.iter().any(|a| walk(&a.body))
+                walk(scrutinee)
+                    || arms
+                        .iter()
+                        .any(|a| a.guard.as_deref().is_some_and(walk) || walk(&a.body))
             }
             ExprKind::SliceBorrow {
                 place, start, end, ..
@@ -7283,6 +7822,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Local(_)
             | ExprKind::Capture(_)
             | ExprKind::Continue
+            | ExprKind::Trap
             | ExprKind::Field { .. }
             | ExprKind::TupleField { .. }
             | ExprKind::Index { .. }
@@ -7761,7 +8301,8 @@ impl Finalizer<'_, '_> {
             | ExprKind::ForeignRef(_)
             | ExprKind::ClosureFnRef(_)
             | ExprKind::Break
-            | ExprKind::Continue => {}
+            | ExprKind::Continue
+            | ExprKind::Trap => {}
             ExprKind::FnRef { func, type_args } => {
                 for a in type_args.iter_mut() {
                     *a = self.zonk(*a, span);
@@ -7942,6 +8483,9 @@ impl Finalizer<'_, '_> {
                 self.expr(scrutinee);
                 for a in arms {
                     self.pat(&mut a.pattern);
+                    if let Some(g) = &mut a.guard {
+                        self.expr(g);
+                    }
                     self.expr(&mut a.body);
                 }
             }
@@ -8007,7 +8551,8 @@ fn expr_contains_suspend(e: &Expr) -> bool {
         | ExprKind::ForeignRef(_)
         | ExprKind::ClosureFnRef(_)
         | ExprKind::Break
-        | ExprKind::Continue => false,
+        | ExprKind::Continue
+        | ExprKind::Trap => false,
         ExprKind::Field { base, .. }
         | ExprKind::TupleField { base, .. }
         | ExprKind::Deref(base)
@@ -8079,7 +8624,11 @@ fn expr_contains_suspend(e: &Expr) -> bool {
             expr_contains_suspend(cond) || expr_contains_suspend(body)
         }
         ExprKind::Match { scrutinee, arms } => {
-            expr_contains_suspend(scrutinee) || arms.iter().any(|a| expr_contains_suspend(&a.body))
+            expr_contains_suspend(scrutinee)
+                || arms.iter().any(|a| {
+                    a.guard.as_deref().is_some_and(expr_contains_suspend)
+                        || expr_contains_suspend(&a.body)
+                })
         }
         ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
             Stmt::Let { init, .. } => expr_contains_suspend(init),
@@ -8134,6 +8683,7 @@ fn unwrap_local_ref(e: &Expr) -> Option<LocalId> {
         | ExprKind::While { .. }
         | ExprKind::Break
         | ExprKind::Continue
+        | ExprKind::Trap
         | ExprKind::Return(_)
         | ExprKind::Assign { .. } => None,
     }
@@ -8194,6 +8744,7 @@ fn unwrap_local_or_borrow_ref(e: &Expr) -> Option<LocalId> {
         | ExprKind::While { .. }
         | ExprKind::Break
         | ExprKind::Continue
+        | ExprKind::Trap
         | ExprKind::Return(_)
         | ExprKind::Assign { .. } => None,
     }
@@ -8233,7 +8784,8 @@ fn expr_any(e: &Expr, pred: &mut impl FnMut(&Expr) -> bool) -> bool {
         | ExprKind::ForeignRef(_)
         | ExprKind::ClosureFnRef(_)
         | ExprKind::Break
-        | ExprKind::Continue => false,
+        | ExprKind::Continue
+        | ExprKind::Trap => false,
         ExprKind::Field { base, .. }
         | ExprKind::TupleField { base, .. }
         | ExprKind::Deref(base)
@@ -8308,7 +8860,10 @@ fn expr_any(e: &Expr, pred: &mut impl FnMut(&Expr) -> bool) -> bool {
                 || otherwise.as_deref().is_some_and(|x| expr_any(x, pred))
         }
         ExprKind::Match { scrutinee, arms } => {
-            expr_any(scrutinee, pred) || arms.iter().any(|a| expr_any(&a.body, pred))
+            expr_any(scrutinee, pred)
+                || arms.iter().any(|a| {
+                    a.guard.as_deref().is_some_and(|g| expr_any(g, pred)) || expr_any(&a.body, pred)
+                })
         }
         ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
             Stmt::Let { init, .. } => expr_any(init, pred),
@@ -8434,6 +8989,7 @@ fn propagate_tainted_locals(
             | ExprKind::Array(_)
             | ExprKind::Break
             | ExprKind::Continue
+            | ExprKind::Trap
             | ExprKind::Return(_) => {}
         }
     }
@@ -8507,6 +9063,7 @@ fn local_is_called(e: &Expr, target: LocalId) -> bool {
         | ExprKind::While { .. }
         | ExprKind::Break
         | ExprKind::Continue
+        | ExprKind::Trap
         | ExprKind::Return(_)
         | ExprKind::Assign { .. } => false,
     })
@@ -8558,6 +9115,7 @@ fn unwrap_capture_ref(e: &Expr) -> Option<u32> {
         | ExprKind::While { .. }
         | ExprKind::Break
         | ExprKind::Continue
+        | ExprKind::Trap
         | ExprKind::Return(_)
         | ExprKind::Assign { .. } => None,
     }
@@ -8689,7 +9247,8 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
             | ExprKind::ForeignRef(_)
             | ExprKind::ClosureFnRef(_)
             | ExprKind::Break
-            | ExprKind::Continue => false,
+            | ExprKind::Continue
+            | ExprKind::Trap => false,
         }
     }
     let mut aliases: Vec<LocalId> = root_local.into_iter().collect();
@@ -8866,9 +9425,12 @@ pub fn check_defer_suspend_effects(
             }
             ExprKind::Match { scrutinee, arms } => {
                 expr_suspends(scrutinee, items, types, fn_susp, cl_susp)
-                    || arms
-                        .iter()
-                        .any(|arm| expr_suspends(&arm.body, items, types, fn_susp, cl_susp))
+                    || arms.iter().any(|arm| {
+                        arm.guard
+                            .as_deref()
+                            .is_some_and(|g| expr_suspends(g, items, types, fn_susp, cl_susp))
+                            || expr_suspends(&arm.body, items, types, fn_susp, cl_susp)
+                    })
             }
             ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
                 Stmt::Let { init, .. } => expr_suspends(init, items, types, fn_susp, cl_susp),
@@ -8886,7 +9448,8 @@ pub fn check_defer_suspend_effects(
             | ExprKind::ForeignRef(_)
             | ExprKind::ClosureFnRef(_)
             | ExprKind::Break
-            | ExprKind::Continue => false,
+            | ExprKind::Continue
+            | ExprKind::Trap => false,
         }
     }
 
@@ -9053,6 +9616,9 @@ pub fn check_defer_suspend_effects(
             ExprKind::Match { scrutinee, arms } => {
                 check_defer_expr(scrutinee, items, types, fn_susp, cl_susp, diags);
                 for arm in arms {
+                    if let Some(g) = &arm.guard {
+                        check_defer_expr(g, items, types, fn_susp, cl_susp, diags);
+                    }
                     check_defer_expr(&arm.body, items, types, fn_susp, cl_susp, diags);
                 }
             }
@@ -9082,7 +9648,8 @@ pub fn check_defer_suspend_effects(
             | ExprKind::ForeignRef(_)
             | ExprKind::ClosureFnRef(_)
             | ExprKind::Break
-            | ExprKind::Continue => {}
+            | ExprKind::Continue
+            | ExprKind::Trap => {}
         }
     }
 
@@ -9124,6 +9691,9 @@ pub fn check_defer_suspend_effects(
             ExprKind::Match { scrutinee, arms } => {
                 walk_for_defers(scrutinee, items, types, fn_susp, cl_susp, diags);
                 for arm in arms {
+                    if let Some(g) = &arm.guard {
+                        walk_for_defers(g, items, types, fn_susp, cl_susp, diags);
+                    }
                     walk_for_defers(&arm.body, items, types, fn_susp, cl_susp, diags);
                 }
             }
@@ -9171,6 +9741,7 @@ pub fn check_defer_suspend_effects(
             | ExprKind::Array(_)
             | ExprKind::Break
             | ExprKind::Continue
+            | ExprKind::Trap
             | ExprKind::Return(_)
             | ExprKind::Assign { .. } => {}
         }
@@ -9335,6 +9906,7 @@ fn capture_place_field(expr: &Expr) -> Option<(u32, Option<u32>)> {
             | ExprKind::While { .. }
             | ExprKind::Break
             | ExprKind::Continue
+            | ExprKind::Trap
             | ExprKind::Return(_)
             | ExprKind::Assign { .. } => return None,
         }
@@ -9394,6 +9966,7 @@ fn direct_capture_assign_target(expr: &Expr) -> Option<(u32, Option<u32>)> {
             | ExprKind::While { .. }
             | ExprKind::Break
             | ExprKind::Continue
+            | ExprKind::Trap
             | ExprKind::Return(_)
             | ExprKind::Assign { .. } => None,
         },
@@ -9442,6 +10015,7 @@ fn direct_capture_assign_target(expr: &Expr) -> Option<(u32, Option<u32>)> {
             | ExprKind::While { .. }
             | ExprKind::Break
             | ExprKind::Continue
+            | ExprKind::Trap
             | ExprKind::Return(_)
             | ExprKind::Assign { .. } => None,
         },
@@ -9486,6 +10060,7 @@ fn direct_capture_assign_target(expr: &Expr) -> Option<(u32, Option<u32>)> {
         | ExprKind::While { .. }
         | ExprKind::Break
         | ExprKind::Continue
+        | ExprKind::Trap
         | ExprKind::Return(_)
         | ExprKind::Assign { .. } => None,
     }
@@ -9638,6 +10213,7 @@ fn analyze_capture_moves(
             | ExprKind::While { .. }
             | ExprKind::Break
             | ExprKind::Continue
+            | ExprKind::Trap
             | ExprKind::Return(_)
             | ExprKind::Assign { .. } => {
                 let _ = walk_expr(ctx, e, state, res, break_uninit);
@@ -9917,13 +10493,18 @@ fn analyze_capture_moves(
                         &mut arm_state,
                         res,
                     );
-                    if !walk_expr(
-                        ctx,
-                        &arm.body,
-                        &mut arm_state,
-                        res,
-                        break_uninit.as_deref_mut(),
-                    ) {
+                    let guard_diverges = arm.guard.as_ref().is_some_and(|g| {
+                        walk_expr(ctx, g, &mut arm_state, res, break_uninit.as_deref_mut())
+                    });
+                    if !guard_diverges
+                        && !walk_expr(
+                            ctx,
+                            &arm.body,
+                            &mut arm_state,
+                            res,
+                            break_uninit.as_deref_mut(),
+                        )
+                    {
                         any_normal = true;
                         merged.extend(arm_state.uninit);
                     }
@@ -9972,6 +10553,7 @@ fn analyze_capture_moves(
                 }
                 true
             }
+            ExprKind::Trap => true,
             ExprKind::Continue => {
                 res.escaped_uninit.extend(state.uninit.iter().copied());
                 true
@@ -10487,6 +11069,9 @@ fn scan_closure_usage(params: &[ast::ClosureParam], body: &ast::ArrowBody) -> Cl
                     bound.push(Vec::new());
                     if let Some(scope) = bound.last_mut() {
                         bind_pattern(&arm.pattern, scope);
+                    }
+                    if let Some(g) = &arm.guard {
+                        scan_expr(g, false, force_move, bound, out);
                     }
                     scan_arrow_body(&arm.body, force_move, bound, out);
                     bound.pop();

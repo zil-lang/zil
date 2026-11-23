@@ -300,12 +300,18 @@ impl Parser<'_> {
                 while !p.at(Symbol::RBrace) {
                     let start = p.peek().span;
                     let pattern = p.pattern()?;
+                    let guard = if p.eat_word("if") {
+                        Some(p.expr(false)?)
+                    } else {
+                        None
+                    };
                     p.expect(Symbol::FatArrow)?;
                     p.newlines();
                     let body = p.arrow_body()?;
                     p.field_end()?;
                     arms.push(MatchArm {
                         pattern,
+                        guard,
                         body,
                         span: p.span_from(start),
                     });
@@ -442,15 +448,29 @@ impl Parser<'_> {
                         arguments: p.pattern_list()?,
                     }
                 } else if p.eat(Symbol::LBrace) {
-                    let fields = p.scoped(true, |p| {
+                    let (fields, rest) = p.scoped(true, |p| {
                         let mut fields = Vec::new();
+                        let mut rest = false;
                         p.newlines();
                         while !p.at(Symbol::RBrace) {
+                            if p.eat(Symbol::DotDot) {
+                                rest = true;
+                                p.newlines();
+                                let _ = p.eat(Symbol::Comma);
+                                p.newlines();
+                                break;
+                            }
                             let start = p.peek().span;
                             let name =
                                 p.ident_kind(QuoteNameNamespace::Member, QuoteNameRole::Reference)?;
-                            p.expect(Symbol::Colon)?;
-                            let pattern = p.pattern()?;
+                            let pattern = if p.eat(Symbol::Colon) {
+                                p.pattern()?
+                            } else {
+                                Pattern {
+                                    kind: PatternKind::Name(name.clone()),
+                                    span: p.span_from(start),
+                                }
+                            };
                             fields.push(RecordPatternField {
                                 name,
                                 pattern,
@@ -463,9 +483,9 @@ impl Parser<'_> {
                             p.newlines();
                         }
                         p.expect(Symbol::RBrace)?;
-                        Ok(fields)
+                        Ok((fields, rest))
                     })?;
-                    PatternKind::RecordConstructor { path, fields }
+                    PatternKind::RecordConstructor { path, fields, rest }
                 } else if path.len() == 1 {
                     PatternKind::Name(path.into_iter().next().expect("nonempty path"))
                 } else {
