@@ -680,30 +680,37 @@ fn verify_fn_state_contracts(
     }
 
     type EuTransitions = Vec<(usize, Option<ProtocolStateSet>, Option<ProtocolStateSet>)>;
+    type ParamAliasSet = BTreeSet<(usize, Vec<FieldIdx>)>;
 
     #[derive(Clone, PartialEq, Eq)]
     struct ProtoState {
         states: Vec<ProtocolStateSet>,
         /// History `H`: union of all protocol states visited by each handle on paths reaching here.
         history: Vec<ProtocolStateSet>,
+        /// States that each handle has departed from on some path reaching here.
+        departed_from: Vec<ProtocolStateSet>,
+        /// True if any path reaching here re-entered a state it had already departed from (path-correlated rollback `H`).
+        rolled_back: Vec<bool>,
         retired: Vec<bool>,
         /// Parameter projections `(param_idx, field_path)` invalidated on any path reaching here.
-        invalidated: BTreeSet<(usize, Vec<FieldIdx>)>,
-        /// Maps a local to `(param_idx, field_prefix)` for projection-level invalidation tracking.
-        param_alias: HashMap<Local, (usize, Vec<FieldIdx>)>,
-        /// Maps a local to the root protocol handle local index it aliases.
+        invalidated: ParamAliasSet,
+        /// May-alias map: local -> all `(param_idx, field_prefix)` it may alias on any reaching path (unioned on join).
+        param_alias: HashMap<Local, ParamAliasSet>,
+        /// Must-alias map: local -> unique protocol handle index (intersected on join; fail-closed when ambiguous).
         alias: HashMap<Local, usize>,
-        /// Maps a local holding a copied `handle.state` field to its root handle index.
+        /// May-alias map: local -> all protocol handle indices it may alias (unioned on join; conservatively widened on writes).
+        may_alias: HashMap<Local, BTreeSet<usize>>,
+        /// Must-map: local holding copied `handle.state` field -> root handle index (intersected on join).
         state_field_of: HashMap<Local, usize>,
-        /// Exact enum variant for locals constructed via `AggregateKind::Adt`.
+        /// Must-map: exact enum variant for locals constructed via `AggregateKind::Adt` (intersected on join).
         enum_variant: HashMap<Local, u32>,
-        /// Exact ErrorUnion arm (`true = ok`, `false = err`) for locals constructed via `Rvalue::ErrorUnion`.
+        /// Must-map: exact ErrorUnion arm (`true = ok`, `false = err`) (intersected on join).
         error_arm_const: HashMap<Local, bool>,
-        /// Maps a Poll local to `(handle_idx, pending_states, ready_states)`.
+        /// Must-map: Poll local -> `(handle_idx, pending_states, ready_states)` (intersected on join).
         poll_of: HashMap<Local, (usize, ProtocolStateSet, ProtocolStateSet)>,
-        /// Maps an ErrorUnion local to `(handle_idx, ok_states, err_states)` transitions.
+        /// Must-map: ErrorUnion local -> `(handle_idx, ok_states, err_states)` transitions (intersected on join).
         eu_of: HashMap<Local, EuTransitions>,
-        /// Maps a discriminant/tag local to what it was read from.
+        /// Must-map: discriminant/tag local -> target (intersected on join).
         discr_of: HashMap<Local, DiscrTarget>,
     }
 
@@ -721,6 +728,16 @@ fn verify_fn_state_contracts(
                     self.history[i] = merged_h;
                     changed = true;
                 }
+                let merged_dep = self.departed_from[i].union(other.departed_from[i]);
+                if merged_dep != self.departed_from[i] {
+                    self.departed_from[i] = merged_dep;
+                    changed = true;
+                }
+                let rb = self.rolled_back[i] || other.rolled_back[i];
+                if rb != self.rolled_back[i] {
+                    self.rolled_back[i] = rb;
+                    changed = true;
+                }
                 let ret = self.retired[i] && other.retired[i];
                 if ret != self.retired[i] {
                     self.retired[i] = ret;
@@ -732,7 +749,35 @@ fn verify_fn_state_contracts(
                     changed = true;
                 }
             }
-            // Intersect exact-value maps on join so stale branch facts never leak across merges.
+            // Union may-alias maps so invalidations and writes on merged references stay conservative.
+            for (k, other_set) in &other.param_alias {
+                let entry = self.param_alias.entry(*k).or_default();
+                for item in other_set {
+                    if entry.insert(item.clone()) {
+                        changed = true;
+                    }
+                }
+            }
+            for (k, other_set) in &other.may_alias {
+                let entry = self.may_alias.entry(*k).or_default();
+                for &h in other_set {
+                    if entry.insert(h) {
+                        changed = true;
+                    }
+                }
+            }
+            // Intersect all must-alias / exact-fact maps so ambiguous branches fail closed.
+            let prev_alias = self.alias.len();
+            self.alias.retain(|k, v| other.alias.get(k) == Some(v));
+            if self.alias.len() != prev_alias {
+                changed = true;
+            }
+            let prev_sf = self.state_field_of.len();
+            self.state_field_of
+                .retain(|k, v| other.state_field_of.get(k) == Some(v));
+            if self.state_field_of.len() != prev_sf {
+                changed = true;
+            }
             let prev_ev = self.enum_variant.len();
             self.enum_variant
                 .retain(|k, v| other.enum_variant.get(k) == Some(v));
@@ -745,41 +790,69 @@ fn verify_fn_state_contracts(
             if self.error_arm_const.len() != prev_ea {
                 changed = true;
             }
+            let prev_poll = self.poll_of.len();
+            self.poll_of.retain(|k, v| other.poll_of.get(k) == Some(v));
+            if self.poll_of.len() != prev_poll {
+                changed = true;
+            }
+            let prev_eu = self.eu_of.len();
+            self.eu_of.retain(|k, v| other.eu_of.get(k) == Some(v));
+            if self.eu_of.len() != prev_eu {
+                changed = true;
+            }
+            let prev_discr = self.discr_of.len();
+            self.discr_of
+                .retain(|k, v| other.discr_of.get(k) == Some(v));
+            if self.discr_of.len() != prev_discr {
+                changed = true;
+            }
             changed
         }
 
         fn set_handle_state(&mut self, h_idx: usize, new_state: ProtocolStateSet) {
+            let old_state = self.states[h_idx];
+            let departed = old_state.subtract(new_state);
+            self.departed_from[h_idx] = self.departed_from[h_idx].union(departed);
+            if !new_state.intersect(self.departed_from[h_idx]).is_empty() {
+                self.rolled_back[h_idx] = true;
+            }
             self.states[h_idx] = new_state;
             self.history[h_idx] = self.history[h_idx].union(new_state);
         }
 
-        fn resolve_param_place(&self, place: &Place) -> Option<(usize, Vec<FieldIdx>)> {
+        fn resolve_param_places(&self, place: &Place) -> ParamAliasSet {
+            let mut out = ParamAliasSet::new();
             let PlaceRoot::Local(rl) = place.root else {
-                return None;
+                return out;
             };
-            let (p_idx, prefix) = self.param_alias.get(&rl)?;
-            let mut path = prefix.clone();
-            for proj in &place.projections {
-                match proj {
-                    Projection::Deref => {}
-                    Projection::Field(f) => path.push(f.field),
-                    Projection::Index(_)
-                    | Projection::TupleField(_)
-                    | Projection::ErrorArm(_)
-                    | Projection::ConstIndex(_) => break,
+            let Some(prefixes) = self.param_alias.get(&rl) else {
+                return out;
+            };
+            for (p_idx, prefix) in prefixes {
+                let mut path = prefix.clone();
+                for proj in &place.projections {
+                    match proj {
+                        Projection::Deref => {}
+                        Projection::Field(f) => path.push(f.field),
+                        Projection::Index(_)
+                        | Projection::TupleField(_)
+                        | Projection::ErrorArm(_)
+                        | Projection::ConstIndex(_) => break,
+                    }
                 }
+                out.insert((*p_idx, path));
             }
-            Some((*p_idx, path))
+            out
         }
 
         fn record_place_invalidation(&mut self, place: &Place) {
             let PlaceRoot::Local(rl) = place.root else {
                 return;
             };
-            if let Some((p_idx, path)) = self.resolve_param_place(place)
-                && (!place.projections.is_empty() || rl.index() != p_idx)
-            {
-                self.invalidated.insert((p_idx, path));
+            for (p_idx, path) in self.resolve_param_places(place) {
+                if !place.projections.is_empty() || rl.index() != p_idx {
+                    self.invalidated.insert((p_idx, path));
+                }
             }
         }
 
@@ -829,23 +902,32 @@ fn verify_fn_state_contracts(
     };
 
     let mut entry_alias = HashMap::new();
+    let mut entry_may_alias: HashMap<Local, BTreeSet<usize>> = HashMap::new();
     for (i, info) in local_info.iter().enumerate() {
         if info.is_some() {
             entry_alias.insert(Local(i as u32), i);
+            let mut s = BTreeSet::new();
+            s.insert(i);
+            entry_may_alias.insert(Local(i as u32), s);
         }
     }
-    let mut entry_param_alias = HashMap::new();
+    let mut entry_param_alias: HashMap<Local, ParamAliasSet> = HashMap::new();
     for i in 0..param_count {
-        entry_param_alias.insert(Local(i as u32), (i, Vec::new()));
+        let mut s = ParamAliasSet::new();
+        s.insert((i, Vec::new()));
+        entry_param_alias.insert(Local(i as u32), s);
     }
     let entry_init_states = init_states.clone();
     let entry_state = ProtoState {
         states: init_states.clone(),
         history: init_states,
+        departed_from: vec![ProtocolStateSet(0); nlocals],
+        rolled_back: vec![false; nlocals],
         retired: vec![false; nlocals],
-        invalidated: BTreeSet::new(),
+        invalidated: ParamAliasSet::new(),
         param_alias: entry_param_alias,
         alias: entry_alias,
+        may_alias: entry_may_alias,
         state_field_of: HashMap::new(),
         enum_variant: HashMap::new(),
         error_arm_const: HashMap::new(),
@@ -896,274 +978,426 @@ fn verify_fn_state_contracts(
         let block = &func.body.blocks[bi];
 
         for inst in &block.instructions {
-            if let InstructionKind::Drop { place, .. } = &inst.kind {
-                st.record_place_invalidation(place);
-                continue;
-            }
-            if let InstructionKind::Assign { dest, value } = &inst.kind {
-                // Always record parameter-projection invalidations on any write.
-                st.record_place_invalidation(dest);
-
-                // Case A: Writing directly to a protocol handle's `state` field (`h.state = ...`).
-                if let Some(h_idx) = place_targets_state_field(dest, &st) {
-                    let vc = local_info[h_idx].map_or(3, |i| i.variant_count);
-                    let new_state = if let Rvalue::Aggregate {
-                        kind: AggregateKind::Adt { variant, .. },
-                        ..
-                    } = value
-                    {
-                        ProtocolStateSet::single(variant.0)
-                    } else if let Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) = value
-                        && src.projections.is_empty()
-                        && let PlaceRoot::Local(sl) = src.root
-                        && let Some(&v) = st.enum_variant.get(&sl)
-                    {
-                        ProtocolStateSet::single(v)
-                    } else {
-                        ProtocolStateSet::all_variants(vc)
-                    };
-                    st.set_handle_state(h_idx, new_state);
-                    st.invalidate_handle(h_idx);
+            match &inst.kind {
+                InstructionKind::Drop { place } => {
+                    st.record_place_invalidation(place);
                     continue;
                 }
-
-                // Case A2: Writing through a reference to a protocol handle (`*h = value`).
-                if !dest.projections.is_empty()
-                    && dest
-                        .projections
-                        .iter()
-                        .all(|p| matches!(p, Projection::Deref))
-                    && let PlaceRoot::Local(rl) = dest.root
-                    && let Some(&h_idx) = st.alias.get(&rl)
-                    && let Some(Some(info)) = local_info.get(h_idx)
-                {
-                    let new_state = if let Rvalue::Aggregate {
-                        kind: AggregateKind::Adt { variant, .. },
-                        operands,
-                    } = value
-                    {
-                        if let Some((_, sf)) = info.state_field {
-                            operands
-                                .get(sf.0 as usize)
-                                .and_then(|op| match op {
-                                    Operand::Copy(p) | Operand::Move(p)
-                                        if p.projections.is_empty() =>
-                                    {
-                                        if let PlaceRoot::Local(sl) = p.root {
-                                            st.enum_variant
-                                                .get(&sl)
-                                                .map(|&v| ProtocolStateSet::single(v))
-                                        } else {
-                                            None
-                                        }
-                                    }
-                                    Operand::Copy(_)
-                                    | Operand::Move(_)
-                                    | Operand::Const(_)
-                                    | Operand::Pooled(_) => None,
-                                })
-                                .unwrap_or_else(|| {
-                                    ProtocolStateSet::all_variants(info.variant_count)
-                                })
-                        } else {
-                            ProtocolStateSet::single(variant.0)
-                        }
-                    } else if let Rvalue::Use(op) = value {
-                        st.resolve_handle(op).map_or_else(
-                            || ProtocolStateSet::all_variants(info.variant_count),
-                            |src_h| st.states[src_h],
-                        )
-                    } else {
-                        ProtocolStateSet::all_variants(info.variant_count)
-                    };
-                    st.set_handle_state(h_idx, new_state);
-                    st.invalidate_handle(h_idx);
-                    continue;
-                }
-
-                // Case B: Whole-local assignment `dl = value`.
-                if dest.projections.is_empty()
-                    && let PlaceRoot::Local(dl) = dest.root
-                {
-                    let di = dl.index();
-                    st.alias.remove(&dl);
-                    st.param_alias.remove(&dl);
-                    if di < param_count {
-                        st.param_alias.insert(dl, (di, Vec::new()));
-                    }
-                    if local_info.get(di).is_some_and(Option::is_some) {
-                        st.alias.insert(dl, di);
-                        st.invalidate_handle(di);
-                    }
-                    st.state_field_of.remove(&dl);
-                    st.enum_variant.remove(&dl);
-                    st.error_arm_const.remove(&dl);
-                    st.poll_of.remove(&dl);
-                    st.eu_of.remove(&dl);
-                    st.discr_of.remove(&dl);
-                    match value {
-                        Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
-                            if src.projections.is_empty()
-                                && let PlaceRoot::Local(sl) = src.root
-                                && let Some(pa) = st.param_alias.get(&sl).cloned()
-                                && matches!(
-                                    tys.get(func.body.locals[di].ty),
-                                    Some(TyKind::Ref { .. } | TyKind::Desc(_))
-                                )
+                InstructionKind::Replace { place, value, old } => {
+                    // P0-1: `Replace` mutates `place` (e.g. assigning to an owning/Drop field)
+                    // and moves the previous instance into `old`.
+                    st.record_place_invalidation(place);
+                    // Clear stale alias/value facts on `old`.
+                    st.alias.remove(old);
+                    st.may_alias.remove(old);
+                    st.param_alias.remove(old);
+                    st.state_field_of.remove(old);
+                    st.enum_variant.remove(old);
+                    st.error_arm_const.remove(old);
+                    st.poll_of.remove(old);
+                    st.eu_of.remove(old);
+                    st.discr_of.remove(old);
+                    if let Some(h_idx) = place_targets_state_field(place, &st) {
+                        let vc = local_info[h_idx].map_or(3, |i| i.variant_count);
+                        let new_state = match value {
+                            Operand::Copy(src) | Operand::Move(src)
+                                if src.projections.is_empty() =>
                             {
-                                st.param_alias.insert(dl, pa);
-                            }
-                            if let Some(h_idx) = place_targets_state_field(src, &st) {
-                                st.state_field_of.insert(dl, h_idx);
-                            } else if src.projections.is_empty()
-                                && let PlaceRoot::Local(sl) = src.root
-                            {
-                                if let Some(&h) = st.alias.get(&sl) {
-                                    let is_copy_value =
-                                        matches!(value, Rvalue::Use(Operand::Copy(_)))
-                                            && !matches!(
-                                                tys.get(func.body.locals[di].ty),
-                                                Some(TyKind::Ref { .. } | TyKind::Desc(_))
-                                            );
-                                    if is_copy_value
-                                        && local_info.get(di).is_some_and(Option::is_some)
-                                    {
-                                        // By-value Copy of a value-type protocol handle creates an independent copy.
-                                        st.states[di] = st.states[h];
-                                        st.retired[di] = st.retired[h];
-                                        st.alias.insert(dl, di);
-                                    } else {
-                                        // Move of an owning handle or copy of &/&mut/Desc preserves handle identity.
-                                        st.alias.insert(dl, h);
-                                    }
-                                }
-                                if let Some(&sf) = st.state_field_of.get(&sl) {
-                                    st.state_field_of.insert(dl, sf);
-                                }
-                                if let Some(&ev) = st.enum_variant.get(&sl) {
-                                    st.enum_variant.insert(dl, ev);
-                                }
-                                if let Some(&ea) = st.error_arm_const.get(&sl) {
-                                    st.error_arm_const.insert(dl, ea);
-                                }
-                                if let Some(&po) = st.poll_of.get(&sl) {
-                                    st.poll_of.insert(dl, po);
-                                }
-                                if let Some(eu) = st.eu_of.get(&sl).cloned() {
-                                    st.eu_of.insert(dl, eu);
-                                }
-                            }
-                        }
-                        Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
-                            if let Some(pa) = st.resolve_param_place(src) {
-                                st.param_alias.insert(dl, pa);
-                            }
-                            if src
-                                .projections
-                                .iter()
-                                .all(|p| matches!(p, Projection::Deref))
-                                && let PlaceRoot::Local(sl) = src.root
-                                && let Some(&h) = st.alias.get(&sl)
-                            {
-                                st.alias.insert(dl, h);
-                            }
-                        }
-                        Rvalue::Discriminant(src) => {
-                            if let Some(h_idx) = place_targets_state_field(src, &st) {
-                                st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
-                            } else if src.projections.is_empty()
-                                && let PlaceRoot::Local(sl) = src.root
-                            {
-                                if let Some(&h_idx) = st.state_field_of.get(&sl) {
-                                    st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
-                                } else if st.poll_of.contains_key(&sl) {
-                                    st.discr_of.insert(dl, DiscrTarget::Poll(sl));
-                                } else if let Some(&h_idx) = st.alias.get(&sl)
-                                    && local_info
-                                        .get(h_idx)
-                                        .and_then(|o| *o)
-                                        .is_some_and(|i| i.state_field.is_none())
+                                if let PlaceRoot::Local(sl) = src.root
+                                    && let Some(&v) = st.enum_variant.get(&sl)
                                 {
-                                    st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
+                                    ProtocolStateSet::single(v)
                                 } else {
-                                    st.discr_of.insert(dl, DiscrTarget::Poll(sl));
+                                    ProtocolStateSet::all_variants(vc)
+                                }
+                            }
+                            Operand::Copy(_)
+                            | Operand::Move(_)
+                            | Operand::Const(_)
+                            | Operand::Pooled(_) => ProtocolStateSet::all_variants(vc),
+                        };
+                        st.set_handle_state(h_idx, new_state);
+                        st.invalidate_handle(h_idx);
+                    } else if let PlaceRoot::Local(rl) = place.root {
+                        let may_targets = st.may_alias.get(&rl).cloned();
+                        if let Some(targets) = may_targets {
+                            let is_deref_only = !place.projections.is_empty()
+                                && place
+                                    .projections
+                                    .iter()
+                                    .all(|p| matches!(p, Projection::Deref));
+                            let last_field = place.projections.last().and_then(|p| match p {
+                                Projection::Field(f) => Some(f.field),
+                                Projection::Deref
+                                | Projection::Index(_)
+                                | Projection::TupleField(_)
+                                | Projection::ErrorArm(_)
+                                | Projection::ConstIndex(_) => None,
+                            });
+                            for h_idx in targets {
+                                if let Some(Some(info)) = local_info.get(h_idx) {
+                                    let touches_state = is_deref_only
+                                        || match (info.state_field, last_field) {
+                                            (None, _) => true,
+                                            (Some((_, sf)), Some(lf)) => sf == lf,
+                                            (Some(_), None) => true,
+                                        };
+                                    if touches_state {
+                                        let all =
+                                            ProtocolStateSet::all_variants(info.variant_count);
+                                        st.set_handle_state(h_idx, all);
+                                        st.invalidate_handle(h_idx);
+                                    }
                                 }
                             }
                         }
-                        Rvalue::ErrorArm(src) => {
-                            if src.projections.is_empty()
-                                && let PlaceRoot::Local(sl) = src.root
-                            {
-                                st.discr_of.insert(dl, DiscrTarget::ErrorUnion(sl));
+                    }
+                    continue;
+                }
+                InstructionKind::StorageDead(dl) => {
+                    st.alias.remove(dl);
+                    st.may_alias.remove(dl);
+                    st.param_alias.remove(dl);
+                    st.state_field_of.remove(dl);
+                    st.enum_variant.remove(dl);
+                    st.error_arm_const.remove(dl);
+                    st.poll_of.remove(dl);
+                    st.eu_of.remove(dl);
+                    st.discr_of.remove(dl);
+                    continue;
+                }
+                InstructionKind::StorageLive(_)
+                | InstructionKind::ScopeEnter(_)
+                | InstructionKind::ScopeExit { .. }
+                | InstructionKind::RegisterDefer { .. } => {
+                    continue;
+                }
+                InstructionKind::Assign { dest, value } => {
+                    // Always record parameter-projection invalidations on any write.
+                    st.record_place_invalidation(dest);
+
+                    // Case A: Writing directly to a protocol handle's `state` field (`h.state = ...`).
+                    if let Some(h_idx) = place_targets_state_field(dest, &st) {
+                        let vc = local_info[h_idx].map_or(3, |i| i.variant_count);
+                        let new_state = if let Rvalue::Aggregate {
+                            kind: AggregateKind::Adt { variant, .. },
+                            ..
+                        } = value
+                        {
+                            ProtocolStateSet::single(variant.0)
+                        } else if let Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) = value
+                            && src.projections.is_empty()
+                            && let PlaceRoot::Local(sl) = src.root
+                            && let Some(&v) = st.enum_variant.get(&sl)
+                        {
+                            ProtocolStateSet::single(v)
+                        } else {
+                            ProtocolStateSet::all_variants(vc)
+                        };
+                        st.set_handle_state(h_idx, new_state);
+                        st.invalidate_handle(h_idx);
+                        continue;
+                    }
+
+                    // Case A1b: Writing through an AMBIGUOUS merged reference (`r.state = ...` or `*r = ...`).
+                    if !dest.projections.is_empty()
+                        && let PlaceRoot::Local(rl) = dest.root
+                        && !st.alias.contains_key(&rl)
+                        && let Some(targets) = st.may_alias.get(&rl).cloned()
+                    {
+                        for h_idx in targets {
+                            if let Some(Some(info)) = local_info.get(h_idx) {
+                                let touches_state = match info.state_field {
+                                    None => true,
+                                    Some((_, sf)) => dest
+                                        .projections
+                                        .iter()
+                                        .all(|p| matches!(p, Projection::Deref))
+                                        || dest.projections.iter().any(
+                                            |p| matches!(p, Projection::Field(f) if f.field == sf),
+                                        ),
+                                };
+                                if touches_state {
+                                    let all = ProtocolStateSet::all_variants(info.variant_count);
+                                    st.set_handle_state(h_idx, all);
+                                    st.invalidate_handle(h_idx);
+                                }
                             }
                         }
-                        Rvalue::ErrorUnion { ok, .. } => {
-                            st.error_arm_const.insert(dl, *ok);
-                        }
-                        Rvalue::Aggregate {
+                        continue;
+                    }
+
+                    // Case A2: Writing through a reference to a protocol handle (`*h = value`).
+                    if !dest.projections.is_empty()
+                        && dest
+                            .projections
+                            .iter()
+                            .all(|p| matches!(p, Projection::Deref))
+                        && let PlaceRoot::Local(rl) = dest.root
+                        && let Some(&h_idx) = st.alias.get(&rl)
+                        && let Some(Some(info)) = local_info.get(h_idx)
+                    {
+                        let new_state = if let Rvalue::Aggregate {
                             kind: AggregateKind::Adt { variant, .. },
                             operands,
-                        } => {
-                            st.enum_variant.insert(dl, variant.0);
-                            if let Some(Some(info)) = local_info.get(di) {
-                                if let Some((_, sf)) = info.state_field {
-                                    let field_state = operands
-                                        .get(sf.0 as usize)
-                                        .and_then(|op| match op {
-                                            Operand::Copy(p) | Operand::Move(p)
-                                                if p.projections.is_empty() =>
-                                            {
-                                                if let PlaceRoot::Local(sl) = p.root {
-                                                    st.enum_variant
-                                                        .get(&sl)
-                                                        .map(|&v| ProtocolStateSet::single(v))
-                                                } else {
-                                                    None
-                                                }
+                        } = value
+                        {
+                            if let Some((_, sf)) = info.state_field {
+                                operands
+                                    .get(sf.0 as usize)
+                                    .and_then(|op| match op {
+                                        Operand::Copy(p) | Operand::Move(p)
+                                            if p.projections.is_empty() =>
+                                        {
+                                            if let PlaceRoot::Local(sl) = p.root {
+                                                st.enum_variant
+                                                    .get(&sl)
+                                                    .map(|&v| ProtocolStateSet::single(v))
+                                            } else {
+                                                None
                                             }
-                                            Operand::Copy(_)
-                                            | Operand::Move(_)
-                                            | Operand::Const(_)
-                                            | Operand::Pooled(_) => None,
-                                        })
-                                        .unwrap_or_else(|| {
-                                            ProtocolStateSet::all_variants(info.variant_count)
-                                        });
-                                    st.states[di] = field_state;
-                                } else {
-                                    st.states[di] = ProtocolStateSet::single(variant.0);
+                                        }
+                                        Operand::Copy(_)
+                                        | Operand::Move(_)
+                                        | Operand::Const(_)
+                                        | Operand::Pooled(_) => None,
+                                    })
+                                    .unwrap_or_else(|| {
+                                        ProtocolStateSet::all_variants(info.variant_count)
+                                    })
+                            } else {
+                                ProtocolStateSet::single(variant.0)
+                            }
+                        } else if let Rvalue::Use(op) = value {
+                            st.resolve_handle(op).map_or_else(
+                                || ProtocolStateSet::all_variants(info.variant_count),
+                                |src_h| st.states[src_h],
+                            )
+                        } else {
+                            ProtocolStateSet::all_variants(info.variant_count)
+                        };
+                        st.set_handle_state(h_idx, new_state);
+                        st.invalidate_handle(h_idx);
+                        continue;
+                    }
+
+                    // Case B: Whole-local assignment `dl = value`.
+                    if dest.projections.is_empty()
+                        && let PlaceRoot::Local(dl) = dest.root
+                    {
+                        let di = dl.index();
+                        st.alias.remove(&dl);
+                        st.may_alias.remove(&dl);
+                        st.param_alias.remove(&dl);
+                        if di < param_count {
+                            let mut s = ParamAliasSet::new();
+                            s.insert((di, Vec::new()));
+                            st.param_alias.insert(dl, s);
+                        }
+                        if local_info.get(di).is_some_and(Option::is_some) {
+                            st.alias.insert(dl, di);
+                            let mut s = BTreeSet::new();
+                            s.insert(di);
+                            st.may_alias.insert(dl, s);
+                            st.invalidate_handle(di);
+                        }
+                        st.state_field_of.remove(&dl);
+                        st.enum_variant.remove(&dl);
+                        st.error_arm_const.remove(&dl);
+                        st.poll_of.remove(&dl);
+                        st.eu_of.remove(&dl);
+                        st.discr_of.remove(&dl);
+                        match value {
+                            Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
+                                if src.projections.is_empty()
+                                    && let PlaceRoot::Local(sl) = src.root
+                                    && let Some(pa) = st.param_alias.get(&sl).cloned()
+                                    && matches!(
+                                        tys.get(func.body.locals[di].ty),
+                                        Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                    )
+                                {
+                                    st.param_alias.insert(dl, pa);
+                                }
+                                if let Some(h_idx) = place_targets_state_field(src, &st) {
+                                    st.state_field_of.insert(dl, h_idx);
+                                } else if src.projections.is_empty()
+                                    && let PlaceRoot::Local(sl) = src.root
+                                {
+                                    if let Some(ma) = st.may_alias.get(&sl).cloned() {
+                                        let is_copy_value =
+                                            matches!(value, Rvalue::Use(Operand::Copy(_)))
+                                                && !matches!(
+                                                    tys.get(func.body.locals[di].ty),
+                                                    Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                                );
+                                        if !is_copy_value {
+                                            st.may_alias.insert(dl, ma);
+                                        }
+                                    }
+                                    if let Some(&h) = st.alias.get(&sl) {
+                                        let is_copy_value =
+                                            matches!(value, Rvalue::Use(Operand::Copy(_)))
+                                                && !matches!(
+                                                    tys.get(func.body.locals[di].ty),
+                                                    Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                                );
+                                        if is_copy_value
+                                            && local_info.get(di).is_some_and(Option::is_some)
+                                        {
+                                            // By-value Copy of a value-type protocol handle creates an independent copy.
+                                            st.states[di] = st.states[h];
+                                            st.retired[di] = st.retired[h];
+                                            st.alias.insert(dl, di);
+                                            let mut s = BTreeSet::new();
+                                            s.insert(di);
+                                            st.may_alias.insert(dl, s);
+                                        } else {
+                                            // Move of an owning handle or copy of &/&mut/Desc preserves handle identity.
+                                            st.alias.insert(dl, h);
+                                        }
+                                    } else if matches!(
+                                        tys.get(func.body.locals[di].ty),
+                                        Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                    ) {
+                                        // Source reference had ambiguous alias; destination must also be ambiguous!
+                                        st.alias.remove(&dl);
+                                    }
+                                    if let Some(&sf) = st.state_field_of.get(&sl) {
+                                        st.state_field_of.insert(dl, sf);
+                                    }
+                                    if let Some(&ev) = st.enum_variant.get(&sl) {
+                                        st.enum_variant.insert(dl, ev);
+                                    }
+                                    if let Some(&ea) = st.error_arm_const.get(&sl) {
+                                        st.error_arm_const.insert(dl, ea);
+                                    }
+                                    if let Some(&po) = st.poll_of.get(&sl) {
+                                        st.poll_of.insert(dl, po);
+                                    }
+                                    if let Some(eu) = st.eu_of.get(&sl).cloned() {
+                                        st.eu_of.insert(dl, eu);
+                                    }
                                 }
                             }
-                        }
-                        Rvalue::Unary {
-                            op: zil_ir::body::UnOp::Not,
-                            operand,
-                        } => {
-                            if let Operand::Copy(p) | Operand::Move(p) = operand
-                                && p.projections.is_empty()
-                                && let PlaceRoot::Local(sl) = p.root
-                                && let Some(DiscrTarget::ValidCheck { handle, inverted }) =
-                                    st.discr_of.get(&sl).copied()
-                            {
-                                st.discr_of.insert(
-                                    dl,
-                                    DiscrTarget::ValidCheck {
-                                        handle,
-                                        inverted: !inverted,
-                                    },
-                                );
+                            Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
+                                let pa = st.resolve_param_places(src);
+                                if !pa.is_empty() {
+                                    st.param_alias.insert(dl, pa);
+                                }
+                                if src
+                                    .projections
+                                    .iter()
+                                    .all(|p| matches!(p, Projection::Deref))
+                                    && let PlaceRoot::Local(sl) = src.root
+                                {
+                                    if let Some(&h) = st.alias.get(&sl) {
+                                        st.alias.insert(dl, h);
+                                    } else {
+                                        st.alias.remove(&dl);
+                                    }
+                                    if let Some(ma) = st.may_alias.get(&sl).cloned() {
+                                        st.may_alias.insert(dl, ma);
+                                    }
+                                }
                             }
+                            Rvalue::Discriminant(src) => {
+                                if let Some(h_idx) = place_targets_state_field(src, &st) {
+                                    st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
+                                } else if src.projections.is_empty()
+                                    && let PlaceRoot::Local(sl) = src.root
+                                {
+                                    if let Some(&h_idx) = st.state_field_of.get(&sl) {
+                                        st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
+                                    } else if st.poll_of.contains_key(&sl) {
+                                        st.discr_of.insert(dl, DiscrTarget::Poll(sl));
+                                    } else if let Some(&h_idx) = st.alias.get(&sl)
+                                        && local_info
+                                            .get(h_idx)
+                                            .and_then(|o| *o)
+                                            .is_some_and(|i| i.state_field.is_none())
+                                    {
+                                        st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
+                                    } else {
+                                        st.discr_of.insert(dl, DiscrTarget::Poll(sl));
+                                    }
+                                }
+                            }
+                            Rvalue::ErrorArm(src) => {
+                                if src.projections.is_empty()
+                                    && let PlaceRoot::Local(sl) = src.root
+                                {
+                                    st.discr_of.insert(dl, DiscrTarget::ErrorUnion(sl));
+                                }
+                            }
+                            Rvalue::ErrorUnion { ok, .. } => {
+                                st.error_arm_const.insert(dl, *ok);
+                            }
+                            Rvalue::Aggregate {
+                                kind: AggregateKind::Adt { variant, .. },
+                                operands,
+                            } => {
+                                st.enum_variant.insert(dl, variant.0);
+                                if let Some(Some(info)) = local_info.get(di) {
+                                    if let Some((_, sf)) = info.state_field {
+                                        let field_state = operands
+                                            .get(sf.0 as usize)
+                                            .and_then(|op| match op {
+                                                Operand::Copy(p) | Operand::Move(p)
+                                                    if p.projections.is_empty() =>
+                                                {
+                                                    if let PlaceRoot::Local(sl) = p.root {
+                                                        st.enum_variant
+                                                            .get(&sl)
+                                                            .map(|&v| ProtocolStateSet::single(v))
+                                                    } else {
+                                                        None
+                                                    }
+                                                }
+                                                Operand::Copy(_)
+                                                | Operand::Move(_)
+                                                | Operand::Const(_)
+                                                | Operand::Pooled(_) => None,
+                                            })
+                                            .unwrap_or_else(|| {
+                                                ProtocolStateSet::all_variants(info.variant_count)
+                                            });
+                                        st.states[di] = field_state;
+                                    } else {
+                                        st.states[di] = ProtocolStateSet::single(variant.0);
+                                    }
+                                }
+                            }
+                            Rvalue::Unary {
+                                op: zil_ir::body::UnOp::Not,
+                                operand,
+                            } => {
+                                if let Operand::Copy(p) | Operand::Move(p) = operand
+                                    && p.projections.is_empty()
+                                    && let PlaceRoot::Local(sl) = p.root
+                                    && let Some(DiscrTarget::ValidCheck { handle, inverted }) =
+                                        st.discr_of.get(&sl).copied()
+                                {
+                                    st.discr_of.insert(
+                                        dl,
+                                        DiscrTarget::ValidCheck {
+                                            handle,
+                                            inverted: !inverted,
+                                        },
+                                    );
+                                }
+                            }
+                            Rvalue::Use(_)
+                            | Rvalue::SliceRef { .. }
+                            | Rvalue::Aggregate { .. }
+                            | Rvalue::Unary { .. }
+                            | Rvalue::Binary { .. }
+                            | Rvalue::Convert { .. }
+                            | Rvalue::Len(_)
+                            | Rvalue::FnRef(_)
+                            | Rvalue::ForeignFnRef(_)
+                            | Rvalue::StaticUtf(_) => {}
                         }
-                        Rvalue::Use(_)
-                        | Rvalue::SliceRef { .. }
-                        | Rvalue::Aggregate { .. }
-                        | Rvalue::Unary { .. }
-                        | Rvalue::Binary { .. }
-                        | Rvalue::Convert { .. }
-                        | Rvalue::Len(_)
-                        | Rvalue::FnRef(_)
-                        | Rvalue::ForeignFnRef(_)
-                        | Rvalue::StaticUtf(_) => {}
                     }
                 }
             }
@@ -1310,17 +1544,21 @@ fn verify_fn_state_contracts(
                                 .get(al.index())
                                 .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
                         {
-                            if let Some((p_idx, path)) = st.param_alias.get(&al).cloned() {
-                                st.invalidated.insert((p_idx, path));
+                            if let Some(pa_set) = st.param_alias.get(&al).cloned() {
+                                for item in pa_set {
+                                    st.invalidated.insert(item);
+                                }
                             }
-                            if let Some(&h_idx) = st.alias.get(&al)
-                                && let Some(Some(info)) = local_info.get(h_idx)
-                            {
-                                st.set_handle_state(
-                                    h_idx,
-                                    ProtocolStateSet::all_variants(info.variant_count),
-                                );
-                                st.invalidate_handle(h_idx);
+                            if let Some(ma_set) = st.may_alias.get(&al).cloned() {
+                                for h_idx in ma_set {
+                                    if let Some(Some(info)) = local_info.get(h_idx) {
+                                        st.set_handle_state(
+                                            h_idx,
+                                            ProtocolStateSet::all_variants(info.variant_count),
+                                        );
+                                        st.invalidate_handle(h_idx);
+                                    }
+                                }
                             }
                         }
                     }
@@ -1522,20 +1760,31 @@ fn verify_fn_state_contracts(
                                         callee_invalidated_targets.push((param as usize, path));
                                         if let Some(Operand::Copy(p) | Operand::Move(p)) =
                                             args.get(param as usize)
-                                            && let Some((caller_p, mut caller_path)) =
-                                                st.resolve_param_place(p)
                                         {
-                                            caller_path.extend_from_slice(path.as_slice());
-                                            st.invalidated.insert((caller_p, caller_path));
+                                            for (caller_p, mut caller_path) in
+                                                st.resolve_param_places(p)
+                                            {
+                                                caller_path.extend_from_slice(path.as_slice());
+                                                st.invalidated.insert((caller_p, caller_path));
+                                            }
                                         }
                                     }
                                     StateContractClause::AllowsRollback { param } => {
-                                        if let Some(arg) = args.get(param as usize)
-                                            && let Some(h_idx) = st.resolve_handle(arg)
-                                            && let Some(Some(info)) = local_info.get(h_idx)
+                                        if let Some(Operand::Copy(p) | Operand::Move(p)) =
+                                            args.get(param as usize)
+                                            && p.projections.is_empty()
+                                            && let PlaceRoot::Local(al) = p.root
+                                            && let Some(ma_set) = st.may_alias.get(&al).cloned()
                                         {
-                                            st.history[h_idx] =
-                                                ProtocolStateSet::all_variants(info.variant_count);
+                                            for h_idx in ma_set {
+                                                if let Some(Some(info)) = local_info.get(h_idx) {
+                                                    st.history[h_idx] =
+                                                        ProtocolStateSet::all_variants(
+                                                            info.variant_count,
+                                                        );
+                                                    st.rolled_back[h_idx] = true;
+                                                }
+                                            }
                                         }
                                     }
                                     StateContractClause::ProvidesRetired { param } => {
@@ -1594,21 +1843,30 @@ fn verify_fn_state_contracts(
                                 // Projection-scoped invalidation: only widen protocol handle state
                                 // if an invalidated path overlaps the handle's `state` field (or root).
                                 for &(c_param, path) in &callee_invalidated_targets {
-                                    if let Some(arg) = args.get(c_param)
-                                        && let Some(h_idx) = st.resolve_handle(arg)
-                                        && !contracted_handles.contains(&h_idx)
-                                        && let Some(Some(info)) = local_info.get(h_idx)
+                                    if let Some(Operand::Copy(p) | Operand::Move(p)) =
+                                        args.get(c_param)
+                                        && p.projections.is_empty()
+                                        && let PlaceRoot::Local(al) = p.root
+                                        && let Some(ma_set) = st.may_alias.get(&al).cloned()
                                     {
-                                        let touches_state = match info.state_field {
-                                            None => true,
-                                            Some((_, sf)) => path.overlaps(&[sf]),
-                                        };
-                                        if touches_state {
-                                            st.set_handle_state(
-                                                h_idx,
-                                                ProtocolStateSet::all_variants(info.variant_count),
-                                            );
-                                            st.invalidate_handle(h_idx);
+                                        for h_idx in ma_set {
+                                            if !contracted_handles.contains(&h_idx)
+                                                && let Some(Some(info)) = local_info.get(h_idx)
+                                            {
+                                                let touches_state = match info.state_field {
+                                                    None => true,
+                                                    Some((_, sf)) => path.overlaps(&[sf]),
+                                                };
+                                                if touches_state {
+                                                    st.set_handle_state(
+                                                        h_idx,
+                                                        ProtocolStateSet::all_variants(
+                                                            info.variant_count,
+                                                        ),
+                                                    );
+                                                    st.invalidate_handle(h_idx);
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1624,10 +1882,11 @@ fn verify_fn_state_contracts(
                                             .locals
                                             .get(al.index())
                                             .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
-                                        && let Some((caller_p, caller_path)) =
-                                            st.param_alias.get(&al).cloned()
+                                        && let Some(pa_set) = st.param_alias.get(&al).cloned()
                                     {
-                                        st.invalidated.insert((caller_p, caller_path));
+                                        for item in pa_set {
+                                            st.invalidated.insert(item);
+                                        }
                                     }
                                 }
                             }
@@ -1827,7 +2086,8 @@ fn verify_fn_state_contracts(
                         continue;
                     }
                     let allowed_history = entry_init_states[p_idx].union(st.states[p_idx]);
-                    let has_hidden_rollback = !st.history[p_idx].is_subset_of(allowed_history);
+                    let has_hidden_rollback =
+                        st.rolled_back[p_idx] || !st.history[p_idx].is_subset_of(allowed_history);
                     if has_hidden_rollback
                         && (declared_requires_state[p_idx].is_some() || has_invalidation_upper)
                     {
