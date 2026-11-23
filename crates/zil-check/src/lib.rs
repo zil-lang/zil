@@ -418,11 +418,11 @@ fn verify_fn_state_contracts(
     func: &zil_ir::body::Function,
     budget: CheckBudget,
 ) -> Result<(), CheckError> {
-    use std::collections::{HashMap, VecDeque};
+    use std::collections::{BTreeSet, HashMap, VecDeque};
     use zil_ir::body::{
-        AdtId, AggregateKind, BlockId, Callee, FieldIdx, InstructionKind, IntrinsicOp, Local,
-        Mutability, OpaqueTy, Operand, Place, PlaceRoot, Projection, ProtocolStateSet, Rvalue,
-        StateContractClause, Terminator,
+        AdtId, AggregateKind, BlockId, Callee, ContractFieldPath, FieldIdx, InstructionKind,
+        IntrinsicOp, Local, Mutability, OpaqueTy, Operand, Place, PlaceRoot, Projection,
+        ProtocolStateSet, Rvalue, StateContractClause, Terminator,
     };
 
     let tys = &module.tys;
@@ -536,8 +536,66 @@ fn verify_fn_state_contracts(
 
     let mut has_poll_post = false;
     let mut has_eu_post = false;
+    let mut has_invalidation_upper = false;
+    let mut declared_invalidations: Vec<(usize, ContractFieldPath)> = Vec::new();
+    let mut allows_rollback = vec![false; nlocals];
+    let mut declared_requires_state: Vec<Option<ProtocolStateSet>> = vec![None; nlocals];
     for clause in &func.sig.state_contracts {
         match *clause {
+            StateContractClause::InvalidationUpperBound => {
+                has_invalidation_upper = true;
+            }
+            StateContractClause::Invalidates { param, path } => {
+                has_invalidation_upper = true;
+                let p_idx = param as usize;
+                if p_idx >= param_count || p_idx >= func.sig.params.len() {
+                    return Err(fail(
+                        "invalidation contract references out-of-range parameter",
+                    ));
+                }
+                if (path.len as usize) > ContractFieldPath::MAX_DEPTH {
+                    return Err(fail("invalidation contract field path exceeds max depth"));
+                }
+                let mut cur_ty = func.sig.params[p_idx];
+                for &fidx in path.as_slice() {
+                    for _ in 0..4 {
+                        if let Some(
+                            TyKind::Ref { pointee, .. }
+                            | TyKind::Managed(pointee)
+                            | TyKind::Desc(pointee),
+                        ) = tys.get(cur_ty)
+                        {
+                            cur_ty = *pointee;
+                        } else {
+                            break;
+                        }
+                    }
+                    if let Some(TyKind::Adt { adt, .. }) = tys.get(cur_ty)
+                        && let Some(def) = tys.get_adt(*adt)
+                        && def.variants.len() == 1
+                        && let Some(fdef) = def.variants[0].fields.get(fidx.0 as usize)
+                    {
+                        cur_ty = fdef.ty;
+                    } else {
+                        return Err(fail(
+                            "invalidation contract field path does not match parameter ADT",
+                        ));
+                    }
+                }
+                declared_invalidations.push((p_idx, path));
+            }
+            StateContractClause::AllowsRollback { param } => {
+                let p_idx = param as usize;
+                if p_idx >= param_count || p_idx >= func.sig.params.len() {
+                    return Err(fail("rollback contract references out-of-range parameter"));
+                }
+                if proto_handle_info(func.sig.params[p_idx]).is_none() {
+                    return Err(fail(
+                        "rollback contract parameter is not a protocol handle type",
+                    ));
+                }
+                allows_rollback[p_idx] = true;
+            }
             StateContractClause::RequiresApart { param_a, param_b } => {
                 let pa = param_a as usize;
                 let pb = param_b as usize;
@@ -586,6 +644,7 @@ fn verify_fn_state_contracts(
                 }
                 if matches!(clause, StateContractClause::RequiresState { .. }) {
                     init_states[p_idx] = states;
+                    declared_requires_state[p_idx] = Some(states);
                 }
             }
             StateContractClause::ProvidesRetired { param } => {
@@ -625,7 +684,13 @@ fn verify_fn_state_contracts(
     #[derive(Clone, PartialEq, Eq)]
     struct ProtoState {
         states: Vec<ProtocolStateSet>,
+        /// History `H`: union of all protocol states visited by each handle on paths reaching here.
+        history: Vec<ProtocolStateSet>,
         retired: Vec<bool>,
+        /// Parameter projections `(param_idx, field_path)` invalidated on any path reaching here.
+        invalidated: BTreeSet<(usize, Vec<FieldIdx>)>,
+        /// Maps a local to `(param_idx, field_prefix)` for projection-level invalidation tracking.
+        param_alias: HashMap<Local, (usize, Vec<FieldIdx>)>,
         /// Maps a local to the root protocol handle local index it aliases.
         alias: HashMap<Local, usize>,
         /// Maps a local holding a copied `handle.state` field to its root handle index.
@@ -651,9 +716,19 @@ fn verify_fn_state_contracts(
                     self.states[i] = merged;
                     changed = true;
                 }
+                let merged_h = self.history[i].union(other.history[i]);
+                if merged_h != self.history[i] {
+                    self.history[i] = merged_h;
+                    changed = true;
+                }
                 let ret = self.retired[i] && other.retired[i];
                 if ret != self.retired[i] {
                     self.retired[i] = ret;
+                    changed = true;
+                }
+            }
+            for item in &other.invalidated {
+                if self.invalidated.insert(item.clone()) {
                     changed = true;
                 }
             }
@@ -671,6 +746,41 @@ fn verify_fn_state_contracts(
                 changed = true;
             }
             changed
+        }
+
+        fn set_handle_state(&mut self, h_idx: usize, new_state: ProtocolStateSet) {
+            self.states[h_idx] = new_state;
+            self.history[h_idx] = self.history[h_idx].union(new_state);
+        }
+
+        fn resolve_param_place(&self, place: &Place) -> Option<(usize, Vec<FieldIdx>)> {
+            let PlaceRoot::Local(rl) = place.root else {
+                return None;
+            };
+            let (p_idx, prefix) = self.param_alias.get(&rl)?;
+            let mut path = prefix.clone();
+            for proj in &place.projections {
+                match proj {
+                    Projection::Deref => {}
+                    Projection::Field(f) => path.push(f.field),
+                    Projection::Index(_)
+                    | Projection::TupleField(_)
+                    | Projection::ErrorArm(_)
+                    | Projection::ConstIndex(_) => break,
+                }
+            }
+            Some((*p_idx, path))
+        }
+
+        fn record_place_invalidation(&mut self, place: &Place) {
+            let PlaceRoot::Local(rl) = place.root else {
+                return;
+            };
+            if let Some((p_idx, path)) = self.resolve_param_place(place)
+                && (!place.projections.is_empty() || rl.index() != p_idx)
+            {
+                self.invalidated.insert((p_idx, path));
+            }
         }
 
         fn resolve_handle(&self, op: &Operand) -> Option<usize> {
@@ -724,9 +834,17 @@ fn verify_fn_state_contracts(
             entry_alias.insert(Local(i as u32), i);
         }
     }
+    let mut entry_param_alias = HashMap::new();
+    for i in 0..param_count {
+        entry_param_alias.insert(Local(i as u32), (i, Vec::new()));
+    }
+    let entry_init_states = init_states.clone();
     let entry_state = ProtoState {
-        states: init_states,
+        states: init_states.clone(),
+        history: init_states,
         retired: vec![false; nlocals],
+        invalidated: BTreeSet::new(),
+        param_alias: entry_param_alias,
         alias: entry_alias,
         state_field_of: HashMap::new(),
         enum_variant: HashMap::new(),
@@ -778,7 +896,14 @@ fn verify_fn_state_contracts(
         let block = &func.body.blocks[bi];
 
         for inst in &block.instructions {
+            if let InstructionKind::Drop { place, .. } = &inst.kind {
+                st.record_place_invalidation(place);
+                continue;
+            }
             if let InstructionKind::Assign { dest, value } = &inst.kind {
+                // Always record parameter-projection invalidations on any write.
+                st.record_place_invalidation(dest);
+
                 // Case A: Writing directly to a protocol handle's `state` field (`h.state = ...`).
                 if let Some(h_idx) = place_targets_state_field(dest, &st) {
                     let vc = local_info[h_idx].map_or(3, |i| i.variant_count);
@@ -797,7 +922,7 @@ fn verify_fn_state_contracts(
                     } else {
                         ProtocolStateSet::all_variants(vc)
                     };
-                    st.states[h_idx] = new_state;
+                    st.set_handle_state(h_idx, new_state);
                     st.invalidate_handle(h_idx);
                     continue;
                 }
@@ -851,7 +976,7 @@ fn verify_fn_state_contracts(
                     } else {
                         ProtocolStateSet::all_variants(info.variant_count)
                     };
-                    st.states[h_idx] = new_state;
+                    st.set_handle_state(h_idx, new_state);
                     st.invalidate_handle(h_idx);
                     continue;
                 }
@@ -862,6 +987,10 @@ fn verify_fn_state_contracts(
                 {
                     let di = dl.index();
                     st.alias.remove(&dl);
+                    st.param_alias.remove(&dl);
+                    if di < param_count {
+                        st.param_alias.insert(dl, (di, Vec::new()));
+                    }
                     if local_info.get(di).is_some_and(Option::is_some) {
                         st.alias.insert(dl, di);
                         st.invalidate_handle(di);
@@ -874,6 +1003,16 @@ fn verify_fn_state_contracts(
                     st.discr_of.remove(&dl);
                     match value {
                         Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
+                            if src.projections.is_empty()
+                                && let PlaceRoot::Local(sl) = src.root
+                                && let Some(pa) = st.param_alias.get(&sl).cloned()
+                                && matches!(
+                                    tys.get(func.body.locals[di].ty),
+                                    Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                )
+                            {
+                                st.param_alias.insert(dl, pa);
+                            }
                             if let Some(h_idx) = place_targets_state_field(src, &st) {
                                 st.state_field_of.insert(dl, h_idx);
                             } else if src.projections.is_empty()
@@ -916,6 +1055,9 @@ fn verify_fn_state_contracts(
                             }
                         }
                         Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
+                            if let Some(pa) = st.resolve_param_place(src) {
+                                st.param_alias.insert(dl, pa);
+                            }
                             if src
                                 .projections
                                 .iter()
@@ -1167,11 +1309,19 @@ fn verify_fn_state_contracts(
                                 .locals
                                 .get(al.index())
                                 .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
-                            && let Some(&h_idx) = st.alias.get(&al)
-                            && let Some(Some(info)) = local_info.get(h_idx)
                         {
-                            st.states[h_idx] = ProtocolStateSet::all_variants(info.variant_count);
-                            st.invalidate_handle(h_idx);
+                            if let Some((p_idx, path)) = st.param_alias.get(&al).cloned() {
+                                st.invalidated.insert((p_idx, path));
+                            }
+                            if let Some(&h_idx) = st.alias.get(&al)
+                                && let Some(Some(info)) = local_info.get(h_idx)
+                            {
+                                st.set_handle_state(
+                                    h_idx,
+                                    ProtocolStateSet::all_variants(info.variant_count),
+                                );
+                                st.invalidate_handle(h_idx);
+                            }
                         }
                     }
                 };
@@ -1349,15 +1499,45 @@ fn verify_fn_state_contracts(
                                     | StateContractClause::ProvidesOnPending { .. }
                                     | StateContractClause::ProvidesOnReady { .. }
                                     | StateContractClause::ProvidesOnOk { .. }
-                                    | StateContractClause::ProvidesOnErr { .. } => {}
+                                    | StateContractClause::ProvidesOnErr { .. }
+                                    | StateContractClause::InvalidationUpperBound
+                                    | StateContractClause::Invalidates { .. }
+                                    | StateContractClause::AllowsRollback { .. } => {}
                                 }
                             }
-                            // 2. Apply postconditions.
+                            // 2. Apply postconditions & projection-scoped invalidation upper bounds.
+                            let callee_has_inv_upper = callee_fn
+                                .sig
+                                .state_contracts
+                                .contains(&StateContractClause::InvalidationUpperBound);
                             let mut contracted_handles = Vec::new();
+                            let mut callee_invalidated_targets: Vec<(usize, ContractFieldPath)> =
+                                Vec::new();
                             for c in &callee_fn.sig.state_contracts {
                                 match *c {
                                     StateContractClause::RequiresState { .. }
-                                    | StateContractClause::RequiresApart { .. } => {}
+                                    | StateContractClause::RequiresApart { .. }
+                                    | StateContractClause::InvalidationUpperBound => {}
+                                    StateContractClause::Invalidates { param, path } => {
+                                        callee_invalidated_targets.push((param as usize, path));
+                                        if let Some(Operand::Copy(p) | Operand::Move(p)) =
+                                            args.get(param as usize)
+                                            && let Some((caller_p, mut caller_path)) =
+                                                st.resolve_param_place(p)
+                                        {
+                                            caller_path.extend_from_slice(path.as_slice());
+                                            st.invalidated.insert((caller_p, caller_path));
+                                        }
+                                    }
+                                    StateContractClause::AllowsRollback { param } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(h_idx) = st.resolve_handle(arg)
+                                            && let Some(Some(info)) = local_info.get(h_idx)
+                                        {
+                                            st.history[h_idx] =
+                                                ProtocolStateSet::all_variants(info.variant_count);
+                                        }
+                                    }
                                     StateContractClause::ProvidesRetired { param } => {
                                         if let Some(arg) = args.get(param as usize)
                                             && let Some(h_idx) = st.resolve_handle(arg)
@@ -1371,7 +1551,7 @@ fn verify_fn_state_contracts(
                                         if let Some(arg) = args.get(param as usize)
                                             && let Some(h_idx) = st.resolve_handle(arg)
                                         {
-                                            st.states[h_idx] = states;
+                                            st.set_handle_state(h_idx, states);
                                             st.invalidate_handle(h_idx);
                                             contracted_handles.push(h_idx);
                                         }
@@ -1410,6 +1590,47 @@ fn verify_fn_state_contracts(
                                     }
                                 }
                             }
+                            if callee_has_inv_upper {
+                                // Projection-scoped invalidation: only widen protocol handle state
+                                // if an invalidated path overlaps the handle's `state` field (or root).
+                                for &(c_param, path) in &callee_invalidated_targets {
+                                    if let Some(arg) = args.get(c_param)
+                                        && let Some(h_idx) = st.resolve_handle(arg)
+                                        && !contracted_handles.contains(&h_idx)
+                                        && let Some(Some(info)) = local_info.get(h_idx)
+                                    {
+                                        let touches_state = match info.state_field {
+                                            None => true,
+                                            Some((_, sf)) => path.overlaps(&[sf]),
+                                        };
+                                        if touches_state {
+                                            st.set_handle_state(
+                                                h_idx,
+                                                ProtocolStateSet::all_variants(info.variant_count),
+                                            );
+                                            st.invalidate_handle(h_idx);
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Callee has no closed invalidation upper bound: conservatively
+                                // record invalidation for any &mut/Desc argument.
+                                for arg in args {
+                                    if let Operand::Copy(p) | Operand::Move(p) = arg
+                                        && p.projections.is_empty()
+                                        && let PlaceRoot::Local(al) = p.root
+                                        && func
+                                            .body
+                                            .locals
+                                            .get(al.index())
+                                            .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
+                                        && let Some((caller_p, caller_path)) =
+                                            st.param_alias.get(&al).cloned()
+                                    {
+                                        st.invalidated.insert((caller_p, caller_path));
+                                    }
+                                }
+                            }
                             if let Some(dl) = dest_local {
                                 for (&h_idx, &pend) in &pend_by_handle {
                                     let ready = ready_by_handle
@@ -1432,14 +1653,15 @@ fn verify_fn_state_contracts(
                                             .map_or(st.states[h_idx].union(ok_st), |e| {
                                                 ok_st.union(e)
                                             });
-                                        st.states[h_idx] = joined;
+                                        st.set_handle_state(h_idx, joined);
                                         st.invalidate_handle(h_idx);
                                         entries.push((h_idx, Some(ok_st), err_st));
                                         seen.push(h_idx);
                                     }
                                     for (&h_idx, &err_st) in &err_by_handle {
                                         if !seen.contains(&h_idx) {
-                                            st.states[h_idx] = st.states[h_idx].union(err_st);
+                                            let joined = st.states[h_idx].union(err_st);
+                                            st.set_handle_state(h_idx, joined);
                                             st.invalidate_handle(h_idx);
                                             entries.push((h_idx, None, Some(err_st)));
                                         }
@@ -1477,7 +1699,10 @@ fn verify_fn_state_contracts(
                 for clause in &func.sig.state_contracts {
                     match *clause {
                         StateContractClause::RequiresState { .. }
-                        | StateContractClause::RequiresApart { .. } => {}
+                        | StateContractClause::RequiresApart { .. }
+                        | StateContractClause::InvalidationUpperBound
+                        | StateContractClause::Invalidates { .. }
+                        | StateContractClause::AllowsRollback { .. } => {}
                         StateContractClause::ProvidesRetired { param } => {
                             if !st.retired[param as usize] {
                                 return Err(fail(
@@ -1577,6 +1802,47 @@ fn verify_fn_state_contracts(
                                     "function fails to satisfy provides(on_err(state(...)))",
                                 ));
                             }
+                        }
+                    }
+                }
+                // Verify declared exported projection-invalidation upper bound (`actual ⊆ upper`).
+                if has_invalidation_upper {
+                    for (p_idx, actual_path) in &st.invalidated {
+                        let covered = declared_invalidations
+                            .iter()
+                            .any(|(dp, dpath)| *dp == *p_idx && dpath.subsumes(actual_path));
+                        if !covered {
+                            return Err(fail(
+                                "function invalidates projection outside declared effects(invalidates(...)) upper bound",
+                            ));
+                        }
+                    }
+                }
+                // Verify history rollback `H`: a function cannot hide a transient state
+                // rollback (e.g. Open -> Closed -> Open) unless `effects(rollback(p))`
+                // or an invalidation upper bound covering the handle's state is declared.
+                for (p_idx, info_opt) in local_info.iter().enumerate().take(param_count) {
+                    let Some(info) = info_opt else { continue };
+                    if allows_rollback[p_idx] {
+                        continue;
+                    }
+                    let allowed_history = entry_init_states[p_idx].union(st.states[p_idx]);
+                    let has_hidden_rollback = !st.history[p_idx].is_subset_of(allowed_history);
+                    if has_hidden_rollback
+                        && (declared_requires_state[p_idx].is_some() || has_invalidation_upper)
+                    {
+                        let state_covered = has_invalidation_upper
+                            && declared_invalidations.iter().any(|(dp, dpath)| {
+                                *dp == p_idx
+                                    && match info.state_field {
+                                        None => dpath.as_slice().is_empty(),
+                                        Some((_, sf)) => dpath.subsumes(&[sf]),
+                                    }
+                            });
+                        if !state_covered {
+                            return Err(fail(
+                                "hidden protocol state rollback H detected; declare effects(rollback(...)) or effects(invalidates(...))",
+                            ));
                         }
                     }
                 }

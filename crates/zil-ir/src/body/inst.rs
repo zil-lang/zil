@@ -6,8 +6,8 @@
 //! normal, error and cancellation edges use the same terminator.
 
 use super::ids::{
-    AdtId, ArgsId, BlockId, ClosureId, ConstId, DynId, FnId, ForeignId, Local, ScopeId, StaticId,
-    TyId, VariantIdx,
+    AdtId, ArgsId, BlockId, ClosureId, ConstId, DynId, FieldIdx, FnId, ForeignId, Local, ScopeId,
+    StaticId, TyId, VariantIdx,
 };
 use super::place::{Place, PlaceTypes};
 use super::ty::{FloatTy, IntTy, Mutability, ParamEnv, Region, TyTable};
@@ -611,6 +611,53 @@ impl ProtocolStateSet {
 }
 
 /// Verified function-level protocol state contract clause (`contract { requires/provides(...) }`).
+/// Fixed-depth field projection path (`p`, `p.a`, `p.a.b`, up to depth 4)
+/// used in projection-invalidation upper-bound contracts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ContractFieldPath {
+    pub len: u8,
+    pub fields: [FieldIdx; 4],
+}
+
+impl ContractFieldPath {
+    pub const MAX_DEPTH: usize = 4;
+    pub const ROOT: Self = Self {
+        len: 0,
+        fields: [FieldIdx(0); 4],
+    };
+
+    pub fn from_slice(slice: &[FieldIdx]) -> Option<Self> {
+        if slice.len() > Self::MAX_DEPTH {
+            return None;
+        }
+        let mut fields = [FieldIdx(0); 4];
+        for (i, &f) in slice.iter().enumerate() {
+            fields[i] = f;
+        }
+        Some(Self {
+            len: slice.len() as u8,
+            fields,
+        })
+    }
+
+    pub fn as_slice(&self) -> &[FieldIdx] {
+        &self.fields[..(self.len as usize).min(Self::MAX_DEPTH)]
+    }
+
+    /// True if this declared upper-bound prefix covers `actual` (prefix subsumption).
+    pub fn subsumes(&self, actual: &[FieldIdx]) -> bool {
+        let prefix = self.as_slice();
+        actual.len() >= prefix.len() && actual[..prefix.len()] == *prefix
+    }
+
+    /// True if `self` and `other` overlap (one is a prefix of the other).
+    pub fn overlaps(&self, other: &[FieldIdx]) -> bool {
+        let a = self.as_slice();
+        let n = a.len().min(other.len());
+        a[..n] == other[..n]
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StateContractClause {
     /// `requires(state(param, states))`
@@ -647,6 +694,12 @@ pub enum StateContractClause {
     },
     /// `requires(apart(param_a, param_b))` — multi-role non-aliasing precondition
     RequiresApart { param_a: u32, param_b: u32 },
+    /// Marker indicating `effects(invalidates(...))` was explicitly declared as a closed upper bound.
+    InvalidationUpperBound,
+    /// `effects(invalidates(param.f1.f2))` — declared projection invalidation upper bound.
+    Invalidates { param: u32, path: ContractFieldPath },
+    /// `effects(rollback(param))` — explicitly permits transient history rollback `H` on `param`.
+    AllowsRollback { param: u32 },
 }
 
 /// Declared task resume locality contract (`contract { resume(local | transfer) }`).

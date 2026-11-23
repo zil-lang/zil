@@ -13,10 +13,10 @@ use super::ids::{
     ScopeId, StaticId, TyId, VariantIdx,
 };
 use super::inst::{
-    AggregateKind, BinOp, Block, Body, Callee, ClosureCallMode, ConstValue, DropFlag, DynImpl,
-    FnRole, FnSig, ForeignAbi, ForeignCallbackRole, ForeignDecl, Function, Instruction,
-    InstructionKind, IntrinsicOp, LocalDecl, Module, Operand, ProtocolStateSet, ResumeMode, Rvalue,
-    ScopeExit, StateContractClause, Terminator, TrapKind, UnOp,
+    AggregateKind, BinOp, Block, Body, Callee, ClosureCallMode, ConstValue, ContractFieldPath,
+    DropFlag, DynImpl, FnRole, FnSig, ForeignAbi, ForeignCallbackRole, ForeignDecl, Function,
+    Instruction, InstructionKind, IntrinsicOp, LocalDecl, Module, Operand, ProtocolStateSet,
+    ResumeMode, Rvalue, ScopeExit, StateContractClause, Terminator, TrapKind, UnOp,
 };
 use super::place::{FieldRef, Place, PlaceRoot, Projection};
 use super::source_map::OpLocation;
@@ -1537,6 +1537,21 @@ fn encode_function(w: &mut Writer, f: &Function) {
             w.u32(param_a);
             w.u32(param_b);
         }
+        StateContractClause::InvalidationUpperBound => {
+            w.u8(8);
+        }
+        StateContractClause::Invalidates { param, path } => {
+            w.u8(9);
+            w.u32(param);
+            w.u8(path.len);
+            for f in path.as_slice() {
+                w.u32(f.0);
+            }
+        }
+        StateContractClause::AllowsRollback { param } => {
+            w.u8(10);
+            w.u32(param);
+        }
     });
     w.u32(f.body.param_count);
     w.vec(&f.body.locals, |w, l| {
@@ -1608,6 +1623,26 @@ fn decode_function(r: &mut Reader<'_>) -> Result<Function, WireError> {
             param_a: r.u32()?,
             param_b: r.u32()?,
         }),
+        8 => Ok(StateContractClause::InvalidationUpperBound),
+        9 => {
+            let param = r.u32()?;
+            let len = r.u8()? as usize;
+            if len > ContractFieldPath::MAX_DEPTH {
+                return Err(WireError::InvalidTag("ContractFieldPath", len as u8));
+            }
+            let mut fields = [FieldIdx(0); 4];
+            for slot in fields.iter_mut().take(len) {
+                *slot = FieldIdx(r.u32()?);
+            }
+            Ok(StateContractClause::Invalidates {
+                param,
+                path: ContractFieldPath {
+                    len: len as u8,
+                    fields,
+                },
+            })
+        }
+        10 => Ok(StateContractClause::AllowsRollback { param: r.u32()? }),
         t => Err(WireError::InvalidTag("StateContractClause", t)),
     })?;
     let param_count = r.u32()?;

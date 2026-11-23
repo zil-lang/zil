@@ -1416,3 +1416,333 @@ fn raw_wire_forged_user_state_protocol_contracts_are_rejected_by_checker() {
         err_b.kind
     );
 }
+
+#[test]
+fn projection_invalidation_and_history_rollback_execute_natively_on_dual_backends() {
+    let dir = temp_dir("projection-invalidation-native");
+    let src = r#"
+extern "C" fn putchar(code: i32) -> i32;
+
+enum ChanState { Init, Open, Closed }
+
+struct Channel {
+    state: ChanState,
+    counter: i32,
+    tag: i32,
+}
+
+fn open(ch: &mut Channel)
+    contract {
+        requires(state(ch, ChanState.Init));
+        provides(state(ch, ChanState.Open));
+        effects(invalidates(ch.state));
+    }
+{
+    ch.state = ChanState.Open
+}
+
+fn send(ch: &mut Channel, byte: i32)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open));
+        effects(invalidates());
+    }
+{
+    unsafe { putchar(byte) }
+}
+
+fn bump_counter(ch: &mut Channel)
+    contract {
+        effects(invalidates(ch.counter));
+    }
+{
+    ch.counter = ch.counter + 1
+}
+
+fn reset_all(ch: &mut Channel)
+    contract {
+        effects(invalidates(ch));
+    }
+{
+    ch.counter = 0
+    ch.tag = 42
+}
+
+fn reconnect(ch: &mut Channel)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open));
+        effects(rollback(ch));
+    }
+{
+    ch.state = ChanState.Closed
+    ch.state = ChanState.Open
+}
+
+fn read_tag(ch: &Channel) -> i32
+    contract {
+        effects(invalidates());
+    }
+{
+    return ch.tag
+}
+
+fn main() -> i32 {
+    var ch = Channel { state: ChanState.Init, counter: 0, tag: 7 }
+    open(&mut ch)
+    // Projection-scoped invalidation on `ch.counter` preserves `ch.state == Open`!
+    bump_counter(&mut ch)
+    send(&mut ch, 65)
+    // Explicit history rollback `effects(rollback(ch))` permits Open -> Closed -> Open.
+    reconnect(&mut ch)
+    send(&mut ch, 66)
+    // Hierarchical upper bound `effects(invalidates(ch))` covers all subfields.
+    reset_all(&mut ch)
+    let t = read_tag(&ch)
+    if t == 42 {
+        return 0
+    }
+    return 1
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert_eq!(stdout.as_slice(), b"AB");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn projection_invalidation_and_rollback_violations_are_rejected() {
+    let dir = temp_dir("projection-invalidation-reject");
+
+    // 1. Under-declared upper bound: declares invalidates(ch.counter) but mutates ch.tag.
+    check_rejected(
+        &dir,
+        "under_declared_projection_invalidation_rejected",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState, counter: i32, tag: i32 }
+fn bad(ch: &mut Channel) contract { effects(invalidates(ch.counter)); } {
+    ch.tag = 99
+}
+fn main() -> i32 {
+    var ch = Channel { state: ChanState.Init, counter: 0, tag: 0 }
+    bad(&mut ch)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 2. Empty upper bound effects(invalidates()) cannot mutate any parameter field.
+    check_rejected(
+        &dir,
+        "empty_invalidation_upper_bound_rejects_mutation",
+        r#"
+struct Boxed { x: i32 }
+fn bad(b: &mut Boxed) contract { effects(invalidates()); } {
+    b.x = 1
+}
+fn main() -> i32 {
+    var b = Boxed { x: 0 }
+    bad(&mut b)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 3. Hidden history rollback H (Open -> Closed -> Open) without effects(rollback(ch)).
+    check_rejected(
+        &dir,
+        "hidden_history_rollback_rejected",
+        r#"
+enum ChanState { Init, Open, Closed }
+struct Channel { state: ChanState }
+fn sneaky_reset(ch: &mut Channel)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open));
+    }
+{
+    ch.state = ChanState.Closed
+    ch.state = ChanState.Open
+}
+fn main() -> i32 {
+    var ch = Channel { state: ChanState.Open }
+    sneaky_reset(&mut ch)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 4. Calling an uncontracted mutable helper cannot satisfy empty effects(invalidates()).
+    check_rejected(
+        &dir,
+        "uncontracted_callee_violates_empty_invalidation_upper_bound",
+        r#"
+struct Boxed { x: i32 }
+fn unknown_mut(b: &mut Boxed) {
+    b.x = 42
+}
+fn bad(b: &mut Boxed) contract { effects(invalidates()); } {
+    unknown_mut(b)
+}
+fn main() -> i32 {
+    var b = Boxed { x: 0 }
+    bad(&mut b)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 5. Unknown field name in effects(invalidates(ch.nonexistent)) rejected at typecheck.
+    check_rejected(
+        &dir,
+        "unknown_field_in_invalidates_rejected",
+        r#"
+struct Boxed { x: i32 }
+fn bad(b: &mut Boxed) contract { effects(invalidates(b.nonexistent)); } {}
+fn main() -> i32 { return 0 }
+"#,
+        ResultCategory::SafeReject,
+        "E-RESOURCE-RESULT-MODE",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_forged_projection_invalidation_upper_bound_is_rejected_by_checker() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, Block, Body, ConstValue, ContractFieldPath, FieldDef, FieldIdx, FieldRef,
+        FnId, FnRole, FnSig, Function, GenericArgs, Instruction, InstructionKind, IntTy, Local,
+        LocalDecl, Module, Mutability, Operand, ParamEnv, Place, PlaceRoot, Projection, Region,
+        ResumeMode, Rvalue, StateContractClause, Terminator, TyKind, TyTable, VariantDef,
+        VariantIdx, decode_module, encode_module,
+    };
+
+    let mut tys = TyTable::new();
+    let unit_ty = tys.intern(TyKind::Unit);
+    let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+    let empty_args = tys.intern_args(GenericArgs {
+        tys: vec![],
+        regions: vec![],
+    });
+    let pair_adt = tys.add_adt(AdtDef {
+        name: "Pair".into(),
+        kind: AdtKind::Record,
+        type_params: 0,
+        region_params: 0,
+        variants: vec![VariantDef {
+            name: "Pair".into(),
+            fields: vec![
+                FieldDef {
+                    name: "a".into(),
+                    ty: i32_ty,
+                },
+                FieldDef {
+                    name: "b".into(),
+                    ty: i32_ty,
+                },
+            ],
+        }],
+        user_drop: false,
+    });
+    let pair_ty = tys.intern(TyKind::Adt {
+        adt: pair_adt,
+        args: empty_args,
+    });
+    let mut_pair = tys.intern(TyKind::Ref {
+        region: Region::Static,
+        mutability: Mutability::Exclusive,
+        pointee: pair_ty,
+    });
+
+    // Function declares `effects(invalidates(p.a))` (FieldIdx(0)),
+    // but body writes `(*p).b = 99` (FieldIdx(1)).
+    let forged = Function {
+        name: "forged_invalidation_bound".into(),
+        sig: FnSig {
+            params: vec![mut_pair],
+            result: unit_ty,
+            type_params: 0,
+            region_params: 0,
+            role: FnRole::Normal,
+            resume_mode: ResumeMode::Local,
+            state_contracts: vec![
+                StateContractClause::InvalidationUpperBound,
+                StateContractClause::Invalidates {
+                    param: 0,
+                    path: ContractFieldPath::from_slice(&[FieldIdx(0)]).unwrap(),
+                },
+            ],
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![LocalDecl {
+                ty: mut_pair,
+                name: Some("p".into()),
+            }],
+            captures: vec![],
+            closure: None,
+            result: unit_ty,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![Block {
+                instructions: vec![Instruction {
+                    kind: InstructionKind::Assign {
+                        dest: Place {
+                            root: PlaceRoot::Local(Local(0)),
+                            projections: vec![
+                                Projection::Deref,
+                                Projection::Field(FieldRef {
+                                    adt: pair_adt,
+                                    args: empty_args,
+                                    variant: VariantIdx(0),
+                                    field: FieldIdx(1),
+                                }),
+                            ],
+                        },
+                        value: Rvalue::Use(Operand::Const(ConstValue::Int {
+                            ty: IntTy::I32,
+                            bits: 99,
+                        })),
+                    },
+                    span: zil_base::Span::default(),
+                }],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Unit),
+                },
+                terminator_span: zil_base::Span::default(),
+            }],
+        },
+    };
+
+    let module = Module {
+        tys,
+        functions: vec![forged],
+        foreigns: vec![],
+        statics: vec![],
+        dyn_impls: vec![],
+    };
+    let bytes = encode_module(&module);
+    let decoded = decode_module(&bytes).expect("wire decode forged invalidation module");
+    let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+        .expect("solver produces valid borrow certificate");
+    let err = zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+        .expect_err("checker must reject forged projection invalidation upper bound");
+    assert_eq!(err.function, FnId(0));
+    assert!(
+        matches!(err.kind, zil_check::CheckErrorKind::CertificateShape(_)),
+        "expected CertificateShape rejection, got {:?}",
+        err.kind
+    );
+}
