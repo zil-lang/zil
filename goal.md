@@ -8,8 +8,8 @@
 
 - **主线基线**：[`main@bdff56718`](https://github.com/zil-lang/zil/commit/bdff56718)（开放 PR：0；L1–L4 语言与安全证明收口分支均已合入并清理）
 - **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、L3 全量闭环（[PR #103](https://github.com/zil-lang/zil/pull/103)–[#108](https://github.com/zil-lang/zil/pull/108)、[PR #110](https://github.com/zil-lang/zil/pull/110)、[PR #112](https://github.com/zil-lang/zil/pull/112)）与 **L4 标准库 / 借用 / C ABI 并行闭环**（[PR #109](https://github.com/zil-lang/zil/pull/109)、[PR #111](https://github.com/zil-lang/zil/pull/111)、[PR #113](https://github.com/zil-lang/zil/pull/113)）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入 `main`
-- **总体阻塞**：无活跃 P0 阻塞；全仓 `tests/**/*.zil` 原文件 `zil check` 计数 **`852 / 1,385`**（`476 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`；本轮同时修复了跨模块私有字段可见性、`StoreBorrow` 别名冲突、Direct 默认 `Drop` 未闭 `Task` 与 `Mutex<Resource>` FFI Drop 拒绝等 5 项安全误放行）
-- **下一发布门**：按最新 `main@bdff56718` 接受本轮 L3 + L4 终态验收，并转入剩余一般语言组合扩展或平台/ZUI 阶段（G10.4 / G9.4–G9.6）
+- **总体阻塞**：独立审核确认 PR #109 的 `compile_path` 仍会优先信任项目祖先的任意 `lib/std/`（未做 canonical 内容校验），需先关闭 std 劫持路径；PR #111 的 StoreBorrow 对不同 Desc 参数 Local 直接视为根不交、对多定义临时失去真实 owner 时回退到临时根，须按 P0 安全风险核验同源别名能否误准入。尚未独立复现 Safe UB，不能以此否定已合入有限功能；全仓 `tests/**/*.zil` 原文件 `zil check` 计数 **`852 / 1,385`**（`476 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`；本轮同时修复了跨模块私有字段可见性、`StoreBorrow` 别名冲突、Direct 默认 `Drop` 未闭 `Task` 与 `Mutex<Resource>` FFI Drop 拒绝等 5 项安全误放行）
+- **下一发布门**：先定点修复 G9.3 stdlib `lib/std/` 解析绕过，并验证 StoreBorrow 两个不同 Desc 参数可能指向同一实际 Store 时的 Shared/Exclusive LoanConflict；之后按产品门进入其他语言组合或 Windows/ZUI
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
 ## 下一阶段施工安排（以 main@bdff56718 为基线）
@@ -54,7 +54,7 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G9.3 | 剩余：更一般高阶集合算法与 GAT lending 迭代；**核心闭环已合入**（PR #109/#111：23 份 canonical `lib/std/*.zil` 内嵌加载与 `E-STD-RESERVED` 防伪造、跨模块私有字段 `E-VISIBILITY` 强制、`StoreBorrow` 借用跟踪修复 + Raw/Wire 有效证书证明、19 份标准库真实消费者与 `iterator`/`string_search`/`lending` 双后端原生全绿） | 部分实现 | P1 | 19 份标准库消费者 × 4 后端配置 + 迭代器/lending 原生测试全绿 |
+| G9.3 | 剩余：更一般高阶集合算法与 GAT lending 迭代；**核心闭环已合入**（PR #109/#111：23 份 canonical `lib/std/*.zil` 内嵌加载与 `E-STD-RESERVED` 防伪造、跨模块私有字段 `E-VISIBILITY` 强制、`StoreBorrow` 借用跟踪修复 + Raw/Wire 有效证书证明、19 份标准库真实消费者与 `iterator`/`string_search`/`lending` 双后端原生全绿） | 部分实现 | P0 | PR #109：`compile_path` 不得从任意项目祖先 `lib/std/` 覆盖内嵌 canonical，补本地 `lib/std/utf8.zil` 欺骗复现及 E-STD-RESERVED/未解析负例。PR #111：同一 Store 传入两个 Desc 参数、同一 index 的共享/独占借用必须 LoanConflict；多定义/分支 descriptor 无法证明 owner 时 fail-closed；合法不同 owner 对照需有真实 apart 证明。保留两后端标准库/迭代原生门。 |
 | G10.3 | 剩余：匿名联合 `T | U`（`TypeKind::Union`）及非 Linux ABI；**核心闭环已合入**（PR #113：`IntrinsicOp::CCallback`（Wire 49）、递归 POD Record C-ABI 引用、glibc `errno` 桥接、LLVM 浮点/有符号整数常量降级修复、`ffi.zil` / `float_roundtrip` 8,002 次 locale 零泄漏 / `float_status` / `complete-domains` / 大闭包与 16 参数辅助双后端原生全绿） | 部分实现 | P1 | 跨模块与 C ABI 原生正例 + 越界/非法 ABI 与 Raw/Wire `CCallback` 负例全绿 |
 
 ## 6. 平台与 ZUI
