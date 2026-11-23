@@ -54,7 +54,7 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G9.3 | 剩余：更一般高阶集合算法与 GAT lending 迭代；**核心闭环已合入**（PR #109/#111：23 份 canonical `lib/std/*.zil` 内嵌加载与 `E-STD-RESERVED` 防伪造、跨模块私有字段 `E-VISIBILITY` 强制、`StoreBorrow` 借用跟踪修复 + Raw/Wire 有效证书证明、19 份标准库真实消费者与 `iterator`/`string_search`/`lending` 双后端原生全绿） | 部分实现 | P0 | PR #109：`compile_path` 不得从任意项目祖先 `lib/std/` 覆盖内嵌 canonical，补本地 `lib/std/utf8.zil` 欺骗复现及 E-STD-RESERVED/未解析负例。PR #111：同一 Store 传入两个 Desc 参数、同一 index 的共享/独占借用必须 LoanConflict；多定义/分支 descriptor 无法证明 owner 时 fail-closed；合法不同 owner 对照需有真实 apart 证明。保留两后端标准库/迭代原生门。 |
+| G9.3 | 剩余：更一般高阶集合算法与 GAT lending 迭代；**核心闭环与 P0 安全证明已合入**（PR #109/#111/#114：默认始终加载内嵌 canonical `lib/std/*.zil` 并拒绝本地/祖先 `lib/std/` 覆盖与 `E-STD-RESERVED` 伪造、跨模块私有字段 `E-VISIBILITY` 强制、`StoreBorrow` 跨 `Desc` 参数及分支合流多定义 fail-closed `LoanConflict` + 真独立 `StoreNew` 合法对照、19 份标准库真实消费者与 `iterator`/`string_search`/`lending` 双后端原生全绿） | 部分实现 | P1 | 保留两后端标准库/迭代原生门与 Raw/Wire 有效证书回归门 |
 | G10.3 | 剩余：匿名联合 `T | U`（`TypeKind::Union`）及非 Linux ABI；**核心闭环已合入**（PR #113：`IntrinsicOp::CCallback`（Wire 49）、递归 POD Record C-ABI 引用、glibc `errno` 桥接、LLVM 浮点/有符号整数常量降级修复、`ffi.zil` / `float_roundtrip` 8,002 次 locale 零泄漏 / `float_status` / `complete-domains` / 大闭包与 16 参数辅助双后端原生全绿） | 部分实现 | P1 | 跨模块与 C ABI 原生正例 + 越界/非法 ABI 与 Raw/Wire `CCallback` 负例全绿 |
 
 ## 6. 平台与 ZUI
