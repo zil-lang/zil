@@ -3003,7 +3003,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         | TyData::FnPtr { .. }
                         | TyData::Closure { .. }
                         | TyData::ImplCallable { .. }
-                        | TyData::Dyn(_)
+                        | TyData::Dyn { .. }
                         | TyData::OwnedDyn { .. }
                         | TyData::Opaque(_)
                         | TyData::Param(_)
