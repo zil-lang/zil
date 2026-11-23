@@ -1,20 +1,20 @@
 # ZIL 实时任务看板
 
-> 更新：2026-11-22（Asia/Shanghai） · 唯一职责：仅追踪**未完成任务、优先级、依赖与可执行退出门**，不记录历史施工流水账。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；精简前历史快照固定于 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
+> 更新：2026-11-23（Asia/Shanghai） · 唯一职责：仅追踪**未完成任务、优先级、依赖与可执行退出门**，不记录历史施工流水账。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；精简前历史快照固定于 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
 
 [工作流规则](workflow.md) · [源码与恢复参考](README.md) · [分支与备份规则](AGENTS.md)
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@bdff56718`](https://github.com/zil-lang/zil/commit/bdff56718)（开放 PR：0；L1–L4 语言与安全证明收口分支均已合入并清理）
+- **主线基线**：[`main@8c7a0fe2b`](https://github.com/zil-lang/zil/commit/8c7a0fe2b)（开放 PR：0；L1–L4 语言与安全证明收口分支均已合入并清理）
 - **当前阶段**：L1 四批（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#99](https://github.com/zil-lang/zil/pull/99)）、L2 三批（[PR #100](https://github.com/zil-lang/zil/pull/100)–[#102](https://github.com/zil-lang/zil/pull/102)）、L3 全量闭环（[PR #103](https://github.com/zil-lang/zil/pull/103)–[#108](https://github.com/zil-lang/zil/pull/108)、[PR #110](https://github.com/zil-lang/zil/pull/110)、[PR #112](https://github.com/zil-lang/zil/pull/112)）与 **L4 标准库 / 借用 / C ABI 并行闭环**（[PR #109](https://github.com/zil-lang/zil/pull/109)、[PR #111](https://github.com/zil-lang/zil/pull/111)、[PR #113](https://github.com/zil-lang/zil/pull/113)）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入 `main`
-- **总体阻塞**：独立审核确认 PR #109 的 `compile_path` 仍会优先信任项目祖先的任意 `lib/std/`（未做 canonical 内容校验），需先关闭 std 劫持路径；PR #111 的 StoreBorrow 对不同 Desc 参数 Local 直接视为根不交、对多定义临时失去真实 owner 时回退到临时根，须按 P0 安全风险核验同源别名能否误准入。尚未独立复现 Safe UB，不能以此否定已合入有限功能；全仓 `tests/**/*.zil` 原文件 `zil check` 计数 **`852 / 1,385`**（`476 SafeReject / 57 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`；本轮同时修复了跨模块私有字段可见性、`StoreBorrow` 别名冲突、Direct 默认 `Drop` 未闭 `Task` 与 `Mutex<Resource>` FFI Drop 拒绝等 5 项安全误放行）
-- **下一发布门**：先定点修复 G9.3 stdlib `lib/std/` 解析绕过，并验证 StoreBorrow 两个不同 Desc 参数可能指向同一实际 Store 时的 Shared/Exclusive LoanConflict；之后按产品门进入其他语言组合或 Windows/ZUI
+- **总体阻塞**：PR #114 已完成且经独立复核接受此前 G9.3 的两项限定 P0 修补（标准库 canonical 信任根及跨 Desc/分支多定义 StoreBorrow 的保守 LoanConflict）；当前无由这两项遗留的 P0 阻塞。一般跨过程 apart 精度仍在 G9.3 后续范围；全仓 `tests/**/*.zil` 原文件 `zil check` 计数 **`852 / 1,385`**（`477 SafeReject / 56 Unsupported`，0 回归，0 误放行，0 `ResourceLimit`；本轮同时修复了跨模块私有字段可见性、`StoreBorrow` 别名冲突、Direct 默认 `Drop` 未闭 `Task` 与 `Mutex<Resource>` FFI Drop 拒绝等 5 项安全误放行）
+- **下一发布门**：G9.3 限定安全收口已验收；回到未完成的语言组合任务和产品门，按实际消费者优先级推进；Windows/ZUI 保持独立规划
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@bdff56718 为基线）
+## 下一阶段施工安排（以 main@8c7a0fe2b 为基线）
 
-本轮 L3 余项（PR #108 / #110 / #112）与 L4 标准库及 ABI 并行三批（PR #109 / #111 / #113）已全部 4/4 远端 CI 全绿合入 `main`，进入可验收终态，等待验收与下一轮派工。编译性能专项（`research/full-push-native`、`integrate/scalar-codegen`）继续独立保留。
+本轮 L3 余项（PR #108 / #110 / #112）、L4 三批（PR #109 / #111 / #113）及限定 P0 修补（PR #114）均已合入并通过远端验收；此前 G9.3 两项 P0 阻塞已解除。编译性能专项（`research/full-push-native`、`integrate/scalar-codegen`）继续独立保留。
 
 **统一计量及安全门**：`852/1385` 仅为 `zil check` 返回 Success 的原文件数，**不是正例通过率或功能完成率**。先以精确文件路径、原始输入哈希和预期结果把本批真实正例、预期安全负例及旧/弃用 fixture 分开；每批独立统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
