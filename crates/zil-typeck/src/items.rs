@@ -395,6 +395,13 @@ impl<'a> Items<'a> {
             TyData::Opaque(
                 OpaqueKind::ByteBuffer | OpaqueKind::ForeignHandle | OpaqueKind::SyncCell(_),
             ) => ty,
+            TyData::Union(items) => {
+                let items = items
+                    .into_iter()
+                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .collect();
+                types.canonicalize_union_raw(items)
+            }
             TyData::ErrorUnion { ok, err } => {
                 let ok = self.normalize_ty_depth(ok, types, depth + 1);
                 let err = self.normalize_ty_depth(err, types, depth + 1);
@@ -1608,6 +1615,7 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::Float(_)
         | TyData::Adt { .. }
         | TyData::Tuple(_)
+        | TyData::Union(_)
         | TyData::Array { .. }
         | TyData::Slice(_)
         | TyData::Ref { .. }
@@ -1633,6 +1641,23 @@ fn promote_carrier_or_error_ok(ty: Ty, types: &mut Types) -> Option<Ty> {
         && let Some(m) = promote_to_managed(ok, types)
     {
         return Some(types.intern(TyData::ErrorUnion { ok: m, err }));
+    }
+    if let TyData::Union(members) = types.data(ty).clone() {
+        let mut changed = false;
+        let mut next = Vec::with_capacity(members.len());
+        for m in members {
+            if let Some(pm) = promote_to_managed(m, types) {
+                if pm != m {
+                    changed = true;
+                }
+                next.push(pm);
+            } else {
+                next.push(m);
+            }
+        }
+        if changed {
+            return Some(types.canonicalize_union_raw(next));
+        }
     }
     None
 }
@@ -4223,7 +4248,36 @@ fn resolve_type_with_lifetimes(
                 regions: Vec::new(),
             }))
         }
-        ast::TypeKind::Union(_) => Err(diag::unsupported("anonymous sum types", t.span)),
+        ast::TypeKind::Union(members) => {
+            let mut resolved = Vec::with_capacity(members.len());
+            for m in members {
+                resolved.push(resolve_type_with_lifetimes(
+                    m,
+                    from,
+                    generics,
+                    lifetimes,
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    self_ty,
+                    None,
+                    types,
+                )?);
+            }
+            match types.make_union(resolved) {
+                Ok(ty) => Ok(ty),
+                Err(crate::ty::UnionError::TooFew) => Err(diag::error(
+                    diag::TYPE_MISMATCH,
+                    t.span,
+                    "anonymous union requires at least two distinct member types",
+                )),
+                Err(crate::ty::UnionError::Duplicate(_)) => Err(diag::error(
+                    diag::TYPE_MISMATCH,
+                    t.span,
+                    "anonymous union contains duplicate member types",
+                )),
+            }
+        }
         ast::TypeKind::Dyn { path, .. } => {
             if let Some(ItemRef::Trait(tr)) = lookup_item_in(modules, mod_by_path, from, path) {
                 Ok(types.intern(TyData::Dyn(tr)))

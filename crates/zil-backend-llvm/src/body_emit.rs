@@ -496,11 +496,16 @@ done:\n\
             && let Some((_, ref sym, res_ty)) = main_fn
         {
             let ret = llvm_ty(&module.tys, res_ty)?;
+            let mut main_extra_defs = String::new();
             out.push_str("define i32 @main() {\nentry:\n");
-            if let Some(TyKind::ErrorUnion { ok, .. }) = module.tys.get(res_ty) {
+            if let Some(TyKind::ErrorUnion { ok, err }) = module.tys.get(res_ty) {
                 let ok_ty = *ok;
+                let err_ty = *err;
                 let ok_llvm = llvm_ty(&module.tys, ok_ty)?;
+                let ret_storage = llvm_storage_ty(&module.tys, res_ty)?;
+                let _ = writeln!(out, "  %r_slot = alloca {ret_storage}");
                 let _ = writeln!(out, "  %r = call {ret} @{sym}()");
+                let _ = writeln!(out, "  store {ret} %r, ptr %r_slot");
                 let _ = writeln!(out, "  %tag = extractvalue {ret} %r, 0");
                 out.push_str("  br i1 %tag, label %ok_bb, label %err_bb\n");
                 out.push_str("ok_bb:\n");
@@ -528,7 +533,34 @@ done:\n\
                 } else {
                     out.push_str("  ret i32 0\n");
                 }
-                out.push_str("err_bb:\n  ret i32 1\n");
+                out.push_str("err_bb:\n");
+                let _ = writeln!(
+                    out,
+                    "  %err_ptr = getelementptr inbounds {ret_storage}, ptr %r_slot, i32 0, i32 2"
+                );
+                let empty_body = Body {
+                    locals: Vec::new(),
+                    blocks: Vec::new(),
+                    param_count: 0,
+                    result: TyId(0),
+                    captures: Vec::new(),
+                    closure: None,
+                    drop_flags: Vec::new(),
+                    param_env: zil_ir::body::ParamEnv::default(),
+                };
+                {
+                    let mut emitter = FnEmitter {
+                        module,
+                        fn_id: FnId(0),
+                        body: &empty_body,
+                        out: &mut out,
+                        extra_defs: String::new(),
+                        tmp: 0,
+                    };
+                    emitter.emit_drop_ptr("%err_ptr", err_ty)?;
+                    main_extra_defs = emitter.extra_defs;
+                }
+                out.push_str("  ret i32 1\n");
             } else if ret == "void" {
                 let _ = writeln!(out, "  call void @{sym}()");
                 out.push_str("  ret i32 0\n");
@@ -557,6 +589,9 @@ done:\n\
                 out.push_str("  ret i32 0\n");
             }
             out.push_str("}\n");
+            if !main_extra_defs.is_empty() {
+                out.push_str(&main_extra_defs);
+            }
         }
 
         units.push(out);
