@@ -43,6 +43,14 @@ pub enum ResultMode {
     Give,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TraitBound {
+    pub trait_ref: TraitRef,
+    pub trait_args: Vec<Ty>,
+    /// Associated type equality bindings, e.g. `Item = i64` in `Container<Item = i64>`.
+    pub assoc_bindings: Vec<(String, Ty)>,
+}
+
 #[derive(Clone, Debug)]
 pub struct GenericInfo {
     pub name: String,
@@ -52,8 +60,8 @@ pub struct GenericInfo {
     pub store_element: bool,
     /// Declared `SyncDrop` bound.
     pub sync_drop: bool,
-    /// Declared user trait bounds: `(trait_ref, trait_args)`.
-    pub traits: Vec<(TraitRef, Vec<Ty>)>,
+    /// Declared user trait bounds.
+    pub traits: Vec<TraitBound>,
     /// Declared `Fn`/`FnMut`/`FnOnce` bound: `(kind, params, result)`.
     pub callable: Option<(ClosureKind, Vec<Ty>, Ty)>,
     /// If `Some(ty)`, this is a `const` generic parameter of integer type `ty`.
@@ -63,6 +71,8 @@ pub struct GenericInfo {
 #[derive(Clone, Debug)]
 pub struct TraitMethodDecl<'a> {
     pub name: String,
+    pub generics: Vec<GenericInfo>,
+    pub region_params: Vec<String>,
     pub params: Vec<Ty>,
     pub result: Ty,
     pub default_ast: Option<&'a ast::Function>,
@@ -72,17 +82,22 @@ pub struct TraitMethodDecl<'a> {
 pub struct TraitDecl<'a> {
     pub module: ModIdx,
     pub name: String,
+    pub supertraits: Vec<TraitBound>,
+    pub assoc_types: Vec<String>,
     pub methods: Vec<TraitMethodDecl<'a>>,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
 pub struct TraitImplDecl {
     pub trait_ref: TraitRef,
     pub generics: Vec<GenericInfo>,
+    pub where_bounds: Vec<(Ty, TraitBound)>,
     pub trait_args: Vec<Ty>,
     pub target: Ty,
     pub assoc_types: Vec<(String, Ty)>,
     pub methods: Vec<(String, FnRef)>,
+    pub span: Span,
 }
 
 #[derive(Clone, Debug)]
@@ -265,14 +280,365 @@ impl<'a> Items<'a> {
         }
     }
 
-    /// Matches a (possibly generic) trait impl's target pattern against `self_ty`.
+    /// Returns all trait bounds entailed by `bound` (starting with `bound` itself,
+    /// followed by transitive supertraits with substituted type arguments and
+    /// associated type bindings). Guards against cyclic supertrait hierarchies.
+    pub fn supertrait_closure(
+        &self,
+        bound: &TraitBound,
+        self_ty: Option<Ty>,
+        types: &mut Types,
+    ) -> Vec<TraitBound> {
+        let mut result = Vec::new();
+        let mut visited: Vec<TraitRef> = Vec::new();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(bound.clone());
+        while let Some(cur) = queue.pop_front() {
+            if visited.contains(&cur.trait_ref) {
+                continue;
+            }
+            visited.push(cur.trait_ref);
+            let tr = self.trait_decl(cur.trait_ref);
+            let supertraits = tr.supertraits.clone();
+            for st in supertraits {
+                let inst_args: Vec<Ty> = st
+                    .trait_args
+                    .iter()
+                    .map(|t| match self_ty {
+                        Some(st_ty) => types.subst_with_self(*t, &cur.trait_args, st_ty),
+                        None => types.subst(*t, &cur.trait_args),
+                    })
+                    .collect();
+                let inst_assoc: Vec<(String, Ty)> = st
+                    .assoc_bindings
+                    .iter()
+                    .map(|(n, t)| {
+                        let sub = match self_ty {
+                            Some(st_ty) => types.subst_with_self(*t, &cur.trait_args, st_ty),
+                            None => types.subst(*t, &cur.trait_args),
+                        };
+                        (n.clone(), sub)
+                    })
+                    .collect();
+                queue.push_back(TraitBound {
+                    trait_ref: st.trait_ref,
+                    trait_args: inst_args,
+                    assoc_bindings: inst_assoc,
+                });
+            }
+            result.push(cur);
+        }
+        result
+    }
+
+    /// Whether `ty` is `Copy` under the generic environment `env_generics`.
+    pub fn is_copy_in_env(&self, ty: Ty, env_generics: &[GenericInfo], types: &mut Types) -> bool {
+        self.is_copy_depth(ty, env_generics, types, 0)
+    }
+
+    fn is_copy_depth(
+        &self,
+        ty: Ty,
+        env_generics: &[GenericInfo],
+        types: &mut Types,
+        depth: u32,
+    ) -> bool {
+        if depth > 64 {
+            return false;
+        }
+        let ty = self.normalize_ty_in_env(ty, env_generics, types);
+        match types.data(types.shallow(ty)).clone() {
+            TyData::Unit
+            | TyData::Type
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Error => true,
+            TyData::Tuple(items) | TyData::Union(items) => items
+                .iter()
+                .all(|t| self.is_copy_depth(*t, env_generics, types, depth + 1)),
+            TyData::Array { element, .. } | TyData::ArrayConst { element, .. } => {
+                self.is_copy_depth(element, env_generics, types, depth + 1)
+            }
+            TyData::Slice(_) | TyData::SelfParam => false,
+            TyData::Ref { mutable, .. } => !mutable,
+            TyData::Desc(_) | TyData::FnPtr { .. } => true,
+            TyData::Closure { .. }
+            | TyData::ImplCallable { .. }
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn { .. } => false,
+            TyData::Managed(_) => false,
+            TyData::Opaque(OpaqueKind::ForeignHandle | OpaqueKind::ForeignCallback { .. }) => true,
+            TyData::Opaque(
+                OpaqueKind::ByteBuffer
+                | OpaqueKind::OwnedStore(_)
+                | OpaqueKind::Mutex(_)
+                | OpaqueKind::MutexGuard(_)
+                | OpaqueKind::Task { .. }
+                | OpaqueKind::Registration(_)
+                | OpaqueKind::AsyncRegistration(_)
+                | OpaqueKind::SyncCell(_),
+            ) => false,
+            TyData::ErrorUnion { ok, err } => {
+                self.is_copy_depth(ok, env_generics, types, depth + 1)
+                    && self.is_copy_depth(err, env_generics, types, depth + 1)
+            }
+            TyData::Param(i) => env_generics.get(i as usize).is_some_and(|g| g.copy),
+            TyData::Adt { adt, args, .. } => {
+                let decl = self.adt(adt);
+                match decl.kind {
+                    AdtKind::Record | AdtKind::Enum => {
+                        let fields: Vec<Ty> = decl
+                            .variants
+                            .iter()
+                            .flat_map(|v| v.fields.iter().map(|f| f.ty))
+                            .collect();
+                        fields.into_iter().all(|f| {
+                            let t = types.subst(f, &args);
+                            self.is_copy_depth(t, env_generics, types, depth + 1)
+                        })
+                    }
+                    AdtKind::Package | AdtKind::Resource => false,
+                }
+            }
+            TyData::Assoc { .. } | TyData::Var(_) => false,
+        }
+    }
+
+    /// Matches a (possibly generic) trait impl's target pattern against `self_ty`
+    /// and verifies all impl generic bounds and `where` predicates.
     /// Returns the substituted impl generic arguments if matched.
-    pub fn match_impl(&self, imp: &TraitImplDecl, self_ty: Ty, types: &Types) -> Option<Vec<Ty>> {
+    pub fn match_impl(
+        &self,
+        imp: &TraitImplDecl,
+        self_ty: Ty,
+        types: &mut Types,
+    ) -> Option<Vec<Ty>> {
+        self.match_impl_depth(imp, self_ty, &[], types, 0)
+    }
+
+    /// Matches a trait impl against `self_ty` under the generic assumptions `env_generics`.
+    pub fn match_impl_in_env(
+        &self,
+        imp: &TraitImplDecl,
+        self_ty: Ty,
+        env_generics: &[GenericInfo],
+        types: &mut Types,
+    ) -> Option<Vec<Ty>> {
+        self.match_impl_depth(imp, self_ty, env_generics, types, 0)
+    }
+
+    fn match_impl_depth(
+        &self,
+        imp: &TraitImplDecl,
+        self_ty: Ty,
+        env_generics: &[GenericInfo],
+        types: &mut Types,
+        depth: u32,
+    ) -> Option<Vec<Ty>> {
+        if depth > 16 {
+            return None;
+        }
         let mut bindings: Vec<Option<Ty>> = vec![None; imp.generics.len()];
         if !match_template(imp.target, self_ty, types, &mut bindings) {
             return None;
         }
-        bindings.into_iter().collect()
+        let impl_args: Vec<Ty> = bindings.into_iter().collect::<Option<Vec<Ty>>>()?;
+        // Verify all generic parameter bounds on the impl block.
+        for (g, &arg) in imp.generics.iter().zip(impl_args.iter()) {
+            let arg_shallow = types.shallow(arg);
+            if matches!(types.data(arg_shallow), TyData::Error) {
+                continue;
+            }
+            if g.copy && !self.is_copy_in_env(arg_shallow, env_generics, types) {
+                return None;
+            }
+            if g.store_element
+                && matches!(
+                    types.data(arg_shallow),
+                    TyData::Ref { .. } | TyData::Desc(_)
+                )
+            {
+                return None;
+            }
+            for bound in &g.traits {
+                let inst_bound = TraitBound {
+                    trait_ref: bound.trait_ref,
+                    trait_args: bound
+                        .trait_args
+                        .iter()
+                        .map(|t| types.subst(*t, &impl_args))
+                        .collect(),
+                    assoc_bindings: bound
+                        .assoc_bindings
+                        .iter()
+                        .map(|(n, t)| (n.clone(), types.subst(*t, &impl_args)))
+                        .collect(),
+                };
+                if !self.satisfies_trait_bound_depth(
+                    arg_shallow,
+                    &inst_bound,
+                    env_generics,
+                    types,
+                    depth + 1,
+                ) {
+                    return None;
+                }
+            }
+        }
+        // Verify additional `where` predicates on the impl block.
+        for (subj, bound) in &imp.where_bounds {
+            let inst_subj = types.subst(*subj, &impl_args);
+            let inst_bound = TraitBound {
+                trait_ref: bound.trait_ref,
+                trait_args: bound
+                    .trait_args
+                    .iter()
+                    .map(|t| types.subst(*t, &impl_args))
+                    .collect(),
+                assoc_bindings: bound
+                    .assoc_bindings
+                    .iter()
+                    .map(|(n, t)| (n.clone(), types.subst(*t, &impl_args)))
+                    .collect(),
+            };
+            if !self.satisfies_trait_bound_depth(
+                inst_subj,
+                &inst_bound,
+                env_generics,
+                types,
+                depth + 1,
+            ) {
+                return None;
+            }
+        }
+        Some(impl_args)
+    }
+
+    /// Checks whether `self_ty` satisfies `bound` (including supertrait entailment,
+    /// associated type equality bindings, and blanket impl bounds) under `env_generics`.
+    pub fn satisfies_trait_bound(
+        &self,
+        self_ty: Ty,
+        bound: &TraitBound,
+        env_generics: &[GenericInfo],
+        types: &mut Types,
+    ) -> bool {
+        self.satisfies_trait_bound_depth(self_ty, bound, env_generics, types, 0)
+    }
+
+    fn satisfies_trait_bound_depth(
+        &self,
+        self_ty: Ty,
+        bound: &TraitBound,
+        env_generics: &[GenericInfo],
+        types: &mut Types,
+        depth: u32,
+    ) -> bool {
+        if depth > 16 {
+            return false;
+        }
+        let self_ty = self.normalize_ty_in_env(self_ty, env_generics, types);
+        let self_ty = types.shallow(self_ty);
+        if matches!(types.data(self_ty), TyData::Error) {
+            return true;
+        }
+        let req_args: Vec<Ty> = bound
+            .trait_args
+            .iter()
+            .map(|t| self.normalize_ty_in_env(*t, env_generics, types))
+            .collect();
+        let req_assoc: Vec<(String, Ty)> = bound
+            .assoc_bindings
+            .iter()
+            .map(|(n, t)| (n.clone(), self.normalize_ty_in_env(*t, env_generics, types)))
+            .collect();
+
+        // 1. Check generic parameter bounds and their transitive supertrait closure.
+        if let TyData::Param(idx) = *types.data(self_ty)
+            && let Some(g) = env_generics.get(idx as usize)
+        {
+            for g_bound in &g.traits {
+                for entailed in self.supertrait_closure(g_bound, Some(self_ty), types) {
+                    if entailed.trait_ref != bound.trait_ref {
+                        continue;
+                    }
+                    let ent_args: Vec<Ty> = entailed
+                        .trait_args
+                        .iter()
+                        .map(|t| self.normalize_ty_in_env(*t, env_generics, types))
+                        .collect();
+                    if ent_args != req_args {
+                        continue;
+                    }
+                    let assoc_ok = req_assoc.iter().all(|(aname, req_ty)| {
+                        if let Some((_, rhs)) =
+                            entailed.assoc_bindings.iter().find(|(n, _)| n == aname)
+                        {
+                            let norm_rhs = self.normalize_ty_in_env(*rhs, env_generics, types);
+                            norm_rhs == *req_ty
+                        } else {
+                            let proj = types.intern(TyData::Assoc {
+                                base: self_ty,
+                                trait_ref: Some(bound.trait_ref),
+                                name: aname.clone(),
+                            });
+                            let norm_proj = self.normalize_ty_in_env(proj, env_generics, types);
+                            norm_proj == *req_ty
+                        }
+                    });
+                    if assoc_ok {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // 2. Check declared trait impls (concrete and blanket impls).
+        for imp in &self.trait_impls {
+            if imp.trait_ref != bound.trait_ref {
+                continue;
+            }
+            let Some(impl_args) =
+                self.match_impl_depth(imp, self_ty, env_generics, types, depth + 1)
+            else {
+                continue;
+            };
+            let imp_targs: Vec<Ty> = imp
+                .trait_args
+                .iter()
+                .map(|t| {
+                    let s = types.subst(*t, &impl_args);
+                    self.normalize_ty_in_env(s, env_generics, types)
+                })
+                .collect();
+            if imp_targs != req_args {
+                continue;
+            }
+            let assoc_ok = req_assoc.iter().all(|(aname, req_ty)| {
+                if let Some((_, rhs)) = imp.assoc_types.iter().find(|(n, _)| n == aname) {
+                    let s = types.subst(*rhs, &impl_args);
+                    let norm = self.normalize_ty_in_env(s, env_generics, types);
+                    norm == *req_ty
+                } else {
+                    let proj = types.intern(TyData::Assoc {
+                        base: self_ty,
+                        trait_ref: None,
+                        name: aname.clone(),
+                    });
+                    let norm = self.normalize_ty_in_env(proj, env_generics, types);
+                    norm == *req_ty
+                }
+            });
+            if assoc_ok {
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Matches a (possibly generic) inherent impl's target pattern against `self_ty`.
@@ -293,47 +659,99 @@ impl<'a> Items<'a> {
     /// Normalizes associated type projections (`Drain<Item>.Item -> Item`, etc.)
     /// wherever the base type matches a declared trait impl.
     pub fn normalize_ty(&self, ty: Ty, types: &mut Types) -> Ty {
-        self.normalize_ty_depth(ty, types, 0)
+        self.normalize_ty_depth(ty, &[], types, 0)
     }
 
-    fn normalize_ty_depth(&self, ty: Ty, types: &mut Types, depth: u32) -> Ty {
+    /// Normalizes associated type projections under generic environment `env_generics`
+    /// (so `T.Item` normalizes to `U` when `T: Container<Item = U>` is in scope).
+    pub fn normalize_ty_in_env(
+        &self,
+        ty: Ty,
+        env_generics: &[GenericInfo],
+        types: &mut Types,
+    ) -> Ty {
+        self.normalize_ty_depth(ty, env_generics, types, 0)
+    }
+
+    fn normalize_ty_depth(
+        &self,
+        ty: Ty,
+        env_generics: &[GenericInfo],
+        types: &mut Types,
+        depth: u32,
+    ) -> Ty {
         if depth > 32 {
             return ty;
         }
         let ty = types.shallow(ty);
         match types.data(ty).clone() {
-            TyData::Assoc { base, name } => {
-                let base = self.normalize_ty_depth(base, types, depth + 1);
-                for imp in &self.trait_impls {
-                    if let Some((_, rhs)) = imp.assoc_types.iter().find(|(n, _)| *n == name)
-                        && let Some(impl_args) = self.match_impl(imp, base, types)
-                    {
-                        let subst = types.subst(*rhs, &impl_args);
-                        return self.normalize_ty_depth(subst, types, depth + 1);
+            TyData::Assoc {
+                base,
+                trait_ref,
+                name,
+            } => {
+                let base = self.normalize_ty_depth(base, env_generics, types, depth + 1);
+                // 1. Check generic parameter associated type equality bindings in scope.
+                if let TyData::Param(idx) = *types.data(types.shallow(base))
+                    && let Some(g) = env_generics.get(idx as usize)
+                {
+                    for g_bound in &g.traits {
+                        for entailed in self.supertrait_closure(g_bound, Some(base), types) {
+                            if trait_ref.is_some_and(|tr| tr != entailed.trait_ref) {
+                                continue;
+                            }
+                            if let Some((_, rhs)) =
+                                entailed.assoc_bindings.iter().find(|(n, _)| *n == name)
+                            {
+                                return self.normalize_ty_depth(
+                                    *rhs,
+                                    env_generics,
+                                    types,
+                                    depth + 1,
+                                );
+                            }
+                        }
                     }
                 }
-                types.intern(TyData::Assoc { base, name })
+                // 2. Check declared trait impls (respecting trait_ref when qualified).
+                for imp in &self.trait_impls {
+                    if trait_ref.is_some_and(|tr| tr != imp.trait_ref) {
+                        continue;
+                    }
+                    if let Some((_, rhs)) = imp.assoc_types.iter().find(|(n, _)| *n == name)
+                        && let Some(impl_args) =
+                            self.match_impl_depth(imp, base, env_generics, types, 0)
+                    {
+                        let subst = types.subst(*rhs, &impl_args);
+                        return self.normalize_ty_depth(subst, env_generics, types, depth + 1);
+                    }
+                }
+                types.intern(TyData::Assoc {
+                    base,
+                    trait_ref,
+                    name,
+                })
             }
             TyData::Adt { adt, args, regions } => {
                 let args = args
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
                 types.intern(TyData::Adt { adt, args, regions })
             }
             TyData::Tuple(items) => {
                 let items = items
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
                 types.intern(TyData::Tuple(items))
             }
             TyData::Array { element, length } => {
-                let element = self.normalize_ty_depth(element, types, depth + 1);
+                let element = self.normalize_ty_depth(element, env_generics, types, depth + 1);
                 types.intern(TyData::Array { element, length })
             }
             TyData::Slice(element) => {
-                let element = self.normalize_ty_depth(element, types, depth + 1);
+                let element = self.normalize_ty_depth(element, env_generics, types, depth + 1);
                 types.intern(TyData::Slice(element))
             }
             TyData::Ref {
@@ -341,7 +759,7 @@ impl<'a> Items<'a> {
                 mutable,
                 pointee,
             } => {
-                let pointee = self.normalize_ty_depth(pointee, types, depth + 1);
+                let pointee = self.normalize_ty_depth(pointee, env_generics, types, depth + 1);
                 types.intern(TyData::Ref {
                     region,
                     mutable,
@@ -349,44 +767,45 @@ impl<'a> Items<'a> {
                 })
             }
             TyData::Managed(inner) => {
-                let inner = self.normalize_ty_depth(inner, types, depth + 1);
+                let inner = self.normalize_ty_depth(inner, env_generics, types, depth + 1);
                 types.intern(TyData::Managed(inner))
             }
             TyData::Desc(inner) => {
-                let inner = self.normalize_ty_depth(inner, types, depth + 1);
+                let inner = self.normalize_ty_depth(inner, env_generics, types, depth + 1);
                 types.intern(TyData::Desc(inner))
             }
             TyData::Opaque(OpaqueKind::OwnedStore(elem)) => {
-                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                let elem = self.normalize_ty_depth(elem, env_generics, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::OwnedStore(elem)))
             }
             TyData::Opaque(OpaqueKind::Mutex(elem)) => {
-                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                let elem = self.normalize_ty_depth(elem, env_generics, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::Mutex(elem)))
             }
             TyData::Opaque(OpaqueKind::MutexGuard(elem)) => {
-                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                let elem = self.normalize_ty_depth(elem, env_generics, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::MutexGuard(elem)))
             }
             TyData::Opaque(OpaqueKind::Task { result, context }) => {
-                let result = self.normalize_ty_depth(result, types, depth + 1);
-                let context = context.map(|c| self.normalize_ty_depth(c, types, depth + 1));
+                let result = self.normalize_ty_depth(result, env_generics, types, depth + 1);
+                let context =
+                    context.map(|c| self.normalize_ty_depth(c, env_generics, types, depth + 1));
                 types.intern(TyData::Opaque(OpaqueKind::Task { result, context }))
             }
             TyData::Opaque(OpaqueKind::Registration(elem)) => {
-                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                let elem = self.normalize_ty_depth(elem, env_generics, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::Registration(elem)))
             }
             TyData::Opaque(OpaqueKind::AsyncRegistration(elem)) => {
-                let elem = self.normalize_ty_depth(elem, types, depth + 1);
+                let elem = self.normalize_ty_depth(elem, env_generics, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::AsyncRegistration(elem)))
             }
             TyData::Opaque(OpaqueKind::ForeignCallback { params, result }) => {
                 let params = params
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
-                let result = self.normalize_ty_depth(result, types, depth + 1);
+                let result = self.normalize_ty_depth(result, env_generics, types, depth + 1);
                 types.intern(TyData::Opaque(OpaqueKind::ForeignCallback {
                     params,
                     result,
@@ -398,21 +817,21 @@ impl<'a> Items<'a> {
             TyData::Union(items) => {
                 let items = items
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
                 types.canonicalize_union_raw(items)
             }
             TyData::ErrorUnion { ok, err } => {
-                let ok = self.normalize_ty_depth(ok, types, depth + 1);
-                let err = self.normalize_ty_depth(err, types, depth + 1);
+                let ok = self.normalize_ty_depth(ok, env_generics, types, depth + 1);
+                let err = self.normalize_ty_depth(err, env_generics, types, depth + 1);
                 types.intern(TyData::ErrorUnion { ok, err })
             }
             TyData::FnPtr { params, result } => {
                 let params = params
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
-                let result = self.normalize_ty_depth(result, types, depth + 1);
+                let result = self.normalize_ty_depth(result, env_generics, types, depth + 1);
                 types.intern(TyData::FnPtr { params, result })
             }
             TyData::Closure {
@@ -425,13 +844,13 @@ impl<'a> Items<'a> {
             } => {
                 let owner_args = owner_args
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
                 let params = params
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
-                let result = self.normalize_ty_depth(result, types, depth + 1);
+                let result = self.normalize_ty_depth(result, env_generics, types, depth + 1);
                 types.intern(TyData::Closure {
                     owner,
                     id,
@@ -450,13 +869,13 @@ impl<'a> Items<'a> {
             } => {
                 let owner_args = owner_args
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
                 let params = params
                     .into_iter()
-                    .map(|a| self.normalize_ty_depth(a, types, depth + 1))
+                    .map(|a| self.normalize_ty_depth(a, env_generics, types, depth + 1))
                     .collect();
-                let result = self.normalize_ty_depth(result, types, depth + 1);
+                let result = self.normalize_ty_depth(result, env_generics, types, depth + 1);
                 types.intern(TyData::ImplCallable {
                     owner,
                     owner_args,
@@ -466,8 +885,8 @@ impl<'a> Items<'a> {
                 })
             }
             TyData::ArrayConst { element, length } => {
-                let element = self.normalize_ty_depth(element, types, depth + 1);
-                let length = self.normalize_ty_depth(length, types, depth + 1);
+                let element = self.normalize_ty_depth(element, env_generics, types, depth + 1);
+                let length = self.normalize_ty_depth(length, env_generics, types, depth + 1);
                 if let TyData::ConstU32(n) = *types.data(length) {
                     types.intern(TyData::Array { element, length: n })
                 } else {
@@ -1174,8 +1593,9 @@ pub fn collect_program<'a>(
     }
 
     // Pass 2: declarations. Collect traits first so function/ADT generic bounds can reference them.
-    for (mid, tr, span) in trait_asts {
+    for (ti, (mid, tr, span)) in trait_asts.into_iter().enumerate() {
         let decl = collect_trait(
+            TraitRef(ti as u32),
             mid,
             tr,
             span,
@@ -1187,6 +1607,7 @@ pub fn collect_program<'a>(
         );
         items.traits.push(decl);
     }
+    check_supertrait_cycles(&items.traits, diags);
     let mut adt_method_asts: Vec<(ModIdx, AdtRef, &'a ast::Aggregate)> = Vec::new();
     for (mid, item) in adt_asts {
         let adt_ref = AdtRef(items.adts.len() as u32);
@@ -1249,7 +1670,94 @@ pub fn collect_program<'a>(
     for (mid, imp, span) in impl_asts {
         collect_impl(mid, imp, span, &mut items, types, diags);
     }
+    check_trait_impl_supertraits(&items, types, diags);
     items
+}
+
+/// Detects and rejects cyclic supertrait hierarchies (e.g. `trait A: B; trait B: A`).
+fn check_supertrait_cycles(traits: &[TraitDecl<'_>], diags: &mut Vec<Diagnostic>) {
+    // 0 = unvisited, 1 = visiting (on active stack), 2 = visited.
+    let mut state = vec![0u8; traits.len()];
+    let mut reported = vec![false; traits.len()];
+    fn dfs(
+        cur: usize,
+        traits: &[TraitDecl<'_>],
+        state: &mut [u8],
+        reported: &mut [bool],
+        diags: &mut Vec<Diagnostic>,
+    ) {
+        state[cur] = 1;
+        for st in &traits[cur].supertraits {
+            let next = st.trait_ref.0 as usize;
+            if next >= traits.len() {
+                continue;
+            }
+            if state[next] == 1 {
+                if !reported[cur] {
+                    reported[cur] = true;
+                    diags.push(diag::error(
+                        diag::GENERIC_BOUND,
+                        traits[cur].span,
+                        format!(
+                            "cyclic supertrait hierarchy involving `{}` and `{}`",
+                            traits[cur].name, traits[next].name
+                        ),
+                    ));
+                }
+            } else if state[next] == 0 {
+                dfs(next, traits, state, reported, diags);
+            }
+        }
+        state[cur] = 2;
+    }
+    for i in 0..traits.len() {
+        if state[i] == 0 {
+            dfs(i, traits, &mut state, &mut reported, diags);
+        }
+    }
+}
+
+/// Verifies that every `impl Sub for T` satisfies all supertrait bounds of `Sub`.
+fn check_trait_impl_supertraits(items: &Items<'_>, types: &mut Types, diags: &mut Vec<Diagnostic>) {
+    let impls = items.trait_impls.clone();
+    for imp in &impls {
+        let tr = items.trait_decl(imp.trait_ref);
+        if tr.supertraits.is_empty() {
+            continue;
+        }
+        let sub_name = tr.name.clone();
+        let supertraits = tr.supertraits.clone();
+        for st in &supertraits {
+            let inst_bound = TraitBound {
+                trait_ref: st.trait_ref,
+                trait_args: st
+                    .trait_args
+                    .iter()
+                    .map(|t| types.subst_with_self(*t, &imp.trait_args, imp.target))
+                    .collect(),
+                assoc_bindings: st
+                    .assoc_bindings
+                    .iter()
+                    .map(|(n, t)| {
+                        (
+                            n.clone(),
+                            types.subst_with_self(*t, &imp.trait_args, imp.target),
+                        )
+                    })
+                    .collect(),
+            };
+            if !items.satisfies_trait_bound(imp.target, &inst_bound, &imp.generics, types) {
+                let super_name = &items.trait_decl(st.trait_ref).name;
+                diags.push(diag::error(
+                    diag::GENERIC_BOUND,
+                    imp.span,
+                    format!(
+                        "supertrait `{super_name}` is not implemented for the target of `impl {sub_name}`"
+                    ),
+                ));
+            }
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1351,6 +1859,144 @@ fn resolve_callable_bound(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn resolve_trait_bound_args(
+    args: &[ast::GenericArg],
+    span: Span,
+    mid: ModIdx,
+    scope: &[String],
+    lifetimes: &[String],
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    self_ty: Option<Ty>,
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) -> (Vec<Ty>, Vec<(String, Ty)>) {
+    let mut targs = Vec::new();
+    let mut assoc_bindings = Vec::new();
+    for a in args {
+        match a {
+            ast::GenericArg::Type(t) => {
+                targs.push(
+                    resolve_type_with_lifetimes(
+                        t,
+                        mid,
+                        scope,
+                        lifetimes,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        self_ty,
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    }),
+                );
+            }
+            ast::GenericArg::AssociatedBinding(binding) => match &binding.kind {
+                ast::DynBindingKind::Type { member, value } if member.len() == 1 => {
+                    let val_ty = resolve_type_with_lifetimes(
+                        value,
+                        mid,
+                        scope,
+                        lifetimes,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        self_ty,
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    assoc_bindings.push((member[0].clone(), val_ty));
+                }
+                ast::DynBindingKind::Type { .. }
+                | ast::DynBindingKind::Constant { .. }
+                | ast::DynBindingKind::Method { .. } => {
+                    diags.push(diag::unsupported(
+                        "unsupported associated binding in trait bound",
+                        binding.span,
+                    ));
+                }
+            },
+            ast::GenericArg::Lifetime(_) => {}
+            ast::GenericArg::Const(_) => {
+                diags.push(diag::unsupported("non-type trait arguments", span));
+            }
+        }
+    }
+    (targs, assoc_bindings)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn apply_single_bound(
+    b: &ast::TypeRef,
+    info: &mut GenericInfo,
+    mid: ModIdx,
+    scope: &[String],
+    lifetimes: &[String],
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) {
+    if let Some(c) =
+        resolve_callable_bound(b, mid, scope, modules, mod_by_path, adt_kinds, types, diags)
+    {
+        info.callable = Some(c);
+        return;
+    }
+    if let ast::TypeKind::Named { path, args } = &b.kind {
+        if args.is_empty() && path == &["Copy"] {
+            info.copy = true;
+        } else if args.is_empty() && path == &["StoreElement"] {
+            info.store_element = true;
+        } else if args.is_empty() && path == &["SyncDrop"] {
+            info.sync_drop = true;
+        } else if args.is_empty()
+            && matches!(
+                path.as_slice(),
+                [s] if matches!(
+                    s.as_str(),
+                    "Value" | "ClosedEnvironment" | "Transfer" | "Share" | "ThreadCallable"
+                )
+            )
+        {
+        } else if let Some(ItemRef::Trait(tr)) = lookup_item_in(modules, mod_by_path, mid, path) {
+            let (trait_args, assoc_bindings) = resolve_trait_bound_args(
+                args,
+                b.span,
+                mid,
+                scope,
+                lifetimes,
+                modules,
+                mod_by_path,
+                adt_kinds,
+                None,
+                types,
+                diags,
+            );
+            info.traits.push(TraitBound {
+                trait_ref: tr,
+                trait_args,
+                assoc_bindings,
+            });
+        } else {
+            diags.push(diag::unsupported("unknown trait bound", b.span));
+        }
+    } else {
+        diags.push(diag::unsupported("non-named trait bound", b.span));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn type_generics(
     mid: ModIdx,
     generics: &[ast::GenericParam],
@@ -1360,106 +2006,77 @@ fn type_generics(
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> (Vec<GenericInfo>, Vec<String>) {
-    let scope: Vec<String> = generics
-        .iter()
-        .filter(|g| matches!(g.kind, ast::GenericParamKind::Type(_)))
-        .map(|g| g.name.clone())
-        .collect();
-    let mut out = Vec::new();
+    type_generics_in_scope(
+        mid,
+        generics,
+        &[],
+        &[],
+        modules,
+        mod_by_path,
+        adt_kinds,
+        types,
+        diags,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn type_generics_in_scope(
+    mid: ModIdx,
+    generics: &[ast::GenericParam],
+    outer_scope: &[String],
+    outer_lifetimes: &[String],
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) -> (Vec<GenericInfo>, Vec<String>) {
+    let mut scope: Vec<String> = outer_scope.to_vec();
+    scope.extend(
+        generics
+            .iter()
+            .filter(|g| matches!(g.kind, ast::GenericParamKind::Type(_)))
+            .map(|g| g.name.clone()),
+    );
     let mut regions = Vec::new();
+    for g in generics {
+        if matches!(g.kind, ast::GenericParamKind::Lifetime) {
+            regions.push(g.name.clone());
+        }
+    }
+    let mut full_lifetimes: Vec<String> = outer_lifetimes.to_vec();
+    full_lifetimes.extend(regions.iter().cloned());
+
+    let mut out = Vec::new();
     for g in generics {
         match &g.kind {
             ast::GenericParamKind::Type(bounds) => {
-                let mut copy = false;
-                let mut store_element = false;
-                let mut sync_drop = false;
-                let mut traits = Vec::new();
-                let mut callable = None;
+                let mut info = GenericInfo {
+                    name: g.name.clone(),
+                    copy: false,
+                    store_element: false,
+                    sync_drop: false,
+                    traits: Vec::new(),
+                    callable: None,
+                    const_ty: None,
+                };
                 for b in bounds {
-                    if let Some(c) = resolve_callable_bound(
+                    apply_single_bound(
                         b,
+                        &mut info,
                         mid,
                         &scope,
+                        &full_lifetimes,
                         modules,
                         mod_by_path,
                         adt_kinds,
                         types,
                         diags,
-                    ) {
-                        callable = Some(c);
-                        continue;
-                    }
-                    if let ast::TypeKind::Named { path, args } = &b.kind {
-                        if args.is_empty() && path == &["Copy"] {
-                            copy = true;
-                        } else if args.is_empty() && path == &["StoreElement"] {
-                            store_element = true;
-                        } else if args.is_empty() && path == &["SyncDrop"] {
-                            sync_drop = true;
-                        } else if args.is_empty()
-                            && matches!(
-                                path.as_slice(),
-                                [s] if matches!(
-                                    s.as_str(),
-                                    "Value" | "ClosedEnvironment" | "Transfer" | "Share"
-                                        | "ThreadCallable"
-                                )
-                            )
-                        {
-                            continue;
-                        } else if let Some(ItemRef::Trait(tr)) =
-                            lookup_item_in(modules, mod_by_path, mid, path)
-                        {
-                            let mut targs = Vec::new();
-                            for a in args {
-                                if let ast::GenericArg::Type(t) = a {
-                                    targs.push(
-                                        resolve_type_in(
-                                            t,
-                                            mid,
-                                            &scope,
-                                            modules,
-                                            mod_by_path,
-                                            adt_kinds,
-                                            None,
-                                            None,
-                                            types,
-                                        )
-                                        .unwrap_or_else(
-                                            |d| {
-                                                diags.push(d);
-                                                types.error()
-                                            },
-                                        ),
-                                    );
-                                } else {
-                                    diags.push(diag::unsupported(
-                                        "non-type trait arguments",
-                                        b.span,
-                                    ));
-                                }
-                            }
-                            traits.push((tr, targs));
-                        } else {
-                            diags.push(diag::unsupported("unknown trait bound", b.span));
-                        }
-                    } else {
-                        diags.push(diag::unsupported("non-named trait bound", b.span));
-                    }
+                    );
                 }
-                out.push(GenericInfo {
-                    name: g.name.clone(),
-                    copy,
-                    store_element,
-                    sync_drop,
-                    traits,
-                    callable,
-                    const_ty: None,
-                });
+                out.push(info);
             }
-            ast::GenericParamKind::Lifetime => {
-                regions.push(g.name.clone());
-            }
+            ast::GenericParamKind::Lifetime => {}
             ast::GenericParamKind::Const(ty_ref) => {
                 let cty = match resolve_type_with_lifetimes(
                     ty_ref,
@@ -1500,18 +2117,135 @@ fn type_generics(
     (out, regions)
 }
 
+/// Applies `where`-clause predicates onto `generics` (for type-parameter subjects)
+/// and returns any remaining non-parameter `(subject_ty, TraitBound)` predicates.
+#[allow(clippy::too_many_arguments)]
+fn apply_where_clause(
+    where_clause: &[ast::BoundClause],
+    generics: &mut [GenericInfo],
+    scope: &[String],
+    lifetimes: &[String],
+    mid: ModIdx,
+    modules: &[ModuleScope],
+    mod_by_path: &HashMap<String, ModIdx>,
+    adt_kinds: &[AdtKind],
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) -> Vec<(Ty, TraitBound)> {
+    let mut extra = Vec::new();
+    for clause in where_clause {
+        match &clause.subject {
+            ast::BoundSubject::Lifetime(_) => {}
+            ast::BoundSubject::Type(subj_ty) => {
+                if let ast::TypeKind::Named { path, args } = &subj_ty.kind
+                    && args.is_empty()
+                    && let [name] = path.as_slice()
+                    && let Some(idx) = scope.iter().rposition(|g| g == name)
+                    && idx < generics.len()
+                {
+                    for b in &clause.bounds {
+                        apply_single_bound(
+                            b,
+                            &mut generics[idx],
+                            mid,
+                            scope,
+                            lifetimes,
+                            modules,
+                            mod_by_path,
+                            adt_kinds,
+                            types,
+                            diags,
+                        );
+                    }
+                } else {
+                    let resolved_subj = resolve_type_with_lifetimes(
+                        subj_ty,
+                        mid,
+                        scope,
+                        lifetimes,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        None,
+                        None,
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    for b in &clause.bounds {
+                        if let ast::TypeKind::Named { path, args } = &b.kind {
+                            if args.is_empty()
+                                && matches!(
+                                    path.as_slice(),
+                                    [s] if matches!(
+                                        s.as_str(),
+                                        "Copy"
+                                            | "StoreElement"
+                                            | "SyncDrop"
+                                            | "Value"
+                                            | "ClosedEnvironment"
+                                            | "Transfer"
+                                            | "Share"
+                                            | "ThreadCallable"
+                                    )
+                                )
+                            {
+                            } else if let Some(ItemRef::Trait(tr)) =
+                                lookup_item_in(modules, mod_by_path, mid, path)
+                            {
+                                let (trait_args, assoc_bindings) = resolve_trait_bound_args(
+                                    args,
+                                    b.span,
+                                    mid,
+                                    scope,
+                                    lifetimes,
+                                    modules,
+                                    mod_by_path,
+                                    adt_kinds,
+                                    None,
+                                    types,
+                                    diags,
+                                );
+                                extra.push((
+                                    resolved_subj,
+                                    TraitBound {
+                                        trait_ref: tr,
+                                        trait_args,
+                                        assoc_bindings,
+                                    },
+                                ));
+                            } else {
+                                diags.push(diag::unsupported(
+                                    "unsupported where-clause bound",
+                                    b.span,
+                                ));
+                            }
+                        } else {
+                            diags.push(diag::unsupported("unsupported where-clause bound", b.span));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    extra
+}
+
 #[allow(clippy::too_many_arguments)]
 fn collect_trait<'a>(
+    trait_ref: TraitRef,
     mid: ModIdx,
     tr: &'a ast::TraitDecl,
-    _span: Span,
+    span: Span,
     modules: &[ModuleScope],
     mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> TraitDecl<'a> {
-    let (generics, _) = type_generics(
+    let (generics, tr_lifetimes) = type_generics(
         mid,
         &tr.generics,
         modules,
@@ -1522,17 +2256,107 @@ fn collect_trait<'a>(
     );
     let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
     let self_param = types.intern(TyData::SelfParam);
+
+    // Collect declared associated type names on this trait.
+    let mut assoc_types = Vec::new();
+    for m in &tr.members {
+        if let ast::ItemKind::TypeAlias(ta) = &m.kind {
+            assoc_types.push(ta.name.clone());
+        }
+    }
+
+    // Collect supertrait bounds (`trait Sub: Super1 + Super2<T>`).
+    let mut supertraits = Vec::new();
+    for b in &tr.bounds {
+        if let ast::TypeKind::Named { path, args } = &b.kind {
+            if args.is_empty()
+                && matches!(
+                    path.as_slice(),
+                    [s] if matches!(
+                        s.as_str(),
+                        "Copy" | "StoreElement" | "SyncDrop" | "Value" | "ClosedEnvironment"
+                            | "Transfer" | "Share" | "ThreadCallable"
+                    )
+                )
+            {
+                continue;
+            } else if let Some(ItemRef::Trait(super_ref)) =
+                lookup_item_in(modules, mod_by_path, mid, path)
+            {
+                let (trait_args, assoc_bindings) = resolve_trait_bound_args(
+                    args,
+                    b.span,
+                    mid,
+                    &scope,
+                    &tr_lifetimes,
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    Some(self_param),
+                    types,
+                    diags,
+                );
+                supertraits.push(TraitBound {
+                    trait_ref: super_ref,
+                    trait_args,
+                    assoc_bindings,
+                });
+            } else {
+                diags.push(diag::error(
+                    diag::NAME_UNRESOLVED,
+                    b.span,
+                    format!("unknown supertrait `{}`", path.join(".")),
+                ));
+            }
+        } else {
+            diags.push(diag::unsupported("non-named supertrait bound", b.span));
+        }
+    }
+
     let mut methods = Vec::new();
     for m in &tr.members {
         match &m.kind {
             ast::ItemKind::TypeAlias(_) => continue,
             ast::ItemKind::Function(f) => {
+                let (mut m_generics, m_lifetimes) = type_generics_in_scope(
+                    mid,
+                    &f.generics,
+                    &scope,
+                    &tr_lifetimes,
+                    modules,
+                    mod_by_path,
+                    adt_kinds,
+                    types,
+                    diags,
+                );
+                let mut m_scope = scope.clone();
+                m_scope.extend(m_generics.iter().map(|g| g.name.clone()));
+                let mut full_lifetimes = tr_lifetimes.clone();
+                full_lifetimes.extend(m_lifetimes.iter().cloned());
+                if !f.where_clause.is_empty() {
+                    let mut combined_generics = generics.clone();
+                    combined_generics.extend(m_generics);
+                    let _ = apply_where_clause(
+                        &f.where_clause,
+                        &mut combined_generics,
+                        &m_scope,
+                        &full_lifetimes,
+                        mid,
+                        modules,
+                        mod_by_path,
+                        adt_kinds,
+                        types,
+                        diags,
+                    );
+                    m_generics = combined_generics.split_off(generics.len());
+                }
                 let mut params = Vec::new();
                 for p in &f.params {
-                    let ty = resolve_type_in(
+                    let ty = resolve_type_with_lifetimes(
                         &p.ty,
                         mid,
-                        &scope,
+                        &m_scope,
+                        &full_lifetimes,
                         modules,
                         mod_by_path,
                         adt_kinds,
@@ -1544,28 +2368,35 @@ fn collect_trait<'a>(
                         diags.push(d);
                         types.error()
                     });
+                    let ty = qualify_self_assoc(ty, self_param, trait_ref, &assoc_types, types);
                     params.push(ty);
                 }
                 let result = match &f.return_type {
-                    Some(t) => resolve_type_in(
-                        t,
-                        mid,
-                        &scope,
-                        modules,
-                        mod_by_path,
-                        adt_kinds,
-                        Some(self_param),
-                        None,
-                        types,
-                    )
-                    .unwrap_or_else(|d| {
-                        diags.push(d);
-                        types.error()
-                    }),
+                    Some(t) => {
+                        let ty = resolve_type_with_lifetimes(
+                            t,
+                            mid,
+                            &m_scope,
+                            &full_lifetimes,
+                            modules,
+                            mod_by_path,
+                            adt_kinds,
+                            Some(self_param),
+                            None,
+                            types,
+                        )
+                        .unwrap_or_else(|d| {
+                            diags.push(d);
+                            types.error()
+                        });
+                        qualify_self_assoc(ty, self_param, trait_ref, &assoc_types, types)
+                    }
                     None => types.unit(),
                 };
                 methods.push(TraitMethodDecl {
                     name: f.name.clone(),
+                    generics: m_generics,
+                    region_params: m_lifetimes,
                     params,
                     result,
                     default_ast: if matches!(f.body, ast::FunctionBody::Declaration) {
@@ -1590,7 +2421,10 @@ fn collect_trait<'a>(
     TraitDecl {
         module: mid,
         name: qualify(&modules[mid.0 as usize].path, &tr.name),
+        supertraits,
+        assoc_types,
         methods,
+        span,
     }
 }
 
@@ -2202,7 +3036,7 @@ fn collect_fn<'a>(
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> FnDecl<'a> {
-    let (generics, region_params) = type_generics(
+    let (mut generics, region_params) = type_generics(
         mid,
         &f.generics,
         modules,
@@ -2212,6 +3046,20 @@ fn collect_fn<'a>(
         diags,
     );
     let scope: Vec<String> = generics.iter().map(|g| g.name.clone()).collect();
+    if !f.where_clause.is_empty() {
+        let _ = apply_where_clause(
+            &f.where_clause,
+            &mut generics,
+            &scope,
+            &region_params,
+            mid,
+            modules,
+            mod_by_path,
+            adt_kinds,
+            types,
+            diags,
+        );
+    }
     let param_names: Vec<&str> = f.params.iter().map(|p| p.name.as_str()).collect();
     let (result_mode, resume_mode, state_contracts) =
         parse_fn_contracts(&f.contract, &param_names, diags);
@@ -2826,6 +3674,7 @@ fn inherent_target_adt(ty: Ty, types: &Types) -> Option<AdtRef> {
             | TyData::SelfParam
             | TyData::Assoc { .. }
             | TyData::Var(_)
+            | TyData::Union(_)
             | TyData::Error => None,
         },
         TyData::Unit
@@ -2837,6 +3686,7 @@ fn inherent_target_adt(ty: Ty, types: &Types) -> Option<AdtRef> {
         | TyData::Int(_)
         | TyData::Float(_)
         | TyData::Tuple(_)
+        | TyData::Union(_)
         | TyData::Array { .. }
         | TyData::ArrayConst { .. }
         | TyData::Slice(_)
@@ -2873,6 +3723,7 @@ fn inherent_targets_overlap(a: Ty, b: Ty, types: &Types) -> bool {
         | TyData::Float(_)
         | TyData::Adt { .. }
         | TyData::Tuple(_)
+        | TyData::Union(_)
         | TyData::Array { .. }
         | TyData::ArrayConst { .. }
         | TyData::Slice(_)
@@ -2903,6 +3754,7 @@ fn inherent_targets_overlap(a: Ty, b: Ty, types: &Types) -> bool {
         | TyData::Float(_)
         | TyData::Adt { .. }
         | TyData::Tuple(_)
+        | TyData::Union(_)
         | TyData::Array { .. }
         | TyData::ArrayConst { .. }
         | TyData::Slice(_)
@@ -2977,6 +3829,7 @@ fn inherent_target_label(ty: Ty, items: &Items<'_>, types: &Types) -> String {
         | TyData::SelfParam
         | TyData::Assoc { .. }
         | TyData::Var(_)
+        | TyData::Union(_)
         | TyData::Error => "impl".to_string(),
     }
 }
@@ -3071,7 +3924,11 @@ fn collect_inherent_impl<'a>(
                                         ));
                                     }
                                 }
-                                impl_generics[g_idx].traits.push((tr, targs));
+                                impl_generics[g_idx].traits.push(TraitBound {
+                                    trait_ref: tr,
+                                    trait_args: targs,
+                                    assoc_bindings: Vec::new(),
+                                });
                             } else {
                                 diags.push(diag::error(
                                     diag::GENERIC_BOUND,
@@ -3142,7 +3999,8 @@ fn collect_inherent_impl<'a>(
         | TyData::Param(_)
         | TyData::SelfParam
         | TyData::Assoc { .. }
-        | TyData::Var(_) => {
+        | TyData::Var(_)
+        | TyData::Union(_) => {
             diags.push(diag::unsupported(
                 "inherent impl for this target type",
                 imp.target.span,
@@ -3315,7 +4173,7 @@ fn collect_inherent_impl<'a>(
 fn collect_trait_impl<'a>(
     mid: ModIdx,
     imp: &'a ast::ImplBlock,
-    _span: Span,
+    span: Span,
     items: &mut Items<'a>,
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
@@ -3338,7 +4196,7 @@ fn collect_trait_impl<'a>(
         ));
         return;
     };
-    let (impl_generics, impl_lifetimes) = type_generics(
+    let (mut impl_generics, impl_lifetimes) = type_generics(
         mid,
         &imp.generics,
         &items.modules,
@@ -3348,6 +4206,22 @@ fn collect_trait_impl<'a>(
         diags,
     );
     let scope: Vec<String> = impl_generics.iter().map(|g| g.name.clone()).collect();
+    let where_bounds = if !imp.where_clause.is_empty() {
+        apply_where_clause(
+            &imp.where_clause,
+            &mut impl_generics,
+            &scope,
+            &impl_lifetimes,
+            mid,
+            &items.modules,
+            &items.mod_by_path,
+            &items.adt_kinds,
+            types,
+            diags,
+        )
+    } else {
+        Vec::new()
+    };
     let mut trait_args = Vec::new();
     for a in args {
         match a {
@@ -3394,6 +4268,7 @@ fn collect_trait_impl<'a>(
         types.error()
     });
     let trait_name = items.traits[trait_ref.0 as usize].name.clone();
+    let trait_assoc_names = items.traits[trait_ref.0 as usize].assoc_types.clone();
     let mut assoc_types = Vec::new();
     let mut methods = Vec::new();
     for m in &imp.members {
@@ -3420,6 +4295,41 @@ fn collect_trait_impl<'a>(
                 }
             }
             ast::ItemKind::Function(f) => {
+                let (m_generics, m_lifetimes) = type_generics_in_scope(
+                    mid,
+                    &f.generics,
+                    &scope,
+                    &impl_lifetimes,
+                    &items.modules,
+                    &items.mod_by_path,
+                    &items.adt_kinds,
+                    types,
+                    diags,
+                );
+                let mut fn_generics = impl_generics.clone();
+                fn_generics.extend(m_generics);
+                let mut fn_scope = scope.clone();
+                fn_scope.extend(
+                    fn_generics[impl_generics.len()..]
+                        .iter()
+                        .map(|g| g.name.clone()),
+                );
+                let mut fn_lifetimes = impl_lifetimes.clone();
+                fn_lifetimes.extend(m_lifetimes);
+                if !f.where_clause.is_empty() {
+                    let _ = apply_where_clause(
+                        &f.where_clause,
+                        &mut fn_generics,
+                        &fn_scope,
+                        &fn_lifetimes,
+                        mid,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        types,
+                        diags,
+                    );
+                }
                 let mut params = Vec::new();
                 if f.params.first().map(|p| p.name.as_str()) != Some("self")
                     && let Some(tm) = items
@@ -3428,7 +4338,12 @@ fn collect_trait_impl<'a>(
                         .and_then(|tr| tr.methods.iter().find(|m| m.name == f.name))
                     && tm.params.len() == f.params.len() + 1
                 {
-                    let self_param_ty = types.subst_with_self(tm.params[0], &trait_args, target);
+                    let mut subst_vec = trait_args.clone();
+                    for j in 0..tm.generics.len() {
+                        subst_vec
+                            .push(types.intern(TyData::Param((impl_generics.len() + j) as u32)));
+                    }
+                    let self_param_ty = types.subst_with_self(tm.params[0], &subst_vec, target);
                     params.push(ParamInfo {
                         name: "self".into(),
                         ty: self_param_ty,
@@ -3439,8 +4354,8 @@ fn collect_trait_impl<'a>(
                     let ty = resolve_type_with_lifetimes(
                         &p.ty,
                         mid,
-                        &scope,
-                        &impl_lifetimes,
+                        &fn_scope,
+                        &fn_lifetimes,
                         &items.modules,
                         &items.mod_by_path,
                         &items.adt_kinds,
@@ -3452,6 +4367,7 @@ fn collect_trait_impl<'a>(
                         diags.push(d);
                         types.error()
                     });
+                    let ty = qualify_self_assoc(ty, target, trait_ref, &trait_assoc_names, types);
                     params.push(ParamInfo {
                         name: p.name.clone(),
                         ty,
@@ -3459,30 +4375,33 @@ fn collect_trait_impl<'a>(
                     });
                 }
                 let result = match &f.return_type {
-                    Some(t) => resolve_type_with_lifetimes(
-                        t,
-                        mid,
-                        &scope,
-                        &impl_lifetimes,
-                        &items.modules,
-                        &items.mod_by_path,
-                        &items.adt_kinds,
-                        Some(target),
-                        None,
-                        types,
-                    )
-                    .unwrap_or_else(|d| {
-                        diags.push(d);
-                        types.error()
-                    }),
+                    Some(t) => {
+                        let ty = resolve_type_with_lifetimes(
+                            t,
+                            mid,
+                            &fn_scope,
+                            &fn_lifetimes,
+                            &items.modules,
+                            &items.mod_by_path,
+                            &items.adt_kinds,
+                            Some(target),
+                            None,
+                            types,
+                        )
+                        .unwrap_or_else(|d| {
+                            diags.push(d);
+                            types.error()
+                        });
+                        qualify_self_assoc(ty, target, trait_ref, &trait_assoc_names, types)
+                    }
                     None => types.unit(),
                 };
                 let fn_ref = FnRef(items.fns.len() as u32);
                 items.fns.push(FnDecl {
                     module: mid,
                     name: format!("{trait_name}::{}", f.name),
-                    generics: impl_generics.clone(),
-                    region_params: impl_lifetimes.clone(),
+                    generics: fn_generics,
+                    region_params: fn_lifetimes,
                     params,
                     result,
                     self_ty: Some(target),
@@ -3506,7 +4425,7 @@ fn collect_trait_impl<'a>(
         }
     }
     let trait_module = items.traits[trait_ref.0 as usize].module;
-    let trait_defaults: Vec<(String, Vec<Ty>, Ty, &'a ast::Function)> = items.traits
+    let trait_defaults: Vec<(TraitMethodDecl<'a>, &'a ast::Function)> = items.traits
         [trait_ref.0 as usize]
         .methods
         .iter()
@@ -3515,13 +4434,40 @@ fn collect_trait_impl<'a>(
             if methods.iter().any(|(n, _)| n == &tm.name) {
                 return None;
             }
-            Some((tm.name.clone(), tm.params.clone(), tm.result, default_f))
+            Some((tm.clone(), default_f))
         })
         .collect();
-    for (mname, tm_params, tm_result, default_f) in trait_defaults {
+    for (tm, default_f) in trait_defaults {
+        let mname = tm.name;
+        let tm_generics = tm.generics;
+        let tm_regions = tm.region_params;
+        let tm_params = tm.params;
+        let tm_result = tm.result;
+        let mut subst_vec = trait_args.clone();
+        for j in 0..tm_generics.len() {
+            subst_vec.push(types.intern(TyData::Param((impl_generics.len() + j) as u32)));
+        }
+        let mut fn_generics = impl_generics.clone();
+        for mut mg in tm_generics {
+            for b in &mut mg.traits {
+                b.trait_args = b
+                    .trait_args
+                    .iter()
+                    .map(|t| types.subst_with_self(*t, &subst_vec, target))
+                    .collect();
+                b.assoc_bindings = b
+                    .assoc_bindings
+                    .iter()
+                    .map(|(n, t)| (n.clone(), types.subst_with_self(*t, &subst_vec, target)))
+                    .collect();
+            }
+            fn_generics.push(mg);
+        }
+        let mut fn_regions = impl_lifetimes.clone();
+        fn_regions.extend(tm_regions);
         let mut params = Vec::with_capacity(tm_params.len());
         for (idx, &pty) in tm_params.iter().enumerate() {
-            let subst_ty = types.subst_with_self(pty, &trait_args, target);
+            let subst_ty = types.subst_with_self(pty, &subst_vec, target);
             let (pname, pspan) = default_f
                 .params
                 .get(idx)
@@ -3533,13 +4479,13 @@ fn collect_trait_impl<'a>(
                 span: pspan,
             });
         }
-        let result = types.subst_with_self(tm_result, &trait_args, target);
+        let result = types.subst_with_self(tm_result, &subst_vec, target);
         let fn_ref = FnRef(items.fns.len() as u32);
         items.fns.push(FnDecl {
             module: trait_module,
             name: format!("{trait_name}::{mname}"),
-            generics: impl_generics.clone(),
-            region_params: Vec::new(),
+            generics: fn_generics,
+            region_params: fn_regions,
             params,
             result,
             self_ty: Some(target),
@@ -3553,10 +4499,12 @@ fn collect_trait_impl<'a>(
     items.trait_impls.push(TraitImplDecl {
         trait_ref,
         generics: impl_generics,
+        where_bounds,
         trait_args,
         target,
         assoc_types,
         methods,
+        span,
     });
 }
 
@@ -3623,6 +4571,126 @@ fn resolve_type_in(
     )
 }
 
+/// Attaches `trait_ref` to unqualified `Assoc { base: self_ty, trait_ref: None, name }`
+/// projections when `name` is declared directly on `trait_ref`, so normalization
+/// disambiguates associated types of the same name across multiple traits.
+fn qualify_self_assoc(
+    ty: Ty,
+    self_ty: Ty,
+    trait_ref: TraitRef,
+    local_assoc_types: &[String],
+    types: &mut Types,
+) -> Ty {
+    if local_assoc_types.is_empty() {
+        return ty;
+    }
+    match types.data(ty).clone() {
+        TyData::Assoc {
+            base,
+            trait_ref: existing,
+            name,
+        } => {
+            let base = qualify_self_assoc(base, self_ty, trait_ref, local_assoc_types, types);
+            let qualified = if existing.is_none()
+                && base == self_ty
+                && local_assoc_types.iter().any(|a| a == &name)
+            {
+                Some(trait_ref)
+            } else {
+                existing
+            };
+            types.intern(TyData::Assoc {
+                base,
+                trait_ref: qualified,
+                name,
+            })
+        }
+        TyData::Adt { adt, args, regions } => {
+            let args = args
+                .into_iter()
+                .map(|a| qualify_self_assoc(a, self_ty, trait_ref, local_assoc_types, types))
+                .collect();
+            types.intern(TyData::Adt { adt, args, regions })
+        }
+        TyData::Tuple(items) => {
+            let items = items
+                .into_iter()
+                .map(|a| qualify_self_assoc(a, self_ty, trait_ref, local_assoc_types, types))
+                .collect();
+            types.intern(TyData::Tuple(items))
+        }
+        TyData::Array { element, length } => {
+            let element = qualify_self_assoc(element, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::Array { element, length })
+        }
+        TyData::ArrayConst { element, length } => {
+            let element = qualify_self_assoc(element, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::ArrayConst { element, length })
+        }
+        TyData::Slice(element) => {
+            let element = qualify_self_assoc(element, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::Slice(element))
+        }
+        TyData::Ref {
+            region,
+            mutable,
+            pointee,
+        } => {
+            let pointee = qualify_self_assoc(pointee, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::Ref {
+                region,
+                mutable,
+                pointee,
+            })
+        }
+        TyData::Managed(inner) => {
+            let inner = qualify_self_assoc(inner, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::Managed(inner))
+        }
+        TyData::Desc(inner) => {
+            let inner = qualify_self_assoc(inner, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::Desc(inner))
+        }
+        TyData::ErrorUnion { ok, err } => {
+            let ok = qualify_self_assoc(ok, self_ty, trait_ref, local_assoc_types, types);
+            let err = qualify_self_assoc(err, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::ErrorUnion { ok, err })
+        }
+        TyData::FnPtr { params, result } => {
+            let params = params
+                .into_iter()
+                .map(|a| qualify_self_assoc(a, self_ty, trait_ref, local_assoc_types, types))
+                .collect();
+            let result = qualify_self_assoc(result, self_ty, trait_ref, local_assoc_types, types);
+            types.intern(TyData::FnPtr { params, result })
+        }
+        TyData::Union(items) => {
+            let items = items
+                .into_iter()
+                .map(|a| qualify_self_assoc(a, self_ty, trait_ref, local_assoc_types, types))
+                .collect();
+            types.canonicalize_union_raw(items)
+        }
+        TyData::Unit
+        | TyData::Type
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::Bool
+        | TyData::Never
+        | TyData::Int(_)
+        | TyData::Float(_)
+        | TyData::Opaque(_)
+        | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
+        | TyData::Dyn(_)
+        | TyData::OwnedDyn { .. }
+        | TyData::Param(_)
+        | TyData::SelfParam
+        | TyData::Var(_)
+        | TyData::Error => ty,
+    }
+}
+
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 fn resolve_type_with_lifetimes(
     t: &ast::TypeRef,
@@ -3646,6 +4714,7 @@ fn resolve_type_with_lifetimes(
                 {
                     return Ok(types.intern(TyData::Assoc {
                         base: st,
+                        trait_ref: None,
                         name: assoc.clone(),
                     }));
                 }
@@ -3653,6 +4722,7 @@ fn resolve_type_with_lifetimes(
                     let base_ty = types.intern(TyData::Param(i as u32));
                     return Ok(types.intern(TyData::Assoc {
                         base: base_ty,
+                        trait_ref: None,
                         name: assoc.clone(),
                     }));
                 }

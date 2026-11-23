@@ -1981,12 +1981,15 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             ExprKind::TraitCall {
                 trait_ref,
                 trait_args,
+                method_args,
                 self_ty,
                 method,
                 args,
             } => {
                 let closed_self = self.closed(*self_ty);
                 let closed_args: Vec<Ty> = trait_args.iter().map(|a| self.closed(*a)).collect();
+                let closed_method_args: Vec<Ty> =
+                    method_args.iter().map(|a| self.closed(*a)).collect();
                 let mut found: Option<(FnRef, Vec<Ty>)> = None;
                 let impls = self.mono.items.trait_impls.clone();
                 for imp in &impls {
@@ -2016,12 +2019,13 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                         break;
                     }
                 }
-                let Some((fn_ref, impl_args)) = found else {
+                let Some((fn_ref, mut full_args)) = found else {
                     self.failed = true;
                     return;
                 };
+                full_args.extend(closed_method_args);
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
-                let Some(f) = self.mono.instance(fn_ref, impl_args, span) else {
+                let Some(f) = self.mono.instance(fn_ref, full_args, span) else {
                     self.failed = true;
                     return;
                 };
