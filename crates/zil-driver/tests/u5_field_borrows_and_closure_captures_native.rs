@@ -48,7 +48,7 @@ fn write_source(dir: &Path, filename: &str, src: &str) -> PathBuf {
     path
 }
 
-fn build_and_run_dual(dir: &Path, entry: &Path) -> i32 {
+fn build_and_run_dual_output(dir: &Path, entry: &Path) -> (i32, String) {
     let mut configs = vec![
         ("clang-o0", NativeBackend::Clang, Optimization::O0),
         ("clang-o2", NativeBackend::Clang, Optimization::O2),
@@ -58,7 +58,7 @@ fn build_and_run_dual(dir: &Path, entry: &Path) -> i32 {
         configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
     }
 
-    let mut expected_code = None;
+    let mut expected: Option<(i32, String)> = None;
     for (label, backend, opt) in configs {
         let exe = dir.join(format!("bin-{label}"));
         let mut session = CompilationSession::new();
@@ -91,13 +91,19 @@ fn build_and_run_dual(dir: &Path, entry: &Path) -> i32 {
             String::from_utf8_lossy(&out.stderr)
         );
         let code = out.status.code().unwrap_or(-1);
-        if let Some(prev) = expected_code {
-            assert_eq!(code, prev, "exit code mismatch on {label}");
+        let stdout = String::from_utf8(out.stdout).expect("utf8 stdout");
+        let res = (code, stdout);
+        if let Some(prev) = &expected {
+            assert_eq!(&res, prev, "result/stdout mismatch on {label}");
         } else {
-            expected_code = Some(code);
+            expected = Some(res);
         }
     }
-    expected_code.expect("at least one backend ran")
+    expected.expect("at least one backend ran")
+}
+
+fn build_and_run_dual(dir: &Path, entry: &Path) -> i32 {
+    build_and_run_dual_output(dir, entry).0
 }
 
 fn check_rejected(dir: &Path, name: &str, src: &str, expected_code_prefix: &str) {
@@ -999,7 +1005,12 @@ fn main() -> i32 {
 }
 "#;
     let entry = write_source(&dir, "all_paths_refill_fnmut.zil", pos_src);
-    assert_eq!(build_and_run_dual(&dir, &entry), 0);
+    let (code, stdout) = build_and_run_dual_output(&dir, &entry);
+    assert_eq!(code, 0);
+    assert_eq!(
+        stdout, "ABC",
+        "expected exact 3-token Drop sequence ABC across all 4 backend/opt configs"
+    );
 }
 
 #[test]
@@ -1200,5 +1211,456 @@ fn raw_wire_valid_cert_forged_fnmut_uninit_capture_rejected() {
             })
         ),
         "expected exact UseOfUninit/UseOfMaybeUninit from zil-check, got: {check_err:?}"
+    );
+}
+
+#[test]
+fn u5_match_pattern_implicit_move_three_layer_closure_audit() {
+    use zil_ir::body::ClosureKind;
+
+    let dir = temp_dir("match-pattern-move");
+
+    // 1. Negative (Typeck): `match` pattern moves non-Copy capture field without refill.
+    // Must be classified as FnOnce and rejected when passed to `FnMut` or `Fn`.
+    check_rejected(
+        &dir,
+        "match_move_no_refill_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+enum Slot {
+    Some(manages Token),
+    None,
+}
+struct Holder { slot: Slot }
+
+fn call_mut<F: FnMut() -> i64>(f: &mut F) -> i64 {
+    return f() + f()
+}
+
+fn main() -> i32 {
+    var h = Holder { slot: Slot.Some(Token { id: 7 }) }
+    var f = move () -> i64 => {
+        match h.slot {
+            Slot.Some(tok) => { return tok.id }
+            Slot.None() => { return 0 }
+        }
+    }
+    return i32(call_mut(&mut f))
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    check_rejected(
+        &dir,
+        "match_move_no_refill_not_fn",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+enum Slot {
+    Some(manages Token),
+    None,
+}
+struct Holder { slot: Slot }
+
+fn call_fn<F: Fn() -> i64>(f: &F) -> i64 {
+    return f() + f()
+}
+
+fn main() -> i32 {
+    var h = Holder { slot: Slot.Some(Token { id: 7 }) }
+    let f = move () -> i64 => {
+        match h.slot {
+            Slot.Some(tok) => { return tok.id }
+            Slot.None() => { return 0 }
+        }
+    }
+    return i32(call_fn(&f))
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 1b. Three-layer (Typeck -> MIR -> Wire/Solver/zil-check) cross-check on the
+    // exact same closure when invoked as FnOnce:
+    //   - Typeck/MIR: ClosureDef.kind == FnOnce AND MIR contains Operand::Move from Capture(0)
+    //   - Wire + Solver + zil-check: accepted as FnOnce
+    //   - Forged FnMut mutation on the lowered MIR: rejected by BOTH Solver and zil-check
+    //     (with valid cert) with exact UseOfUninit / UseOfMaybeUninit.
+    let fnonce_src = r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+enum Slot {
+    Some(manages Token),
+    None,
+}
+struct Holder { slot: Slot }
+
+fn call_once<F: FnOnce() -> i64>(f: F) -> i64 {
+    return f()
+}
+
+fn main() -> i32 {
+    var h = Holder { slot: Slot.Some(Token { id: 7 }) }
+    let f = move () -> i64 => {
+        match h.slot {
+            Slot.Some(tok) => { return tok.id }
+            Slot.None() => { return 0 }
+        }
+    }
+    return i32(call_once(f))
+}
+"#;
+    let lowered = zil_typeck::lower_source("match_move_fnonce.zil", fnonce_src)
+        .expect("FnOnce match-move closure must lower cleanly");
+    let closure_fn_idx = lowered
+        .module
+        .functions
+        .iter()
+        .position(|f| f.body.closure.is_some())
+        .expect("lowered module must contain closure body");
+    let closure_id = lowered.module.functions[closure_fn_idx]
+        .body
+        .closure
+        .expect("closure id");
+    assert_eq!(
+        lowered
+            .module
+            .tys
+            .closure(closure_id)
+            .expect("closure def")
+            .kind,
+        ClosureKind::FnOnce,
+        "MIR ClosureDef must be classified as FnOnce when match pattern moves capture field"
+    );
+    let has_capture_move = lowered.module.functions[closure_fn_idx]
+        .body
+        .blocks
+        .iter()
+        .any(|b| {
+            b.instructions.iter().any(|inst| {
+                matches!(
+                    &inst.kind,
+                    InstructionKind::Assign {
+                        value: Rvalue::Use(Operand::Move(p)),
+                        ..
+                    } if matches!(p.root, PlaceRoot::Capture(0))
+                )
+            })
+        });
+    assert!(
+        has_capture_move,
+        "MIR must contain Operand::Move from PlaceRoot::Capture(0) for match pattern binding"
+    );
+
+    // Wire + Solver + zil-check accept the legitimate FnOnce module.
+    let ok_bytes = encode_module(&lowered.module);
+    let ok_decoded = decode_module(&ok_bytes).expect("wire decode FnOnce");
+    let ok_cert = zil_solve::solve_module(&ok_decoded, Budget { steps: 200_000 })
+        .expect("solver must accept FnOnce match-move module");
+    check_module(ok_decoded, &ok_cert, CheckBudget { steps: 200_000 })
+        .expect("zil-check must accept FnOnce match-move module");
+
+    // 1c. Forging the lowered MIR's ClosureDef from FnOnce -> FnMut MUST be rejected
+    // by BOTH Solver and independent zil-check (with a structurally valid certificate
+    // covering `Token::drop` and the closure body), proving defense-in-depth between
+    // Typeck classification and CFG verification.
+    let mut forged_mod = lowered.module;
+    let forged_cid = forged_mod.tys.add_closure(zil_ir::body::ClosureDef {
+        type_params: 0,
+        kind: ClosureKind::FnMut,
+        captures: forged_mod.functions[closure_fn_idx].body.captures.clone(),
+        params: forged_mod.functions[closure_fn_idx].sig.params.clone(),
+        result: forged_mod.functions[closure_fn_idx].sig.result,
+    });
+    let mut forged_closure_fn = forged_mod.functions[closure_fn_idx].clone();
+    forged_closure_fn.body.closure = Some(forged_cid);
+    let mut keep_fns: Vec<Function> = forged_mod
+        .functions
+        .into_iter()
+        .filter(|f| matches!(f.sig.role, FnRole::Drop(_)))
+        .collect();
+    keep_fns.push(forged_closure_fn);
+    let forged_cert = Certificate {
+        functions: (0..keep_fns.len())
+            .map(|i| FunctionCertificate {
+                function: FnId(i as u32),
+                invariants: Vec::new(),
+            })
+            .collect(),
+    };
+    let forged_only = Module {
+        tys: forged_mod.tys,
+        functions: keep_fns,
+        foreigns: Vec::new(),
+        statics: Vec::new(),
+        dyn_impls: Vec::new(),
+    };
+    let forged_bytes = encode_module(&forged_only);
+    let forged_decoded = decode_module(&forged_bytes).expect("wire decode forged FnMut");
+    let forged_solve_errs = zil_solve::solve_module(&forged_decoded, Budget { steps: 200_000 })
+        .expect_err("solver must reject lowered match-move closure forged as FnMut");
+    assert!(
+        forged_solve_errs.iter().any(|e| matches!(
+            e,
+            SolveError::Violation {
+                violation: Violation {
+                    kind: ViolationKind::UseOfUninit { .. }
+                        | ViolationKind::UseOfMaybeUninit { .. },
+                    ..
+                },
+                ..
+            }
+        )),
+        "expected UseOfUninit/UseOfMaybeUninit from solver, got: {forged_solve_errs:?}"
+    );
+    let forged_check_err =
+        check_module(forged_decoded, &forged_cert, CheckBudget { steps: 200_000 })
+            .expect_err("zil-check must reject lowered match-move closure forged as FnMut");
+    assert!(
+        matches!(
+            forged_check_err.kind,
+            CheckErrorKind::Violation(Violation {
+                kind: ViolationKind::UseOfUninit { .. } | ViolationKind::UseOfMaybeUninit { .. },
+                ..
+            })
+        ),
+        "expected exact UseOfUninit/UseOfMaybeUninit from zil-check, got: {forged_check_err:?}"
+    );
+
+    // 2. Negative (Typeck): `match` pattern moves capture field and refills only ONE branch.
+    // Must NOT be classified as FnMut.
+    check_rejected(
+        &dir,
+        "match_move_partial_refill_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+enum Slot {
+    Some(manages Token),
+    None,
+}
+struct Holder { slot: Slot }
+
+fn call_mut<F: FnMut(bool) -> i64>(f: &mut F) -> i64 {
+    return f(true) + f(false)
+}
+
+fn main() -> i32 {
+    var h = Holder { slot: Slot.Some(Token { id: 7 }) }
+    var f = move (refill: bool) -> i64 => {
+        match h.slot {
+            Slot.Some(tok) => {
+                let v = tok.id
+                if refill {
+                    h.slot = Slot.None()
+                }
+                return v
+            }
+            Slot.None() => {
+                return 0
+            }
+        }
+    }
+    return i32(call_mut(&mut f))
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 3. Positive: `match` pattern destructuring moves capture field `h.item` and refills
+    // it on ALL paths -> validly FnMut, runs twice across Clang O0/O2 + LLVM C-API O0/O2
+    // with exact Drop sequence "ABC".
+    let refill_pos_src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+resource Token {
+    tag: i32,
+    val: i64,
+}
+impl Drop for Token {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+package Holder {
+    manages item: Token,
+}
+
+fn call_twice<F: FnMut(bool) -> i64>(f: &mut F) -> i64 {
+    let a = f(true)
+    let b = f(false)
+    return a + b
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { tag: 65, val: 10 } }
+    var f = move (first: bool) -> i64 => {
+        match h {
+            Holder { item: tok } => {
+                let v = tok.val
+                if first {
+                    h.item = Token { tag: 66, val: 20 }
+                } else {
+                    h.item = Token { tag: 67, val: 30 }
+                }
+                return v
+            }
+        }
+    }
+    let sum = call_twice(&mut f)
+    if sum != 30 { return 1 }
+    return 0
+}
+"#;
+    let refill_entry = write_source(&dir, "match_move_all_refill_fnmut.zil", refill_pos_src);
+    let (code, stdout) = build_and_run_dual_output(&dir, &refill_entry);
+    assert_eq!(code, 0);
+    assert_eq!(
+        stdout, "ABC",
+        "expected exact 3-token Drop sequence ABC on match-move all-path refill FnMut"
+    );
+
+    // 4. Positive: `match` with `ref` binding borrows without moving -> valid `Fn`.
+    let ref_pat_src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+resource Token {
+    tag: i32,
+    val: i64,
+}
+impl Drop for Token {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+enum Slot {
+    Some(manages Token),
+    None,
+}
+struct Holder {
+    slot: Slot,
+}
+
+fn call_fn_twice<F: Fn() -> i64>(f: &F) -> i64 {
+    return f() + f()
+}
+
+fn main() -> i32 {
+    let h = Holder { slot: Slot.Some(Token { tag: 65, val: 21 }) }
+    let f = move () -> i64 => {
+        match h.slot {
+            Slot.Some(ref tok) => { return tok.val }
+            Slot.None() => { return 0 }
+        }
+    }
+    let sum = call_fn_twice(&f)
+    if sum != 42 { return 1 }
+    return 0
+}
+"#;
+    let ref_entry = write_source(&dir, "match_ref_binding_fn.zil", ref_pat_src);
+    let (ref_code, ref_stdout) = build_and_run_dual_output(&dir, &ref_entry);
+    assert_eq!(ref_code, 0);
+    assert_eq!(
+        ref_stdout, "A",
+        "ref-binding match must not move or double-drop Token"
+    );
+}
+
+#[test]
+fn u5_loop_break_refill_after_loop_fnmut_native() {
+    let dir = temp_dir("loop-break-refill");
+
+    // 1. Positive (P1 precision): `give h.item` before `break` inside a loop,
+    // refilled immediately after the loop exits -> validly FnMut with exact Drop stdout "ABC".
+    let pos_src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+resource Token {
+    tag: i32,
+    val: i64,
+}
+impl Drop for Token {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+package Holder {
+    manages item: Token,
+}
+
+fn run_twice<F: FnMut(i32) -> i64>(f: &mut F) -> i64 {
+    let a = f(66)
+    let b = f(67)
+    return a + b
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { tag: 65, val: 10 } }
+    var f = move (next_tag: i32) -> i64 => {
+        var extracted: i64 = 0
+        var i: i64 = 0
+        while i < 1 {
+            let old = give h.item
+            extracted = old.val
+            break
+        }
+        h.item = Token { tag: next_tag, val: 20 }
+        return extracted
+    }
+    let sum = run_twice(&mut f)
+    if sum != 30 { return 1 }
+    return 0
+}
+"#;
+    let pos_entry = write_source(&dir, "break_then_refill_fnmut.zil", pos_src);
+    let (code, stdout) = build_and_run_dual_output(&dir, &pos_entry);
+    assert_eq!(code, 0);
+    assert_eq!(
+        stdout, "ABC",
+        "loop break-then-refill FnMut must execute exact 3-token Drop sequence ABC"
+    );
+
+    // 2. Negative: `give h.item` before `break` WITHOUT post-loop refill -> MUST NOT be FnMut.
+    check_rejected(
+        &dir,
+        "break_without_refill_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+package Holder { manages item: Token }
+
+fn run_twice<F: FnMut() -> i64>(f: &mut F) -> i64 {
+    return f() + f()
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { id: 1 } }
+    var f = move () -> i64 => {
+        var extracted: i64 = 0
+        var i: i64 = 0
+        while i < 1 {
+            let old = give h.item
+            extracted = old.id
+            break
+        }
+        return extracted
+    }
+    return i32(run_twice(&mut f))
+}
+"#,
+        "E-GENERIC-ARGUMENT",
     );
 }

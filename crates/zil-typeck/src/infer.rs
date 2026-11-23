@@ -3344,7 +3344,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             .capture_stack
             .pop()
             .expect("capture_stack pushed above");
-        let (end_state, move_res) = analyze_capture_moves(&body_expr);
+        let (end_state, move_res) = analyze_capture_moves(self.items, self.types, &body_expr);
         let still_uninit: BTreeSet<(u32, Option<u32>)> = end_state
             .uninit
             .into_iter()
@@ -9506,18 +9506,95 @@ struct CaptureMoveResult {
     escaped_uninit: BTreeSet<(u32, Option<u32>)>,
 }
 
+/// Returns `true` if matching `pat` against a place performs at least one
+/// by-value binding of a non-`Copy` type (which `build.rs` lowers to
+/// `Operand::Move`). `ref`/`ref mut`, `&pat`, literals, and wildcards do not
+/// move ownership out of the scrutinee.
+fn pat_moves_non_copy(items: &Items<'_>, types: &mut Types, pat: &Pat) -> bool {
+    match &pat.kind {
+        PatKind::Wild | PatKind::Lit(_) | PatKind::RefBinding { .. } | PatKind::Deref(_) => false,
+        PatKind::Binding(_) => ty_is_non_copy(items, types, pat.ty),
+        PatKind::Tuple(fields) | PatKind::Adt { fields, .. } => {
+            fields.iter().any(|f| pat_moves_non_copy(items, types, f))
+        }
+        PatKind::ErrorArm { inner, .. } | PatKind::UnionArm { inner, .. } => {
+            pat_moves_non_copy(items, types, inner)
+        }
+    }
+}
+
+/// Applies the implicit non-`Copy` ownership moves performed when matching
+/// `pat` against `scrutinee` onto `state` and `res`.
+fn apply_pattern_moves(
+    items: &Items<'_>,
+    types: &mut Types,
+    pat: &Pat,
+    scrutinee: &Expr,
+    state: &mut CaptureMoveState,
+    res: &mut CaptureMoveResult,
+) {
+    if let ExprKind::Capture(ci) = scrutinee.kind {
+        match &pat.kind {
+            PatKind::Wild | PatKind::Lit(_) | PatKind::RefBinding { .. } | PatKind::Deref(_) => {}
+            PatKind::Binding(_) => {
+                if ty_is_non_copy(items, types, pat.ty) {
+                    res.whole_moved.insert(ci);
+                    state.uninit.insert((ci, None));
+                }
+            }
+            PatKind::Tuple(fields) | PatKind::Adt { fields, .. } => {
+                for (fi, sub_pat) in fields.iter().enumerate() {
+                    if pat_moves_non_copy(items, types, sub_pat) {
+                        let pair = (ci, Some(fi as u32));
+                        res.ever_given.insert(pair);
+                        state.uninit.insert(pair);
+                    }
+                }
+            }
+            PatKind::ErrorArm { inner, .. } | PatKind::UnionArm { inner, .. } => {
+                if pat_moves_non_copy(items, types, inner) {
+                    let pair = (ci, None);
+                    res.ever_given.insert(pair);
+                    state.uninit.insert(pair);
+                }
+            }
+        }
+    } else if let Some(pair) = capture_place_field(scrutinee)
+        && pat_moves_non_copy(items, types, pat)
+    {
+        res.ever_given.insert(pair);
+        state.uninit.insert(pair);
+    }
+}
+
 /// Path-sensitive forward analysis over a closure body to prove whether every
-/// `give cap.field` is refilled along all normal and early-exit paths before
+/// capture field move (`give cap.field`, non-Copy value read, or `match`/`let`
+/// pattern binding) is refilled along all normal and early-exit paths before
 /// the closure can be classified as `FnMut`.
-fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
-    fn walk_place(e: &Expr, state: &mut CaptureMoveState, res: &mut CaptureMoveResult) {
+fn analyze_capture_moves(
+    items: &Items<'_>,
+    types: &mut Types,
+    expr: &Expr,
+) -> (CaptureMoveState, CaptureMoveResult) {
+    struct Ctx<'a, 'b> {
+        items: &'a Items<'b>,
+        types: &'a mut Types,
+    }
+
+    fn walk_place(
+        ctx: &mut Ctx<'_, '_>,
+        e: &Expr,
+        state: &mut CaptureMoveState,
+        res: &mut CaptureMoveResult,
+        mut break_uninit: Option<&mut BTreeSet<(u32, Option<u32>)>>,
+    ) {
         match &e.kind {
             ExprKind::Field { base, .. }
             | ExprKind::TupleField { base, .. }
-            | ExprKind::Deref(base) => walk_place(base, state, res),
+            | ExprKind::Deref(base) => walk_place(ctx, base, state, res, break_uninit),
             ExprKind::Index { base, index } => {
-                walk_place(base, state, res);
-                let _ = walk_expr(index, state, res);
+                walk_place(ctx, base, state, res, break_uninit.as_deref_mut());
+                let _ = walk_expr(ctx, index, state, res, break_uninit);
             }
             ExprKind::Capture(_) | ExprKind::Local(_) => {}
             ExprKind::Lit(_)
@@ -9560,44 +9637,58 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
             | ExprKind::Continue
             | ExprKind::Return(_)
             | ExprKind::Assign { .. } => {
-                let _ = walk_expr(e, state, res);
+                let _ = walk_expr(ctx, e, state, res, break_uninit);
             }
         }
     }
 
     /// Returns `true` if `expr` unconditionally diverges (e.g., `return`,
     /// `break`, `continue`, or all branches of an `if`/`match` diverge).
-    fn walk_expr(expr: &Expr, state: &mut CaptureMoveState, res: &mut CaptureMoveResult) -> bool {
+    fn walk_expr(
+        ctx: &mut Ctx<'_, '_>,
+        expr: &Expr,
+        state: &mut CaptureMoveState,
+        res: &mut CaptureMoveResult,
+        mut break_uninit: Option<&mut BTreeSet<(u32, Option<u32>)>>,
+    ) -> bool {
         match &expr.kind {
             ExprKind::Capture(idx) => {
                 res.whole_moved.insert(*idx);
                 state.uninit.insert((*idx, None));
                 false
             }
-            ExprKind::Field { base, .. }
-            | ExprKind::TupleField { base, .. }
-            | ExprKind::Deref(base)
+            ExprKind::Field { base, .. } | ExprKind::TupleField { base, .. } => {
+                walk_place(ctx, base, state, res, break_uninit);
+                if ty_is_non_copy(ctx.items, ctx.types, expr.ty)
+                    && let Some(pair) = capture_place_field(expr)
+                {
+                    res.ever_given.insert(pair);
+                    state.uninit.insert(pair);
+                }
+                false
+            }
+            ExprKind::Deref(base)
             | ExprKind::Borrow { place: base, .. }
             | ExprKind::Describe(base)
             | ExprKind::Len(base) => {
-                walk_place(base, state, res);
+                walk_place(ctx, base, state, res, break_uninit);
                 false
             }
             ExprKind::SliceBorrow {
                 place, start, end, ..
             } => {
-                walk_place(place, state, res);
+                walk_place(ctx, place, state, res, break_uninit.as_deref_mut());
                 if let Some(s) = start {
-                    let _ = walk_expr(s, state, res);
+                    let _ = walk_expr(ctx, s, state, res, break_uninit.as_deref_mut());
                 }
                 if let Some(e) = end {
-                    let _ = walk_expr(e, state, res);
+                    let _ = walk_expr(ctx, e, state, res, break_uninit);
                 }
                 false
             }
             ExprKind::Index { base, index } => {
-                walk_place(base, state, res);
-                let _ = walk_expr(index, state, res);
+                walk_place(ctx, base, state, res, break_uninit.as_deref_mut());
+                let _ = walk_expr(ctx, index, state, res, break_uninit);
                 false
             }
             ExprKind::Give(inner) => {
@@ -9605,16 +9696,16 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                     res.whole_moved.insert(idx);
                     state.uninit.insert((idx, None));
                 } else if let Some(pair) = capture_place_field(inner) {
-                    walk_place(inner, state, res);
+                    walk_place(ctx, inner, state, res, break_uninit);
                     res.ever_given.insert(pair);
                     state.uninit.insert(pair);
                 } else {
-                    return walk_expr(inner, state, res);
+                    return walk_expr(ctx, inner, state, res, break_uninit);
                 }
                 false
             }
             ExprKind::Try(inner) => {
-                let div = walk_expr(inner, state, res);
+                let div = walk_expr(ctx, inner, state, res, break_uninit);
                 // `?` may exit the closure early on the error path.
                 res.escaped_uninit.extend(state.uninit.iter().copied());
                 div
@@ -9622,28 +9713,30 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
             ExprKind::ErrorInject { value: inner, .. }
             | ExprKind::UnionInject { value: inner }
             | ExprKind::Unary { operand: inner, .. }
-            | ExprKind::Convert { operand: inner, .. } => walk_expr(inner, state, res),
+            | ExprKind::Convert { operand: inner, .. } => {
+                walk_expr(ctx, inner, state, res, break_uninit)
+            }
             ExprKind::Binary { lhs, rhs, .. } => {
-                let l_div = walk_expr(lhs, state, res);
+                let l_div = walk_expr(ctx, lhs, state, res, break_uninit.as_deref_mut());
                 if l_div {
                     return true;
                 }
-                walk_expr(rhs, state, res)
+                walk_expr(ctx, rhs, state, res, break_uninit)
             }
             ExprKind::Logical { lhs, rhs, .. } => {
-                if walk_expr(lhs, state, res) {
+                if walk_expr(ctx, lhs, state, res, break_uninit.as_deref_mut()) {
                     return true;
                 }
                 // Short-circuit: `rhs` may or may not execute, so it cannot
                 // unconditionally refill a field, but any move in `rhs` may happen.
                 let mut rhs_state = state.clone();
-                let _ = walk_expr(rhs, &mut rhs_state, res);
+                let _ = walk_expr(ctx, rhs, &mut rhs_state, res, break_uninit);
                 state.uninit.extend(rhs_state.uninit);
                 false
             }
             ExprKind::Assign { place, value, .. } => {
-                walk_place(place, state, res);
-                let div = walk_expr(value, state, res);
+                walk_place(ctx, place, state, res, break_uninit.as_deref_mut());
+                let div = walk_expr(ctx, value, state, res, break_uninit);
                 if !div && let Some((ci, opt_field)) = direct_capture_assign_target(place) {
                     if let Some(fi) = opt_field {
                         state.uninit.remove(&(ci, Some(fi)));
@@ -9655,7 +9748,7 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
             }
             ExprKind::Adt { fields, .. } | ExprKind::ManagedCreate { fields, .. } => {
                 for f in fields {
-                    if walk_expr(f, state, res) {
+                    if walk_expr(ctx, f, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 }
@@ -9663,7 +9756,7 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
             }
             ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
                 for x in xs {
-                    if walk_expr(x, state, res) {
+                    if walk_expr(ctx, x, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 }
@@ -9671,7 +9764,7 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
             }
             ExprKind::Closure { captures, .. } => {
                 for c in captures {
-                    if walk_expr(c, state, res) {
+                    if walk_expr(ctx, c, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 }
@@ -9682,18 +9775,18 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
             | ExprKind::TraitCall { args, .. }
             | ExprKind::Intrinsic { args, .. } => {
                 for a in args {
-                    if walk_expr(a, state, res) {
+                    if walk_expr(ctx, a, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 }
                 false
             }
             ExprKind::IndirectCall { callee, args } => {
-                if walk_expr(callee, state, res) {
+                if walk_expr(ctx, callee, state, res, break_uninit.as_deref_mut()) {
                     return true;
                 }
                 for a in args {
-                    if walk_expr(a, state, res) {
+                    if walk_expr(ctx, a, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 }
@@ -9705,14 +9798,14 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                 args,
             } => {
                 if *mode == ClosureCallMode::Once {
-                    if walk_expr(closure, state, res) {
+                    if walk_expr(ctx, closure, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 } else {
-                    walk_place(closure, state, res);
+                    walk_place(ctx, closure, state, res, break_uninit.as_deref_mut());
                 }
                 for a in args {
-                    if walk_expr(a, state, res) {
+                    if walk_expr(ctx, a, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 }
@@ -9722,11 +9815,11 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                 // `object` is a `Borrow` for `&self`/`&mut self` slots (which
                 // delegates to `walk_place`) and a bare value for `self: Self`
                 // slots (which moves an `OwnedDyn` capture).
-                if walk_expr(object, state, res) {
+                if walk_expr(ctx, object, state, res, break_uninit.as_deref_mut()) {
                     return true;
                 }
                 for a in args {
-                    if walk_expr(a, state, res) {
+                    if walk_expr(ctx, a, state, res, break_uninit.as_deref_mut()) {
                         return true;
                     }
                 }
@@ -9735,13 +9828,20 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
             ExprKind::Block(stmts) => {
                 for s in stmts {
                     match s {
-                        Stmt::Let { init, .. } => {
-                            if walk_expr(init, state, res) {
-                                return true;
+                        Stmt::Let { pattern, init } => {
+                            if matches!(pattern.kind, PatKind::Binding(_)) {
+                                if walk_expr(ctx, init, state, res, break_uninit.as_deref_mut()) {
+                                    return true;
+                                }
+                            } else {
+                                walk_place(ctx, init, state, res, break_uninit.as_deref_mut());
+                                apply_pattern_moves(
+                                    ctx.items, ctx.types, pattern, init, state, res,
+                                );
                             }
                         }
                         Stmt::Expr(e) => {
-                            if walk_expr(e, state, res) {
+                            if walk_expr(ctx, e, state, res, break_uninit.as_deref_mut()) {
                                 return true;
                             }
                         }
@@ -9750,7 +9850,7 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                             // so moves inside `defer` are recorded without letting
                             // a `defer` prematurely clear `state.uninit`.
                             let mut defer_state = state.clone();
-                            let _ = walk_expr(e, &mut defer_state, res);
+                            let _ = walk_expr(ctx, e, &mut defer_state, res, None);
                             for item in defer_state.uninit {
                                 res.escaped_uninit.insert(item);
                                 state.uninit.insert(item);
@@ -9765,14 +9865,15 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                 then,
                 otherwise,
             } => {
-                if walk_expr(cond, state, res) {
+                if walk_expr(ctx, cond, state, res, break_uninit.as_deref_mut()) {
                     return true;
                 }
                 let mut then_state = state.clone();
-                let then_div = walk_expr(then, &mut then_state, res);
+                let then_div =
+                    walk_expr(ctx, then, &mut then_state, res, break_uninit.as_deref_mut());
                 let mut else_state = state.clone();
                 let else_div = if let Some(o) = otherwise {
-                    walk_expr(o, &mut else_state, res)
+                    walk_expr(ctx, o, &mut else_state, res, break_uninit)
                 } else {
                     false
                 };
@@ -9797,7 +9898,7 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                 }
             }
             ExprKind::Match { scrutinee, arms } => {
-                walk_place(scrutinee, state, res);
+                walk_place(ctx, scrutinee, state, res, break_uninit.as_deref_mut());
                 if arms.is_empty() {
                     return false;
                 }
@@ -9805,7 +9906,21 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                 let mut any_normal = false;
                 for arm in arms {
                     let mut arm_state = state.clone();
-                    if !walk_expr(&arm.body, &mut arm_state, res) {
+                    apply_pattern_moves(
+                        ctx.items,
+                        ctx.types,
+                        &arm.pattern,
+                        scrutinee,
+                        &mut arm_state,
+                        res,
+                    );
+                    if !walk_expr(
+                        ctx,
+                        &arm.body,
+                        &mut arm_state,
+                        res,
+                        break_uninit.as_deref_mut(),
+                    ) {
                         any_normal = true;
                         merged.extend(arm_state.uninit);
                     }
@@ -9818,31 +9933,43 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
                 }
             }
             ExprKind::While { cond, body } => {
-                if walk_expr(cond, state, res) {
+                if walk_expr(ctx, cond, state, res, break_uninit) {
                     return true;
                 }
                 let mut body_state = state.clone();
-                let _ = walk_expr(body, &mut body_state, res);
+                let mut loop_breaks = BTreeSet::new();
+                let _ = walk_expr(ctx, body, &mut body_state, res, Some(&mut loop_breaks));
                 // Loop body may execute 0 or more times: it cannot unconditionally
                 // refill pre-loop uninit fields, and any uninit left by the body
-                // persists on exit or next iteration.
+                // or a `break` persists after the loop (where it may still be refilled).
                 state.uninit.extend(body_state.uninit);
+                state.uninit.extend(loop_breaks);
                 false
             }
             ExprKind::Loop(body) => {
                 let mut body_state = state.clone();
-                let _ = walk_expr(body, &mut body_state, res);
+                let mut loop_breaks = BTreeSet::new();
+                let _ = walk_expr(ctx, body, &mut body_state, res, Some(&mut loop_breaks));
                 state.uninit.extend(body_state.uninit);
+                state.uninit.extend(loop_breaks);
                 false
             }
             ExprKind::Return(opt_v) => {
                 if let Some(v) = opt_v {
-                    let _ = walk_expr(v, state, res);
+                    let _ = walk_expr(ctx, v, state, res, None);
                 }
                 res.escaped_uninit.extend(state.uninit.iter().copied());
                 true
             }
-            ExprKind::Break | ExprKind::Continue => {
+            ExprKind::Break => {
+                if let Some(bu) = break_uninit {
+                    bu.extend(state.uninit.iter().copied());
+                } else {
+                    res.escaped_uninit.extend(state.uninit.iter().copied());
+                }
+                true
+            }
+            ExprKind::Continue => {
                 res.escaped_uninit.extend(state.uninit.iter().copied());
                 true
             }
@@ -9857,9 +9984,10 @@ fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
         }
     }
 
+    let mut ctx = Ctx { items, types };
     let mut state = CaptureMoveState::default();
     let mut res = CaptureMoveResult::default();
-    let _ = walk_expr(expr, &mut state, &mut res);
+    let _ = walk_expr(&mut ctx, expr, &mut state, &mut res, None);
     (state, res)
 }
 
