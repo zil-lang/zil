@@ -1016,8 +1016,8 @@ fn main() -> i32 {
         "OwnedItem Drop must execute exactly once on by-value OwnedDyn consumption"
     );
 
-    // 2. Allocator-wrap zero-leak verification (-Wl,--wrap=calloc -Wl,--wrap=free)
-    // across both O0 and O2: every OwnedDyn box (Copy, Owning, ZST) must be freed
+    // 2. Allocator-wrap zero-leak & double-free verification (-Wl,--wrap=calloc -Wl,--wrap=free)
+    // across Clang -O0 and -O2: every OwnedDyn box (Copy, Owning, ZST) must be freed
     // with zero live allocations and zero double-frees at process exit.
     let probe_c = dir.join("alloc_probe.c");
     std::fs::write(
@@ -1031,6 +1031,7 @@ void *__real_calloc(size_t count, size_t size);
 void __real_free(void *ptr);
 
 static void *live_ptrs[256];
+static void *freed_ptrs[256];
 static int calloc_count = 0;
 static int free_count = 0;
 static int live_count = 0;
@@ -1039,6 +1040,13 @@ static int double_free = 0;
 void *__wrap_calloc(size_t count, size_t size) {
     void *p = __real_calloc(count, size);
     if (p) {
+        /* Clear from freed_ptrs if allocator reuses a previously freed address. */
+        for (int i = 0; i < 256; i++) {
+            if (freed_ptrs[i] == p) {
+                freed_ptrs[i] = NULL;
+                break;
+            }
+        }
         calloc_count++;
         live_count++;
         for (int i = 0; i < 256; i++) {
@@ -1067,6 +1075,22 @@ void __wrap_free(void *ptr) {
     if (found) {
         free_count++;
         live_count--;
+        for (int i = 0; i < 256; i++) {
+            if (!freed_ptrs[i]) {
+                freed_ptrs[i] = ptr;
+                break;
+            }
+        }
+        __real_free(ptr);
+        return;
+    }
+    for (int i = 0; i < 256; i++) {
+        if (freed_ptrs[i] == ptr) {
+            double_free++;
+            fprintf(stderr, "ALLOC_STATS calloc=%d free=%d live=%d double_free=%d\n",
+                    calloc_count, free_count, live_count, double_free);
+            _Exit(98);
+        }
     }
     __real_free(ptr);
 }
@@ -1138,6 +1162,53 @@ static void report_allocs(void) {
             "expected zero leaks ({opt_flag}), got: {stderr}"
         );
     }
+
+    // 2b. Controlled double-free self-test: prove that alloc_probe.c actively
+    // catches a double-free (exit code 98, double_free=1) rather than silently passing.
+    let df_ctrl_c = dir.join("double_free_control.c");
+    std::fs::write(
+        &df_ctrl_c,
+        r#"
+#include <stdlib.h>
+int main(void) {
+    void *volatile p = calloc(1, 16);
+    free(p);
+    free(p);
+    return 0;
+}
+"#,
+    )
+    .expect("write double_free_control.c");
+    let df_ctrl_exe = dir.join("double-free-control");
+    let df_link = Command::new(&clang)
+        .arg("-O0")
+        .arg(&df_ctrl_c)
+        .arg(&probe_c)
+        .arg("-Wl,--wrap=calloc")
+        .arg("-Wl,--wrap=free")
+        .arg("-o")
+        .arg(&df_ctrl_exe)
+        .output()
+        .expect("invoke clang for double-free control");
+    assert!(
+        df_link.status.success(),
+        "double-free control link failed: {}",
+        String::from_utf8_lossy(&df_link.stderr)
+    );
+    let df_run = Command::new(&df_ctrl_exe)
+        .output()
+        .expect("run double-free control");
+    let df_stderr = String::from_utf8_lossy(&df_run.stderr);
+    assert_eq!(
+        df_run.status.code(),
+        Some(98),
+        "probe must catch controlled double-free with exit code 98, got {:?}, stderr={df_stderr}",
+        df_run.status.code()
+    );
+    assert!(
+        df_stderr.contains("double_free=1"),
+        "probe stderr must report double_free=1, got: {df_stderr}"
+    );
 
     // 3. Safety negative: using OwnedDyn after by-value consume MUST be SafeReject.
     check_rejected(
