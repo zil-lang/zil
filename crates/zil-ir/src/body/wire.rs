@@ -1501,7 +1501,7 @@ fn encode_function(w: &mut Writer, f: &Function) {
         StateContractClause::RequiresState { param, states } => {
             w.u8(0);
             w.u32(param);
-            w.u8(states.0);
+            w.u64(states.0);
         }
         StateContractClause::ProvidesRetired { param } => {
             w.u8(1);
@@ -1510,12 +1510,32 @@ fn encode_function(w: &mut Writer, f: &Function) {
         StateContractClause::ProvidesOnPending { param, states } => {
             w.u8(2);
             w.u32(param);
-            w.u8(states.0);
+            w.u64(states.0);
         }
         StateContractClause::ProvidesOnReady { param, states } => {
             w.u8(3);
             w.u32(param);
-            w.u8(states.0);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesState { param, states } => {
+            w.u8(4);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesOnOk { param, states } => {
+            w.u8(5);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesOnErr { param, states } => {
+            w.u8(6);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::RequiresApart { param_a, param_b } => {
+            w.u8(7);
+            w.u32(param_a);
+            w.u32(param_b);
         }
     });
     w.u32(f.body.param_count);
@@ -1561,16 +1581,32 @@ fn decode_function(r: &mut Reader<'_>) -> Result<Function, WireError> {
     let state_contracts = r.vec(|r| match r.u8()? {
         0 => Ok(StateContractClause::RequiresState {
             param: r.u32()?,
-            states: ProtocolStateSet(r.u8()?),
+            states: ProtocolStateSet(r.u64()?),
         }),
         1 => Ok(StateContractClause::ProvidesRetired { param: r.u32()? }),
         2 => Ok(StateContractClause::ProvidesOnPending {
             param: r.u32()?,
-            states: ProtocolStateSet(r.u8()?),
+            states: ProtocolStateSet(r.u64()?),
         }),
         3 => Ok(StateContractClause::ProvidesOnReady {
             param: r.u32()?,
-            states: ProtocolStateSet(r.u8()?),
+            states: ProtocolStateSet(r.u64()?),
+        }),
+        4 => Ok(StateContractClause::ProvidesState {
+            param: r.u32()?,
+            states: ProtocolStateSet(r.u64()?),
+        }),
+        5 => Ok(StateContractClause::ProvidesOnOk {
+            param: r.u32()?,
+            states: ProtocolStateSet(r.u64()?),
+        }),
+        6 => Ok(StateContractClause::ProvidesOnErr {
+            param: r.u32()?,
+            states: ProtocolStateSet(r.u64()?),
+        }),
+        7 => Ok(StateContractClause::RequiresApart {
+            param_a: r.u32()?,
+            param_b: r.u32()?,
         }),
         t => Err(WireError::InvalidTag("StateContractClause", t)),
     })?;

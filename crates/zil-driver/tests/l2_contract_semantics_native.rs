@@ -842,3 +842,577 @@ fn raw_wire_forged_resume_transfer_with_borrowed_param_is_rejected_by_checker() 
         "independent checker must reject Raw/Wire forged StateContractClause"
     );
 }
+
+#[test]
+fn user_state_protocol_contracts_execute_natively_on_dual_backends() {
+    let dir = temp_dir("user-state-protocol-native");
+    let src = r#"
+extern "C" fn putchar(code: i32) -> i32;
+
+enum ConnState { Init, Open, Closed }
+enum ConnErr { Closed, Busy }
+
+struct Conn {
+    state: ConnState,
+    fd: i32,
+}
+
+fn open(c: &mut Conn, fail: bool) -> ConnErr!void
+    contract {
+        requires(state(c, ConnState.Init));
+        provides(on_ok(state(c, ConnState.Open)), on_err(state(c, ConnState.Init)));
+    }
+{
+    if fail {
+        return ConnErr.Busy
+    }
+    c.state = ConnState.Open
+    return ()
+}
+
+fn send(c: &mut Conn, byte: i32)
+    contract {
+        requires(state(c, ConnState.Open));
+        provides(state(c, ConnState.Open));
+    }
+{
+    unsafe { putchar(byte) }
+}
+
+fn close(c: &mut Conn)
+    contract {
+        requires(state(c, ConnState.Open));
+        provides(state(c, ConnState.Closed));
+    }
+{
+    c.state = ConnState.Closed
+}
+
+fn ensure_open(c: &mut Conn) -> ConnErr!void
+    contract {
+        requires(state(c, ConnState.Init, ConnState.Open, ConnState.Closed));
+        provides(on_ok(state(c, ConnState.Open)), on_err(state(c, ConnState.Init, ConnState.Closed)));
+    }
+{
+    match c.state {
+        ConnState.Init() => {
+            open(c, false)?
+            return ()
+        },
+        ConnState.Open() => {
+            return ()
+        },
+        ConnState.Closed() => {
+            return ConnErr.Closed
+        }
+    }
+}
+
+fn transfer_pair(src: &mut Conn, dst: &mut Conn)
+    contract {
+        requires(state(src, ConnState.Open), state(dst, ConnState.Init), apart(src, dst));
+        provides(state(src, ConnState.Closed), state(dst, ConnState.Open));
+    }
+{
+    src.state = ConnState.Closed
+    dst.state = ConnState.Open
+}
+
+fn compare_distinct(a: &Conn, b: &Conn) -> i32
+    contract {
+        requires(state(a, ConnState.Open), state(b, ConnState.Closed), apart(a, b));
+    }
+{
+    return a.fd - b.fd
+}
+
+fn main() -> i32 {
+    var c1 = Conn { state: ConnState.Init, fd: 10 }
+    var c2 = Conn { state: ConnState.Init, fd: 52 }
+
+    // Failed open preserves Init state via on_err.
+    match open(&mut c1, true) {
+        .ok(_) => { return 1 },
+        .err(_) => {}
+    }
+
+    // Branch-refined ensure_open transitions Init -> Open.
+    match ensure_open(&mut c1) {
+        .ok(_) => {},
+        .err(_) => { return 2 }
+    }
+    send(&mut c1, 65)
+
+    // Calling ensure_open again when already Open stays Open.
+    match ensure_open(&mut c1) {
+        .ok(_) => {},
+        .err(_) => { return 3 }
+    }
+    send(&mut c1, 66)
+
+    // Multi-role protocol transition with apart(src, dst).
+    transfer_pair(&mut c1, &mut c2)
+    let diff = compare_distinct(&c2, &c1)
+    send(&mut c2, 67)
+    close(&mut c2)
+
+    if diff == 42 {
+        return 0
+    }
+    return 4
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert_eq!(stdout.as_slice(), b"ABC");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn user_state_protocol_violations_are_rejected() {
+    let dir = temp_dir("user-state-protocol-reject");
+
+    // 1. Unannotated main() violates requires(state(c, Open)) by calling send on Init.
+    check_rejected(
+        &dir,
+        "unannotated_caller_violates_precondition",
+        r#"
+enum ConnState { Init, Open, Closed }
+struct Conn { state: ConnState, fd: i32 }
+fn send(c: &mut Conn) contract { requires(state(c, ConnState.Open)); provides(state(c, ConnState.Open)); } {}
+fn main() -> i32 {
+    var c = Conn { state: ConnState.Init, fd: 1 }
+    send(&mut c)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 2. Calling send in the .err branch of open() (where on_err leaves state as Init).
+    check_rejected(
+        &dir,
+        "on_err_branch_cannot_assume_open",
+        r#"
+enum ConnState { Init, Open, Closed }
+enum ConnErr { Busy }
+struct Conn { state: ConnState }
+fn open(c: &mut Conn) -> ConnErr!void
+    contract {
+        requires(state(c, ConnState.Init));
+        provides(on_ok(state(c, ConnState.Open)), on_err(state(c, ConnState.Init)));
+    }
+{
+    return ConnErr.Busy
+}
+fn send(c: &mut Conn) contract { requires(state(c, ConnState.Open)); } {}
+fn main() -> i32 {
+    var c = Conn { state: ConnState.Init }
+    match open(&mut c) {
+        .ok(_) => { send(&mut c) },
+        .err(_) => { send(&mut c) }
+    }
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 3. Function declares provides(state(c, Open)) but misses transition on one branch.
+    check_rejected(
+        &dir,
+        "missing_transition_on_branch_violates_provides_state",
+        r#"
+enum ConnState { Init, Open, Closed }
+struct Conn { state: ConnState }
+fn broken_open(c: &mut Conn, flag: bool)
+    contract {
+        requires(state(c, ConnState.Init));
+        provides(state(c, ConnState.Open));
+    }
+{
+    if flag {
+        c.state = ConnState.Open
+    }
+}
+fn main() -> i32 {
+    var c = Conn { state: ConnState.Init }
+    broken_open(&mut c, false)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 4. Function declares provides(on_ok(state(c, Open))) but returns ok without updating state.
+    check_rejected(
+        &dir,
+        "forged_on_ok_without_state_transition",
+        r#"
+enum ConnState { Init, Open, Closed }
+enum ConnErr { Busy }
+struct Conn { state: ConnState }
+fn lying_open(c: &mut Conn) -> ConnErr!void
+    contract {
+        requires(state(c, ConnState.Init));
+        provides(on_ok(state(c, ConnState.Open)), on_err(state(c, ConnState.Init)));
+    }
+{
+    return ()
+}
+fn main() -> i32 {
+    var c = Conn { state: ConnState.Init }
+    let _ = lying_open(&mut c)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 5. Violating requires(apart(a, b)) with two shared references to the same handle.
+    check_rejected(
+        &dir,
+        "aliasing_shared_refs_violates_apart",
+        r#"
+enum ConnState { Init, Open, Closed }
+struct Conn { state: ConnState }
+fn pair_check(a: &Conn, b: &Conn) -> i32
+    contract { requires(state(a, ConnState.Open), state(b, ConnState.Open), apart(a, b)); }
+{
+    return 0
+}
+fn main() -> i32 {
+    let c = Conn { state: ConnState.Open }
+    return pair_check(&c, &c)
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 6. Forwarding two shared parameters without declaring requires(apart(a, b)) is rejected.
+    check_rejected(
+        &dir,
+        "unproven_shared_params_cannot_satisfy_apart",
+        r#"
+enum ConnState { Init, Open, Closed }
+struct Conn { state: ConnState }
+fn pair_check(a: &Conn, b: &Conn) -> i32
+    contract { requires(state(a, ConnState.Open), state(b, ConnState.Open), apart(a, b)); }
+{
+    return 0
+}
+fn leaky_wrapper(a: &Conn, b: &Conn) -> i32
+    contract { requires(state(a, ConnState.Open), state(b, ConnState.Open)); }
+{
+    return pair_check(a, b)
+}
+fn main() -> i32 {
+    let c = Conn { state: ConnState.Open }
+    return leaky_wrapper(&c, &c)
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 7. Unknown unannotated mutable call conservatively widens state, blocking subsequent send().
+    check_rejected(
+        &dir,
+        "unknown_mut_call_widens_protocol_state",
+        r#"
+enum ConnState { Init, Open, Closed }
+struct Conn { state: ConnState }
+fn mutate_unknown(c: &mut Conn) {
+    c.state = ConnState.Closed
+}
+fn send(c: &mut Conn) contract { requires(state(c, ConnState.Open)); } {}
+fn main() -> i32 {
+    var c = Conn { state: ConnState.Open }
+    mutate_unknown(&mut c)
+    send(&mut c)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 8. Unknown variant name in state(...) contract is rejected at typecheck.
+    check_rejected(
+        &dir,
+        "unknown_user_state_variant_rejected",
+        r#"
+enum ConnState { Init, Open, Closed }
+struct Conn { state: ConnState }
+fn bad(c: &mut Conn) contract { requires(state(c, ConnState.Bogus)); } {}
+fn main() -> i32 { return 0 }
+"#,
+        ResultCategory::SafeReject,
+        "E-RESOURCE-RESULT-MODE",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_forged_user_state_protocol_contracts_are_rejected_by_checker() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, Block, BlockId, Body, Callee, ConstValue, FieldDef, FnId, FnRole, FnSig,
+        Function, GenericArgs, IntTy, Local, LocalDecl, Module, Mutability, Operand, ParamEnv,
+        Place, ProtocolStateSet, Region, ResumeMode, StateContractClause, Terminator, TyKind,
+        TyTable, VariantDef, decode_module, encode_module,
+    };
+
+    // Helper to register `enum ConnState { Init, Open, Closed }` and `struct Conn { state: ConnState }`.
+    let make_conn_types = || {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let empty_args = tys.intern_args(GenericArgs {
+            tys: vec![],
+            regions: vec![],
+        });
+        let state_adt = tys.add_adt(AdtDef {
+            name: "ConnState".into(),
+            kind: AdtKind::Enum,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![
+                VariantDef {
+                    name: "Init".into(),
+                    fields: vec![],
+                },
+                VariantDef {
+                    name: "Open".into(),
+                    fields: vec![],
+                },
+                VariantDef {
+                    name: "Closed".into(),
+                    fields: vec![],
+                },
+            ],
+            user_drop: false,
+        });
+        let state_ty = tys.intern(TyKind::Adt {
+            adt: state_adt,
+            args: empty_args,
+        });
+        let conn_adt = tys.add_adt(AdtDef {
+            name: "Conn".into(),
+            kind: AdtKind::Record,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![VariantDef {
+                name: "Conn".into(),
+                fields: vec![FieldDef {
+                    name: "state".into(),
+                    ty: state_ty,
+                }],
+            }],
+            user_drop: false,
+        });
+        let conn_ty = tys.intern(TyKind::Adt {
+            adt: conn_adt,
+            args: empty_args,
+        });
+        let mut_conn = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Exclusive,
+            pointee: conn_ty,
+        });
+        let ref_conn = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Shared,
+            pointee: conn_ty,
+        });
+        (tys, unit_ty, mut_conn, ref_conn)
+    };
+
+    // Case A: Raw/Wire forged `ProvidesState(Open)` with no state transition in body.
+    let (tys_a, unit_a, mut_conn_a, _) = make_conn_types();
+    let forged_open = Function {
+        name: "forged_open".into(),
+        sig: FnSig {
+            params: vec![mut_conn_a],
+            result: unit_a,
+            type_params: 0,
+            region_params: 0,
+            role: FnRole::Normal,
+            resume_mode: ResumeMode::Local,
+            state_contracts: vec![
+                StateContractClause::RequiresState {
+                    param: 0,
+                    states: ProtocolStateSet::single(0),
+                },
+                StateContractClause::ProvidesState {
+                    param: 0,
+                    states: ProtocolStateSet::single(1),
+                },
+            ],
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![LocalDecl {
+                ty: mut_conn_a,
+                name: Some("c".into()),
+            }],
+            captures: vec![],
+            closure: None,
+            result: unit_a,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![Block {
+                instructions: vec![],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Unit),
+                },
+                terminator_span: zil_base::Span::default(),
+            }],
+        },
+    };
+    let mod_a = Module {
+        tys: tys_a,
+        functions: vec![forged_open],
+        foreigns: vec![],
+        statics: vec![],
+        dyn_impls: vec![],
+    };
+    let bytes_a = encode_module(&mod_a);
+    let dec_a = decode_module(&bytes_a).expect("wire decode forged ProvidesState module");
+    let cert_a = zil_solve::solve_module(&dec_a, zil_solve::Budget { steps: 1_000_000 })
+        .expect("solver produces valid borrow certificate for forged ProvidesState");
+    let err_a =
+        zil_check::check_module(dec_a, &cert_a, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect_err("checker must reject forged ProvidesState");
+    assert_eq!(err_a.function, FnId(0));
+    assert!(
+        matches!(err_a.kind, zil_check::CheckErrorKind::CertificateShape(_)),
+        "expected CertificateShape rejection, got {:?}",
+        err_a.kind
+    );
+
+    // Case B: Raw/Wire caller violating callee `RequiresApart(0, 1)` by passing same Local(0) twice.
+    let (mut tys_b, unit_b, _, ref_conn_b) = make_conn_types();
+    let i32_b = tys_b.intern(TyKind::Int(IntTy::I32));
+    let callee_apart = Function {
+        name: "callee_apart".into(),
+        sig: FnSig {
+            params: vec![ref_conn_b, ref_conn_b],
+            result: i32_b,
+            type_params: 0,
+            region_params: 0,
+            role: FnRole::Normal,
+            resume_mode: ResumeMode::Local,
+            state_contracts: vec![StateContractClause::RequiresApart {
+                param_a: 0,
+                param_b: 1,
+            }],
+        },
+        body: Body {
+            param_count: 2,
+            locals: vec![
+                LocalDecl {
+                    ty: ref_conn_b,
+                    name: Some("a".into()),
+                },
+                LocalDecl {
+                    ty: ref_conn_b,
+                    name: Some("b".into()),
+                },
+            ],
+            captures: vec![],
+            closure: None,
+            result: i32_b,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![Block {
+                instructions: vec![],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Int {
+                        ty: IntTy::I32,
+                        bits: 0,
+                    }),
+                },
+                terminator_span: zil_base::Span::default(),
+            }],
+        },
+    };
+    let caller_aliasing = Function {
+        name: "caller_aliasing".into(),
+        sig: FnSig {
+            params: vec![ref_conn_b],
+            result: unit_b,
+            type_params: 0,
+            region_params: 0,
+            role: FnRole::Normal,
+            resume_mode: ResumeMode::Local,
+            state_contracts: vec![],
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![
+                LocalDecl {
+                    ty: ref_conn_b,
+                    name: Some("c".into()),
+                },
+                LocalDecl {
+                    ty: i32_b,
+                    name: Some("tmp".into()),
+                },
+            ],
+            captures: vec![],
+            closure: None,
+            result: unit_b,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![
+                Block {
+                    instructions: vec![],
+                    terminator: Terminator::Call {
+                        callee: Callee::Direct(FnId(0)),
+                        args: vec![
+                            Operand::Copy(Place::local(Local(0))),
+                            Operand::Copy(Place::local(Local(0))),
+                        ],
+                        dest: Place::local(Local(1)),
+                        target: BlockId(1),
+                        cancel: None,
+                    },
+                    terminator_span: zil_base::Span::default(),
+                },
+                Block {
+                    instructions: vec![],
+                    terminator: Terminator::Return {
+                        value: Operand::Const(ConstValue::Unit),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                },
+            ],
+        },
+    };
+    let mod_b = Module {
+        tys: tys_b,
+        functions: vec![callee_apart, caller_aliasing],
+        foreigns: vec![],
+        statics: vec![],
+        dyn_impls: vec![],
+    };
+    let bytes_b = encode_module(&mod_b);
+    let dec_b = decode_module(&bytes_b).expect("wire decode forged apart module");
+    let cert_b = zil_solve::solve_module(&dec_b, zil_solve::Budget { steps: 1_000_000 })
+        .expect("solver produces valid borrow certificate for aliasing shared refs");
+    let err_b =
+        zil_check::check_module(dec_b, &cert_b, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect_err("checker must reject aliasing arguments to RequiresApart");
+    assert_eq!(err_b.function, FnId(1));
+    assert!(
+        matches!(err_b.kind, zil_check::CheckErrorKind::CertificateShape(_)),
+        "expected CertificateShape rejection, got {:?}",
+        err_b.kind
+    );
+}
