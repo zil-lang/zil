@@ -448,4 +448,113 @@ fn main() -> i32 {
         "expected E-STD-RESERVED for std.fake, got: {:?}",
         fake_rep.diagnostics
     );
+
+    // 3d. Forged `lib/std/utf8.zil` unit path in `ProjectSources` is rejected with `E-STD-RESERVED`.
+    let forged_lib_std_proj = ProjectSources {
+        entry: ModuleId(0),
+        sources: vec![
+            SourceUnit::new(FileId(0), ModuleId(0), "main", entry_src),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "lib/std/utf8.zil",
+                "pub fn hijacked_marker() -> i32 { return 99 }\n",
+            ),
+        ],
+        paths: BTreeMap::new(),
+    };
+    let forged_lib_std_rep = compile_project(&forged_lib_std_proj, &verify_opts);
+    assert_eq!(forged_lib_std_rep.status, ResultCategory::SafeReject);
+    assert_eq!(forged_lib_std_rep.phase, Phase::Driver);
+    assert!(
+        forged_lib_std_rep
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-STD-RESERVED"),
+        "expected E-STD-RESERVED for forged lib/std/utf8.zil, got: {:?}",
+        forged_lib_std_rep.diagnostics
+    );
+
+    // 4. Local AND ancestor `lib/std/utf8.zil` / `lib/std/fake.zil` MUST NOT override embedded
+    // canonical stdlib in `compile_path`.
+    let lib_std_hijack_dir = temp_dir("lib-std-ancestor-hijack");
+    write_source(
+        &lib_std_hijack_dir,
+        "lib/std/utf8.zil",
+        r#"
+pub fn hijacked_marker() -> i32 {
+    return 99
+}
+"#,
+    );
+    write_source(
+        &lib_std_hijack_dir,
+        "lib/std/fake.zil",
+        r#"
+pub fn forged_std() -> i32 {
+    return 7
+}
+"#,
+    );
+    for rel in ["probe_direct.zil", "nested/sub/probe_ancestor.zil"] {
+        let probe = write_source(
+            &lib_std_hijack_dir,
+            rel,
+            r#"
+import std.utf8
+fn main() -> i32 {
+    return utf8.hijacked_marker()
+}
+"#,
+        );
+        let rep = CompilationSession::new().compile_path(&probe, &verify_opts);
+        assert_eq!(
+            rep.status,
+            ResultCategory::SafeReject,
+            "lib/std/utf8.zil must not override embedded canonical std.utf8 ({rel}): {:?}",
+            rep.diagnostics
+        );
+        assert_eq!(rep.phase, Phase::Types);
+    }
+
+    let fake_probe = write_source(
+        &lib_std_hijack_dir,
+        "nested/sub/probe_fake.zil",
+        r#"
+import std.fake
+fn main() -> i32 {
+    return fake.forged_std()
+}
+"#,
+    );
+    let fake_path_rep = CompilationSession::new().compile_path(&fake_probe, &verify_opts);
+    assert_eq!(
+        fake_path_rep.status,
+        ResultCategory::SafeReject,
+        "lib/std/fake.zil must not be loaded by compile_path: {:?}",
+        fake_path_rep.diagnostics
+    );
+    assert_eq!(fake_path_rep.phase, Phase::Ct);
+
+    // Canonical `std.utf8` still compiles and runs natively from inside the decoy tree!
+    let canonical_under_decoy = write_source(
+        &lib_std_hijack_dir,
+        "nested/sub/canonical_under_lib_std.zil",
+        r#"
+import std.utf8
+fn main() -> i32 {
+    let bytes = [65u8, 66u8, 67u8]
+    let bounds = utf8.locate(&bytes[..], 0, 2)
+    if bounds.error >= 0 || bounds.count != 3 { return 1 }
+    return 0
+}
+"#,
+    );
+    let (code, _) = build_and_run_dual(
+        &lib_std_hijack_dir,
+        "canonical_under_lib_std",
+        &canonical_under_decoy,
+        None,
+    );
+    assert_eq!(code, 0);
 }
