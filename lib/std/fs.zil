@@ -6,21 +6,23 @@ contract {provides(noescape(path));effects(ffi);};
 extern "C" fn unlink(path:&u8)->i32
 contract {provides(noescape(path));effects(ffi);};
 
-fn c_path(path:&[u8])->io.Error!ByteBuffer contract {result(create)} {
-    if path.len()==0 || path.len()==9223372036854775807 {return io.Error.InvalidPath}
+pub enum RemoveError { InvalidPath, Allocation, InvalidResult, Remove }
+
+fn c_path(path:&[u8])->RemoveError!ByteBuffer contract {result(create)} {
+    if path.len()==0 || path.len()==9223372036854775807 {return RemoveError.InvalidPath}
     var at:i64=0
     while at<path.len() {
-        if path[at]==0u8 {return io.Error.InvalidPath}
+        if path[at]==0u8 {return RemoveError.InvalidPath}
         at+=1
     }
     let encoded=bytes_new()
-    if !bytes_reserve(encoded,path.len()+1) {return io.Error.Allocation}
+    if !bytes_reserve(encoded,path.len()+1) {return RemoveError.Allocation}
     at=0
     while at<path.len() {
-        if !bytes_push(encoded,path[at]) {return io.Error.InvalidResult}
+        if !bytes_push(encoded,path[at]) {return RemoveError.InvalidResult}
         at+=1
     }
-    if !bytes_push(encoded,0u8) {return io.Error.InvalidResult}
+    if !bytes_push(encoded,0u8) {return RemoveError.InvalidResult}
     return give encoded
 }
 
@@ -50,10 +52,10 @@ pub fn exists(path:&[u8])->bool {
 }
 
 // Removes a file via POSIX unlink(2).
-pub fn remove_file(path:&[u8])->io.Error!void {
+pub fn remove_file(path:&[u8])->RemoveError!void {
     let name=c_path(path)?
     var status:i32=-1
     unsafe{status=unlink(&bytes_view(name)[0])}
-    if status!=0 {return io.Error.Write}
+    if status!=0 {return RemoveError.Remove}
     return ()
 }

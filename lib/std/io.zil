@@ -10,6 +10,7 @@ extern "C" fn open(path:&u8,flags:i32)->i32
 contract {provides(noescape(path));effects(ffi);};
 extern "C" fn creat(path:&u8,mode:i32)->i32
 contract {provides(noescape(path));effects(ffi);};
+extern "C" fn zil_glibc_errno_exchange(next:i32)->i32;
 
 pub enum Error { Duplicate, Open, InvalidPath, Capacity, Allocation, Read, Write, NoProgress, InvalidResult }
 pub struct ReadResult { pub count:i64; pub eof:bool }
@@ -76,11 +77,23 @@ pub fn empty_buffer()->[u8;64] {
 }
 
 // A short read is a successful count, zero is EOF, and -1 is an I/O error.
+// Interrupted calls (EINTR = 4 on Linux x86_64) are retried automatically.
 // Bytes after count retain their old initialized values.
 pub fn read_chunk(file:&File,buffer:&mut [u8;64])->Error!ReadResult {
     var count:i64=0
-    unsafe{count=read(file.fd,buffer,64)}
-    if count<0 {return Error.Read}
+    loop {
+        unsafe{
+            zil_glibc_errno_exchange(0)
+            count=read(file.fd,buffer,64)
+        }
+        if count<0 {
+            var err:i32=0
+            unsafe{err=zil_glibc_errno_exchange(0)}
+            if err==4 {continue}
+            return Error.Read
+        }
+        break
+    }
     if count>64 {return Error.InvalidResult}
     return ReadResult{count:count,eof:count==0}
 }
@@ -118,8 +131,8 @@ pub fn read_to_end(file:&File,byte_limit:i64)->Error!ByteBuffer contract {result
 }
 
 // Complete writes of arbitrary borrowed bytes to a raw fd using one fixed C ABI buffer.
-// A short write is retried with the unwritten prefix; source is unchanged.
-// On error, a prefix may already have reached the fd.
+// A short write is retried with the unwritten prefix; EINTR (4) is retried without
+// losing progress; source is unchanged. On error, a prefix may already have reached the fd.
 fn write_fd(fd:i32,source:&[u8])->Error!void {
     var block=empty_buffer()
     var at:i64=0
@@ -131,8 +144,16 @@ fn write_fd(fd:i32,source:&[u8])->Error!void {
         var remaining=length
         while remaining>0 {
             var written:i64=0
-            unsafe{written=write(fd,&block,remaining)}
-            if written<0 {return Error.Write}
+            unsafe{
+                zil_glibc_errno_exchange(0)
+                written=write(fd,&block,remaining)
+            }
+            if written<0 {
+                var err:i32=0
+                unsafe{err=zil_glibc_errno_exchange(0)}
+                if err==4 {continue}
+                return Error.Write
+            }
             if written==0 {return Error.NoProgress}
             if written>remaining {return Error.InvalidResult}
             remaining-=written
@@ -193,13 +214,25 @@ pub fn println_i64(value:i64)->Error!void {
 }
 
 // One POSIX write. The caller owns all 64 initialized bytes; only the requested
-// prefix is exposed. Successful short progress is returned without retrying.
+// prefix is exposed. Interrupted calls (EINTR = 4 on Linux x86_64) are retried;
+// successful short progress is returned without retrying.
 pub fn write_chunk(file:&File,buffer:&[u8;64],count:i64)->Error!i64 {
     if count<0 || count>64 {return Error.Capacity}
     if count==0 {return i64(0)}
     var written:i64=0
-    unsafe{written=write(file.fd,buffer,count)}
-    if written<0 {return Error.Write}
+    loop {
+        unsafe{
+            zil_glibc_errno_exchange(0)
+            written=write(file.fd,buffer,count)
+        }
+        if written<0 {
+            var err:i32=0
+            unsafe{err=zil_glibc_errno_exchange(0)}
+            if err==4 {continue}
+            return Error.Write
+        }
+        break
+    }
     if written==0 {return Error.NoProgress}
     if written>count {return Error.InvalidResult}
     return written

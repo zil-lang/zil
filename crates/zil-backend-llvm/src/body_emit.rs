@@ -406,7 +406,11 @@ done:\n\
         header.push('\n');
     }
 
+    let mut emitted_foreigns = std::collections::BTreeSet::new();
     for f in &module.foreigns {
+        if !emitted_foreigns.insert(f.symbol.as_str()) {
+            continue;
+        }
         if f.symbol == "zil_glibc_errno_exchange" {
             let _ = writeln!(header, "declare ptr @__errno_location()");
             let _ = writeln!(
