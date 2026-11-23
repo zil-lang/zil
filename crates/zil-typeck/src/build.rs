@@ -145,12 +145,19 @@ pub struct Mono<'c, 'a, 'e> {
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
     adts: HashMap<(AdtRef, Vec<u32>), AdtId>,
     unions: HashMap<Vec<TyId>, AdtId>,
-    dyns: HashMap<TraitRef, DynId>,
+    dyns: HashMap<DynKey, DynId>,
     closures: HashMap<(FnRef, Vec<Ty>, ClosureRef), ClosureId>,
     closure_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, ClosureId)>,
     closure_fns: HashMap<(FnRef, Vec<Ty>, ClosureRef), FnId>,
     closure_fn_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, FnId)>,
     ensured: HashSet<TyId>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct DynKey {
+    trait_ref: TraitRef,
+    trait_args: Vec<Ty>,
+    assoc_bindings: Vec<(String, Ty)>,
 }
 
 impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
@@ -683,13 +690,41 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         Some(self.module.tys.intern_args(GenericArgs { tys, regions }))
     }
 
-    fn dyn_id(&mut self, tr: TraitRef, span: Span) -> Option<DynId> {
-        if let Some(&id) = self.dyns.get(&tr) {
+    fn dyn_id(
+        &mut self,
+        tr: TraitRef,
+        trait_args: &[Ty],
+        assoc_bindings: &[(String, Ty)],
+        span: Span,
+    ) -> Option<DynId> {
+        let norm_args: Vec<Ty> = trait_args
+            .iter()
+            .map(|t| self.items.normalize_ty(*t, self.types))
+            .collect();
+        let mut norm_assoc: Vec<(String, Ty)> = assoc_bindings
+            .iter()
+            .map(|(n, t)| (n.clone(), self.items.normalize_ty(*t, self.types)))
+            .collect();
+        norm_assoc.sort_by(|a, b| a.0.cmp(&b.0));
+        let key = DynKey {
+            trait_ref: tr,
+            trait_args: norm_args.clone(),
+            assoc_bindings: norm_assoc.clone(),
+        };
+        if let Some(&id) = self.dyns.get(&key) {
             return Some(id);
+        }
+        if let Err(msg) = self
+            .items
+            .check_dyn_object_safe(tr, &norm_args, &norm_assoc, self.types)
+        {
+            self.diags.push(diag::error(diag::GENERIC_BOUND, span, msg));
+            return None;
         }
         let decl = self.items.trait_decl(tr);
         let name = decl.name.clone();
         let methods = decl.methods.clone();
+        let self_param = self.types.intern(TyData::SelfParam);
         let mut slots = Vec::with_capacity(methods.len());
         for m in methods {
             let receiver = m.params.first().and_then(|p| {
@@ -705,9 +740,13 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             });
             let mut params = Vec::new();
             for p in m.params.iter().skip(1) {
-                params.push(self.lower_ty(*p, span)?);
+                let pt = self.types.subst(*p, &norm_args);
+                let pt = self.types.subst_self_assoc(pt, self_param, tr, &norm_assoc);
+                params.push(self.lower_ty(pt, span)?);
             }
-            let result = self.lower_ty(m.result, span)?;
+            let rt = self.types.subst(m.result, &norm_args);
+            let rt = self.types.subst_self_assoc(rt, self_param, tr, &norm_assoc);
+            let result = self.lower_ty(rt, span)?;
             slots.push(DynSlotSig {
                 name: m.name,
                 receiver,
@@ -716,12 +755,28 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             });
         }
         let id = self.module.tys.add_dyn(DynDef { name, slots });
-        self.dyns.insert(tr, id);
+        self.dyns.insert(key, id);
         Some(id)
     }
 
-    fn ensure_dyn_impl(&mut self, tr: TraitRef, concrete: Ty, span: Span) {
-        let Some(dyn_id) = self.dyn_id(tr, span) else {
+    fn ensure_dyn_impl(
+        &mut self,
+        tr: TraitRef,
+        trait_args: &[Ty],
+        assoc_bindings: &[(String, Ty)],
+        concrete: Ty,
+        span: Span,
+    ) {
+        let norm_args: Vec<Ty> = trait_args
+            .iter()
+            .map(|t| self.items.normalize_ty(*t, self.types))
+            .collect();
+        let mut norm_assoc: Vec<(String, Ty)> = assoc_bindings
+            .iter()
+            .map(|(n, t)| (n.clone(), self.items.normalize_ty(*t, self.types)))
+            .collect();
+        norm_assoc.sort_by(|a, b| a.0.cmp(&b.0));
+        let Some(dyn_id) = self.dyn_id(tr, &norm_args, &norm_assoc, span) else {
             return;
         };
         let Some(concrete_ty) = self.lower_ty(concrete, span) else {
@@ -749,10 +804,33 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             if imp.trait_ref != tr {
                 continue;
             }
-            if let Some(impl_args) = self.items.match_impl(imp, concrete, self.types) {
-                matched = Some((imp.methods.clone(), impl_args));
-                break;
+            let Some(impl_args) = self.items.match_impl(imp, concrete, self.types) else {
+                continue;
+            };
+            let imp_targs: Vec<Ty> = imp
+                .trait_args
+                .iter()
+                .map(|t| {
+                    let s = self.types.subst(*t, &impl_args);
+                    self.items.normalize_ty(s, self.types)
+                })
+                .collect();
+            if imp_targs != norm_args {
+                continue;
             }
+            let assoc_ok = norm_assoc.iter().all(|(aname, req_ty)| {
+                if let Some((_, rhs)) = imp.assoc_types.iter().find(|(n, _)| n == aname) {
+                    let s = self.types.subst(*rhs, &impl_args);
+                    self.items.normalize_ty(s, self.types) == *req_ty
+                } else {
+                    false
+                }
+            });
+            if !assoc_ok {
+                continue;
+            }
+            matched = Some((imp.methods.clone(), impl_args));
+            break;
         }
         let Some((imp_methods, impl_args)) = matched else {
             return;
@@ -917,9 +995,18 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 let args = self.args_id(&[], span)?;
                 TyKind::Closure { def, args }
             }
-            TyData::Dyn(tr) => TyKind::Dyn(self.dyn_id(tr, span)?),
-            TyData::OwnedDyn { trait_ref, context } => {
-                let def = self.dyn_id(trait_ref, span)?;
+            TyData::Dyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+            } => TyKind::Dyn(self.dyn_id(trait_ref, &trait_args, &assoc_bindings, span)?),
+            TyData::OwnedDyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+                context,
+            } => {
+                let def = self.dyn_id(trait_ref, &trait_args, &assoc_bindings, span)?;
                 let context = match context {
                     Some(c) => Some(self.lower_ty(c, span)?),
                     None => None,
@@ -2113,10 +2200,21 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 {
                     let closed_ret = self.closed(e.ty);
                     if let TyData::ErrorUnion { ok, .. } = *self.mono.types.data(closed_ret)
-                        && let TyData::OwnedDyn { trait_ref: tr, .. } = *self.mono.types.data(ok)
+                        && let TyData::OwnedDyn {
+                            trait_ref: tr,
+                            trait_args,
+                            assoc_bindings,
+                            ..
+                        } = self.mono.types.data(ok).clone()
                     {
                         let closed_concrete = self.closed(arg0.ty);
-                        self.mono.ensure_dyn_impl(tr, closed_concrete, span);
+                        self.mono.ensure_dyn_impl(
+                            tr,
+                            &trait_args,
+                            &assoc_bindings,
+                            closed_concrete,
+                            span,
+                        );
                     }
                 }
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
@@ -2219,7 +2317,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             }
             ExprKind::CtEval(inner) => {
                 let ty = self.ty(e.ty, span);
-                if let Some(val) = self.eval_ct(inner, span) {
+                if let Some(val) = self.eval_ct(inner, e.ty, span) {
                     self.emit_ct_value(dest, &val, ty, span);
                 }
             }
@@ -2290,7 +2388,64 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         }
     }
 
-    fn eval_ct(&mut self, inner: &Expr, span: Span) -> Option<CtValue> {
+    fn is_ct_escapable(&mut self, ty: Ty, depth: u32) -> bool {
+        if depth > 64 {
+            return false;
+        }
+        let ty = self.mono.items.normalize_ty(ty, self.mono.types);
+        let data = self.mono.types.data(self.mono.types.shallow(ty)).clone();
+        match data {
+            TyData::Unit
+            | TyData::Bool
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::FnPtr { .. } => true,
+            TyData::Tuple(items) => items.iter().all(|t| self.is_ct_escapable(*t, depth + 1)),
+            TyData::Array { element, .. } => self.is_ct_escapable(element, depth + 1),
+            TyData::ErrorUnion { ok, err } => {
+                self.is_ct_escapable(ok, depth + 1) && self.is_ct_escapable(err, depth + 1)
+            }
+            TyData::Adt { adt, args, .. } => {
+                let decl = self.mono.items.adt(adt);
+                match decl.kind {
+                    AdtKind::Record | AdtKind::Enum => {
+                        let fields: Vec<Ty> = decl
+                            .variants
+                            .iter()
+                            .flat_map(|v| v.fields.iter().map(|f| f.ty))
+                            .collect();
+                        fields.into_iter().all(|f| {
+                            let ft = self.mono.types.subst(f, &args);
+                            self.is_ct_escapable(ft, depth + 1)
+                        })
+                    }
+                    AdtKind::Package | AdtKind::Resource => false,
+                }
+            }
+            TyData::Type
+            | TyData::Never
+            | TyData::Slice(_)
+            | TyData::Ref { .. }
+            | TyData::Managed(_)
+            | TyData::Desc(_)
+            | TyData::Opaque(_)
+            | TyData::Union(_)
+            | TyData::Closure { .. }
+            | TyData::ImplCallable { .. }
+            | TyData::Dyn { .. }
+            | TyData::OwnedDyn { .. }
+            | TyData::Param(_)
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
+            | TyData::ArrayConst { .. }
+            | TyData::SelfParam
+            | TyData::Assoc { .. }
+            | TyData::Var(_)
+            | TyData::Error => false,
+        }
+    }
+
+    fn eval_ct(&mut self, inner: &Expr, result_ty: Ty, span: Span) -> Option<CtValue> {
         if self.mono.ct.is_none() {
             self.mono
                 .diags
@@ -2298,7 +2453,16 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             self.failed = true;
             return None;
         }
-        let closed_ty = self.closed(inner.ty);
+        let closed_ty = self.closed(result_ty);
+        if !self.mono.is_ct_eval && !self.is_ct_escapable(closed_ty, 0) {
+            self.mono.diags.push(diag::error(
+                diag::RESOURCE_TYPE,
+                span,
+                "non-serializable or owning value cannot escape from compile-time evaluation to runtime",
+            ));
+            self.failed = true;
+            return None;
+        }
         let subst = self.subst.clone();
         let ct_handle = self.mono.ct.take();
         let mut ct_mono = Mono::new(
@@ -2325,14 +2489,19 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             resume_mode: ResumeMode::Local,
             state_contracts: Vec::new(),
         };
-        let synthetic_thir = ThirFn {
-            locals: self.locals_info.clone(),
-            params: Vec::new(),
-            body: Expr {
+        let body_expr = if ct_mono.types.is_never(inner.ty) {
+            inner.clone()
+        } else {
+            Expr {
                 kind: ExprKind::Return(Some(Box::new(inner.clone()))),
                 ty: inner.ty,
                 span,
-            },
+            }
+        };
+        let synthetic_thir = ThirFn {
+            locals: self.locals_info.clone(),
+            params: Vec::new(),
+            body: body_expr,
             closures: Vec::new(),
             opaque_return: None,
         };

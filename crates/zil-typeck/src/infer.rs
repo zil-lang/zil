@@ -65,6 +65,12 @@ pub struct FnCx<'c, 'a, 'e> {
     loop_depth: u32,
     defer_depth: u32,
     in_unsafe: u32,
+    meta_yield_stack: Vec<MetaYieldState>,
+}
+
+struct MetaYieldState {
+    yield_ty: Option<Ty>,
+    has_yield: bool,
 }
 
 /// Infers one function body against its declared signature.
@@ -101,6 +107,7 @@ pub fn infer_fn<'a>(
         loop_depth: 0,
         defer_depth: 0,
         in_unsafe: 0,
+        meta_yield_stack: Vec::new(),
     };
     let mut params = Vec::new();
     for p in &decl.params {
@@ -1404,6 +1411,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 Some(Stmt::Let { pattern, init })
             }
             ast::StmtKind::Return(value) => {
+                if !self.meta_yield_stack.is_empty() {
+                    self.error(
+                        diag::LOOP_CONTROL,
+                        span,
+                        "cannot `return` inside a `#{ ... }` compile-time block; use `yield` instead",
+                    );
+                    return None;
+                }
                 if self.defer_depth > 0 {
                     self.error(
                         diag::LOOP_CONTROL,
@@ -1584,9 +1599,29 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 )
             }
             ast::StmtKind::Expression(x) => Some(Stmt::Expr(self.infer(x))),
-            ast::StmtKind::Yield(_) => {
-                self.unsupported("yield", span);
-                None
+            ast::StmtKind::Yield(val_expr) => {
+                if self.meta_yield_stack.is_empty() {
+                    self.error(
+                        diag::LOOP_CONTROL,
+                        span,
+                        "`yield` is only allowed inside a `#{ ... }` compile-time block",
+                    );
+                    return None;
+                }
+                let expected = self.meta_yield_stack.last().and_then(|s| s.yield_ty);
+                let val = if let Some(exp) = expected {
+                    let inferred = self.infer_expected(val_expr, exp);
+                    self.coerce_value(inferred, exp, val_expr.span)
+                } else {
+                    self.infer(val_expr)
+                };
+                if let Some(state) = self.meta_yield_stack.last_mut() {
+                    if state.yield_ty.is_none() {
+                        state.yield_ty = Some(val.ty);
+                    }
+                    state.has_yield = true;
+                }
+                e(ExprKind::Return(Some(Box::new(val))), never)
             }
             ast::StmtKind::Defer(block) => {
                 if self.defer_depth > 0 {
@@ -2323,7 +2358,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 | TyData::FnPtr { .. }
                 | TyData::Closure { .. }
                 | TyData::ImplCallable { .. }
-                | TyData::Dyn(_)
+                | TyData::Dyn { .. }
                 | TyData::OwnedDyn { .. }
                 | TyData::Param(_)
                 | TyData::SelfParam
@@ -2589,7 +2624,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
-                    | TyData::Dyn(_)
+                    | TyData::Dyn { .. }
                     | TyData::OwnedDyn { .. }
                     | TyData::Param(_)
                     | TyData::SelfParam
@@ -2798,13 +2833,69 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let ty = expr.ty;
                 mk(ExprKind::CtEval(Box::new(expr)), ty)
             }
+            ast::ExprKind::MetaBlock(block) => self.infer_meta_block(block, span, None),
             ast::ExprKind::MetaSplice(_)
             | ast::ExprKind::Quote { .. }
-            | ast::ExprKind::MetaBlock(_)
             | ast::ExprKind::SyntaxIsland { .. } => {
                 self.unsupported("compile-time evaluation", span);
                 self.err_expr(span)
             }
+        }
+    }
+
+    fn infer_meta_block(&mut self, block: &ast::Block, span: Span, expected: Option<Ty>) -> Expr {
+        // Compile-time blocks cannot observe enclosing runtime locals, loops, or defers.
+        let saved_scopes = std::mem::take(&mut self.scopes);
+        self.scopes.push(Vec::new());
+        let saved_loop = std::mem::replace(&mut self.loop_depth, 0);
+        let saved_defer = std::mem::replace(&mut self.defer_depth, 0);
+        let seeded = expected.filter(|t| {
+            !matches!(
+                *self.types.data(self.types.shallow(*t)),
+                TyData::Var(_) | TyData::Error
+            )
+        });
+        self.meta_yield_stack.push(MetaYieldState {
+            yield_ty: seeded,
+            has_yield: false,
+        });
+        let body = self.block(block);
+        let state = self
+            .meta_yield_stack
+            .pop()
+            .expect("balanced meta yield stack");
+        self.scopes = saved_scopes;
+        self.loop_depth = saved_loop;
+        self.defer_depth = saved_defer;
+
+        let unit = self.types.unit();
+        let result_ty = match state.yield_ty {
+            Some(ty) => {
+                if !state.has_yield && ty != unit && !self.types.is_error(ty) {
+                    self.error(
+                        diag::MISSING_RETURN,
+                        span,
+                        "compile-time block does not yield a value",
+                    );
+                } else if state.has_yield
+                    && !self.types.is_never(body.ty)
+                    && ty != unit
+                    && !self.types.is_error(ty)
+                {
+                    self.error(
+                        diag::MISSING_RETURN,
+                        span,
+                        "compile-time block can finish without yielding a value",
+                    );
+                }
+                ty
+            }
+            None => unit,
+        };
+        Expr {
+            kind: ExprKind::CtEval(Box::new(body)),
+            ty: result_ty,
+            span,
         }
     }
 
@@ -3000,6 +3091,9 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
                 self.infer(expr)
             }
+            ast::ExprKind::MetaBlock(block) => {
+                self.infer_meta_block(block, expr.span, Some(expected))
+            }
             ast::ExprKind::Literal(_)
             | ast::ExprKind::Name(_)
             | ast::ExprKind::ReceiverMember(_)
@@ -3018,7 +3112,6 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             | ast::ExprKind::MetaEval(_)
             | ast::ExprKind::MetaSplice(_)
             | ast::ExprKind::Quote { .. }
-            | ast::ExprKind::MetaBlock(_)
             | ast::ExprKind::SyntaxIsland { .. } => self.infer(expr),
         }
     }
@@ -3324,7 +3417,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
-                    | TyData::Dyn(_)
+                    | TyData::Dyn { .. }
                     | TyData::OwnedDyn { .. }
                     | TyData::Param(_)
                     | TyData::SelfParam
@@ -4288,7 +4381,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             | TyData::FnPtr { .. }
                             | TyData::Closure { .. }
                             | TyData::ImplCallable { .. }
-                            | TyData::Dyn(_)
+                            | TyData::Dyn { .. }
                             | TyData::OwnedDyn { .. }
                             | TyData::Param(_)
                             | TyData::SelfParam
@@ -4389,7 +4482,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 | TyData::FnPtr { .. }
                                 | TyData::Closure { .. }
                                 | TyData::ImplCallable { .. }
-                                | TyData::Dyn(_)
+                                | TyData::Dyn { .. }
                                 | TyData::OwnedDyn { .. }
                                 | TyData::Param(_)
                                 | TyData::SelfParam
@@ -4758,8 +4851,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     span,
                 );
             }
-            if let TyData::Dyn(tr) | TyData::OwnedDyn { trait_ref: tr, .. } =
-                *self.types.data(self_ty)
+            if let TyData::Dyn {
+                trait_ref: tr,
+                trait_args,
+                assoc_bindings,
+            }
+            | TyData::OwnedDyn {
+                trait_ref: tr,
+                trait_args,
+                assoc_bindings,
+                ..
+            } = self.types.data(self_ty).clone()
             {
                 if explicit.is_some() {
                     self.error(
@@ -4820,12 +4922,18 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     };
                     let mut args = Vec::with_capacity(arguments.len());
                     for (a, pt) in arguments.iter().zip(&m_params[1..]) {
-                        let expected = self.types.subst_with_self(*pt, &[], self_ty);
+                        let expected = self.types.subst_with_self(*pt, &trait_args, self_ty);
+                        let expected =
+                            self.types
+                                .subst_self_assoc(expected, self_ty, tr, &assoc_bindings);
                         let expected = self.normalize(expected);
-                        let v = self.infer(&a.value);
+                        let v = self.infer_expected(&a.value, expected);
                         args.push(self.coerce_arg(v, expected, a.span));
                     }
-                    let ret = self.types.subst_with_self(m_result, &[], self_ty);
+                    let ret = self.types.subst_with_self(m_result, &trait_args, self_ty);
+                    let ret = self
+                        .types
+                        .subst_self_assoc(ret, self_ty, tr, &assoc_bindings);
                     let ret = self.normalize(ret);
                     return Expr {
                         kind: ExprKind::DynCall {
@@ -5229,7 +5337,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
             };
             let target = self.resolve_written(t);
-            let TyData::Dyn(tr) = *self.types.data(target) else {
+            let TyData::Dyn {
+                trait_ref: tr,
+                trait_args,
+                assoc_bindings,
+            } = self.types.data(target).clone()
+            else {
                 self.error(
                     diag::TYPE_ARGUMENT,
                     span,
@@ -5237,14 +5350,47 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 );
                 return Some(self.err_expr(span));
             };
+            if let Err(msg) =
+                self.items
+                    .check_dyn_object_safe(tr, &trait_args, &assoc_bindings, self.types)
+            {
+                self.error(diag::GENERIC_BOUND, span, msg);
+                return Some(self.err_expr(span));
+            }
             let context = ctx_ast.map(|c| self.resolve_written(c));
             let [arg] = arguments else {
                 self.error(diag::CALL_ARITY, span, "`owned_dyn` takes one argument");
                 return Some(self.err_expr(span));
             };
             let val = self.infer(&arg.value);
+            let val_ty = self.types.shallow(val.ty);
+            if !self.types.is_error(val_ty) {
+                let bound = crate::items::TraitBound {
+                    trait_ref: tr,
+                    trait_args: trait_args.clone(),
+                    assoc_bindings: assoc_bindings.clone(),
+                };
+                if !self.items.satisfies_trait_bound(
+                    val_ty,
+                    &bound,
+                    &self.decl.generics,
+                    self.types,
+                ) {
+                    let trait_name = self.items.trait_decl(tr).name.clone();
+                    self.error(
+                        diag::GENERIC_BOUND,
+                        arg.span,
+                        format!(
+                            "value does not satisfy trait `{trait_name}` required by `owned_dyn`"
+                        ),
+                    );
+                    return Some(self.err_expr(span));
+                }
+            }
             let ok = self.types.intern(TyData::OwnedDyn {
                 trait_ref: tr,
+                trait_args,
+                assoc_bindings,
                 context,
             });
             let err = self.types.intern(TyData::Adt {
@@ -6925,7 +7071,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 | TyData::Var(_)
                 | TyData::FnPtr { .. }
                 | TyData::Closure { .. }
-                | TyData::Dyn(_) => false,
+                | TyData::Dyn { .. } => false,
                 TyData::OwnedDyn { context, .. } => {
                     context.is_some_and(|c| walk(types, c, depth + 1))
                 }
@@ -7238,7 +7384,7 @@ impl Finalizer<'_, '_> {
             | TyData::FnPtr { .. }
             | TyData::Closure { .. }
             | TyData::ImplCallable { .. }
-            | TyData::Dyn(_)
+            | TyData::Dyn { .. }
             | TyData::OwnedDyn { .. }
             | TyData::Desc(_)
             | TyData::Opaque(_)
@@ -7271,7 +7417,7 @@ impl Finalizer<'_, '_> {
             | TyData::Slice(_)
             | TyData::Ref { .. }
             | TyData::FnPtr { .. }
-            | TyData::Dyn(_)
+            | TyData::Dyn { .. }
             | TyData::OwnedDyn { .. }
             | TyData::Desc(_)
             | TyData::Opaque(_)
@@ -8431,7 +8577,7 @@ pub fn check_defer_suspend_effects(
                 | TyData::Union(_)
                 | TyData::FnPtr { .. }
                 | TyData::ImplCallable { .. }
-                | TyData::Dyn(_)
+                | TyData::Dyn { .. }
                 | TyData::OwnedDyn { .. }
                 | TyData::Param(_)
                 | TyData::SelfParam
@@ -8917,9 +9063,10 @@ fn ty_is_non_copy(items: &Items, types: &mut crate::ty::Types, ty: Ty) -> bool {
         }
         let t = types.shallow(ty);
         match types.data(t).clone() {
-            TyData::Managed(_) | TyData::OwnedDyn { .. } | TyData::Dyn(_) | TyData::Slice(_) => {
-                true
-            }
+            TyData::Managed(_)
+            | TyData::OwnedDyn { .. }
+            | TyData::Dyn { .. }
+            | TyData::Slice(_) => true,
             TyData::Opaque(
                 OpaqueKind::ByteBuffer
                 | OpaqueKind::OwnedStore(_)
