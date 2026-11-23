@@ -1028,6 +1028,195 @@ fn verify_fn_state_contracts(
             }
         }
     }
+    fn collect_entry_mut_cap_paths(
+        tys: &zil_ir::body::TyTable,
+        ty: zil_ir::body::TyId,
+        param_idx: usize,
+        prefix: &mut Vec<FieldIdx>,
+        desc_only: bool,
+        depth: u32,
+        out: &mut BTreeSet<(usize, Vec<FieldIdx>)>,
+    ) {
+        if depth > 8 {
+            out.insert((param_idx, prefix.clone()));
+            return;
+        }
+        let Some(kind) = tys.get(ty) else {
+            out.insert((param_idx, prefix.clone()));
+            return;
+        };
+        match kind {
+            TyKind::Desc(_) => {
+                out.insert((param_idx, prefix.clone()));
+            }
+            TyKind::Ref {
+                mutability: Mutability::Exclusive,
+                ..
+            } => {
+                if !desc_only {
+                    out.insert((param_idx, prefix.clone()));
+                }
+            }
+            TyKind::Ref {
+                mutability: Mutability::Shared,
+                pointee,
+                ..
+            } => {
+                // Shared references cannot mutate through `&(&mut T)`, but may still
+                // mutate through an interior `Desc` or borrowed-context `OwnedDyn`.
+                collect_entry_mut_cap_paths(tys, *pointee, param_idx, prefix, true, depth + 1, out);
+            }
+            TyKind::Managed(pointee) => {
+                collect_entry_mut_cap_paths(
+                    tys,
+                    *pointee,
+                    param_idx,
+                    prefix,
+                    desc_only,
+                    depth + 1,
+                    out,
+                );
+            }
+            TyKind::Adt { adt, args } => {
+                let Some(def) = tys.get_adt(*adt) else {
+                    out.insert((param_idx, prefix.clone()));
+                    return;
+                };
+                if def.variants.len() == 1 {
+                    for (fi, f) in def.variants[0].fields.iter().enumerate() {
+                        let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                        let pushed = prefix.len() < ContractFieldPath::MAX_DEPTH;
+                        if pushed {
+                            prefix.push(FieldIdx(fi as u32));
+                        }
+                        collect_entry_mut_cap_paths(
+                            tys,
+                            fty,
+                            param_idx,
+                            prefix,
+                            desc_only,
+                            depth + 1,
+                            out,
+                        );
+                        if pushed {
+                            prefix.pop();
+                        }
+                    }
+                } else {
+                    for v in &def.variants {
+                        for f in &v.fields {
+                            let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                            let mut sub = BTreeSet::new();
+                            let mut tmp_prefix = prefix.clone();
+                            collect_entry_mut_cap_paths(
+                                tys,
+                                fty,
+                                param_idx,
+                                &mut tmp_prefix,
+                                desc_only,
+                                depth + 1,
+                                &mut sub,
+                            );
+                            if !sub.is_empty() {
+                                out.insert((param_idx, prefix.clone()));
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+            TyKind::Tuple(elems) => {
+                for &elem in elems {
+                    collect_entry_mut_cap_paths(
+                        tys,
+                        elem,
+                        param_idx,
+                        prefix,
+                        desc_only,
+                        depth + 1,
+                        out,
+                    );
+                }
+            }
+            TyKind::Array { element: elem, .. } | TyKind::Slice(elem) => {
+                collect_entry_mut_cap_paths(
+                    tys,
+                    *elem,
+                    param_idx,
+                    prefix,
+                    desc_only,
+                    depth + 1,
+                    out,
+                );
+            }
+            TyKind::ErrorUnion { ok, err } => {
+                collect_entry_mut_cap_paths(tys, *ok, param_idx, prefix, desc_only, depth + 1, out);
+                collect_entry_mut_cap_paths(
+                    tys,
+                    *err,
+                    param_idx,
+                    prefix,
+                    desc_only,
+                    depth + 1,
+                    out,
+                );
+            }
+            TyKind::Closure { def, args } => {
+                let Some(cdef) = tys.closure(*def) else {
+                    out.insert((param_idx, prefix.clone()));
+                    return;
+                };
+                for &cty in &cdef.captures {
+                    let cty = tys.subst_lookup(cty, *args).unwrap_or(cty);
+                    collect_entry_mut_cap_paths(
+                        tys,
+                        cty,
+                        param_idx,
+                        prefix,
+                        desc_only,
+                        depth + 1,
+                        out,
+                    );
+                }
+            }
+            TyKind::OwnedDyn { context, .. } => {
+                // Borrowed-context `OwnedDyn<dyn Trait, Context<'a>>` erases a provider
+                // that may carry `&mut` or `Desc` capabilities.
+                if context.is_some() {
+                    out.insert((param_idx, prefix.clone()));
+                }
+            }
+            TyKind::Param(_) => {
+                // Unconstrained generic type parameter may be instantiated with an
+                // aggregate containing `&mut` or `Desc`.
+                if !desc_only {
+                    out.insert((param_idx, prefix.clone()));
+                }
+            }
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. }
+            | TyKind::Dyn(_)
+            | TyKind::Opaque(_) => {}
+        }
+    }
+
+    let mut entry_mut_cap_params: HashMap<Local, ParamAliasSet> = HashMap::new();
+    for (i, local_decl) in func.body.locals.iter().enumerate().take(param_count) {
+        let pty = local_decl.ty;
+        if !is_mut_ref_or_desc_ty(pty) {
+            let mut caps = ParamAliasSet::new();
+            let mut prefix = Vec::new();
+            collect_entry_mut_cap_paths(tys, pty, i, &mut prefix, false, 0, &mut caps);
+            if !caps.is_empty() {
+                entry_mut_cap_params.insert(Local(i as u32), caps);
+            }
+        }
+    }
+
     let entry_init_states = init_states.clone();
     let entry_state = ProtoState {
         states: init_states.clone(),
@@ -1039,7 +1228,7 @@ fn verify_fn_state_contracts(
         param_alias: entry_param_alias,
         alias: entry_alias,
         may_alias: entry_may_alias,
-        mut_cap_params: HashMap::new(),
+        mut_cap_params: entry_mut_cap_params,
         mut_cap_handles: HashMap::new(),
         state_field_of: HashMap::new(),
         enum_variant: HashMap::new(),
@@ -2238,12 +2427,14 @@ fn verify_fn_state_contracts(
                                         && p.projections.is_empty()
                                         && let PlaceRoot::Local(al) = p.root
                                     {
-                                        apply_local_effects(
-                                            &mut st,
-                                            al,
-                                            false,
-                                            &contracted_handles,
-                                        );
+                                        if path.len == 0 {
+                                            apply_local_effects(
+                                                &mut st,
+                                                al,
+                                                false,
+                                                &contracted_handles,
+                                            );
+                                        }
                                         if let Some(ma_set) = st.may_alias.get(&al).cloned() {
                                             for h_idx in ma_set {
                                                 if !contracted_handles.contains(&h_idx)
