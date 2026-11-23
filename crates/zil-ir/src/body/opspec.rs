@@ -1358,6 +1358,16 @@ fn intrinsic_sig(
                             "owned_dyn.create borrowed provider requires address-bearing Context bound",
                         ));
                     }
+                    if tys.may_store_address(*val_ty) && !tys.may_store_address(*ctx_ty) {
+                        return Err(bad(
+                            "owned_dyn.create writable-address provider requires writable-address Context bound",
+                        ));
+                    }
+                    if tys.holds_exclusive_ref(*val_ty) && !tys.holds_exclusive_ref(*ctx_ty) {
+                        return Err(bad(
+                            "owned_dyn.create exclusive-ref provider requires exclusive-ref Context bound",
+                        ));
+                    }
                 }
             }
             let err_is_enum = matches!(
@@ -1372,7 +1382,14 @@ fn intrinsic_sig(
         }
         IntrinsicOp::StoreNew => match managed_dest() {
             Some((_, TyKind::Opaque(OpaqueTy::OwnedStore { element })))
-                if !tys.holds_address(element) && !tys.may_store_address(element) =>
+                if (!tys.holds_address(element) && !tys.may_store_address(element))
+                    || matches!(
+                        tys.get(element),
+                        Some(TyKind::OwnedDyn {
+                            context: Some(_),
+                            ..
+                        })
+                    ) =>
             {
                 Ok((Vec::new(), dest_ty))
             }

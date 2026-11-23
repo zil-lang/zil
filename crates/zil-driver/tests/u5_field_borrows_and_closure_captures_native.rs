@@ -1664,3 +1664,114 @@ fn main() -> i32 {
         "E-GENERIC-ARGUMENT",
     );
 }
+
+#[test]
+fn u5_let_destructuring_closure_capture_regression() {
+    let dir = temp_dir("let-destructure-cap");
+
+    // 1. Negative: `let` destructuring moves a non-Copy capture field without refilling ->
+    // classified as FnOnce, rejected when passed to FnMut.
+    check_rejected(
+        &dir,
+        "let_destructure_unrefilled_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+package Holder { manages item: Token }
+
+fn run_twice<F: FnMut() -> i64>(f: &mut F) -> i64 {
+    return f() + f()
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { id: 7 } }
+    var f = move () -> i64 => {
+        let Holder { item: tok } = h
+        return tok.id
+    }
+    return i32(run_twice(&mut f))
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 2. Negative: `let` destructuring moves TWO non-Copy capture fields and refills only ONE ->
+    // second field remains uninitialized, so MUST NOT be classified as FnMut.
+    check_rejected(
+        &dir,
+        "let_destructure_partial_field_refill_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+package PairHolder {
+    manages first: Token,
+    manages second: Token,
+}
+
+fn run_twice<F: FnMut() -> i64>(f: &mut F) -> i64 {
+    return f() + f()
+}
+
+fn main() -> i32 {
+    var h = PairHolder { first: Token { id: 1 }, second: Token { id: 2 } }
+    var f = move () -> i64 => {
+        let PairHolder { first: a, second: b } = h
+        let v = a.id + b.id
+        h.first = Token { id: 3 }
+        return v
+    }
+    return i32(run_twice(&mut f))
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 3. Positive: `let` destructuring moves a non-Copy capture field and refills it on ALL paths ->
+    // validly FnMut across Clang O0/O2 + LLVM C-API O0/O2 with exact Drop sequence "ABC".
+    let pos_src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+resource Token {
+    tag: i32,
+    val: i64,
+}
+impl Drop for Token {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+package Holder {
+    manages item: Token,
+}
+
+fn run_twice<F: FnMut(i32) -> i64>(f: &mut F) -> i64 {
+    let a = f(66)
+    let b = f(67)
+    return a + b
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { tag: 65, val: 10 } }
+    var f = move (next_tag: i32) -> i64 => {
+        let Holder { item: tok } = h
+        let v = tok.val
+        h.item = Token { tag: next_tag, val: 20 }
+        return v
+    }
+    let sum = run_twice(&mut f)
+    if sum != 30 { return 1 }
+    return 0
+}
+"#;
+    let pos_entry = write_source(&dir, "let_destructure_all_refill_fnmut.zil", pos_src);
+    let (code, stdout) = build_and_run_dual_output(&dir, &pos_entry);
+    assert_eq!(code, 0);
+    assert_eq!(
+        stdout, "ABC",
+        "let-destructuring all-path refill FnMut must execute exact 3-token Drop sequence ABC"
+    );
+}

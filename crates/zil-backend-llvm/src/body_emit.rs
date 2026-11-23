@@ -554,6 +554,7 @@ done:\n\
                         fn_id: FnId(0),
                         body: &empty_body,
                         out: &mut out,
+                        entry_allocas: None,
                         extra_defs: String::new(),
                         tmp: 0,
                     };
@@ -766,6 +767,7 @@ struct FnEmitter<'a> {
     fn_id: FnId,
     body: &'a Body,
     out: &'a mut String,
+    entry_allocas: Option<&'a mut String>,
     extra_defs: String,
     tmp: u32,
 }
@@ -775,6 +777,16 @@ impl<'a> FnEmitter<'a> {
         let id = self.tmp;
         self.tmp += 1;
         format!("%t{id}")
+    }
+
+    fn alloc_entry(&mut self, storage_ty: &str) -> String {
+        let slot = self.fresh();
+        if let Some(entry) = &mut self.entry_allocas {
+            let _ = writeln!(entry, "  {slot} = alloca {storage_ty}");
+        } else {
+            let _ = writeln!(self.out, "  {slot} = alloca {storage_ty}");
+        }
+        slot
     }
 
     fn tys(&self) -> &'a TyTable {
@@ -1125,8 +1137,7 @@ impl<'a> FnEmitter<'a> {
                         let len = self.fresh();
                         let _ = writeln!(self.out, "  {len} = load i64, ptr {len_slot}");
                         let elem_llvm = llvm_storage_ty(self.tys(), elem)?;
-                        let idx_slot = self.fresh();
-                        let _ = writeln!(self.out, "  {idx_slot} = alloca i64");
+                        let idx_slot = self.alloc_entry("i64");
                         let _ = writeln!(self.out, "  store i64 0, ptr {idx_slot}");
                         let head = self.fresh();
                         let body_bb = self.fresh();
@@ -4138,8 +4149,7 @@ impl<'a> FnEmitter<'a> {
                     })?;
                 let d_llvm = llvm_ty(self.tys(), d_ty)?;
                 let c_stor = llvm_storage_ty(self.tys(), concrete_ty)?;
-                let tmp_slot = self.fresh();
-                let _ = writeln!(self.out, "  {tmp_slot} = alloca {c_stor}");
+                let tmp_slot = self.alloc_entry(&c_stor);
                 if lt0 != "void" {
                     let _ = writeln!(self.out, "  store {lt0} {v0}, ptr {tmp_slot}");
                 }
@@ -4979,20 +4989,26 @@ fn emit_function(
             let _ = writeln!(out, "  store {lt} %p{i}, ptr %l{i}");
         }
     }
-    out.push_str("  br label %bb0\n");
-
-    let mut emitter = FnEmitter {
-        module,
-        fn_id,
-        body: &func.body,
-        out,
-        extra_defs: String::new(),
-        tmp: 0,
+    let mut entry_allocas = String::new();
+    let mut body_out = String::new();
+    let extra = {
+        let mut emitter = FnEmitter {
+            module,
+            fn_id,
+            body: &func.body,
+            out: &mut body_out,
+            entry_allocas: Some(&mut entry_allocas),
+            extra_defs: String::new(),
+            tmp: 0,
+        };
+        for (bi, block) in func.body.blocks.iter().enumerate() {
+            emit_block(&mut emitter, bi, block)?;
+        }
+        emitter.extra_defs
     };
-    for (bi, block) in func.body.blocks.iter().enumerate() {
-        emit_block(&mut emitter, bi, block)?;
-    }
-    let extra = emitter.extra_defs;
+    out.push_str(&entry_allocas);
+    out.push_str("  br label %bb0\n");
+    out.push_str(&body_out);
     out.push_str("}\n");
     out.push_str(&extra);
     Ok(())
@@ -5036,6 +5052,7 @@ fn emit_dyn_vtables(
                 fn_id: FnId(0),
                 body: &empty_body,
                 out,
+                entry_allocas: None,
                 extra_defs: String::new(),
                 tmp: 0,
             };

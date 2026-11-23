@@ -848,6 +848,86 @@ impl TyTable {
         result
     }
 
+    /// True if values of `ty` contain an exclusive reference (`&mut T`) or
+    /// managed descriptor (`Desc<R>`), granting write/mutation permission to
+    /// an external target. Used by `OwnedDynCreate` to reject erasing an
+    /// exclusive provider into a shared-only `Context`.
+    pub fn holds_exclusive_ref(&self, ty: TyId) -> bool {
+        let mut visiting = Vec::new();
+        self.holds_exclusive_ref_in(ty, &mut visiting)
+    }
+
+    fn holds_exclusive_ref_in(&self, ty: TyId, visiting: &mut Vec<TyId>) -> bool {
+        if visiting.contains(&ty) {
+            return false;
+        }
+        let Some(kind) = self.get(ty) else {
+            return true;
+        };
+        visiting.push(ty);
+        let result = match kind {
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. } => false,
+            TyKind::Ref {
+                mutability: Mutability::Exclusive,
+                ..
+            }
+            | TyKind::Desc(_) => true,
+            TyKind::Ref {
+                mutability: Mutability::Shared,
+                pointee,
+                ..
+            } => self.holds_exclusive_ref_in(*pointee, visiting),
+            TyKind::OwnedDyn { context, .. } => {
+                context.is_some_and(|c| self.holds_exclusive_ref_in(c, visiting))
+            }
+            TyKind::Opaque(o) => match opaque_contents(o) {
+                Some(parts) => parts
+                    .iter()
+                    .any(|t| self.holds_exclusive_ref_in(*t, visiting)),
+                None => true,
+            },
+            TyKind::Closure { def, args } => match self.closure(*def) {
+                None => true,
+                Some(c) => c
+                    .captures
+                    .iter()
+                    .any(|cap| match self.subst_lookup(*cap, *args) {
+                        Some(t) => self.holds_exclusive_ref_in(t, visiting),
+                        None => true,
+                    }),
+            },
+            TyKind::Dyn(_) | TyKind::Param(_) => true,
+            TyKind::Tuple(items) => items
+                .iter()
+                .any(|t| self.holds_exclusive_ref_in(*t, visiting)),
+            TyKind::Array { element, .. } | TyKind::Slice(element) | TyKind::Managed(element) => {
+                self.holds_exclusive_ref_in(*element, visiting)
+            }
+            TyKind::ErrorUnion { ok, err } => {
+                self.holds_exclusive_ref_in(*ok, visiting)
+                    || self.holds_exclusive_ref_in(*err, visiting)
+            }
+            TyKind::Adt { adt, args } => match self.get_adt(*adt) {
+                None => true,
+                Some(def) => def.variants.iter().enumerate().any(|(v, variant)| {
+                    (0..variant.fields.len()).any(|f| {
+                        match self.field_ty(*adt, VariantIdx(v as u32), FieldIdx(f as u32), *args) {
+                            Some(ft) => self.holds_exclusive_ref_in(ft, visiting),
+                            None => true,
+                        }
+                    })
+                }),
+            },
+        };
+        visiting.pop();
+        result
+    }
+
     /// Every distinct `Region::Param(r)` occurring in `ty`.
     pub fn regions_in(&self, ty: TyId) -> Vec<u32> {
         let mut out = Vec::new();

@@ -625,23 +625,53 @@ impl Kernel<'_> {
                         self.empty_loans()
                     } else {
                         let param_mask = summary.map_or(u64::MAX, |s| s.param_mask);
-                        let matching = accesses.iter().filter(|a| {
+                        let mut out = self.empty_loans();
+                        for a in &accesses {
                             let OperandRole::Arg(idx) = a.role else {
-                                return false;
+                                continue;
                             };
                             let bit_ok = idx >= 64 || (param_mask & (1u64 << idx)) != 0;
-                            bit_ok
-                                && sig.params.get(idx as usize).is_some_and(|pt| {
-                                    self.tys
-                                        .regions_in(*pt)
-                                        .iter()
-                                        .any(|r| ret_regions.contains(r))
-                                })
-                        });
-                        self.operand_loans(
-                            state,
-                            matching.map(|a| (a.role, a.access, a.place.as_ref())),
-                        )
+                            let Some(pt) = sig.params.get(idx as usize) else {
+                                continue;
+                            };
+                            if !bit_ok
+                                || !self
+                                    .tys
+                                    .regions_in(*pt)
+                                    .iter()
+                                    .any(|r| ret_regions.contains(r))
+                            {
+                                continue;
+                            }
+                            let outer_ref_unwrapped = matches!(
+                                self.tys.get(*pt),
+                                Some(zil_ir::body::TyKind::Ref { region, .. })
+                                    if !matches!(region, zil_ir::body::Region::Param(r) if ret_regions.contains(r))
+                            );
+                            if outer_ref_unwrapped {
+                                if let PlaceRoot::Local(rl) = a.place.root {
+                                    for id in state.carries.of(rl).iter() {
+                                        if let Some(loan) = self.loans.get(id) {
+                                            if let PlaceRoot::Local(target) = loan.place.root {
+                                                out.union_with(state.carries.of(target));
+                                            } else {
+                                                out.insert(EXTERNAL);
+                                            }
+                                        } else {
+                                            out.insert(id);
+                                        }
+                                    }
+                                } else {
+                                    out.insert(EXTERNAL);
+                                }
+                            } else {
+                                out.union_with(&self.operand_loans(
+                                    state,
+                                    std::iter::once((a.role, a.access, a.place.as_ref())),
+                                ));
+                            }
+                        }
+                        out
                     }
                 } else {
                     loans.clone()
@@ -675,6 +705,20 @@ impl Kernel<'_> {
                         .and_then(|ms| ms.iter().find(|s| s.closure == Some(def)))
                 });
                 if let Some(csum) = summary
+                    && csum.capture_mask == 0
+                {
+                    let matching_args = accesses.iter().filter(|a| {
+                        let OperandRole::Arg(idx) = a.role else {
+                            return false;
+                        };
+                        idx >= 64 || (csum.param_mask & (1u64 << idx)) != 0
+                    });
+                    let out = self.operand_loans(
+                        state,
+                        matching_args.map(|a| (a.role, a.access, a.place.as_ref())),
+                    );
+                    (out, None)
+                } else if let Some(csum) = summary
                     && closure.projections.is_empty()
                     && let PlaceRoot::Local(rl_local) = closure.root
                     && let Some(rfields) = state.carries.fields_of(rl_local)
@@ -783,6 +827,38 @@ impl Kernel<'_> {
                     (loans.clone(), None)
                 }
             }
+            Terminator::Call {
+                callee: zil_ir::body::Callee::Intrinsic(zil_ir::body::IntrinsicOp::StorePop),
+                dest,
+                ..
+            } => {
+                let cx = self.body.cx(self.tys);
+                let dest_ty = type_place(dest, &cx).ok().map(|t| t.ty());
+                if dest_ty.is_some_and(|t| !self.tys.holds_address(t)) {
+                    (self.empty_loans(), None)
+                } else {
+                    let mut out = self.empty_loans();
+                    if let Some(store_access) =
+                        accesses.iter().find(|a| a.role == OperandRole::Arg(0))
+                        && let PlaceRoot::Local(dl) = store_access.place.root
+                    {
+                        for id in state.carries.of(dl).iter() {
+                            if let Some(loan) = self.loans.get(id) {
+                                if let PlaceRoot::Local(store_local) = loan.place.root {
+                                    out.union_with(state.carries.of(store_local));
+                                } else {
+                                    out.insert(EXTERNAL);
+                                }
+                            } else {
+                                out.insert(id);
+                            }
+                        }
+                    } else {
+                        out.insert(EXTERNAL);
+                    }
+                    (out, None)
+                }
+            }
             Terminator::Call { .. }
             | Terminator::Goto { .. }
             | Terminator::Switch { .. }
@@ -805,10 +881,27 @@ impl Kernel<'_> {
                         | zil_ir::body::IntrinsicOp::AsyncRegistrationPollClose
                         | zil_ir::body::IntrinsicOp::AsyncRegistrationFinishDestroy
                         | zil_ir::body::IntrinsicOp::RegistrationValid
-                        | zil_ir::body::IntrinsicOp::RegistrationClose,
+                        | zil_ir::body::IntrinsicOp::RegistrationClose
+                        | zil_ir::body::IntrinsicOp::StoreReserve
+                        | zil_ir::body::IntrinsicOp::StorePush
+                        | zil_ir::body::IntrinsicOp::StorePop
+                        | zil_ir::body::IntrinsicOp::StoreLen
+                        | zil_ir::body::IntrinsicOp::StoreCapacity
+                        | zil_ir::body::IntrinsicOp::StoreBorrow { .. },
                     ),
                 ..
             } => false,
+            Terminator::Call {
+                callee: zil_ir::body::Callee::DynSlot { .. },
+                ..
+            } if !accesses.iter().any(|a| {
+                a.role != OperandRole::Callee
+                    && flows_value(a.role, a.access)
+                    && self.place_holds_address(&a.place)
+            }) =>
+            {
+                false
+            }
             Terminator::Call { .. } => {
                 let cx = self.body.cx(self.tys);
                 accesses.iter().any(|a| {
@@ -1020,7 +1113,20 @@ impl Kernel<'_> {
                             }
                             match loan.place.root {
                                 PlaceRoot::Local(y) => writable.push(y),
-                                PlaceRoot::Capture(_) => self.no_escape(state, &flows.loans)?,
+                                PlaceRoot::Capture(c) => {
+                                    let mut filtered = self.empty_loans();
+                                    for fid in flows.loans.iter() {
+                                        if self
+                                            .loans
+                                            .get(fid)
+                                            .is_some_and(|l| l.place.root == PlaceRoot::Capture(c))
+                                        {
+                                            continue;
+                                        }
+                                        filtered.insert(fid);
+                                    }
+                                    self.no_escape(state, &filtered)?;
+                                }
                             }
                         }
                     }

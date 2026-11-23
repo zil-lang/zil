@@ -127,12 +127,28 @@ fn dyn_context_fixtures_execute_natively_on_dual_backends() {
         "tests/fixtures/dyn-context/long-slice-getter.zil",
         "tests/fixtures/dyn-context/owned-inline-region.zil",
         "tests/fixtures/dyn-context/static-slice-phantom.zil",
+        "tests/fixtures/dyn-context/store-owner.zil",
+        "tests/fixtures/dyn-context/captured-owner-mut.zil",
+        "tests/fixtures/dyn-context/closed-owner-static-callback.zil",
+        "tests/fixtures/dyn-context/holder-leaf-factory.zil",
+        "tests/fixtures/dyn-context/static-slice-with-input.zil",
+        "tests/fixtures/dyn-context/static-slice-without-input.zil",
+        "tests/fixtures/dyn-context/library-without-provider.zil",
+        "tests/language-readiness/dynamic-dispatch/dyn-owned-allocation-loop.zil",
     ];
     for (idx, rel) in fixtures.iter().enumerate() {
         let dir = temp_dir(&format!("fixture-{idx}"));
         let path = root.join(rel);
         let (code, stdout) = build_and_run_dual_with_c(&dir, &path, &[]);
-        assert_eq!(code, 0, "fixture {rel} returned non-zero exit code {code}");
+        let expected_code = if rel.ends_with("dyn-owned-allocation-loop.zil") {
+            128 // 400_000 & 0xff
+        } else {
+            0
+        };
+        assert_eq!(
+            code, expected_code,
+            "fixture {rel} returned unexpected exit code {code}"
+        );
         assert!(
             stdout.is_empty(),
             "fixture {rel} produced unexpected stdout"
@@ -603,12 +619,459 @@ fn raw_wire_forged_owned_dyn_context_bypass_is_rejected_by_checker() {
     };
 
     // Round-trip through binary Wire encoding to verify wire format preserves
-    // OwnedDyn.context and independent solver/verifier rejects the forgery.
+    // OwnedDyn.context and independent solver + zil-check reject the forgery.
     let bytes = encode_module(&module);
     let decoded = decode_module(&bytes).expect("wire decode forged module");
     let solved = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 });
     assert!(
         solved.is_err(),
         "solver must reject raw/wire OwnedDynCreate erasing borrowed Provider<'a> into context-free OwnedDyn"
+    );
+    let valid_cert = zil_ir::body::Certificate {
+        functions: vec![
+            zil_ir::body::FunctionCertificate {
+                function: FnId(0),
+                invariants: Vec::new(),
+            },
+            zil_ir::body::FunctionCertificate {
+                function: FnId(1),
+                invariants: Vec::new(),
+            },
+        ],
+    };
+    let checked = zil_check::check_module(
+        decoded,
+        &valid_cert,
+        zil_check::CheckBudget { steps: 1_000_000 },
+    );
+    assert!(
+        checked.is_err(),
+        "independent zil-check must reject raw/wire OwnedDynCreate erasing borrowed Provider<'a> into context-free OwnedDyn"
+    );
+}
+
+#[test]
+fn coborrowed_store_owned_dyn_push_pop_and_safety_negatives() {
+    let dir = temp_dir("store-owned-dyn");
+
+    // 1. Positive native consumer: Store<OwnedDyn<dyn Read, Context<'a>>> with push,
+    // store_at read, store_pop (releasing Store lock while keeping provider loan),
+    // second push, and deterministic LIFO Drop sequence across all 4 backend/opt configs.
+    let pos_src = r#"
+extern "C" fn putchar(code: i32) -> i32;
+
+resource DropTag { code: i32 }
+impl Drop for DropTag {
+    fn drop(self: Self) {
+        unsafe { putchar(.code) }
+    }
+}
+
+struct Context<life a> { leaf: &'a i32 }
+
+package Provider<life a> {
+    manages tag: DropTag,
+    pointer: &'a i32,
+}
+
+trait Read {
+    fn read(self: &Self) -> i32;
+}
+
+impl<life a> Read for Provider<'a> {
+    fn read(self: &Self) -> i32 {
+        return *self.pointer
+    }
+}
+
+fn run<life a>(x: &'a i32, y: &'a i32) -> i32 {
+    let items: Store<OwnedDyn<dyn Read, Context<'a>>> = store_new();
+    if !store_reserve(items, 2) { return 90 }
+    match owned_dyn::<dyn Read, Context<'a>>(Provider::<'a> {
+        tag: DropTag { code: 65 },
+        pointer: x,
+    }) {
+        .err(_) => { return 91 }
+        .ok(o1) => {
+            match store_push(items, o1) {
+                .err(_) => { return 92 }
+                .ok(_) => {}
+            }
+            let first = store_at(items, 0).read();
+            // Pop o1: releases Store borrow so we can push o2, while o1 still borrows x.
+            match store_pop(items) {
+                .err(_) => { return 93 }
+                .ok(popped) => {
+                    match owned_dyn::<dyn Read, Context<'a>>(Provider::<'a> {
+                        tag: DropTag { code: 66 },
+                        pointer: y,
+                    }) {
+                        .err(_) => { return 94 }
+                        .ok(o2) => {
+                            match store_push(items, o2) {
+                                .err(_) => { return 95 }
+                                .ok(_) => {}
+                            }
+                            let second = store_at(items, 0).read();
+                            let again = popped.read();
+                            return (first + second + again) - (10 + 32 + 10)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn main() -> i32 {
+    let a: i32 = 10;
+    let b: i32 = 32;
+    return run(&a, &b)
+}
+"#;
+    let pos_entry = write_source(&dir, "coborrowed_store_pop.zil", pos_src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &pos_entry, &[]);
+    assert_eq!(code, 0);
+    assert_eq!(
+        String::from_utf8(stdout).expect("utf8 stdout"),
+        "AB",
+        "popped OwnedDyn ('A') and Store element ('B') must each drop exactly once"
+    );
+
+    // 2. Negative: mutating provider referent while Stored inside Store<OwnedDyn<..., Context<'a>>>
+    // MUST be rejected (LoanConflict).
+    check_rejected(
+        &dir,
+        "store_owned_dyn_mutate_provider_conflict",
+        r#"
+struct Context<life a> { leaf: &'a i32 }
+struct Provider<life a> { pointer: &'a i32 }
+trait Read { fn read(self: &Self) -> i32; }
+impl<life a> Read for Provider<'a> {
+    fn read(self: &Self) -> i32 { return *self.pointer }
+}
+fn main() -> i32 {
+    var data: i32 = 42;
+    let items: Store<OwnedDyn<dyn Read, Context<'a>>> = store_new();
+    if !store_reserve(items, 1) { return 1 }
+    match owned_dyn::<dyn Read, Context<'a>>(Provider::<'a> { pointer: &data }) {
+        .err(_) => { return 2 }
+        .ok(owner) => {
+            match store_push(items, owner) {
+                .err(_) => { return 3 }
+                .ok(_) => {}
+            }
+            data = 99;
+            return store_at(items, 0).read()
+        }
+    }
+}
+"#,
+        "E-SAFETY",
+    );
+
+    // 3. Negative: mutating provider referent after StorePop while popped owner is still live
+    // MUST be rejected (LoanConflict).
+    check_rejected(
+        &dir,
+        "store_owned_dyn_pop_mutate_provider_conflict",
+        r#"
+struct Context<life a> { leaf: &'a i32 }
+struct Provider<life a> { pointer: &'a i32 }
+trait Read { fn read(self: &Self) -> i32; }
+impl<life a> Read for Provider<'a> {
+    fn read(self: &Self) -> i32 { return *self.pointer }
+}
+fn main() -> i32 {
+    var data: i32 = 42;
+    let items: Store<OwnedDyn<dyn Read, Context<'a>>> = store_new();
+    if !store_reserve(items, 1) { return 1 }
+    match owned_dyn::<dyn Read, Context<'a>>(Provider::<'a> { pointer: &data }) {
+        .err(_) => { return 2 }
+        .ok(owner) => {
+            match store_push(items, owner) {
+                .err(_) => { return 3 }
+                .ok(_) => {}
+            }
+            match store_pop(items) {
+                .err(_) => { return 4 }
+                .ok(popped) => {
+                    data = 99;
+                    return popped.read()
+                }
+            }
+        }
+    }
+}
+"#,
+        "E-SAFETY",
+    );
+
+    // 4. Negative: erasing an exclusive-ref provider (&'a mut i32) into a shared-only
+    // Context<'a> { leaf: &'a i32 } MUST be rejected by opspec/Solver/Verify.
+    check_rejected(
+        &dir,
+        "exclusive_provider_into_shared_context_rejected",
+        r#"
+struct SharedCtx<life a> { leaf: &'a i32 }
+struct MutProvider<life a> { pointer: &'a mut i32 }
+trait Bump { fn bump(self: &mut Self) -> i32; }
+impl<life a> Bump for MutProvider<'a> {
+    fn bump(self: &mut Self) -> i32 {
+        *self.pointer += 1;
+        return *self.pointer
+    }
+}
+fn bad<life a>(x: &'a mut i32) -> i32 {
+    match owned_dyn::<dyn Bump, SharedCtx<'a>>(MutProvider::<'a> { pointer: x }) {
+        .ok(owner) => {
+            var current = owner;
+            return current.bump()
+        }
+        .err(_) => { return 0 }
+    }
+}
+fn main() -> i32 {
+    var v: i32 = 1;
+    return bad(&mut v)
+}
+"#,
+        "E-SAFETY",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_valid_cert_forged_exclusive_provider_in_shared_context_rejected() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, Block, BlockId, Body, Callee, Certificate, ConstValue, DynDef, DynImpl,
+        DynSlotSig, FieldDef, FnId, FnRole, FnSig, Function, FunctionCertificate, GenericArgs,
+        IntTy, IntrinsicOp, Local, LocalDecl, Module, Mutability, Operand, ParamEnv, Place, Region,
+        Terminator, TyKind, TyTable, VariantDef, decode_module, encode_module,
+    };
+
+    let mut tys = TyTable::new();
+    let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+    let mut_ref_a_i32 = tys.intern(TyKind::Ref {
+        region: Region::Param(0),
+        mutability: Mutability::Exclusive,
+        pointee: i32_ty,
+    });
+    let shared_ref_a_i32 = tys.intern(TyKind::Ref {
+        region: Region::Param(0),
+        mutability: Mutability::Shared,
+        pointee: i32_ty,
+    });
+    let prov_adt = tys.add_adt(AdtDef {
+        name: "MutProvider".into(),
+        kind: AdtKind::Record,
+        type_params: 0,
+        region_params: 1,
+        user_drop: false,
+        variants: vec![VariantDef {
+            name: "MutProvider".into(),
+            fields: vec![FieldDef {
+                name: "pointer".into(),
+                ty: mut_ref_a_i32,
+            }],
+        }],
+    });
+    let ctx_adt = tys.add_adt(AdtDef {
+        name: "SharedCtx".into(),
+        kind: AdtKind::Record,
+        type_params: 0,
+        region_params: 1,
+        user_drop: false,
+        variants: vec![VariantDef {
+            name: "SharedCtx".into(),
+            fields: vec![FieldDef {
+                name: "leaf".into(),
+                ty: shared_ref_a_i32,
+            }],
+        }],
+    });
+    let err_adt = tys.add_adt(AdtDef {
+        name: "DynCreateError".into(),
+        kind: AdtKind::Enum,
+        type_params: 0,
+        region_params: 0,
+        user_drop: false,
+        variants: vec![VariantDef {
+            name: "OutOfMemory".into(),
+            fields: vec![],
+        }],
+    });
+    let reg_args = tys.intern_args(GenericArgs {
+        tys: vec![],
+        regions: vec![Region::Param(0)],
+    });
+    let empty_args = tys.intern_args(GenericArgs {
+        tys: vec![],
+        regions: vec![],
+    });
+    let prov_ty = tys.intern(TyKind::Adt {
+        adt: prov_adt,
+        args: reg_args,
+    });
+    let ctx_ty = tys.intern(TyKind::Adt {
+        adt: ctx_adt,
+        args: reg_args,
+    });
+    let err_ty = tys.intern(TyKind::Adt {
+        adt: err_adt,
+        args: empty_args,
+    });
+    let dyn_id = tys.add_dyn(DynDef {
+        name: "Bump".into(),
+        slots: vec![DynSlotSig {
+            name: "bump".into(),
+            receiver: Some(Mutability::Exclusive),
+            params: vec![],
+            result: i32_ty,
+        }],
+    });
+    let forged_dyn_ty = tys.intern(TyKind::OwnedDyn {
+        def: dyn_id,
+        context: Some(ctx_ty),
+    });
+    let result_ty = tys.intern(TyKind::ErrorUnion {
+        ok: forged_dyn_ty,
+        err: err_ty,
+    });
+    let recv_ty = tys.intern(TyKind::Ref {
+        region: Region::Static,
+        mutability: Mutability::Exclusive,
+        pointee: prov_ty,
+    });
+
+    let slot_fn = Function {
+        name: "MutProvider::bump".into(),
+        sig: FnSig {
+            type_params: 0,
+            region_params: 1,
+            params: vec![recv_ty],
+            result: i32_ty,
+            role: FnRole::DynSlotImpl {
+                dyn_id,
+                concrete_ty: prov_ty,
+                slot: 0,
+            },
+            resume_mode: zil_ir::body::ResumeMode::Local,
+            state_contracts: Vec::new(),
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![LocalDecl {
+                ty: recv_ty,
+                name: Some("self".into()),
+            }],
+            captures: vec![],
+            closure: None,
+            result: i32_ty,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![Block {
+                instructions: vec![],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Int {
+                        ty: IntTy::I32,
+                        bits: 0,
+                    }),
+                },
+                terminator_span: zil_base::Span::default(),
+            }],
+        },
+    };
+
+    let forged_fn = Function {
+        name: "forged_exclusive_in_shared_ctx".into(),
+        sig: FnSig {
+            type_params: 0,
+            region_params: 1,
+            params: vec![prov_ty],
+            result: result_ty,
+            role: FnRole::Normal,
+            resume_mode: zil_ir::body::ResumeMode::Local,
+            state_contracts: Vec::new(),
+        },
+        body: Body {
+            param_count: 1,
+            locals: vec![
+                LocalDecl {
+                    ty: prov_ty,
+                    name: Some("p".into()),
+                },
+                LocalDecl {
+                    ty: result_ty,
+                    name: Some("ret".into()),
+                },
+            ],
+            captures: vec![],
+            closure: None,
+            result: result_ty,
+            param_env: ParamEnv::default(),
+            drop_flags: vec![],
+            blocks: vec![
+                Block {
+                    instructions: vec![],
+                    terminator: Terminator::Call {
+                        callee: Callee::Intrinsic(IntrinsicOp::OwnedDynCreate),
+                        args: vec![Operand::Move(Place::local(Local(0)))],
+                        dest: Place::local(Local(1)),
+                        target: BlockId(1),
+                        cancel: None,
+                    },
+                    terminator_span: zil_base::Span::default(),
+                },
+                Block {
+                    instructions: vec![],
+                    terminator: Terminator::Return {
+                        value: Operand::Move(Place::local(Local(1))),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                },
+            ],
+        },
+    };
+
+    let module = Module {
+        tys,
+        functions: vec![slot_fn, forged_fn],
+        foreigns: vec![],
+        statics: vec![],
+        dyn_impls: vec![DynImpl {
+            dyn_id,
+            concrete_ty: prov_ty,
+            methods: vec![FnId(0)],
+        }],
+    };
+
+    let bytes = encode_module(&module);
+    let decoded = decode_module(&bytes).expect("wire decode forged exclusive-in-shared module");
+    assert!(
+        zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 }).is_err(),
+        "solver must reject OwnedDynCreate erasing &mut T provider into shared-only Context"
+    );
+    let valid_cert = Certificate {
+        functions: vec![
+            FunctionCertificate {
+                function: FnId(0),
+                invariants: Vec::new(),
+            },
+            FunctionCertificate {
+                function: FnId(1),
+                invariants: Vec::new(),
+            },
+        ],
+    };
+    assert!(
+        zil_check::check_module(
+            decoded,
+            &valid_cert,
+            zil_check::CheckBudget { steps: 1_000_000 }
+        )
+        .is_err(),
+        "independent zil-check must reject OwnedDynCreate erasing &mut T provider into shared-only Context"
     );
 }
