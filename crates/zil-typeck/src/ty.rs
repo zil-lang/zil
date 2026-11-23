@@ -62,6 +62,8 @@ pub enum TyData {
         regions: Vec<Option<u32>>,
     },
     Tuple(Vec<Ty>),
+    /// Anonymous tagged sum `A | B`: flattened, duplicate-free, canonically sorted.
+    Union(Vec<Ty>),
     Array {
         element: Ty,
         length: u32,
@@ -149,6 +151,99 @@ pub struct Types {
 #[derive(Clone, Copy, Debug)]
 pub struct Mismatch;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnionError {
+    TooFew,
+    Duplicate(Ty),
+}
+
+fn int_rank(i: IntTy) -> u8 {
+    match i {
+        IntTy::I8 => 0,
+        IntTy::I16 => 1,
+        IntTy::I32 => 2,
+        IntTy::I64 => 3,
+        IntTy::Isize => 4,
+        IntTy::U8 => 5,
+        IntTy::U16 => 6,
+        IntTy::U32 => 7,
+        IntTy::U64 => 8,
+        IntTy::Usize => 9,
+    }
+}
+
+fn float_rank(f: FloatTy) -> u8 {
+    match f {
+        FloatTy::F32 => 0,
+        FloatTy::F64 => 1,
+    }
+}
+
+fn closure_kind_rank(k: ClosureKind) -> u8 {
+    match k {
+        ClosureKind::Fn => 0,
+        ClosureKind::FnMut => 1,
+        ClosureKind::FnOnce => 2,
+    }
+}
+
+fn sync_cell_rank(k: zil_ir::body::SyncCellKind) -> u8 {
+    match k {
+        zil_ir::body::SyncCellKind::I32 => 0,
+        zil_ir::body::SyncCellKind::I64 => 1,
+        zil_ir::body::SyncCellKind::Usize => 2,
+    }
+}
+
+fn ty_data_rank(d: &TyData) -> u8 {
+    match d {
+        TyData::Unit => 0,
+        TyData::Bool => 1,
+        TyData::Never => 2,
+        TyData::Int(_) => 3,
+        TyData::Float(_) => 4,
+        TyData::Adt { .. } => 5,
+        TyData::Tuple(_) => 6,
+        TyData::Union(_) => 7,
+        TyData::Array { .. } => 8,
+        TyData::Slice(_) => 9,
+        TyData::Ref { .. } => 10,
+        TyData::Managed(_) => 11,
+        TyData::Desc(_) => 12,
+        TyData::Opaque(_) => 13,
+        TyData::ErrorUnion { .. } => 14,
+        TyData::FnPtr { .. } => 15,
+        TyData::Closure { .. } => 16,
+        TyData::ImplCallable { .. } => 17,
+        TyData::Dyn(_) => 18,
+        TyData::OwnedDyn { .. } => 19,
+        TyData::Param(_) => 20,
+        TyData::SelfParam => 21,
+        TyData::Assoc { .. } => 22,
+        TyData::ArrayConst { .. } => 23,
+        TyData::ConstParam(_) => 24,
+        TyData::ConstU32(_) => 25,
+        TyData::Type => 26,
+        TyData::Var(_) => 27,
+        TyData::Error => 28,
+    }
+}
+
+fn opaque_rank(o: &OpaqueKind) -> u8 {
+    match o {
+        OpaqueKind::ByteBuffer => 0,
+        OpaqueKind::OwnedStore(_) => 1,
+        OpaqueKind::Mutex(_) => 2,
+        OpaqueKind::MutexGuard(_) => 3,
+        OpaqueKind::Task { .. } => 4,
+        OpaqueKind::Registration(_) => 5,
+        OpaqueKind::AsyncRegistration(_) => 6,
+        OpaqueKind::ForeignHandle => 7,
+        OpaqueKind::ForeignCallback { .. } => 8,
+        OpaqueKind::SyncCell(_) => 9,
+    }
+}
+
 impl Types {
     pub fn intern(&mut self, data: TyData) -> Ty {
         if let Some(t) = self.by_data.get(&data) {
@@ -200,6 +295,289 @@ impl Types {
         ty
     }
 
+    /// Deterministic total order over complete type identity (independent of
+    /// interning order or source spelling).
+    pub fn cmp_ty(&self, a: Ty, b: Ty) -> std::cmp::Ordering {
+        self.cmp_ty_depth(a, b, 0)
+    }
+
+    fn cmp_ty_slice(&self, xs: &[Ty], ys: &[Ty], depth: u32) -> std::cmp::Ordering {
+        xs.len().cmp(&ys.len()).then_with(|| {
+            for (&x, &y) in xs.iter().zip(ys.iter()) {
+                let ord = self.cmp_ty_depth(x, y, depth + 1);
+                if ord != std::cmp::Ordering::Equal {
+                    return ord;
+                }
+            }
+            std::cmp::Ordering::Equal
+        })
+    }
+
+    fn cmp_opt_ty(&self, a: Option<Ty>, b: Option<Ty>, depth: u32) -> std::cmp::Ordering {
+        match (a, b) {
+            (None, None) => std::cmp::Ordering::Equal,
+            (None, Some(_)) => std::cmp::Ordering::Less,
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (Some(x), Some(y)) => self.cmp_ty_depth(x, y, depth + 1),
+        }
+    }
+
+    fn cmp_ty_depth(&self, a: Ty, b: Ty, depth: u32) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        let a = self.shallow(a);
+        let b = self.shallow(b);
+        if a == b || depth > 64 {
+            return a.cmp(&b);
+        }
+        let da = self.data(a);
+        let db = self.data(b);
+        let ra = ty_data_rank(da);
+        let rb = ty_data_rank(db);
+        if ra != rb {
+            return ra.cmp(&rb);
+        }
+        match (da, db) {
+            (TyData::Unit, TyData::Unit)
+            | (TyData::Bool, TyData::Bool)
+            | (TyData::Never, TyData::Never)
+            | (TyData::SelfParam, TyData::SelfParam)
+            | (TyData::Type, TyData::Type)
+            | (TyData::Error, TyData::Error) => Ordering::Equal,
+            (TyData::Int(x), TyData::Int(y)) => int_rank(*x).cmp(&int_rank(*y)),
+            (TyData::Float(x), TyData::Float(y)) => float_rank(*x).cmp(&float_rank(*y)),
+            (
+                TyData::Adt {
+                    adt: a1,
+                    args: args1,
+                    regions: r1,
+                },
+                TyData::Adt {
+                    adt: a2,
+                    args: args2,
+                    regions: r2,
+                },
+            ) => a1
+                .cmp(a2)
+                .then_with(|| self.cmp_ty_slice(args1, args2, depth))
+                .then_with(|| r1.cmp(r2)),
+            (TyData::Tuple(xs), TyData::Tuple(ys)) | (TyData::Union(xs), TyData::Union(ys)) => {
+                self.cmp_ty_slice(xs, ys, depth)
+            }
+            (
+                TyData::Array {
+                    element: e1,
+                    length: l1,
+                },
+                TyData::Array {
+                    element: e2,
+                    length: l2,
+                },
+            ) => self
+                .cmp_ty_depth(*e1, *e2, depth + 1)
+                .then_with(|| l1.cmp(l2)),
+            (TyData::Slice(e1), TyData::Slice(e2))
+            | (TyData::Managed(e1), TyData::Managed(e2))
+            | (TyData::Desc(e1), TyData::Desc(e2)) => self.cmp_ty_depth(*e1, *e2, depth + 1),
+            (
+                TyData::Ref {
+                    region: r1,
+                    mutable: m1,
+                    pointee: p1,
+                },
+                TyData::Ref {
+                    region: r2,
+                    mutable: m2,
+                    pointee: p2,
+                },
+            ) => m1
+                .cmp(m2)
+                .then_with(|| self.cmp_ty_depth(*p1, *p2, depth + 1))
+                .then_with(|| r1.cmp(r2)),
+            (TyData::Opaque(o1), TyData::Opaque(o2)) => {
+                let ro1 = opaque_rank(o1);
+                let ro2 = opaque_rank(o2);
+                if ro1 != ro2 {
+                    return ro1.cmp(&ro2);
+                }
+                match (o1, o2) {
+                    (OpaqueKind::ByteBuffer, OpaqueKind::ByteBuffer)
+                    | (OpaqueKind::ForeignHandle, OpaqueKind::ForeignHandle) => Ordering::Equal,
+                    (OpaqueKind::OwnedStore(e1), OpaqueKind::OwnedStore(e2))
+                    | (OpaqueKind::Mutex(e1), OpaqueKind::Mutex(e2))
+                    | (OpaqueKind::MutexGuard(e1), OpaqueKind::MutexGuard(e2))
+                    | (OpaqueKind::Registration(e1), OpaqueKind::Registration(e2))
+                    | (OpaqueKind::AsyncRegistration(e1), OpaqueKind::AsyncRegistration(e2)) => {
+                        self.cmp_ty_depth(*e1, *e2, depth + 1)
+                    }
+                    (
+                        OpaqueKind::Task {
+                            result: r1,
+                            context: c1,
+                        },
+                        OpaqueKind::Task {
+                            result: r2,
+                            context: c2,
+                        },
+                    ) => self
+                        .cmp_ty_depth(*r1, *r2, depth + 1)
+                        .then_with(|| self.cmp_opt_ty(*c1, *c2, depth)),
+                    (
+                        OpaqueKind::ForeignCallback {
+                            params: p1,
+                            result: r1,
+                        },
+                        OpaqueKind::ForeignCallback {
+                            params: p2,
+                            result: r2,
+                        },
+                    ) => self
+                        .cmp_ty_slice(p1, p2, depth)
+                        .then_with(|| self.cmp_ty_depth(*r1, *r2, depth + 1)),
+                    (OpaqueKind::SyncCell(k1), OpaqueKind::SyncCell(k2)) => {
+                        sync_cell_rank(*k1).cmp(&sync_cell_rank(*k2))
+                    }
+                    _ => unreachable!("same opaque_rank"),
+                }
+            }
+            (TyData::ErrorUnion { ok: o1, err: e1 }, TyData::ErrorUnion { ok: o2, err: e2 }) => {
+                self.cmp_ty_depth(*o1, *o2, depth + 1)
+                    .then_with(|| self.cmp_ty_depth(*e1, *e2, depth + 1))
+            }
+            (
+                TyData::FnPtr {
+                    params: p1,
+                    result: r1,
+                },
+                TyData::FnPtr {
+                    params: p2,
+                    result: r2,
+                },
+            ) => self
+                .cmp_ty_slice(p1, p2, depth)
+                .then_with(|| self.cmp_ty_depth(*r1, *r2, depth + 1)),
+            (
+                TyData::Closure {
+                    owner: o1,
+                    id: id1,
+                    owner_args: oa1,
+                    kind: k1,
+                    params: p1,
+                    result: r1,
+                },
+                TyData::Closure {
+                    owner: o2,
+                    id: id2,
+                    owner_args: oa2,
+                    kind: k2,
+                    params: p2,
+                    result: r2,
+                },
+            ) => {
+                o1.0.cmp(&o2.0)
+                    .then_with(|| id1.cmp(id2))
+                    .then_with(|| closure_kind_rank(*k1).cmp(&closure_kind_rank(*k2)))
+                    .then_with(|| self.cmp_ty_slice(oa1, oa2, depth))
+                    .then_with(|| self.cmp_ty_slice(p1, p2, depth))
+                    .then_with(|| self.cmp_ty_depth(*r1, *r2, depth + 1))
+            }
+            (
+                TyData::ImplCallable {
+                    owner: o1,
+                    owner_args: oa1,
+                    kind: k1,
+                    params: p1,
+                    result: r1,
+                },
+                TyData::ImplCallable {
+                    owner: o2,
+                    owner_args: oa2,
+                    kind: k2,
+                    params: p2,
+                    result: r2,
+                },
+            ) => {
+                o1.0.cmp(&o2.0)
+                    .then_with(|| closure_kind_rank(*k1).cmp(&closure_kind_rank(*k2)))
+                    .then_with(|| self.cmp_ty_slice(oa1, oa2, depth))
+                    .then_with(|| self.cmp_ty_slice(p1, p2, depth))
+                    .then_with(|| self.cmp_ty_depth(*r1, *r2, depth + 1))
+            }
+            (TyData::Dyn(t1), TyData::Dyn(t2)) => t1.cmp(t2),
+            (
+                TyData::OwnedDyn {
+                    trait_ref: t1,
+                    context: c1,
+                },
+                TyData::OwnedDyn {
+                    trait_ref: t2,
+                    context: c2,
+                },
+            ) => t1.cmp(t2).then_with(|| self.cmp_opt_ty(*c1, *c2, depth)),
+            (TyData::Param(i), TyData::Param(j))
+            | (TyData::ConstParam(i), TyData::ConstParam(j))
+            | (TyData::ConstU32(i), TyData::ConstU32(j)) => i.cmp(j),
+            (TyData::Assoc { base: b1, name: n1 }, TyData::Assoc { base: b2, name: n2 }) => self
+                .cmp_ty_depth(*b1, *b2, depth + 1)
+                .then_with(|| n1.cmp(n2)),
+            (
+                TyData::ArrayConst {
+                    element: e1,
+                    length: l1,
+                },
+                TyData::ArrayConst {
+                    element: e2,
+                    length: l2,
+                },
+            ) => self
+                .cmp_ty_depth(*e1, *e2, depth + 1)
+                .then_with(|| self.cmp_ty_depth(*l1, *l2, depth + 1)),
+            (TyData::Var(v1), TyData::Var(v2)) => v1.cmp(v2),
+            _ => unreachable!("same ty_data_rank"),
+        }
+    }
+
+    fn flatten_union_members(&self, members: Vec<Ty>) -> Vec<Ty> {
+        let mut flat = Vec::with_capacity(members.len());
+        let mut stack: Vec<Ty> = members.into_iter().rev().collect();
+        while let Some(m) = stack.pop() {
+            let m = self.shallow(m);
+            if let TyData::Union(inner) = self.data(m) {
+                for &sub in inner.iter().rev() {
+                    stack.push(sub);
+                }
+            } else {
+                flat.push(m);
+            }
+        }
+        flat
+    }
+
+    /// Canonicalizes an anonymous union `A | B`: flattens nested unions, sorts
+    /// members by complete type identity, and rejects duplicate members or `< 2`
+    /// members.
+    pub fn make_union(&mut self, members: Vec<Ty>) -> Result<Ty, UnionError> {
+        let mut flat = self.flatten_union_members(members);
+        flat.sort_by(|&a, &b| self.cmp_ty(a, b));
+        for w in flat.windows(2) {
+            if self.cmp_ty(w[0], w[1]) == std::cmp::Ordering::Equal {
+                return Err(UnionError::Duplicate(w[0]));
+            }
+        }
+        if flat.len() < 2 {
+            return Err(UnionError::TooFew);
+        }
+        Ok(self.intern(TyData::Union(flat)))
+    }
+
+    /// Flattens and canonically sorts a union after substitution/zonking without
+    /// silently dropping duplicates (so downstream checks can reject collapsed
+    /// generic instantiations like `T | i32` with `T = i32`).
+    pub fn canonicalize_union_raw(&mut self, members: Vec<Ty>) -> Ty {
+        let mut flat = self.flatten_union_members(members);
+        flat.sort_by(|&a, &b| self.cmp_ty(a, b));
+        self.intern(TyData::Union(flat))
+    }
+
     pub fn is_never(&self, ty: Ty) -> bool {
         matches!(self.data(self.shallow(ty)), TyData::Never)
     }
@@ -217,7 +595,7 @@ impl Types {
         match self.data(ty) {
             TyData::Var(w) => *w == v,
             TyData::Adt { args, .. } => args.iter().any(|t| self.occurs(v, *t)),
-            TyData::Tuple(items) => items.iter().any(|t| self.occurs(v, *t)),
+            TyData::Tuple(items) | TyData::Union(items) => items.iter().any(|t| self.occurs(v, *t)),
             TyData::Array { element, .. } | TyData::Slice(element) => self.occurs(v, *element),
             TyData::ArrayConst { element, length } => {
                 self.occurs(v, *element) || self.occurs(v, *length)
@@ -483,6 +861,7 @@ impl Types {
                 self.unify_all(&p1, &p2)?;
                 self.unify(r1, r2)
             }
+            (TyData::Union(xs), TyData::Union(ys)) => self.unify_all(&xs, &ys),
             (TyData::ErrorUnion { ok: o1, err: e1 }, TyData::ErrorUnion { ok: o2, err: e2 }) => {
                 self.unify(o1, o2)?;
                 self.unify(e1, e2)
@@ -547,6 +926,13 @@ impl Types {
                     .map(|t| self.zonk(*t))
                     .collect::<Option<Vec<_>>>()?;
                 self.intern(TyData::Tuple(items))
+            }
+            TyData::Union(items) => {
+                let items = items
+                    .iter()
+                    .map(|t| self.zonk(*t))
+                    .collect::<Option<Vec<_>>>()?;
+                self.canonicalize_union_raw(items)
             }
             TyData::Array { element, length } => {
                 let element = self.zonk(element)?;
@@ -744,6 +1130,13 @@ impl Types {
                     .collect();
                 self.intern(TyData::Tuple(items))
             }
+            TyData::Union(items) => {
+                let items = items
+                    .iter()
+                    .map(|t| self.subst_with_self(*t, args, self_ty))
+                    .collect();
+                self.canonicalize_union_raw(items)
+            }
             TyData::Array { element, length } => {
                 let element = self.subst_with_self(element, args, self_ty);
                 self.intern(TyData::Array { element, length })
@@ -925,6 +1318,10 @@ impl Types {
                 let items = items.iter().map(|t| self.subst(*t, args)).collect();
                 self.intern(TyData::Tuple(items))
             }
+            TyData::Union(items) => {
+                let items = items.iter().map(|t| self.subst(*t, args)).collect();
+                self.canonicalize_union_raw(items)
+            }
             TyData::Array { element, length } => {
                 let element = self.subst(element, args);
                 self.intern(TyData::Array { element, length })
@@ -1084,6 +1481,10 @@ impl Types {
             TyData::Tuple(items) => {
                 let items = items.iter().map(|t| self.erase_regions(*t)).collect();
                 self.intern(TyData::Tuple(items))
+            }
+            TyData::Union(items) => {
+                let items = items.iter().map(|t| self.erase_regions(*t)).collect();
+                self.canonicalize_union_raw(items)
             }
             TyData::Array { element, length } => {
                 let element = self.erase_regions(element);

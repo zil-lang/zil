@@ -669,9 +669,14 @@ impl<'a> Kernel<'a> {
         state.tags.retain(|l, p| !stale(p) && !key_written(l));
         // Any change inside a flagged place changes its initialization,
         // whereas a write behind a Deref cannot initialize or deinitialize
-        // an inline flagged place (OpSpec forbids moves/drops behind Deref).
+        // an inline flagged place (OpSpec forbids moves/drops behind Deref),
+        // and moving/writing an active enum variant's field cannot affect the
+        // initialization tracking of an inactive sibling variant's field.
         state.flags.retain(|l, p| {
-            !key_written(l) && (deref_write || written.relation(p) == PlaceRelation::Disjoint)
+            !key_written(l)
+                && (deref_write
+                    || written.relation(p) == PlaceRelation::Disjoint
+                    || same_enum_sibling_variant(written, p))
         });
     }
 
@@ -937,4 +942,23 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::AsyncRegistrationFinishDestroy => Ok(()),
         I::TaskStart => Err(zil_ir::body::intrinsic_name(op)),
     }
+}
+
+fn same_enum_sibling_variant(a: &Place, b: &Place) -> bool {
+    if a.root != b.root || a.first_deref().is_some() || b.first_deref().is_some() {
+        return false;
+    }
+    for (pa, pb) in a.projections.iter().zip(&b.projections) {
+        if pa == pb {
+            continue;
+        }
+        return match (pa, pb) {
+            (Projection::Field(x), Projection::Field(y)) => {
+                x.adt == y.adt && x.args == y.args && x.variant != y.variant
+            }
+            (Projection::ErrorArm(x), Projection::ErrorArm(y)) => x != y,
+            _ => false,
+        };
+    }
+    false
 }

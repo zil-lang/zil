@@ -193,6 +193,10 @@ pub enum ExprKind {
         ok: bool,
         value: Box<Expr>,
     },
+    /// Inject a value into an anonymous union `A | B`.
+    UnionInject {
+        value: Box<Expr>,
+    },
     /// `expr?`: unwrap success or return error early.
     Try(Box<Expr>),
     /// `#(expr)`: compile-time evaluation.
@@ -261,6 +265,7 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }
         | ExprKind::ErrorInject { .. }
+        | ExprKind::UnionInject { .. }
         | ExprKind::Try(_)
         | ExprKind::CtEval(_)
         | ExprKind::Tuple(_)
@@ -325,6 +330,11 @@ pub enum PatKind {
     /// `.ok(inner)` (`ok = true`) or `.err(inner)` (`ok = false`).
     ErrorArm {
         ok: bool,
+        inner: Box<Pat>,
+    },
+    /// `Type(inner)` arm of an anonymous union `A | B`.
+    UnionArm {
+        member_ty: Ty,
         inner: Box<Pat>,
     },
 }

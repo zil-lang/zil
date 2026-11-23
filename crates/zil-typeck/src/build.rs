@@ -144,6 +144,7 @@ pub struct Mono<'c, 'a, 'e> {
     instances: HashMap<(FnRef, Vec<Ty>), FnId>,
     queue: VecDeque<(FnRef, Vec<Ty>, FnId)>,
     adts: HashMap<(AdtRef, Vec<u32>), AdtId>,
+    unions: HashMap<Vec<TyId>, AdtId>,
     dyns: HashMap<TraitRef, DynId>,
     closures: HashMap<(FnRef, Vec<Ty>, ClosureRef), ClosureId>,
     closure_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, ClosureId)>,
@@ -174,6 +175,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             instances: HashMap::new(),
             queue: VecDeque::new(),
             adts: HashMap::new(),
+            unions: HashMap::new(),
             dyns: HashMap::new(),
             closures: HashMap::new(),
             closure_queue: VecDeque::new(),
@@ -608,6 +610,58 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         Some(id)
     }
 
+    fn union_adt(&mut self, members: &[Ty], span: Span) -> Option<(AdtId, Vec<TyId>)> {
+        let mut lowered = Vec::with_capacity(members.len());
+        for &m in members {
+            lowered.push(self.lower_ty(m, span)?);
+        }
+        let mut seen = HashSet::with_capacity(lowered.len());
+        for &t in &lowered {
+            if !seen.insert(t) {
+                self.diags.push(diag::error(
+                    diag::TYPE_MISMATCH,
+                    span,
+                    "anonymous union contains duplicate member types",
+                ));
+                return None;
+            }
+        }
+        if lowered.len() < 2 {
+            self.diags.push(diag::error(
+                diag::TYPE_MISMATCH,
+                span,
+                "anonymous union requires at least two distinct member types",
+            ));
+            return None;
+        }
+        if let Some(&id) = self.unions.get(&lowered) {
+            return Some((id, lowered));
+        }
+        let suffix: Vec<String> = lowered.iter().map(|t| t.0.to_string()).collect();
+        let name = format!("__zil_union_{}", suffix.join("_"));
+        let variants = lowered
+            .iter()
+            .enumerate()
+            .map(|(i, &ty)| VariantDef {
+                name: format!("_{i}"),
+                fields: vec![FieldDef {
+                    name: "0".to_string(),
+                    ty,
+                }],
+            })
+            .collect();
+        let id = self.module.tys.add_adt(AdtDef {
+            name,
+            kind: AdtKind::Enum,
+            type_params: 0,
+            region_params: 0,
+            variants,
+            user_drop: false,
+        });
+        self.unions.insert(lowered.clone(), id);
+        Some((id, lowered))
+    }
+
     fn args_id(&mut self, args: &[Ty], span: Span) -> Option<ArgsId> {
         self.args_id_with_regions(args, &[], span)
     }
@@ -822,6 +876,11 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                 })
             }
             TyData::Opaque(OpaqueKind::SyncCell(k)) => TyKind::Opaque(OpaqueTy::SyncCell(k)),
+            TyData::Union(members) => {
+                let (adt, _) = self.union_adt(&members, span)?;
+                let args = self.args_id(&[], span)?;
+                TyKind::Adt { adt, args }
+            }
             TyData::ErrorUnion { ok, err } => TyKind::ErrorUnion {
                 ok: self.lower_ty(ok, span)?,
                 err: self.lower_ty(err, span)?,
@@ -1481,6 +1540,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::ForeignCall { .. }
             | ExprKind::Intrinsic { .. }
             | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
             | ExprKind::Try(_)
             | ExprKind::CtEval(_)
             | ExprKind::Lit(_)
@@ -1765,6 +1825,28 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     ok: *ok,
                     value: self.operand(value),
                     ty,
+                }
+            }
+            ExprKind::UnionInject { value } => {
+                let union_ty = self.closed(e.ty);
+                let val_ty = self.ty(value.ty, value.span);
+                if let TyData::Union(members) = self.mono.types.data(union_ty).clone()
+                    && let Some((adt, member_ids)) = self.mono.union_adt(&members, e.span)
+                    && let Some(variant) = member_ids.iter().position(|&m| m == val_ty)
+                    && let Some(args) = self.mono.args_id(&[], e.span)
+                {
+                    let op = self.operand(value);
+                    Rvalue::Aggregate {
+                        kind: AggregateKind::Adt {
+                            adt,
+                            variant: VariantIdx(variant as u32),
+                            args,
+                        },
+                        operands: vec![op],
+                    }
+                } else {
+                    self.failed = true;
+                    Rvalue::Use(Operand::Const(ConstValue::Unit))
                 }
             }
             ExprKind::StaticUtf(bytes) => {
@@ -2191,6 +2273,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::ClosureFnRef(_)
             | ExprKind::Describe(_)
             | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Convert { .. }
@@ -2623,6 +2706,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             | ExprKind::Give(_)
             | ExprKind::Describe(_)
             | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
             | ExprKind::Unary { .. }
             | ExprKind::Binary { .. }
             | ExprKind::Convert { .. }
@@ -2720,6 +2804,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
             if let Some(f) = self.frames.last_mut() {
                 f.cleanups = arm_bindings[i]
                     .iter()
+                    .rev()
                     .copied()
                     .map(FrameCleanup::Local)
                     .collect();
@@ -2790,9 +2875,10 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                             work.push_back((sub, p));
                         }
                     }
-                    PatKind::Lit(_) | PatKind::Adt { .. } | PatKind::ErrorArm { .. } => {
-                        out.push((place, pat))
-                    }
+                    PatKind::Lit(_)
+                    | PatKind::Adt { .. }
+                    | PatKind::ErrorArm { .. }
+                    | PatKind::UnionArm { .. } => out.push((place, pat)),
                 }
             }
             row.cols = out;
@@ -3010,6 +3096,77 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     }
                     let bb = self.new_block(span);
                     targets.push((u128::from(arm_ok), bb));
+                    specialized.push((bb, sub_rows));
+                }
+                let unreachable = self.new_block(span);
+                self.terminate(
+                    Terminator::Switch {
+                        discr: Operand::Copy(Place::local(tag)),
+                        arms: targets,
+                        otherwise: unreachable,
+                    },
+                    span,
+                );
+                for (bb, sub_rows) in specialized {
+                    self.cur = bb;
+                    self.decide(sub_rows, arm_blocks, arm_bindings, span);
+                }
+            }
+            PatKind::UnionArm { .. } => {
+                let union_ty = self.closed(test_pat.ty);
+                let TyData::Union(members) = self.mono.types.data(union_ty).clone() else {
+                    self.failed = true;
+                    self.terminate(Terminator::Unreachable, span);
+                    return;
+                };
+                let Some((adt, member_ids)) = self.mono.union_adt(&members, span) else {
+                    self.failed = true;
+                    self.terminate(Terminator::Unreachable, span);
+                    return;
+                };
+                let Some(empty_args) = self.mono.args_id(&[], span) else {
+                    self.failed = true;
+                    self.terminate(Terminator::Unreachable, span);
+                    return;
+                };
+                let count = member_ids.len() as u32;
+                let i32_ty = self.mono.module.tys.intern(TyKind::Int(IntTy::I32));
+                let tag = self.temp(i32_ty);
+                self.assign(
+                    Place::local(tag),
+                    Rvalue::Discriminant(test_place.clone()),
+                    span,
+                );
+                let mut targets = Vec::new();
+                let mut specialized = Vec::new();
+                for v in 0..count {
+                    let expected_member_id = member_ids[v as usize];
+                    let mut sub_rows = Vec::new();
+                    for row in &rows {
+                        let mut row = row.clone();
+                        match row.cols.iter().position(|(p, _)| *p == test_place) {
+                            None => sub_rows.push(row),
+                            Some(k) => {
+                                let (_, pat) = row.cols.remove(k);
+                                if let PatKind::UnionArm { member_ty, inner } = &pat.kind {
+                                    let m_id = self.ty(*member_ty, pat.span);
+                                    if m_id == expected_member_id {
+                                        let mut sub = test_place.clone();
+                                        sub.projections.push(Projection::Field(FieldRef {
+                                            adt,
+                                            variant: VariantIdx(v),
+                                            field: FieldIdx(0),
+                                            args: empty_args,
+                                        }));
+                                        row.cols.insert(k, (sub, inner.as_ref()));
+                                        sub_rows.push(row);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let bb = self.new_block(span);
+                    targets.push((u128::from(v), bb));
                     specialized.push((bb, sub_rows));
                 }
                 let unreachable = self.new_block(span);

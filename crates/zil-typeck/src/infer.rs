@@ -1044,6 +1044,47 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             }
         }
 
+        // 4. Implicit anonymous-union injection: `A | B`.
+        if let TyData::Union(members) = ed
+            && !matches!(vd, TyData::Union(_) | TyData::Error | TyData::Never)
+        {
+            let mut matched = Vec::new();
+            for &m in &members {
+                if self.types.can_unify(value.ty, m) {
+                    matched.push(m);
+                }
+            }
+            match matched.as_slice() {
+                [target] => {
+                    let _ = self.types.unify(value.ty, *target);
+                    let vspan = value.span;
+                    return Expr {
+                        kind: ExprKind::UnionInject {
+                            value: Box::new(value),
+                        },
+                        ty: expected,
+                        span: vspan,
+                    };
+                }
+                [] => {
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        span,
+                        "value does not match any member of anonymous union",
+                    );
+                    return self.err_expr(span);
+                }
+                _ => {
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        span,
+                        "value matches multiple members of anonymous union",
+                    );
+                    return self.err_expr(span);
+                }
+            }
+        }
+
         self.coerce(&value, expected, span);
         value
     }
@@ -1858,6 +1899,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 | ExprKind::ForeignCall { .. }
                 | ExprKind::Intrinsic { .. }
                 | ExprKind::ErrorInject { .. }
+                | ExprKind::UnionInject { .. }
                 | ExprKind::Try(_)
                 | ExprKind::CtEval(_)
                 | ExprKind::Lit(_)
@@ -1935,36 +1977,81 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
             }
             ast::PatternKind::Constructor { path, arguments } => {
-                let Some((adt, variant)) = self.resolve_variant_path(path, span) else {
-                    return self.wild(expected, span);
-                };
-                let decl = &self.items.adt(adt).variants[variant as usize];
-                let shape = decl.shape;
-                let n = decl.fields.len();
-                if shape == VariantShape::Record || n != arguments.len() {
-                    self.error(
-                        diag::MATCH_ARITY,
-                        span,
-                        "the pattern does not match the variant's fields",
-                    );
-                    return self.wild(expected, span);
-                }
-                let args = self.fresh_args(adt);
-                let t = self.adt_ty(adt, &args);
-                self.unify(t, expected, span);
-                let fields = arguments
-                    .iter()
-                    .enumerate()
-                    .map(|(i, a)| {
-                        let ft = self.field_ty(adt, variant, i as u32, &args);
-                        self.pattern(a, ft, mutable)
-                    })
-                    .collect();
-                PatKind::Adt {
-                    adt,
-                    variant,
-                    args,
-                    fields,
+                let et = self.types.shallow(expected);
+                let et_norm = self.items.normalize_ty(et, self.types);
+                if let TyData::Union(members) = self.types.data(et_norm).clone() {
+                    if arguments.len() != 1 {
+                        self.error(
+                            diag::MATCH_ARITY,
+                            span,
+                            "anonymous union member pattern requires exactly one payload pattern",
+                        );
+                        return self.wild(expected, span);
+                    }
+                    let matched = self.match_union_member_path(path, &members);
+                    match matched.as_slice() {
+                        [member_ty] => {
+                            let inner = self.pattern(&arguments[0], *member_ty, mutable);
+                            PatKind::UnionArm {
+                                member_ty: *member_ty,
+                                inner: Box::new(inner),
+                            }
+                        }
+                        [] => {
+                            self.error(
+                                diag::TYPE_MISMATCH,
+                                span,
+                                format!(
+                                    "`{}` is not a member of the anonymous union",
+                                    path.join(".")
+                                ),
+                            );
+                            return self.wild(expected, span);
+                        }
+                        _ => {
+                            self.error(
+                                diag::TYPE_MISMATCH,
+                                span,
+                                format!(
+                                    "member pattern `{}` is ambiguous in anonymous union",
+                                    path.join(".")
+                                ),
+                            );
+                            return self.wild(expected, span);
+                        }
+                    }
+                } else {
+                    let Some((adt, variant)) = self.resolve_variant_path(path, span) else {
+                        return self.wild(expected, span);
+                    };
+                    let decl = &self.items.adt(adt).variants[variant as usize];
+                    let shape = decl.shape;
+                    let n = decl.fields.len();
+                    if shape == VariantShape::Record || n != arguments.len() {
+                        self.error(
+                            diag::MATCH_ARITY,
+                            span,
+                            "the pattern does not match the variant's fields",
+                        );
+                        return self.wild(expected, span);
+                    }
+                    let args = self.fresh_args(adt);
+                    let t = self.adt_ty(adt, &args);
+                    self.unify(t, expected, span);
+                    let fields = arguments
+                        .iter()
+                        .enumerate()
+                        .map(|(i, a)| {
+                            let ft = self.field_ty(adt, variant, i as u32, &args);
+                            self.pattern(a, ft, mutable)
+                        })
+                        .collect();
+                    PatKind::Adt {
+                        adt,
+                        variant,
+                        args,
+                        fields,
+                    }
                 }
             }
             ast::PatternKind::RecordConstructor { path, fields } => {
@@ -2096,6 +2183,93 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         }
     }
 
+    fn match_union_member_path(&self, path: &[String], members: &[Ty]) -> Vec<Ty> {
+        let target_adt = match self.items.lookup_item(self.current_module, path) {
+            Some(ItemRef::Adt(adt)) => Some(adt),
+            _ => None,
+        };
+        let single = if path.len() == 1 {
+            Some(path[0].as_str())
+        } else {
+            None
+        };
+        let mut matched = Vec::new();
+        for &m in members {
+            let m_shallow = self.types.shallow(m);
+            let core =
+                if let TyData::Managed(inner) | TyData::Desc(inner) = self.types.data(m_shallow) {
+                    self.types.shallow(*inner)
+                } else {
+                    m_shallow
+                };
+            let is_match = match self.types.data(core) {
+                TyData::Unit => single == Some("void"),
+                TyData::Bool => single == Some("bool"),
+                TyData::Int(i) => {
+                    let name = match i {
+                        IntTy::I8 => "i8",
+                        IntTy::I16 => "i16",
+                        IntTy::I32 => "i32",
+                        IntTy::I64 => "i64",
+                        IntTy::Isize => "isize",
+                        IntTy::U8 => "u8",
+                        IntTy::U16 => "u16",
+                        IntTy::U32 => "u32",
+                        IntTy::U64 => "u64",
+                        IntTy::Usize => "usize",
+                    };
+                    single == Some(name)
+                }
+                TyData::Float(f) => {
+                    let name = match f {
+                        zil_ir::body::FloatTy::F32 => "f32",
+                        zil_ir::body::FloatTy::F64 => "f64",
+                    };
+                    single == Some(name)
+                }
+                TyData::Opaque(o) => match o {
+                    OpaqueKind::ByteBuffer => single == Some("ByteBuffer"),
+                    OpaqueKind::OwnedStore(_) => single == Some("Store"),
+                    OpaqueKind::Mutex(_) => single == Some("Mutex"),
+                    OpaqueKind::MutexGuard(_) => single == Some("MutexGuard"),
+                    OpaqueKind::Task { .. } => single == Some("Task"),
+                    OpaqueKind::Registration(_) => single == Some("Registration"),
+                    OpaqueKind::AsyncRegistration(_) => single == Some("AsyncRegistration"),
+                    OpaqueKind::ForeignHandle => single == Some("ForeignHandle"),
+                    OpaqueKind::ForeignCallback { .. } | OpaqueKind::SyncCell(_) => false,
+                },
+                TyData::Adt { adt, .. } => target_adt == Some(*adt),
+                TyData::Never
+                | TyData::Tuple(_)
+                | TyData::Union(_)
+                | TyData::Array { .. }
+                | TyData::Slice(_)
+                | TyData::Ref { .. }
+                | TyData::Managed(_)
+                | TyData::Desc(_)
+                | TyData::ErrorUnion { .. }
+                | TyData::FnPtr { .. }
+                | TyData::Closure { .. }
+                | TyData::ImplCallable { .. }
+                | TyData::Dyn(_)
+                | TyData::OwnedDyn { .. }
+                | TyData::Param(_)
+                | TyData::SelfParam
+                | TyData::Assoc { .. }
+                | TyData::ArrayConst { .. }
+                | TyData::ConstParam(_)
+                | TyData::ConstU32(_)
+                | TyData::Type
+                | TyData::Var(_)
+                | TyData::Error => false,
+            };
+            if is_match {
+                matched.push(m);
+            }
+        }
+        matched
+    }
+
     fn wild(&mut self, ty: Ty, span: Span) -> Pat {
         Pat {
             kind: PatKind::Wild,
@@ -2107,7 +2281,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
     fn irrefutable(&self, p: &Pat) -> bool {
         match &p.kind {
             PatKind::Wild | PatKind::Binding(_) | PatKind::RefBinding { .. } => true,
-            PatKind::Lit(_) | PatKind::ErrorArm { .. } => false,
+            PatKind::Lit(_) | PatKind::ErrorArm { .. } | PatKind::UnionArm { .. } => false,
             PatKind::Tuple(items) => items.iter().all(|i| self.irrefutable(i)),
             PatKind::Adt { adt, fields, .. } => {
                 self.items.adt(*adt).variants.len() == 1
@@ -2334,6 +2508,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     | TyData::Desc(_)
                     | TyData::Opaque(_)
                     | TyData::ErrorUnion { .. }
+                    | TyData::Union(_)
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
@@ -3061,6 +3236,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     | TyData::Desc(_)
                     | TyData::Opaque(_)
                     | TyData::ErrorUnion { .. }
+                    | TyData::Union(_)
                     | TyData::FnPtr { .. }
                     | TyData::Closure { .. }
                     | TyData::ImplCallable { .. }
@@ -6038,7 +6214,9 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             let t = types.shallow(ty);
             match types.data(t).clone() {
                 TyData::Ref { .. } => true,
-                TyData::Tuple(xs) => xs.into_iter().any(|x| walk(types, x, depth + 1)),
+                TyData::Tuple(xs) | TyData::Union(xs) => {
+                    xs.into_iter().any(|x| walk(types, x, depth + 1))
+                }
                 TyData::Array { element: elem, .. }
                 | TyData::ArrayConst { element: elem, .. }
                 | TyData::Slice(elem)
@@ -6126,6 +6304,7 @@ fn contains_break(e: &Expr) -> bool {
             | ExprKind::Give(inner)
             | ExprKind::Describe(inner)
             | ExprKind::ErrorInject { value: inner, .. }
+            | ExprKind::UnionInject { value: inner }
             | ExprKind::Try(inner)
             | ExprKind::CtEval(inner) => walk(inner),
             ExprKind::Lit(_)
@@ -6349,7 +6528,7 @@ impl Finalizer<'_, '_> {
                     self.ty_owns_task_or_async_reg(inner, depth + 1)
                 }
             }
-            TyData::Tuple(xs) => xs
+            TyData::Tuple(xs) | TyData::Union(xs) => xs
                 .iter()
                 .any(|&x| self.ty_owns_task_or_async_reg(x, depth + 1)),
             TyData::Array { element, .. } | TyData::ArrayConst { element, .. } => {
@@ -6405,6 +6584,7 @@ impl Finalizer<'_, '_> {
             | TyData::Array { .. }
             | TyData::ArrayConst { .. }
             | TyData::ErrorUnion { .. }
+            | TyData::Union(_)
             | TyData::Adt { .. } => self.ty_owns_task_or_async_reg(ty, 0),
             TyData::Unit
             | TyData::Type
@@ -6453,7 +6633,9 @@ impl Finalizer<'_, '_> {
             | TyData::Int(_)
             | TyData::Float(_)
             | TyData::Error => true,
-            TyData::Tuple(items) => items.iter().all(|t| self.is_copy_depth(*t, depth + 1)),
+            TyData::Tuple(items) | TyData::Union(items) => {
+                items.iter().all(|t| self.is_copy_depth(*t, depth + 1))
+            }
             TyData::Array { element, .. } | TyData::ArrayConst { element, .. } => {
                 self.is_copy_depth(element, depth + 1)
             }
@@ -6517,6 +6699,10 @@ impl Finalizer<'_, '_> {
                 fields.iter_mut().for_each(|f| self.pat(f));
             }
             PatKind::ErrorArm { inner, .. } => self.pat(inner),
+            PatKind::UnionArm { member_ty, inner } => {
+                *member_ty = self.zonk(*member_ty, p.span);
+                self.pat(inner);
+            }
         }
     }
 
@@ -6699,6 +6885,7 @@ impl Finalizer<'_, '_> {
             | ExprKind::Give(inner)
             | ExprKind::Describe(inner)
             | ExprKind::ErrorInject { value: inner, .. }
+            | ExprKind::UnionInject { value: inner }
             | ExprKind::Try(inner)
             | ExprKind::CtEval(inner) => self.expr(inner),
             ExprKind::Index { base, index } => {
@@ -6963,6 +7150,7 @@ fn expr_contains_suspend(e: &Expr) -> bool {
         | ExprKind::Len(base)
         | ExprKind::Try(base)
         | ExprKind::ErrorInject { value: base, .. }
+        | ExprKind::UnionInject { value: base }
         | ExprKind::CtEval(base)
         | ExprKind::Loop(base) => expr_contains_suspend(base),
         ExprKind::SliceBorrow {
@@ -7065,6 +7253,7 @@ fn unwrap_local_ref(e: &Expr) -> Option<LocalId> {
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }
         | ExprKind::ErrorInject { .. }
+        | ExprKind::UnionInject { .. }
         | ExprKind::Try(_)
         | ExprKind::CtEval(_)
         | ExprKind::Tuple(_)
@@ -7124,6 +7313,7 @@ fn unwrap_local_or_borrow_ref(e: &Expr) -> Option<LocalId> {
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }
         | ExprKind::ErrorInject { .. }
+        | ExprKind::UnionInject { .. }
         | ExprKind::Try(_)
         | ExprKind::CtEval(_)
         | ExprKind::Tuple(_)
@@ -7153,7 +7343,9 @@ fn collect_pat_bindings(pat: &Pat, out: &mut Vec<LocalId>) {
                 collect_pat_bindings(p, out);
             }
         }
-        PatKind::ErrorArm { inner, .. } => collect_pat_bindings(inner, out),
+        PatKind::ErrorArm { inner, .. } | PatKind::UnionArm { inner, .. } => {
+            collect_pat_bindings(inner, out)
+        }
         PatKind::Wild | PatKind::RefBinding { .. } | PatKind::Lit(_) => {}
     }
 }
@@ -7184,6 +7376,7 @@ fn expr_any(e: &Expr, pred: &mut impl FnMut(&Expr) -> bool) -> bool {
         | ExprKind::Len(base)
         | ExprKind::Try(base)
         | ExprKind::ErrorInject { value: base, .. }
+        | ExprKind::UnionInject { value: base }
         | ExprKind::CtEval(base)
         | ExprKind::Loop(base) => expr_any(base, pred),
         ExprKind::SliceBorrow {
@@ -7365,6 +7558,7 @@ fn propagate_tainted_locals(
             | ExprKind::Intrinsic { .. }
             | ExprKind::Adt { .. }
             | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
             | ExprKind::Try(_)
             | ExprKind::CtEval(_)
             | ExprKind::Tuple(_)
@@ -7432,6 +7626,7 @@ fn local_is_called(e: &Expr, target: LocalId) -> bool {
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }
         | ExprKind::ErrorInject { .. }
+        | ExprKind::UnionInject { .. }
         | ExprKind::Try(_)
         | ExprKind::CtEval(_)
         | ExprKind::Tuple(_)
@@ -7482,6 +7677,7 @@ fn unwrap_capture_ref(e: &Expr) -> Option<u32> {
         | ExprKind::Intrinsic { .. }
         | ExprKind::Adt { .. }
         | ExprKind::ErrorInject { .. }
+        | ExprKind::UnionInject { .. }
         | ExprKind::Try(_)
         | ExprKind::CtEval(_)
         | ExprKind::Tuple(_)
@@ -7566,7 +7762,7 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
             }
             ExprKind::Return(Some(v)) => is_alias(v, aliases) || walk(v, aliases, root_cap),
             ExprKind::Return(None) => false,
-            ExprKind::ErrorInject { value, .. } => {
+            ExprKind::ErrorInject { value, .. } | ExprKind::UnionInject { value } => {
                 is_alias(value, aliases) || walk(value, aliases, root_cap)
             }
             ExprKind::Borrow { .. } | ExprKind::SliceBorrow { .. } | ExprKind::Describe(_) => false,
@@ -7661,6 +7857,7 @@ pub fn check_defer_suspend_effects(
                 | TyData::Desc(_)
                 | TyData::Opaque(_)
                 | TyData::ErrorUnion { .. }
+                | TyData::Union(_)
                 | TyData::FnPtr { .. }
                 | TyData::ImplCallable { .. }
                 | TyData::Dyn(_)
@@ -7762,6 +7959,7 @@ pub fn check_defer_suspend_effects(
             | ExprKind::Unary { operand: x, .. }
             | ExprKind::Convert { operand: x }
             | ExprKind::ErrorInject { value: x, .. }
+            | ExprKind::UnionInject { value: x }
             | ExprKind::Try(x)
             | ExprKind::CtEval(x)
             | ExprKind::Loop(x) => expr_suspends(x, items, types, fn_susp, cl_susp),
@@ -7945,6 +8143,7 @@ pub fn check_defer_suspend_effects(
             | ExprKind::Unary { operand: x, .. }
             | ExprKind::Convert { operand: x }
             | ExprKind::ErrorInject { value: x, .. }
+            | ExprKind::UnionInject { value: x }
             | ExprKind::Try(x)
             | ExprKind::CtEval(x)
             | ExprKind::Loop(x) => {
@@ -8096,6 +8295,7 @@ pub fn check_defer_suspend_effects(
             | ExprKind::Intrinsic { .. }
             | ExprKind::Adt { .. }
             | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
             | ExprKind::Try(_)
             | ExprKind::CtEval(_)
             | ExprKind::Tuple(_)
@@ -8174,7 +8374,9 @@ fn ty_is_non_copy(items: &Items, types: &mut crate::ty::Types, ty: Ty) -> bool {
                     }
                 }
             }
-            TyData::Tuple(xs) => xs.iter().any(|x| walk(items, types, *x, depth + 1)),
+            TyData::Tuple(xs) | TyData::Union(xs) => {
+                xs.iter().any(|x| walk(items, types, *x, depth + 1))
+            }
             TyData::Array { element, .. } => walk(items, types, element, depth + 1),
             TyData::ErrorUnion { ok, err } => {
                 walk(items, types, ok, depth + 1) || walk(items, types, err, depth + 1)
@@ -8223,6 +8425,7 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
             | ExprKind::ForeignRef(_)
             | ExprKind::Adt { .. }
             | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
             | ExprKind::ManagedCreate { .. }
             | ExprKind::Tuple(_)
             | ExprKind::Array(_)
@@ -8288,6 +8491,7 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
         ExprKind::Give(inner)
         | ExprKind::Try(inner)
         | ExprKind::ErrorInject { value: inner, .. }
+        | ExprKind::UnionInject { value: inner }
         | ExprKind::Unary { operand: inner, .. }
         | ExprKind::Convert { operand: inner, .. }
         | ExprKind::Loop(inner) => collect_moved_captures(inner, out),
