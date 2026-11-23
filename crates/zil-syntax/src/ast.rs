@@ -389,6 +389,7 @@ pub enum ElseBranch {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchArm {
     pub pattern: Pattern,
+    pub guard: Option<Expr>,
     pub body: ArrowBody,
     pub span: Span,
 }
@@ -441,6 +442,7 @@ pub enum PatternKind {
     RecordConstructor {
         path: Vec<String>,
         fields: Vec<RecordPatternField>,
+        rest: bool,
     },
 }
 
@@ -707,6 +709,7 @@ pub enum BinaryOp {
     BitXor,
     BitOr,
     Range,
+    RangeInclusive,
     Equal,
     NotEqual,
     Less,

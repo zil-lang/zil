@@ -229,6 +229,8 @@ pub enum ExprKind {
         op: Option<BinOp>,
         value: Box<Expr>,
     },
+    /// Unconditional runtime trap/abort (`Never` type), e.g. from `.unwrap()` on `None`/`.err`.
+    Trap,
 }
 
 /// Whether an expression denotes a place (storage) rather than a value.
@@ -279,7 +281,8 @@ pub fn is_place(kind: &ExprKind) -> bool {
         | ExprKind::Break
         | ExprKind::Continue
         | ExprKind::Return(_)
-        | ExprKind::Assign { .. } => false,
+        | ExprKind::Assign { .. }
+        | ExprKind::Trap => false,
     }
 }
 
@@ -298,6 +301,7 @@ pub enum Stmt {
 #[derive(Clone, Debug)]
 pub struct Arm {
     pub pattern: Pat,
+    pub guard: Option<Box<Expr>>,
     pub body: Expr,
     pub span: Span,
 }

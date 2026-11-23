@@ -374,6 +374,7 @@ fn digit_group(text: &str, radix: u32) -> bool {
 
 const SYMBOLS: &[(&str, Symbol)] = &[
     ("...", Symbol::Ellipsis),
+    ("..=", Symbol::DotDotEq),
     ("..", Symbol::DotDot),
     ("::", Symbol::ColonColon),
     ("->", Symbol::Arrow),

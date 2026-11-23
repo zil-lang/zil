@@ -979,7 +979,31 @@ impl<'a> FnEmitter<'a> {
                     let elem_llvm = llvm_storage_ty(self.tys(), elem_ty)?;
                     let idx_val = self.fresh();
                     let _ = writeln!(self.out, "  {idx_val} = load i64, ptr %l{}", idx_local.0);
+                    let tid = self.tmp;
+                    self.tmp += 1;
+                    let l_ok = format!("idx_ok_{tid}");
+                    let l_oob = format!("idx_oob_{tid}");
                     if matches!(self.tys().get(ty), Some(TyKind::Slice(_))) {
+                        let len_slot = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {len_slot} = getelementptr inbounds {{ ptr, i64 }}, ptr {ptr}, i32 0, i32 1"
+                        );
+                        let len_val = self.fresh();
+                        let _ = writeln!(self.out, "  {len_val} = load i64, ptr {len_slot}");
+                        let in_bounds = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {in_bounds} = icmp ult i64 {idx_val}, {len_val}"
+                        );
+                        let _ = writeln!(
+                            self.out,
+                            "  br i1 {in_bounds}, label %{l_ok}, label %{l_oob}"
+                        );
+                        let _ = writeln!(self.out, "{l_oob}:");
+                        let _ = writeln!(self.out, "  call void @abort()");
+                        let _ = writeln!(self.out, "  unreachable");
+                        let _ = writeln!(self.out, "{l_ok}:");
                         let data_ptr_slot = self.fresh();
                         let _ = writeln!(
                             self.out,
@@ -994,6 +1018,22 @@ impl<'a> FnEmitter<'a> {
                         );
                         ptr = gep;
                     } else {
+                        if let Some(TyKind::Array { length, .. }) = self.tys().get(ty) {
+                            let len_val = *length as i64;
+                            let in_bounds = self.fresh();
+                            let _ = writeln!(
+                                self.out,
+                                "  {in_bounds} = icmp ult i64 {idx_val}, {len_val}"
+                            );
+                            let _ = writeln!(
+                                self.out,
+                                "  br i1 {in_bounds}, label %{l_ok}, label %{l_oob}"
+                            );
+                            let _ = writeln!(self.out, "{l_oob}:");
+                            let _ = writeln!(self.out, "  call void @abort()");
+                            let _ = writeln!(self.out, "  unreachable");
+                            let _ = writeln!(self.out, "{l_ok}:");
+                        }
                         let gep = self.fresh();
                         let _ = writeln!(
                             self.out,
@@ -1544,8 +1584,23 @@ impl<'a> FnEmitter<'a> {
                 };
                 let end_v = match end {
                     Some(op) => self.emit_operand(op)?.0,
-                    None => base_len,
+                    None => base_len.clone(),
                 };
+                let tid = self.tmp;
+                self.tmp += 1;
+                let l_ok = format!("slice_ok_{tid}");
+                let l_oob = format!("slice_oob_{tid}");
+                let ok1 = self.fresh();
+                let _ = writeln!(self.out, "  {ok1} = icmp ule i64 {start_v}, {end_v}");
+                let ok2 = self.fresh();
+                let _ = writeln!(self.out, "  {ok2} = icmp ule i64 {end_v}, {base_len}");
+                let ok = self.fresh();
+                let _ = writeln!(self.out, "  {ok} = and i1 {ok1}, {ok2}");
+                let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_oob}");
+                let _ = writeln!(self.out, "{l_oob}:");
+                let _ = writeln!(self.out, "  call void @abort()");
+                let _ = writeln!(self.out, "  unreachable");
+                let _ = writeln!(self.out, "{l_ok}:");
                 let elem_llvm = llvm_storage_ty(self.tys(), elem_ty)?;
                 let new_ptr = self.fresh();
                 let _ = writeln!(

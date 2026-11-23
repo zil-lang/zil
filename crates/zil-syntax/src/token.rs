@@ -50,6 +50,7 @@ pub enum Symbol {
     Colon,
     Dot,
     DotDot,
+    DotDotEq,
     Ellipsis,
     ColonColon,
     Hash,

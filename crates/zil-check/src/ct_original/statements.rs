@@ -478,7 +478,7 @@ impl Checker<'_, '_, '_> {
                 }
                 Ok(())
             }
-            s::PatternKind::RecordConstructor { path, fields } => {
+            s::PatternKind::RecordConstructor { path, fields, .. } => {
                 let Ty::Nominal(_id, _) = &value.ty else {
                     return Err(bad(
                         span,
