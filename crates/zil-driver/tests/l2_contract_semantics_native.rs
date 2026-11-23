@@ -3109,3 +3109,346 @@ fn raw_wire_unified_call_effects_closure_dynslot_and_desc_alias_checked() {
         ));
     }
 }
+
+#[test]
+fn preconstructed_aggregate_mut_cap_controls_execute_natively_on_dual_backends() {
+    let dir = temp_dir("entry-aggregate-mut-cap-native");
+    let src = r#"
+struct Pair { a: i32, b: i32 }
+struct ReadContext<life a> { ptr: &'a Pair, tag: i32 }
+struct MutContext<life a> { ptr: &'a mut Pair, tag: i32 }
+
+fn inspect_readonly<life a>(rc: ReadContext<'a>) -> i32 {
+    return rc.ptr.a + rc.tag
+}
+
+fn read_only_ok<life a>(rc: ReadContext<'a>) -> i32
+    contract { effects(invalidates()); }
+{
+    return inspect_readonly(rc)
+}
+
+fn change<life a>(c: MutContext<'a>) {
+    c.ptr.a = c.ptr.a + c.tag
+}
+
+fn precise_projection_ok<life a>(c: MutContext<'a>)
+    contract { effects(invalidates(c.ptr)); }
+{
+    change(c)
+}
+
+fn main() -> i32 {
+    var p = Pair { a: 10, b: 20 }
+    let r = read_only_ok(ReadContext { ptr: &p, tag: 5 })
+    precise_projection_ok(MutContext { ptr: &mut p, tag: 32 })
+    if r == 15 && p.a == 42 && p.b == 20 {
+        return 0
+    }
+    return 1
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert!(stdout.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn preconstructed_aggregate_mut_cap_violations_are_rejected() {
+    let dir = temp_dir("entry-aggregate-mut-cap-reject");
+
+    // 1. Pre-constructed `Context<'a>` containing `&'a mut Pair` passed to unknown Direct `change(c)`
+    //    MUST be rejected under `effects(invalidates())`.
+    check_rejected(
+        &dir,
+        "preconstructed_context_direct_call_violates_empty_invalidates",
+        r#"
+struct Pair { a: i32 }
+struct Context<life a> { ptr: &'a mut Pair, tag: i32 }
+fn change<life a>(c: Context<'a>) { c.ptr.a = 1 }
+fn bad<life a>(c: Context<'a>) contract { effects(invalidates()); } {
+    change(c)
+}
+fn main() -> i32 {
+    var p = Pair { a: 0 }
+    bad(Context { ptr: &mut p, tag: 7 })
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 2. Disjoint field upper bound `effects(invalidates(c.tag))` must still reject mutating `c.ptr`.
+    check_rejected(
+        &dir,
+        "preconstructed_context_direct_call_violates_disjoint_tag_invalidates",
+        r#"
+struct Pair { a: i32 }
+struct Context<life a> { ptr: &'a mut Pair, tag: i32 }
+fn change<life a>(c: Context<'a>) { c.ptr.a = 1 }
+fn bad<life a>(c: Context<'a>) contract { effects(invalidates(c.tag)); } {
+    change(c)
+}
+fn main() -> i32 {
+    var p = Pair { a: 0 }
+    bad(Context { ptr: &mut p, tag: 7 })
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 3. Pre-constructed `Context<'a>` captured mutably by a closure and modified
+    //    MUST be rejected by independent `zil-check` under empty upper bound.
+    check_rejected(
+        &dir,
+        "preconstructed_context_closure_capture_violates_empty_invalidates",
+        r#"
+struct Pair { a: i32 }
+struct Context<life a> { ptr: &'a mut Pair, tag: i32 }
+fn bad<life a>(c: Context<'a>) contract { effects(invalidates()); } {
+    let p = c.ptr
+    var f = () -> i32 => {
+        p.a = 1
+        return p.a
+    }
+    let _ = f()
+}
+fn main() -> i32 {
+    var p = Pair { a: 0 }
+    bad(Context { ptr: &mut p, tag: 7 })
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 4. Pre-constructed `Context<'a>` passed as Dyn provider input into `owned_dyn` MUST propagate
+    //    mutation effect on `DynSlot` call and reject under `effects(invalidates())`.
+    check_rejected(
+        &dir,
+        "preconstructed_context_dyn_provider_violates_empty_invalidates",
+        r#"
+struct Pair { a: i32 }
+struct Context<life a> { ptr: &'a mut Pair, tag: i32 }
+trait Mutator {
+    fn bump(self: &mut Self) -> i32;
+}
+impl<life a> Mutator for Context<'a> {
+    fn bump(self: &mut Self) -> i32 {
+        self.ptr.a = self.ptr.a + 1
+        return self.ptr.a
+    }
+}
+fn bad<life a>(c: Context<'a>) contract { effects(invalidates()); } {
+    match owned_dyn::<dyn Mutator, Context<'a>>(c) {
+        .err(_) => {}
+        .ok(m) => {
+            var mm = m
+            let _ = mm.bump()
+        }
+    }
+}
+fn main() -> i32 {
+    var p = Pair { a: 0 }
+    bad(Context { ptr: &mut p, tag: 7 })
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_preconstructed_aggregate_mut_cap_checked() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, Block, BlockId, Body, Callee, ConstValue, ContractFieldPath, FieldDef,
+        FieldIdx, FnId, FnRole, FnSig, Function, GenericArgs, IntTy, Local, LocalDecl, Module,
+        Mutability, Operand, ParamEnv, Place, Region, ResumeMode, StateContractClause, Terminator,
+        TyKind, TyTable, VariantDef, decode_module, encode_module,
+    };
+
+    let build_module = |declared_field: Option<u32>| -> Module {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+        let empty_args = tys.intern_args(GenericArgs {
+            tys: vec![],
+            regions: vec![],
+        });
+        let mut_i32 = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Exclusive,
+            pointee: i32_ty,
+        });
+        let ctx_adt = tys.add_adt(AdtDef {
+            name: "Context".into(),
+            kind: AdtKind::Record,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![VariantDef {
+                name: "Context".into(),
+                fields: vec![
+                    FieldDef {
+                        name: "ptr".into(),
+                        ty: mut_i32,
+                    },
+                    FieldDef {
+                        name: "tag".into(),
+                        ty: i32_ty,
+                    },
+                ],
+            }],
+            user_drop: false,
+        });
+        let ctx_ty = tys.intern(TyKind::Adt {
+            adt: ctx_adt,
+            args: empty_args,
+        });
+        let mut contracts = vec![StateContractClause::InvalidationUpperBound];
+        if let Some(fidx) = declared_field {
+            contracts.push(StateContractClause::Invalidates {
+                param: 0,
+                path: ContractFieldPath::from_slice(&[FieldIdx(fidx)]).unwrap(),
+            });
+        }
+        let caller = Function {
+            name: "context_caller".into(),
+            sig: FnSig {
+                params: vec![ctx_ty],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: contracts,
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![
+                    LocalDecl {
+                        ty: ctx_ty,
+                        name: Some("c".into()),
+                    },
+                    LocalDecl {
+                        ty: unit_ty,
+                        name: Some("res".into()),
+                    },
+                ],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Call {
+                            callee: Callee::Direct(FnId(1)),
+                            args: vec![Operand::Move(Place::local(Local(0)))],
+                            dest: Place::local(Local(1)),
+                            target: BlockId(1),
+                            cancel: None,
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                ],
+            },
+        };
+        let callee = Function {
+            name: "uncontracted_change".into(),
+            sig: FnSig {
+                params: vec![ctx_ty],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![LocalDecl {
+                    ty: ctx_ty,
+                    name: Some("c".into()),
+                }],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![Block {
+                    instructions: vec![],
+                    terminator: Terminator::Return {
+                        value: Operand::Const(ConstValue::Unit),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                }],
+            },
+        };
+        Module {
+            tys,
+            functions: vec![caller, callee],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![],
+        }
+    };
+
+    // 1. Forged empty upper bound MUST be rejected by independent zil-check.
+    {
+        let m = build_module(None);
+        let decoded = decode_module(&encode_module(&m)).expect("decode empty upper ctx module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve empty upper ctx module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject pre-constructed Context under empty upper bound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+
+    // 2. Disjoint field `c.tag` (field 1) MUST be rejected because `c.ptr` (field 0) is invalidated.
+    {
+        let m = build_module(Some(1));
+        let decoded = decode_module(&encode_module(&m)).expect("decode tag upper ctx module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve tag upper ctx module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject disjoint c.tag upper bound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+
+    // 3. Exact field `c.ptr` (field 0) MUST be accepted without widening to all of `c`.
+    {
+        let m = build_module(Some(0));
+        let decoded = decode_module(&encode_module(&m)).expect("decode ptr upper ctx module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve ptr upper ctx module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept exact c.ptr invalidation upper bound");
+    }
+}
