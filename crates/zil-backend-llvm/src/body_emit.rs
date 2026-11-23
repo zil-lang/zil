@@ -5062,9 +5062,12 @@ fn emit_dyn_vtables(
             let mut body_prefix = String::new();
             if slot.receiver.is_some() {
                 call_args.push("ptr %data".to_string());
-            } else if concrete_llvm != "void" {
-                let _ = writeln!(body_prefix, "  %self_val = load {concrete_llvm}, ptr %data");
-                call_args.push(format!("{concrete_llvm} %self_val"));
+            } else {
+                if concrete_llvm != "void" {
+                    let _ = writeln!(body_prefix, "  %self_val = load {concrete_llvm}, ptr %data");
+                    call_args.push(format!("{concrete_llvm} %self_val"));
+                }
+                let _ = writeln!(body_prefix, "  call void @free(ptr %data)");
             }
             for (pi, &pty) in slot.params.iter().enumerate() {
                 let plt = llvm_ty(&module.tys, pty)?;

@@ -812,3 +812,393 @@ fn raw_wire_valid_cert_per_field_borrow_release_and_conflict() {
         "expected exact ViolationKind::LoanConflict from zil-check, got: {check_err:?}"
     );
 }
+
+#[test]
+fn u5_closure_fnmut_path_sensitive_refill_safereject_and_native() {
+    let dir = temp_dir("fnmut-refill");
+
+    // 1. Negative: assignment occurs BEFORE `give` — field is left uninitialized on exit,
+    // so closure MUST be classified as FnOnce and rejected when passed to `FnMut`.
+    check_rejected(
+        &dir,
+        "assign_before_give_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+package Holder { manages item: Token }
+
+fn call_twice<F: FnMut() -> i64>(f: &mut F) -> i64 {
+    return f() + f()
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { id: 1 } }
+    var f = move () -> i64 => {
+        h.item = Token { id: 2 }
+        let old = give h.item
+        return old.id
+    }
+    let total = call_twice(&mut f)
+    return i32(total)
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 2. Negative: `give` and refill assignment are in mutually exclusive branches —
+    // one path exits with `h.item` uninitialized, so MUST NOT be classified as FnMut.
+    check_rejected(
+        &dir,
+        "exclusive_branch_give_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+package Holder { manages item: Token }
+
+fn call_twice<F: FnMut(bool) -> i64>(f: &mut F) -> i64 {
+    return f(true) + f(false)
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { id: 1 } }
+    var f = move (flag: bool) -> i64 => {
+        if flag {
+            let old = give h.item
+            return old.id
+        } else {
+            h.item = Token { id: 2 }
+            return 0
+        }
+    }
+    let total = call_twice(&mut f)
+    return i32(total)
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 3. Negative: `give` followed by conditional early `return` before refill —
+    // early exit leaves `h.item` uninitialized, so MUST NOT be classified as FnMut.
+    check_rejected(
+        &dir,
+        "early_return_before_refill_not_fnmut",
+        r#"
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+package Holder { manages item: Token }
+
+fn call_twice<F: FnMut(bool) -> i64>(f: &mut F) -> i64 {
+    return f(true) + f(false)
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { id: 1 } }
+    var f = move (flag: bool) -> i64 => {
+        let old = give h.item
+        if flag {
+            return old.id
+        }
+        h.item = Token { id: 2 }
+        return old.id + 10
+    }
+    let total = call_twice(&mut f)
+    return i32(total)
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 4. Negative: `give` followed by `?` early exit before refill —
+    // error exit leaves `h.item` uninitialized, so MUST NOT be classified as FnMut.
+    check_rejected(
+        &dir,
+        "try_early_exit_before_refill_not_fnmut",
+        r#"
+enum Fail {
+    Boom,
+}
+resource Token { id: i64 }
+impl Drop for Token {
+    fn drop(self: Self) { let _ = .id }
+}
+package Holder { manages item: Token }
+
+fn maybe_fail(flag: bool) -> Fail!i64 {
+    if flag {
+        return Fail.Boom
+    }
+    return 5
+}
+
+fn call_twice<F: FnMut(bool) -> Fail!i64>(f: &mut F) -> i64 {
+    let _ = f(true)
+    let _ = f(false)
+    return 0
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { id: 1 } }
+    var f = move (flag: bool) -> Fail!i64 => {
+        let old = give h.item
+        let v = maybe_fail(flag)?
+        h.item = Token { id: 2 }
+        return old.id + v
+    }
+    let _ = call_twice(&mut f)
+    return 0
+}
+"#,
+        "E-GENERIC-ARGUMENT",
+    );
+
+    // 5. Positive: `give` followed by refill on ALL branches is validly FnMut,
+    // runs across Clang O0/O2 + LLVM C-API O0/O2 with exact Drop execution.
+    let pos_src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+resource Token {
+    tag: i32,
+    val: i64,
+}
+impl Drop for Token {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+package Holder {
+    manages item: Token,
+}
+
+fn run_twice<F: FnMut(bool) -> i64>(f: &mut F) -> i64 {
+    let a = f(true)
+    let b = f(false)
+    return a + b
+}
+
+fn main() -> i32 {
+    var h = Holder { item: Token { tag: 65, val: 10 } }
+    var f = move (flag: bool) -> i64 => {
+        let old = give h.item
+        let v = old.val
+        if flag {
+            h.item = Token { tag: 66, val: 20 }
+        } else {
+            h.item = Token { tag: 67, val: 30 }
+        }
+        return v
+    }
+    let sum = run_twice(&mut f)
+    if sum != 30 { return 1 }
+    return 0
+}
+"#;
+    let entry = write_source(&dir, "all_paths_refill_fnmut.zil", pos_src);
+    assert_eq!(build_and_run_dual(&dir, &entry), 0);
+}
+
+#[test]
+fn raw_wire_valid_cert_forged_fnmut_uninit_capture_rejected() {
+    use zil_ir::body::{BlockId, ClosureDef, ClosureId, ClosureKind};
+
+    let sp = Span::new(FileId(0), 0, 1);
+    let mut tys = TyTable::new();
+    let i64_ty = tys.intern(TyKind::Int(IntTy::I64));
+    let bool_ty = tys.intern(TyKind::Bool);
+    let empty_args = tys.intern_args(GenericArgs {
+        tys: Vec::new(),
+        regions: Vec::new(),
+    });
+    let tok_adt = tys.add_adt(AdtDef {
+        name: "Tok".into(),
+        type_params: 0,
+        region_params: 0,
+        kind: AdtKind::Resource,
+        user_drop: false,
+        variants: vec![VariantDef {
+            name: "Tok".into(),
+            fields: vec![FieldDef {
+                name: "v".into(),
+                ty: i64_ty,
+            }],
+        }],
+    });
+    let tok_res_ty = tys.intern(TyKind::Adt {
+        adt: tok_adt,
+        args: empty_args,
+    });
+    let tok_ty = tys.intern(TyKind::Managed(tok_res_ty));
+    let holder_adt = tys.add_adt(AdtDef {
+        name: "Holder".into(),
+        type_params: 0,
+        region_params: 0,
+        kind: AdtKind::Record,
+        user_drop: false,
+        variants: vec![VariantDef {
+            name: "Holder".into(),
+            fields: vec![FieldDef {
+                name: "item".into(),
+                ty: tok_ty,
+            }],
+        }],
+    });
+    let holder_ty = tys.intern(TyKind::Adt {
+        adt: holder_adt,
+        args: empty_args,
+    });
+    let closure_id: ClosureId = tys.add_closure(ClosureDef {
+        type_params: 0,
+        kind: ClosureKind::FnMut,
+        captures: vec![holder_ty],
+        params: vec![bool_ty],
+        result: i64_ty,
+    });
+
+    // Forged FnMut closure body:
+    //   bb0: Switch(flag) -> bb1 (moves cap0.item, drops it, returns WITHOUT refilling!)
+    //                     -> bb2 (returns 0 with cap0 intact)
+    let cap_item = Place {
+        root: PlaceRoot::Capture(0),
+        projections: vec![Projection::Field(FieldRef {
+            adt: holder_adt,
+            args: empty_args,
+            variant: VariantIdx(0),
+            field: FieldIdx(0),
+        })],
+    };
+    let locals = vec![
+        LocalDecl {
+            ty: bool_ty,
+            name: Some("flag".into()),
+        },
+        LocalDecl {
+            ty: tok_ty,
+            name: Some("tmp".into()),
+        },
+    ];
+    let body = Body {
+        locals,
+        param_count: 1,
+        result: i64_ty,
+        captures: vec![holder_ty],
+        closure: Some(closure_id),
+        param_env: ParamEnv::default(),
+        drop_flags: Vec::new(),
+        blocks: vec![
+            Block {
+                instructions: Vec::new(),
+                terminator: Terminator::Switch {
+                    discr: Operand::Copy(Place::local(Local(0))),
+                    arms: vec![(1, BlockId(1))],
+                    otherwise: BlockId(2),
+                },
+                terminator_span: sp,
+            },
+            Block {
+                instructions: vec![
+                    Instruction {
+                        kind: InstructionKind::StorageLive(Local(1)),
+                        span: sp,
+                    },
+                    Instruction {
+                        kind: InstructionKind::Assign {
+                            dest: Place::local(Local(1)),
+                            value: Rvalue::Use(Operand::Move(cap_item)),
+                        },
+                        span: sp,
+                    },
+                    Instruction {
+                        kind: InstructionKind::Drop {
+                            place: Place::local(Local(1)),
+                        },
+                        span: sp,
+                    },
+                    Instruction {
+                        kind: InstructionKind::StorageDead(Local(1)),
+                        span: sp,
+                    },
+                ],
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Int {
+                        ty: IntTy::I64,
+                        bits: 1,
+                    }),
+                },
+                terminator_span: sp,
+            },
+            Block {
+                instructions: Vec::new(),
+                terminator: Terminator::Return {
+                    value: Operand::Const(ConstValue::Int {
+                        ty: IntTy::I64,
+                        bits: 0,
+                    }),
+                },
+                terminator_span: sp,
+            },
+        ],
+    };
+
+    let module = Module {
+        tys,
+        functions: vec![Function {
+            name: "forged_fnmut".into(),
+            sig: FnSig {
+                type_params: 0,
+                region_params: 0,
+                params: vec![bool_ty],
+                result: i64_ty,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: Vec::new(),
+            },
+            body,
+        }],
+        foreigns: Vec::new(),
+        statics: Vec::new(),
+        dyn_impls: Vec::new(),
+    };
+
+    let bytes = encode_module(&module);
+    let decoded = decode_module(&bytes).expect("wire roundtrip must decode");
+    let solve_errs = zil_solve::solve_module(&decoded, Budget { steps: 200_000 })
+        .expect_err("solver must reject forged FnMut returning with unrefilled capture field");
+    assert!(
+        solve_errs.iter().any(|e| matches!(
+            e,
+            SolveError::Violation {
+                violation: Violation {
+                    kind: ViolationKind::UseOfUninit { .. }
+                        | ViolationKind::UseOfMaybeUninit { .. },
+                    ..
+                },
+                ..
+            }
+        )),
+        "expected UseOfUninit/UseOfMaybeUninit from solver, got: {solve_errs:?}"
+    );
+
+    let valid_cert = Certificate {
+        functions: vec![FunctionCertificate {
+            function: FnId(0),
+            invariants: Vec::new(),
+        }],
+    };
+    let check_err = check_module(decoded, &valid_cert, CheckBudget { steps: 200_000 })
+        .expect_err("zil-check must reject forged FnMut returning with unrefilled capture field");
+    assert!(
+        matches!(
+            check_err.kind,
+            CheckErrorKind::Violation(Violation {
+                kind: ViolationKind::UseOfUninit { .. } | ViolationKind::UseOfMaybeUninit { .. },
+                ..
+            })
+        ),
+        "expected exact UseOfUninit/UseOfMaybeUninit from zil-check, got: {check_err:?}"
+    );
+}
