@@ -6,15 +6,15 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@e3a488c4f`](https://github.com/zil-lang/zil/commit/e3a488c4f)（开放 PR：0；Wave 3 PR #120/#121/#122 与 P0 安全收口 [PR #123](https://github.com/zil-lang/zil/pull/123) 已 4/4 远端 CI 全绿合入）
-- **当前阶段**：L1–L4 核心能力及 P0 安全收口（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#114](https://github.com/zil-lang/zil/pull/114)）、**方向 1 + 方向 2 基础语言可用性**（[PR #115](https://github.com/zil-lang/zil/pull/115)–[#119](https://github.com/zil-lang/zil/pull/119)）、Wave 3（[PR #120](https://github.com/zil-lang/zil/pull/120)/[#121](https://github.com/zil-lang/zil/pull/121)/[#122](https://github.com/zil-lang/zil/pull/122)）与 Wave 3 两项定点 P0 收口（[PR #123](https://github.com/zil-lang/zil/pull/123)：G5.2 `OwnedDyn` 按值 `self: Self` 堆释放 + G3.5 路径敏感 `FnMut` 字段补齐证明）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入 `main`。
-- **总体阻塞**：当前无未闭合的 P0 安全阻塞；两项 Wave 3 审核定点门均已在 PR #123 中通过双后端（Clang O0/O2 + LLVM C-API O0/O2）、`-Wl,--wrap=calloc/free` 零泄漏计数、`SafeReject` 与 Raw/Wire 有效证书 `zil-check` 独立复核闭合，Fixed Projects 21/21（17 原项目 + 4 预期拒绝、60/60 原生构建、152/152 比较）全绿。
-- **下一发布门**：按用户优先级推进剩余 L2（G5.3 借入 provider / G6.1–G6.2 协议状态机与失效关系）或其余 P1 能力；编译性能专项保持独立。
+- **主线基线**：[`main@1909c3cdd`](https://github.com/zil-lang/zil/commit/1909c3cdd)（开放 PR：0；Wave 3 PR #120/#121/#122、P0 收口 [PR #123](https://github.com/zil-lang/zil/pull/123) 与 PR #123 审核补正 [PR #124](https://github.com/zil-lang/zil/pull/124) 均已 4/4 远端 CI 全绿合入）
+- **当前阶段**：L1–L4 核心能力及 P0 安全收口（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#114](https://github.com/zil-lang/zil/pull/114)）、**方向 1 + 方向 2 基础语言可用性**（[PR #115](https://github.com/zil-lang/zil/pull/115)–[#119](https://github.com/zil-lang/zil/pull/119)）、Wave 3（[PR #120](https://github.com/zil-lang/zil/pull/120)/[#121](https://github.com/zil-lang/zil/pull/121)/[#122](https://github.com/zil-lang/zil/pull/122)）及两轮定点收口（[PR #123](https://github.com/zil-lang/zil/pull/123)：G5.2 按值 `OwnedDyn` 堆释放 + G3.5 路径敏感 `FnMut` 补齐；[PR #124](https://github.com/zil-lang/zil/pull/124)：`match`/`let` 模式隐式移动三层交叉核验、循环 `break` 后补齐精度、四组合 `Drop` stdout 精确比对、主动 `double_free` 探针与受控自检）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入 `main`。
+- **总体阻塞**：已验收的既有安全门（含 Wave 3 两项定点 P0 与 PR #123 审核补正项）均已闭合（不等同于对全语言所有权与控制流模型的完整形式化证明）；Fixed Projects 21/21（17 原项目 + 4 预期拒绝、60/60 原生构建、152/152 比较）全绿。
+- **下一发布门**：按原 P0 优先级推进 L2 剩余项 **G5.3（借入 provider `OwnedDyn<dyn Trait, Context<'a>>`）**、**G6.1**、**G6.2**；编译性能专项保持独立。
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@e3a488c4f 为基线）
+## 下一阶段施工安排（以 main@1909c3cdd 为基线）
 
-Wave 3 及定点 P0 收口 PR #123 已合入。后续并行语言 PR 必须在实际合并目标上执行 post-merge 编译及 Fixed Projects，不能只凭独立 PR 绿灯宣告集成成功。
+Wave 3 及 PR #123/#124 定点收口已合入。后续并行语言 PR 必须在实际合并目标上执行 post-merge 编译及 Fixed Projects，不能只凭独立 PR 绿灯宣告集成成功。
 
 **统一计量及安全门**：全仓 `tests/**/*.zil` `zil check --json` `status == "Success"` 计数**不是正例通过率或功能完成率**。每批须以精确文件路径、原始输入哈希和预期结果分开统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
@@ -26,14 +26,14 @@ Wave 3 及定点 P0 收口 PR #123 已合入。后续并行语言 PR 必须在�
 | G2.3 | 剩余：类型 / `Self` 依赖常量表达式；**核心闭环已合入**（PR #115/#117：固有 `impl` 块、具体类型/枚举静态关联函数派发、supertrait 蕴含与循环拒绝、关联类型绑定与跨 trait 消歧归一化） | 部分实现 | P1 | 覆盖未用定义期义务与循环负例；Verify 与双后端原生通过 |
 | G2.4 | 剩余：更广 supertrait 泛型实参；**核心闭环已合入**（PR #97/#98/#115/#117：内联方法、固有 `impl`（struct/package/enum/generic/primitive）、trait 泛型方法、关联类型约束 `T: Iter<Item = U>`、blanket impl 约束与 `where` 校验、管道/记录更新/字符字面量） | 部分实现 | P1 | 每子项含原生正例 + 冲突/越界负例；0 回归 |
 | G3.4 | 剩余：跨函数显式存储上界/复杂 lending 组合；**核心闭环已合入**（PR #99/#120：`Struct`/`Package`/`Tuple` 逐字段借用跟踪 `Carries::set_field`、字段覆写释放旧 loan、Raw/Wire 有效证书精确 `LoanConflict` 证明与双后端原生全绿） | 部分实现 | P1 | 覆盖悬垂/别名负例与双后端原生 |
-| G3.5 | 剩余：更一般跨线程捕获运输；**核心闭环与路径敏感 `FnMut` 补齐证明已合入**（PR #99/#120/#123：只读 `var` 共享捕获、非 `move` 按值 `FnOnce`、嵌套 `OuterCapture` 消费、前向路径敏感 `analyze_capture_moves` 证明全路径/早退补齐，4 类负例 + Raw/Wire 伪造 `FnMut` 有效证书 `zil-check` 拒绝与双后端原生全绿） | 部分实现 | P1 | 仅余远期跨线程捕获运输扩展；已合入正负例回归全绿 |
+| G3.5 | 剩余：更一般跨线程捕获运输；**核心闭环与路径敏感 `FnMut` 补齐证明已合入**（PR #99/#120/#123/#124：只读 `var` 共享捕获、非 `move` 按值 `FnOnce`、嵌套 `OuterCapture` 消费、前向路径敏感 `analyze_capture_moves` 覆盖 `give`/`match`/`let` 隐式移动与循环 `break` 后补齐，Typeck/MIR/Verify 三层交叉验证 + 四组合精确 `Drop` stdout 比对全绿） | 部分实现 | P1 | 仅余远期跨线程捕获运输扩展；底层 CFG 证明由 Solver/`zil-check` 担任最终权威 |
 | G4.5 | 剩余：rich callable、ambient `Type` 导出与 `#if`/`#for` 元语句；**CT 表达式与 `#{ ...; yield }` 块已合入**（PR #121：`MetaBlock` + `StmtKind::Yield` 经 verified `zil-interp` 求值及非法 `yield`/拥有载荷逃逸 `E-RESOURCE-TYPE` 拒绝） | 部分实现 | P1 | 经 verified `zil-interp` 执行；覆盖非法 CT 载荷负例与原生消费正例 |
 
 ## 3. L2 · 动态抽象与状态协议
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G5.2 | 剩余：有限泛型 method slot 派发；**核心闭环与按值 `self: Self` 堆释放已合入**（PR #121/#123：`check_dyn_object_safe`、参数化 `dyn Trait<T>` / `Assoc = T`、按值 thunk `load` 后 `free(%data)` 零泄漏经 `-Wl,--wrap=calloc/free` O0/O2 + 双后端单次 Drop + Raw/Wire 有效证书 `UseOfUninit` 全绿） | 部分实现 | P1 | 仅余有限泛型 method slot 派发；按值/借用 `OwnedDyn` 合同已闭环 |
+| G5.2 | 剩余：有限泛型 method slot 派发；**核心闭环与按值 `self: Self` 堆释放已合入**（PR #121/#123/#124：`check_dyn_object_safe`、参数化 `dyn Trait<T>` / `Assoc = T`、按值 thunk `load` 后 `free(%data)` 经 Clang/LLVM API × O0/O2 四组合单次 Drop + Clang `-O0`/`-O2` `-Wl,--wrap=calloc/free` 零泄漏与主动 `double_free` 探针自检 + Raw/Wire 有效证书 `UseOfUninit` 全绿） | 部分实现 | P1 | 仅余有限泛型 method slot 派发；按值/借用 `OwnedDyn` 既定门已闭环 |
 | G5.3 | 剩余：借入 provider（`OwnedDyn<dyn Trait, Context<'a>>`）、共同借入存储与管理 route | 部分实现 | P0 | 覆盖移动/销毁/分配失败原生正例 + provider 悬垂/逃逸负例 |
 | G6.1 | 剩余：更一般用户自定义协议状态机与别名规则（PR #102 已闭合内建协议 `requires(state)`/`provides(retired|on_pending|on_ready)` 的 IR/Wire 与独立 CFG 证明、传递 `Suspend` 跨挂起借用证明及 `resume(transfer)` 外部 Provider 角色/迁移 fail-closed） | 部分实现 | P0 | 覆盖跨分支状态合同正例 + 违反前置/后置/伪造 Raw-Wire 负例 |
 | G6.2 | 剩余：真实投影、失效关系、历史撤销与导出上界组合 | 部分实现 | P0 | 依赖 G6.1、G3.4；覆盖失效后访问拒绝负例与原生正例 |
