@@ -169,8 +169,8 @@ impl<K: Eq + Clone, V: Eq + Clone> MustFacts<K, V> {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Carries {
     sets: Vec<BitSet>,
-    /// Optional per-field loan breakdown for closure values; `None` falls back
-    /// conservatively to `sets[local]`.
+    /// Optional per-field loan breakdown for aggregate/closure values; `None`
+    /// falls back conservatively to `sets[local]`.
     fields: Vec<Option<Vec<BitSet>>>,
     loans: usize,
 }
@@ -203,6 +203,36 @@ impl Carries {
     }
     pub fn set_fields(&mut self, local: Local, field_loans: Vec<BitSet>) {
         self.fields[local.index()] = Some(field_loans);
+    }
+    /// Replaces field `idx`'s carried loans and recomputes the local's union.
+    /// Returns `false` if per-field tracking is unavailable for `local` or `idx`.
+    pub fn set_field(&mut self, local: Local, idx: usize, loans: BitSet) -> bool {
+        let Some(fields) = self.fields[local.index()].as_mut() else {
+            return false;
+        };
+        let Some(slot) = fields.get_mut(idx) else {
+            return false;
+        };
+        *slot = loans;
+        let mut union = BitSet::new(self.loans);
+        for f in fields.iter() {
+            union.union_with(f);
+        }
+        self.sets[local.index()] = union;
+        true
+    }
+    /// Unions `loans` into field `idx` and into the local's overall set.
+    /// Returns `false` if per-field tracking is unavailable for `local` or `idx`.
+    pub fn add_field(&mut self, local: Local, idx: usize, loans: &BitSet) -> bool {
+        let Some(fields) = self.fields[local.index()].as_mut() else {
+            return false;
+        };
+        let Some(slot) = fields.get_mut(idx) else {
+            return false;
+        };
+        slot.union_with(loans);
+        self.sets[local.index()].union_with(loans);
+        true
     }
     pub fn add(&mut self, local: Local, loans: &BitSet) {
         self.sets[local.index()].union_with(loans);
