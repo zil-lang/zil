@@ -25,15 +25,15 @@
 | G1.4 | 剩余：更深多层地址/资源包复杂组合；**核心闭环已合入**（PR #118：嵌套引用模式 `&pat`/`&mut pat`/`&&pat`、`Package`/`Record`/`Tuple`/`ErrorUnion` 条件部分移动与补齐 `drop_elab`、拥有 `Record` 字段 Drop 修复，6 份就绪 fixture 全过） | 部分实现 | P1 | 双后端 O0/O2 原生正例 + 部分移动/不可变 `ref mut` 负例全绿 |
 | G2.3 | 剩余：类型 / `Self` 依赖常量表达式；**核心闭环已合入**（PR #115/#117：固有 `impl` 块、具体类型/枚举静态关联函数派发、supertrait 蕴含与循环拒绝、关联类型绑定与跨 trait 消歧归一化） | 部分实现 | P1 | 覆盖未用定义期义务与循环负例；Verify 与双后端原生通过 |
 | G2.4 | 剩余：更广 supertrait 泛型实参；**核心闭环已合入**（PR #97/#98/#115/#117：内联方法、固有 `impl`（struct/package/enum/generic/primitive）、trait 泛型方法、关联类型约束 `T: Iter<Item = U>`、blanket impl 约束与 `where` 校验、管道/记录更新/字符字面量） | 部分实现 | P1 | 每子项含原生正例 + 冲突/越界负例；0 回归 |
-| G3.4 | 剩余：普通借入字段、存储上界、affine 借用、合法 lending 结果及资源包独占借用/字段转移组合 | 部分实现 | P0 | 按共用 loan/region 根因整链修复；覆盖悬垂/别名负例与双后端原生 |
-| G3.5 | 剩余：一般拥有 / 借入捕获及责任组合的消费者矩阵（捕获环境存储与跨调用运输） | 进行中 | P0 | 接 G3.4；覆盖 Fn/FnMut/FnOnce 捕获正例 + 逃逸/重复消费负例 + 双后端清理 |
-| G4.5 | 剩余：rich callable、ambient `Type` 导出与更一般可序列化值 / 拥有载荷 CT 组合（`#{ ...; yield }` / `#if`） | 部分实现 | P1 | 经 verified `zil-interp` 执行；覆盖非法 CT 载荷负例与原生消费正例 |
+| G3.4 | 剩余：跨函数显式存储上界/复杂 lending 组合；**核心闭环已合入**（PR #99/#120：`Struct`/`Package`/`Tuple` 逐字段借用跟踪 `Carries::set_field`、字段覆写释放旧 loan、Raw/Wire 有效证书精确 `LoanConflict` 证明与双后端原生全绿） | 部分实现 | P1 | 覆盖悬垂/别名负例与双后端原生 |
+| G3.5 | 剩余：更一般跨线程捕获运输；**核心闭环已合入**（PR #99/#120：非 `move` 闭包只读 `var` 降级共享捕获、消费拥有局部变量按值捕获 `FnOnce`、嵌套 `OuterCapture` 非 Copy 消费检查、`FnMut` 补齐兼容与 `Fn`/`FnMut`/`FnOnce` 消费者矩阵全绿） | 部分实现 | P1 | 覆盖 Fn/FnMut/FnOnce 捕获正例 + 逃逸/重复消费负例 + 双后端清理 |
+| G4.5 | 剩余：rich callable、ambient `Type` 导出与 `#if`/`#for` 元语句；**CT 表达式与 `#{ ...; yield }` 块已合入**（PR #121：`MetaBlock` + `StmtKind::Yield` 经 verified `zil-interp` 求值及非法 `yield`/拥有载荷逃逸 `E-RESOURCE-TYPE` 拒绝） | 部分实现 | P1 | 经 verified `zil-interp` 执行；覆盖非法 CT 载荷负例与原生消费正例 |
 
 ## 3. L2 · 动态抽象与状态协议
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G5.2 | 剩余：异构调用、静态 vtable、关联项与有限泛型 method slot 的真实派发 | 部分实现 | P0 | `zil-check` 独立校验 `DynImpl` 签名/身份；含异构原生正例 + 伪造槽位负例 |
+| G5.2 | 剩余：有限泛型 method slot 派发；**核心闭环已合入**（PR #121：`OwnedDyn` 对象安全 `check_dyn_object_safe` 诊断、参数化 `dyn Trait<T>` / `dyn Trait<Assoc = T>` 静态 vtable 单态化、异构 Copy + 拥有类型 LIFO Drop 双后端原生全绿） | 部分实现 | P1 | `zil-check` 独立校验 `DynImpl` 签名/身份；含异构原生正例 + 对象安全/伪造槽位负例 |
 | G5.3 | 剩余：借入 provider（`OwnedDyn<dyn Trait, Context<'a>>`）、共同借入存储与管理 route | 部分实现 | P0 | 覆盖移动/销毁/分配失败原生正例 + provider 悬垂/逃逸负例 |
 | G6.1 | 剩余：更一般用户自定义协议状态机与别名规则（PR #102 已闭合内建协议 `requires(state)`/`provides(retired|on_pending|on_ready)` 的 IR/Wire 与独立 CFG 证明、传递 `Suspend` 跨挂起借用证明及 `resume(transfer)` 外部 Provider 角色/迁移 fail-closed） | 部分实现 | P0 | 覆盖跨分支状态合同正例 + 违反前置/后置/伪造 Raw-Wire 负例 |
 | G6.2 | 剩余：真实投影、失效关系、历史撤销与导出上界组合 | 部分实现 | P0 | 依赖 G6.1、G3.4；覆盖失效后访问拒绝负例与原生正例 |
@@ -54,7 +54,7 @@
 
 | ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
 | --- | --- | --- | --- | --- |
-| G9.3 | 剩余：更一般高阶集合算法与 GAT lending 迭代；**核心闭环与 P0 安全证明已合入**（PR #109/#111/#114：默认始终加载内嵌 canonical `lib/std/*.zil` 并拒绝本地/祖先 `lib/std/` 覆盖与 `E-STD-RESERVED` 伪造、跨模块私有字段 `E-VISIBILITY` 强制、`StoreBorrow` 跨 `Desc` 参数及分支合流多定义 fail-closed `LoanConflict` + 真独立 `StoreNew` 合法对照、19 份标准库真实消费者与 `iterator`/`string_search`/`lending` 双后端原生全绿） | 部分实现 | P1 | 保留两后端标准库/迭代原生门与 Raw/Wire 有效证书回归门 |
+| G9.3 | 剩余：跨过程 `apart` 精度与更一般高阶集合算法；**核心闭环与拥有集合原生套件已合入**（PR #109/#111/#114/#121：canonical `lib/std/*.zil` 内嵌信任根、`E-VISIBILITY` 私有字段强制、跨 `Desc`/多定义 `StoreBorrow` fail-closed `LoanConflict`、19 份标准库消费者 + `iterator`/`string_search` + `std.owning_map`/`owning_hash_map`/`owning_hash_set`/`graph`/`buffered_io` 双后端原生全绿） | 部分实现 | P1 | 保留两后端标准库/迭代原生门与 Raw/Wire 有效证书回归门 |
 | G10.3 | 剩余：非 Linux ABI；**核心闭环与匿名联合已合入**（PR #113/#116：`IntrinsicOp::CCallback`（Wire 49）、递归 POD Record C-ABI 引用、glibc `errno` 桥接、LLVM 浮点/有符号整数常量降级修复、**匿名联合 `T | U`（含拥有载荷 Drop、规范排序与重复/非穷尽/双消费拒绝）**、`main()` ErrorUnion 错误载荷清理修复与 `owned-sum-consumer` 全 32 组合 ORACLE 双后端原生全绿） | 部分实现 | P1 | 跨模块与 C ABI 原生正例 + 越界/非法 ABI 与 Raw/Wire `CCallback` 负例全绿 |
 
 ## 6. 平台与 ZUI
