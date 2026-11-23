@@ -1028,6 +1028,22 @@ pub fn elaborate(body: &mut Body, tys: &mut TyTable, auto_drops: &HashSet<(Block
                         &mut flagged,
                         place,
                     );
+                } else if place.projections.is_empty()
+                    && let zil_ir::body::PlaceRoot::Capture(ci) = place.root
+                    && let Some(&cap_ty) = body.captures.get(ci as usize)
+                    && ufields
+                        .iter()
+                        .any(|u| u.root == place.root && !u.projections.is_empty())
+                {
+                    let mut subs = Vec::new();
+                    collect_live_cleanup_places(place, cap_ty, tys, &ufields, &mut subs);
+                    if subs.is_empty() {
+                        per_point.insert((bid, i), Init::UNINIT);
+                    } else {
+                        per_point.insert((bid, i), Init::INIT);
+                        partial_drops
+                            .insert((bid, i), subs.into_iter().map(|p| (p, None)).collect());
+                    }
                 } else {
                     per_point.insert((bid, i), Init::INIT);
                 }

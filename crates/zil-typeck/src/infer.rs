@@ -37,10 +37,20 @@ struct CaptureEntry {
     field_ty: Ty,
 }
 
+#[derive(Default)]
+struct ClosureUsage {
+    mutated: std::collections::HashSet<String>,
+    moved: std::collections::HashSet<String>,
+    given: std::collections::HashSet<String>,
+    called: std::collections::HashSet<String>,
+    direct_methods: Vec<(String, String)>,
+}
+
 struct CaptureEnv {
     /// Visible locals in the immediately enclosing function or closure: `(name, local, ty, mutable)`.
     outer: Vec<(String, LocalId, Ty, bool)>,
     move_capture: bool,
+    usage: ClosureUsage,
     captures: Vec<CaptureEntry>,
 }
 
@@ -2919,18 +2929,134 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             return None;
         };
 
-        let env = &mut self.capture_stack[depth];
-        let idx = if let Some(pos) = env.captures.iter().position(|c| c.source == source) {
+        let existing = self.capture_stack[depth]
+            .captures
+            .iter()
+            .position(|c| c.source == source);
+        let idx = if let Some(pos) = existing {
             pos
         } else {
+            let move_capture = self.capture_stack[depth].move_capture;
+            let moved_direct = self.capture_stack[depth].usage.moved.contains(name);
+            let given_direct = self.capture_stack[depth].usage.given.contains(name);
+            let mutated_direct = self.capture_stack[depth].usage.mutated.contains(name);
+            let called_direct = self.capture_stack[depth].usage.called.contains(name);
+            let direct_methods: Vec<String> = self.capture_stack[depth]
+                .usage
+                .direct_methods
+                .iter()
+                .filter(|(v, _)| v == name)
+                .map(|(_, m)| m.clone())
+                .collect();
+
             let orig_shallow = self.types.shallow(orig_ty);
-            let reborrow_mut = !env.move_capture
-                && matches!(
-                    self.types.data(orig_shallow),
-                    TyData::Ref { mutable: true, .. }
-                );
-            let by_value = env.move_capture || reborrow_mut;
-            let mutable = outer_mut;
+            let orig_data = self.types.data(orig_shallow).clone();
+            let reborrow_mut =
+                !move_capture && matches!(orig_data, TyData::Ref { mutable: true, .. });
+
+            let mut method_mutates = false;
+            let mut method_moves = false;
+            if !move_capture && !reborrow_mut {
+                for mname in &direct_methods {
+                    match &orig_data {
+                        TyData::Adt { adt, .. } => {
+                            if let Some(method) = self.items.adt(*adt).method_named(mname)
+                                && method.has_self
+                            {
+                                let self_ty =
+                                    self.items.func(method.fn_ref).params.first().map(|p| p.ty);
+                                match self_ty.map(|t| self.types.data(self.types.shallow(t))) {
+                                    Some(TyData::Ref { mutable: false, .. }) => {}
+                                    Some(TyData::Ref { mutable: true, .. }) => {
+                                        method_mutates = true;
+                                    }
+                                    Some(_) => {
+                                        method_moves = true;
+                                    }
+                                    None => {
+                                        method_mutates = true;
+                                    }
+                                }
+                            } else {
+                                method_mutates = true;
+                            }
+                        }
+                        TyData::Opaque(OpaqueKind::ByteBuffer | OpaqueKind::OwnedStore(_)) => {
+                            match mname.as_str() {
+                                "len" | "is_empty" | "capacity" | "get" | "as_slice" | "at" => {}
+                                _ => method_mutates = true,
+                            }
+                        }
+                        TyData::Unit
+                        | TyData::Bool
+                        | TyData::Never
+                        | TyData::Int(_)
+                        | TyData::Float(_)
+                        | TyData::Ref { .. }
+                        | TyData::Managed(_)
+                        | TyData::Desc(_)
+                        | TyData::Tuple(_)
+                        | TyData::Array { .. }
+                        | TyData::Slice(_)
+                        | TyData::ErrorUnion { .. }
+                        | TyData::Union(_)
+                        | TyData::FnPtr { .. }
+                        | TyData::Closure { .. }
+                        | TyData::ImplCallable { .. }
+                        | TyData::Dyn(_)
+                        | TyData::OwnedDyn { .. }
+                        | TyData::Opaque(_)
+                        | TyData::Param(_)
+                        | TyData::SelfParam
+                        | TyData::Assoc { .. }
+                        | TyData::ArrayConst { .. }
+                        | TyData::ConstParam(_)
+                        | TyData::ConstU32(_)
+                        | TyData::Type
+                        | TyData::Var(_)
+                        | TyData::Error => {
+                            method_mutates = true;
+                        }
+                    }
+                }
+            }
+
+            let is_non_copy = ty_is_non_copy(self.items, self.types, orig_ty);
+            let is_managed = matches!(orig_data, TyData::Managed(_));
+            let is_fn_once = matches!(
+                orig_data,
+                TyData::Closure {
+                    kind: ClosureKind::FnOnce,
+                    ..
+                } | TyData::ImplCallable {
+                    kind: ClosureKind::FnOnce,
+                    ..
+                }
+            );
+            let is_fn_mut = matches!(
+                orig_data,
+                TyData::Closure {
+                    kind: ClosureKind::FnMut,
+                    ..
+                } | TyData::ImplCallable {
+                    kind: ClosureKind::FnMut,
+                    ..
+                }
+            );
+            let consumed_by_value = if is_managed {
+                given_direct
+            } else {
+                is_non_copy && (moved_direct || given_direct || method_moves)
+            };
+            let move_by_value = !move_capture
+                && !reborrow_mut
+                && (consumed_by_value || (is_fn_once && called_direct));
+            let by_value = move_capture || reborrow_mut || move_by_value;
+            let mutable = if by_value {
+                outer_mut
+            } else {
+                outer_mut && (mutated_direct || method_mutates || (is_fn_mut && called_direct))
+            };
             let field_ty = if by_value {
                 orig_ty
             } else {
@@ -3144,9 +3270,15 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         self.loop_depth = 0;
         self.defer_depth = 0;
         self.in_unsafe = 0;
+        let usage = if move_capture {
+            ClosureUsage::default()
+        } else {
+            scan_closure_usage(params, body)
+        };
         self.capture_stack.push(CaptureEnv {
             outer,
             move_capture,
+            usage,
             captures: Vec::new(),
         });
 
@@ -3211,13 +3343,36 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             .pop()
             .expect("capture_stack pushed above");
         let mut moved_caps = Vec::new();
-        collect_moved_captures(&body_expr, &mut moved_caps);
+        let mut given_fields = Vec::new();
+        let mut assigned_fields = Vec::new();
+        collect_moved_captures(
+            &body_expr,
+            &mut moved_caps,
+            &mut given_fields,
+            &mut assigned_fields,
+        );
         for idx in moved_caps {
             if let Some(cap) = env.captures.get_mut(idx as usize)
                 && cap.by_value
                 && ty_is_non_copy(self.items, self.types, cap.orig_ty)
             {
                 cap.consumed = true;
+            }
+        }
+        for (idx, opt_field) in given_fields {
+            if let Some(cap) = env.captures.get_mut(idx as usize)
+                && cap.by_value
+                && ty_is_non_copy(self.items, self.types, cap.orig_ty)
+            {
+                let refilled = cap.mutable
+                    && assigned_fields.iter().any(|(ci, f)| {
+                        *ci == idx && (f.is_none() || (opt_field.is_some() && *f == opt_field))
+                    });
+                if refilled {
+                    cap.mutated = true;
+                } else {
+                    cap.consumed = true;
+                }
             }
         }
 
@@ -3239,16 +3394,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     span,
                 },
                 CaptureSource::OuterCapture(outer_idx) => {
-                    let is_managed = matches!(
-                        self.types.data(self.types.shallow(c.orig_ty)),
-                        TyData::Managed(_)
-                    );
+                    let is_non_copy = ty_is_non_copy(self.items, self.types, c.orig_ty);
                     let outer_env = self
                         .capture_stack
                         .last_mut()
                         .expect("OuterCapture requires enclosing closure");
                     let outer_cap = &mut outer_env.captures[outer_idx as usize];
-                    if c.consumed || (c.by_value && is_managed) {
+                    if c.consumed || (c.by_value && is_non_copy) {
                         outer_cap.consumed = true;
                     }
                     if c.mutated || (!c.by_value && c.mutable) {
@@ -9125,15 +9277,89 @@ fn ty_is_non_copy(items: &Items, types: &mut crate::ty::Types, ty: Ty) -> bool {
     walk(items, types, ty, 0)
 }
 
-fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
-    fn walk_place(e: &Expr, out: &mut Vec<u32>) {
+fn capture_place_field(expr: &Expr) -> Option<(u32, Option<u32>)> {
+    let mut top_field: Option<u32> = None;
+    let mut cur = expr;
+    loop {
+        match &cur.kind {
+            ExprKind::Capture(idx) => return Some((*idx, top_field)),
+            ExprKind::Field { base, field, .. } => {
+                top_field = Some(*field);
+                cur = base;
+            }
+            ExprKind::TupleField { base, index } => {
+                top_field = Some(*index);
+                cur = base;
+            }
+            ExprKind::Index { base, .. } => {
+                top_field = None;
+                cur = base;
+            }
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::Adt { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Tuple(_)
+            | ExprKind::Array(_)
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Unary { .. }
+            | ExprKind::Binary { .. }
+            | ExprKind::Logical { .. }
+            | ExprKind::Convert { .. }
+            | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Describe(_)
+            | ExprKind::Give(_)
+            | ExprKind::Len(_)
+            | ExprKind::Call { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
+            | ExprKind::Block(_)
+            | ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Loop(_)
+            | ExprKind::While { .. }
+            | ExprKind::Break
+            | ExprKind::Continue
+            | ExprKind::Return(_)
+            | ExprKind::Assign { .. } => return None,
+        }
+    }
+}
+
+fn collect_moved_captures(
+    expr: &Expr,
+    out: &mut Vec<u32>,
+    given_fields: &mut Vec<(u32, Option<u32>)>,
+    assigned_fields: &mut Vec<(u32, Option<u32>)>,
+) {
+    fn walk_place(
+        e: &Expr,
+        out: &mut Vec<u32>,
+        given_fields: &mut Vec<(u32, Option<u32>)>,
+        assigned_fields: &mut Vec<(u32, Option<u32>)>,
+    ) {
         match &e.kind {
             ExprKind::Field { base, .. }
             | ExprKind::TupleField { base, .. }
-            | ExprKind::Deref(base) => walk_place(base, out),
+            | ExprKind::Deref(base) => walk_place(base, out, given_fields, assigned_fields),
             ExprKind::Index { base, index } => {
-                walk_place(base, out);
-                collect_moved_captures(index, out);
+                walk_place(base, out, given_fields, assigned_fields);
+                collect_moved_captures(index, out, given_fields, assigned_fields);
             }
             ExprKind::Capture(_) | ExprKind::Local(_) => {}
             ExprKind::Lit(_)
@@ -9175,7 +9401,9 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
             | ExprKind::Break
             | ExprKind::Continue
             | ExprKind::Return(_)
-            | ExprKind::Assign { .. } => collect_moved_captures(e, out),
+            | ExprKind::Assign { .. } => {
+                collect_moved_captures(e, out, given_fields, assigned_fields);
+            }
         }
     }
 
@@ -9190,50 +9418,70 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
         | ExprKind::Deref(base)
         | ExprKind::Borrow { place: base, .. }
         | ExprKind::Describe(base)
-        | ExprKind::Len(base) => walk_place(base, out),
+        | ExprKind::Len(base) => walk_place(base, out, given_fields, assigned_fields),
         ExprKind::SliceBorrow {
             place, start, end, ..
         } => {
-            walk_place(place, out);
+            walk_place(place, out, given_fields, assigned_fields);
             if let Some(s) = start {
-                collect_moved_captures(s, out);
+                collect_moved_captures(s, out, given_fields, assigned_fields);
             }
             if let Some(e) = end {
-                collect_moved_captures(e, out);
+                collect_moved_captures(e, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Index { base, index } => {
-            walk_place(base, out);
-            collect_moved_captures(index, out);
+            walk_place(base, out, given_fields, assigned_fields);
+            collect_moved_captures(index, out, given_fields, assigned_fields);
         }
-        ExprKind::Give(inner)
-        | ExprKind::Try(inner)
+        ExprKind::Give(inner) => {
+            if let ExprKind::Capture(idx) = inner.kind {
+                if !out.contains(&idx) {
+                    out.push(idx);
+                }
+            } else if let Some(pair) = capture_place_field(inner) {
+                if !given_fields.contains(&pair) {
+                    given_fields.push(pair);
+                }
+                walk_place(inner, out, given_fields, assigned_fields);
+            } else {
+                collect_moved_captures(inner, out, given_fields, assigned_fields);
+            }
+        }
+        ExprKind::Try(inner)
         | ExprKind::ErrorInject { value: inner, .. }
         | ExprKind::UnionInject { value: inner }
         | ExprKind::Unary { operand: inner, .. }
         | ExprKind::Convert { operand: inner, .. }
-        | ExprKind::Loop(inner) => collect_moved_captures(inner, out),
+        | ExprKind::Loop(inner) => {
+            collect_moved_captures(inner, out, given_fields, assigned_fields);
+        }
         ExprKind::Binary { lhs, rhs, .. } | ExprKind::Logical { lhs, rhs, .. } => {
-            collect_moved_captures(lhs, out);
-            collect_moved_captures(rhs, out);
+            collect_moved_captures(lhs, out, given_fields, assigned_fields);
+            collect_moved_captures(rhs, out, given_fields, assigned_fields);
         }
         ExprKind::Assign { place, value, .. } => {
-            walk_place(place, out);
-            collect_moved_captures(value, out);
+            if let Some(pair) = capture_place_field(place)
+                && !assigned_fields.contains(&pair)
+            {
+                assigned_fields.push(pair);
+            }
+            walk_place(place, out, given_fields, assigned_fields);
+            collect_moved_captures(value, out, given_fields, assigned_fields);
         }
         ExprKind::Adt { fields, .. } | ExprKind::ManagedCreate { fields, .. } => {
             for f in fields {
-                collect_moved_captures(f, out);
+                collect_moved_captures(f, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
             for x in xs {
-                collect_moved_captures(x, out);
+                collect_moved_captures(x, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Closure { captures, .. } => {
             for c in captures {
-                collect_moved_captures(c, out);
+                collect_moved_captures(c, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Call { args, .. }
@@ -9241,13 +9489,13 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
         | ExprKind::TraitCall { args, .. }
         | ExprKind::Intrinsic { args, .. } => {
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::IndirectCall { callee, args } => {
-            collect_moved_captures(callee, out);
+            collect_moved_captures(callee, out, given_fields, assigned_fields);
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::ClosureCall {
@@ -9256,25 +9504,29 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
             args,
         } => {
             if *mode == ClosureCallMode::Once {
-                collect_moved_captures(closure, out);
+                collect_moved_captures(closure, out, given_fields, assigned_fields);
             } else {
-                walk_place(closure, out);
+                walk_place(closure, out, given_fields, assigned_fields);
             }
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::DynCall { object, args, .. } => {
-            walk_place(object, out);
+            walk_place(object, out, given_fields, assigned_fields);
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Block(stmts) => {
             for s in stmts {
                 match s {
-                    Stmt::Let { init, .. } => collect_moved_captures(init, out),
-                    Stmt::Expr(e) | Stmt::Defer(e) => collect_moved_captures(e, out),
+                    Stmt::Let { init, .. } => {
+                        collect_moved_captures(init, out, given_fields, assigned_fields);
+                    }
+                    Stmt::Expr(e) | Stmt::Defer(e) => {
+                        collect_moved_captures(e, out, given_fields, assigned_fields);
+                    }
                 }
             }
         }
@@ -9283,23 +9535,25 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
             then,
             otherwise,
         } => {
-            collect_moved_captures(cond, out);
-            collect_moved_captures(then, out);
+            collect_moved_captures(cond, out, given_fields, assigned_fields);
+            collect_moved_captures(then, out, given_fields, assigned_fields);
             if let Some(o) = otherwise {
-                collect_moved_captures(o, out);
+                collect_moved_captures(o, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Match { scrutinee, arms } => {
-            walk_place(scrutinee, out);
+            walk_place(scrutinee, out, given_fields, assigned_fields);
             for arm in arms {
-                collect_moved_captures(&arm.body, out);
+                collect_moved_captures(&arm.body, out, given_fields, assigned_fields);
             }
         }
         ExprKind::While { cond, body } => {
-            collect_moved_captures(cond, out);
-            collect_moved_captures(body, out);
+            collect_moved_captures(cond, out, given_fields, assigned_fields);
+            collect_moved_captures(body, out, given_fields, assigned_fields);
         }
-        ExprKind::Return(Some(v)) => collect_moved_captures(v, out),
+        ExprKind::Return(Some(v)) => {
+            collect_moved_captures(v, out, given_fields, assigned_fields);
+        }
         ExprKind::Return(None)
         | ExprKind::Lit(_)
         | ExprKind::ConstGeneric(_)
@@ -9312,4 +9566,545 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
         | ExprKind::Break
         | ExprKind::Continue => {}
     }
+}
+
+/// Pre-scans a non-`move` closure AST body to classify free outer variable
+/// references as read-only, mutated, moved/consumed, or called.
+fn scan_closure_usage(params: &[ast::ClosureParam], body: &ast::ArrowBody) -> ClosureUsage {
+    fn is_bound(bound: &[Vec<String>], name: &str) -> bool {
+        bound.iter().any(|s| s.iter().any(|n| n == name))
+    }
+
+    fn bind_pattern(pat: &ast::Pattern, scope: &mut Vec<String>) {
+        match &pat.kind {
+            ast::PatternKind::Name(n) => scope.push(n.clone()),
+            ast::PatternKind::Reference { pattern, .. }
+            | ast::PatternKind::Deref { pattern, .. }
+            | ast::PatternKind::ErrorArm { pattern, .. } => bind_pattern(pattern, scope),
+            ast::PatternKind::Tuple(ps) | ast::PatternKind::Constructor { arguments: ps, .. } => {
+                for p in ps {
+                    bind_pattern(p, scope);
+                }
+            }
+            ast::PatternKind::RecordConstructor { fields, .. } => {
+                for f in fields {
+                    bind_pattern(&f.pattern, scope);
+                }
+            }
+            ast::PatternKind::Wildcard | ast::PatternKind::Literal(_) => {}
+        }
+    }
+
+    /// Extracts `(root_name, has_projection)` for a direct place path without
+    /// crossing a `Dereference`.
+    fn root_place_name(expr: &ast::Expr) -> Option<(&str, bool)> {
+        match &expr.kind {
+            ast::ExprKind::Name(n) => Some((n.as_str(), false)),
+            ast::ExprKind::Group(inner) | ast::ExprKind::Ascribed { value: inner, .. } => {
+                root_place_name(inner)
+            }
+            ast::ExprKind::Member { object, .. }
+            | ast::ExprKind::Index { object, .. }
+            | ast::ExprKind::Slice { object, .. } => {
+                root_place_name(object).map(|(n, _)| (n, true))
+            }
+            ast::ExprKind::Literal(_)
+            | ast::ExprKind::ReceiverMember(_)
+            | ast::ExprKind::Tuple(_)
+            | ast::ExprKind::Array(_)
+            | ast::ExprKind::Unary { .. }
+            | ast::ExprKind::Binary { .. }
+            | ast::ExprKind::Pipeline { .. }
+            | ast::ExprKind::TypeApply { .. }
+            | ast::ExprKind::Call { .. }
+            | ast::ExprKind::Try(_)
+            | ast::ExprKind::Record { .. }
+            | ast::ExprKind::Closure { .. }
+            | ast::ExprKind::If { .. }
+            | ast::ExprKind::MetaEval(_)
+            | ast::ExprKind::MetaSplice(_)
+            | ast::ExprKind::Quote { .. }
+            | ast::ExprKind::MetaBlock(_)
+            | ast::ExprKind::SyntaxIsland { .. } => None,
+        }
+    }
+
+    fn scan_place(
+        expr: &ast::Expr,
+        force_move: bool,
+        bound: &mut Vec<Vec<String>>,
+        out: &mut ClosureUsage,
+    ) {
+        match &expr.kind {
+            ast::ExprKind::Name(n) => {
+                if force_move && !is_bound(bound, n) {
+                    out.moved.insert(n.clone());
+                    out.given.insert(n.clone());
+                }
+            }
+            ast::ExprKind::Group(inner) | ast::ExprKind::Ascribed { value: inner, .. } => {
+                scan_place(inner, force_move, bound, out);
+            }
+            ast::ExprKind::Member { object, .. } => {
+                scan_place(object, force_move, bound, out);
+            }
+            ast::ExprKind::Index { object, index } => {
+                scan_place(object, force_move, bound, out);
+                scan_expr(index, true, force_move, bound, out);
+            }
+            ast::ExprKind::Slice { object, start, end } => {
+                scan_place(object, force_move, bound, out);
+                if let Some(s) = start {
+                    scan_expr(s, true, force_move, bound, out);
+                }
+                if let Some(e) = end {
+                    scan_expr(e, true, force_move, bound, out);
+                }
+            }
+            ast::ExprKind::Literal(_)
+            | ast::ExprKind::ReceiverMember(_)
+            | ast::ExprKind::Tuple(_)
+            | ast::ExprKind::Array(_)
+            | ast::ExprKind::Unary { .. }
+            | ast::ExprKind::Binary { .. }
+            | ast::ExprKind::Pipeline { .. }
+            | ast::ExprKind::TypeApply { .. }
+            | ast::ExprKind::Call { .. }
+            | ast::ExprKind::Try(_)
+            | ast::ExprKind::Record { .. }
+            | ast::ExprKind::Closure { .. }
+            | ast::ExprKind::If { .. }
+            | ast::ExprKind::MetaEval(_)
+            | ast::ExprKind::MetaSplice(_)
+            | ast::ExprKind::Quote { .. }
+            | ast::ExprKind::MetaBlock(_)
+            | ast::ExprKind::SyntaxIsland { .. } => {
+                scan_expr(expr, false, force_move, bound, out);
+            }
+        }
+    }
+
+    fn unwrap_callee(mut expr: &ast::Expr) -> &ast::Expr {
+        loop {
+            match &expr.kind {
+                ast::ExprKind::Group(inner)
+                | ast::ExprKind::Ascribed { value: inner, .. }
+                | ast::ExprKind::TypeApply { callee: inner, .. } => expr = inner,
+                ast::ExprKind::Literal(_)
+                | ast::ExprKind::Name(_)
+                | ast::ExprKind::ReceiverMember(_)
+                | ast::ExprKind::Tuple(_)
+                | ast::ExprKind::Array(_)
+                | ast::ExprKind::Unary { .. }
+                | ast::ExprKind::Binary { .. }
+                | ast::ExprKind::Pipeline { .. }
+                | ast::ExprKind::Member { .. }
+                | ast::ExprKind::Call { .. }
+                | ast::ExprKind::Index { .. }
+                | ast::ExprKind::Slice { .. }
+                | ast::ExprKind::Try(_)
+                | ast::ExprKind::Record { .. }
+                | ast::ExprKind::Closure { .. }
+                | ast::ExprKind::If { .. }
+                | ast::ExprKind::MetaEval(_)
+                | ast::ExprKind::MetaSplice(_)
+                | ast::ExprKind::Quote { .. }
+                | ast::ExprKind::MetaBlock(_)
+                | ast::ExprKind::SyntaxIsland { .. } => return expr,
+            }
+        }
+    }
+
+    fn scan_expr(
+        expr: &ast::Expr,
+        in_value_pos: bool,
+        force_move: bool,
+        bound: &mut Vec<Vec<String>>,
+        out: &mut ClosureUsage,
+    ) {
+        match &expr.kind {
+            ast::ExprKind::Name(n) => {
+                if !is_bound(bound, n) {
+                    if in_value_pos || force_move {
+                        out.moved.insert(n.clone());
+                    }
+                    if force_move {
+                        out.given.insert(n.clone());
+                    }
+                }
+            }
+            ast::ExprKind::Group(inner) | ast::ExprKind::Ascribed { value: inner, .. } => {
+                scan_expr(inner, in_value_pos, force_move, bound, out);
+            }
+            ast::ExprKind::Unary { op, operand } => match op {
+                ast::UnaryOp::Borrow => scan_place(operand, force_move, bound, out),
+                ast::UnaryOp::BorrowMut => {
+                    if let Some((n, _)) = root_place_name(operand)
+                        && !is_bound(bound, n)
+                    {
+                        out.mutated.insert(n.to_string());
+                    }
+                    scan_place(operand, force_move, bound, out);
+                }
+                ast::UnaryOp::Give => {
+                    if let Some((n, _)) = root_place_name(operand)
+                        && !is_bound(bound, n)
+                    {
+                        out.moved.insert(n.to_string());
+                        out.given.insert(n.to_string());
+                    }
+                    scan_place(operand, force_move, bound, out);
+                }
+                ast::UnaryOp::Not
+                | ast::UnaryOp::Negate
+                | ast::UnaryOp::BitNot
+                | ast::UnaryOp::Dereference => {
+                    scan_expr(operand, false, force_move, bound, out);
+                }
+            },
+            ast::ExprKind::Binary { left, right, .. } => {
+                scan_expr(left, false, force_move, bound, out);
+                scan_expr(right, false, force_move, bound, out);
+            }
+            ast::ExprKind::Pipeline { input, target } => {
+                scan_expr(input, true, force_move, bound, out);
+                scan_expr(target, false, force_move, bound, out);
+            }
+            ast::ExprKind::Member { object, .. } => {
+                scan_place(object, force_move, bound, out);
+            }
+            ast::ExprKind::Index { object, index } => {
+                scan_place(object, force_move, bound, out);
+                scan_expr(index, true, force_move, bound, out);
+            }
+            ast::ExprKind::Slice { object, start, end } => {
+                scan_place(object, force_move, bound, out);
+                if let Some(s) = start {
+                    scan_expr(s, true, force_move, bound, out);
+                }
+                if let Some(e) = end {
+                    scan_expr(e, true, force_move, bound, out);
+                }
+            }
+            ast::ExprKind::Call { callee, arguments } => {
+                let mut skip_first_arg = false;
+                match &unwrap_callee(callee).kind {
+                    ast::ExprKind::Member { object, member } => {
+                        if let Some((n, has_proj)) = root_place_name(object)
+                            && !is_bound(bound, n)
+                        {
+                            if force_move {
+                                out.moved.insert(n.to_string());
+                            } else if !has_proj {
+                                match member {
+                                    ast::MemberName::Name(mname)
+                                    | ast::MemberName::Constrained { name: mname, .. } => {
+                                        out.direct_methods.push((n.to_string(), mname.clone()));
+                                    }
+                                    ast::MemberName::TupleIndex(_) => {
+                                        out.mutated.insert(n.to_string());
+                                    }
+                                }
+                            } else {
+                                out.mutated.insert(n.to_string());
+                            }
+                        }
+                        scan_place(object, force_move, bound, out);
+                    }
+                    ast::ExprKind::Name(n) => {
+                        let is_shared_intrinsic = matches!(
+                            n.as_str(),
+                            "bytes_len"
+                                | "bytes_capacity"
+                                | "bytes_view"
+                                | "store_len"
+                                | "store_capacity"
+                                | "store_at"
+                                | "mutex_lock"
+                                | "atomic_load"
+                                | "atomic_load_ordered"
+                                | "task_valid"
+                                | "registration_valid"
+                                | "async_registration_valid"
+                        );
+                        let is_mut_intrinsic = matches!(
+                            n.as_str(),
+                            "bytes_reserve"
+                                | "bytes_push"
+                                | "bytes_truncate"
+                                | "bytes_view_mut"
+                                | "store_reserve"
+                                | "store_push"
+                                | "store_pop"
+                                | "store_at_mut"
+                                | "mutex_value"
+                                | "atomic_store"
+                                | "atomic_fetch_add"
+                                | "atomic_compare_exchange"
+                                | "atomic_store_ordered"
+                                | "atomic_fetch_add_ordered"
+                                | "atomic_exchange_ordered"
+                                | "atomic_compare_exchange_ordered"
+                                | "task_poll"
+                                | "task_request_cancel"
+                                | "task_poll_close"
+                                | "task_finish_destroy"
+                                | "registration_close"
+                                | "async_registration_request_close"
+                                | "async_registration_poll_close"
+                                | "async_registration_finish_destroy"
+                                | "async_registration_finish_destroy_checked"
+                        );
+                        if (is_shared_intrinsic || is_mut_intrinsic) && !arguments.is_empty() {
+                            skip_first_arg = true;
+                            let first = &arguments[0].value;
+                            if is_mut_intrinsic
+                                && let Some((root, _)) = root_place_name(first)
+                                && !is_bound(bound, root)
+                            {
+                                if force_move {
+                                    out.moved.insert(root.to_string());
+                                } else {
+                                    out.mutated.insert(root.to_string());
+                                }
+                            }
+                            scan_place(first, force_move, bound, out);
+                        } else if !is_bound(bound, n) {
+                            if force_move {
+                                out.moved.insert(n.clone());
+                            } else {
+                                out.called.insert(n.clone());
+                            }
+                        }
+                    }
+                    ast::ExprKind::Literal(_)
+                    | ast::ExprKind::ReceiverMember(_)
+                    | ast::ExprKind::Group(_)
+                    | ast::ExprKind::Ascribed { .. }
+                    | ast::ExprKind::Tuple(_)
+                    | ast::ExprKind::Array(_)
+                    | ast::ExprKind::Unary { .. }
+                    | ast::ExprKind::Binary { .. }
+                    | ast::ExprKind::Pipeline { .. }
+                    | ast::ExprKind::TypeApply { .. }
+                    | ast::ExprKind::Call { .. }
+                    | ast::ExprKind::Index { .. }
+                    | ast::ExprKind::Slice { .. }
+                    | ast::ExprKind::Try(_)
+                    | ast::ExprKind::Record { .. }
+                    | ast::ExprKind::Closure { .. }
+                    | ast::ExprKind::If { .. }
+                    | ast::ExprKind::MetaEval(_)
+                    | ast::ExprKind::MetaSplice(_)
+                    | ast::ExprKind::Quote { .. }
+                    | ast::ExprKind::MetaBlock(_)
+                    | ast::ExprKind::SyntaxIsland { .. } => {
+                        scan_expr(callee, false, force_move, bound, out);
+                    }
+                }
+                for (idx, arg) in arguments.iter().enumerate() {
+                    if skip_first_arg && idx == 0 {
+                        continue;
+                    }
+                    scan_expr(&arg.value, true, force_move, bound, out);
+                }
+            }
+            ast::ExprKind::TypeApply { callee, .. } => {
+                scan_expr(callee, false, force_move, bound, out);
+            }
+            ast::ExprKind::Try(inner) => {
+                scan_expr(inner, true, force_move, bound, out);
+            }
+            ast::ExprKind::Tuple(items) | ast::ExprKind::Array(items) => {
+                for it in items {
+                    scan_expr(it, true, force_move, bound, out);
+                }
+            }
+            ast::ExprKind::Record { ty, base, fields } => {
+                if let Some(t) = ty {
+                    scan_expr(t, false, force_move, bound, out);
+                }
+                if let Some(b) = base {
+                    scan_expr(b, true, force_move, bound, out);
+                }
+                for f in fields {
+                    match &f.value {
+                        Some(v) => scan_expr(v, true, force_move, bound, out),
+                        None => {
+                            if !is_bound(bound, &f.name) {
+                                out.moved.insert(f.name.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            ast::ExprKind::If {
+                condition,
+                then_value,
+                else_value,
+            } => {
+                scan_expr(condition, false, force_move, bound, out);
+                scan_expr(then_value, in_value_pos, force_move, bound, out);
+                scan_expr(else_value, in_value_pos, force_move, bound, out);
+            }
+            ast::ExprKind::Closure {
+                move_capture,
+                params,
+                body,
+                ..
+            } => {
+                bound.push(params.iter().map(|p| p.name.clone()).collect());
+                scan_arrow_body(body, force_move || *move_capture, bound, out);
+                bound.pop();
+            }
+            ast::ExprKind::Literal(_)
+            | ast::ExprKind::ReceiverMember(_)
+            | ast::ExprKind::MetaEval(_)
+            | ast::ExprKind::MetaSplice(_)
+            | ast::ExprKind::Quote { .. }
+            | ast::ExprKind::MetaBlock(_)
+            | ast::ExprKind::SyntaxIsland { .. } => {}
+        }
+    }
+
+    fn scan_condition(
+        cond: &ast::Condition,
+        force_move: bool,
+        bound: &mut Vec<Vec<String>>,
+        out: &mut ClosureUsage,
+    ) {
+        match cond {
+            ast::Condition::Expression(e) => scan_expr(e, false, force_move, bound, out),
+            ast::Condition::Let { pattern, value } => {
+                scan_expr(value, false, force_move, bound, out);
+                if let Some(scope) = bound.last_mut() {
+                    bind_pattern(pattern, scope);
+                }
+            }
+        }
+    }
+
+    fn scan_stmt(
+        stmt: &ast::Stmt,
+        force_move: bool,
+        bound: &mut Vec<Vec<String>>,
+        out: &mut ClosureUsage,
+    ) {
+        match &stmt.kind {
+            ast::StmtKind::Binding { pattern, value, .. } => {
+                scan_expr(value, true, force_move, bound, out);
+                if let Some(scope) = bound.last_mut() {
+                    bind_pattern(pattern, scope);
+                }
+            }
+            ast::StmtKind::Assign { target, value, .. } => {
+                if let Some((n, _)) = root_place_name(target)
+                    && !is_bound(bound, n)
+                {
+                    if force_move {
+                        out.moved.insert(n.to_string());
+                    } else {
+                        out.mutated.insert(n.to_string());
+                    }
+                }
+                scan_place(target, force_move, bound, out);
+                scan_expr(value, true, force_move, bound, out);
+            }
+            ast::StmtKind::Return(Some(e)) | ast::StmtKind::Yield(e) => {
+                scan_expr(e, true, force_move, bound, out);
+            }
+            ast::StmtKind::Return(None)
+            | ast::StmtKind::Break
+            | ast::StmtKind::Continue
+            | ast::StmtKind::Meta(_) => {}
+            ast::StmtKind::Defer(b) | ast::StmtKind::Loop(b) | ast::StmtKind::Unsafe(b) => {
+                scan_block(b, force_move, bound, out);
+            }
+            ast::StmtKind::If {
+                condition,
+                then_body,
+                else_body,
+            } => {
+                bound.push(Vec::new());
+                scan_condition(condition, force_move, bound, out);
+                scan_block(then_body, force_move, bound, out);
+                bound.pop();
+                if let Some(eb) = else_body {
+                    match eb {
+                        ast::ElseBranch::Block(b) => scan_block(b, force_move, bound, out),
+                        ast::ElseBranch::If(s) => scan_stmt(s, force_move, bound, out),
+                    }
+                }
+            }
+            ast::StmtKind::While { condition, body } => {
+                bound.push(Vec::new());
+                scan_condition(condition, force_move, bound, out);
+                scan_block(body, force_move, bound, out);
+                bound.pop();
+            }
+            ast::StmtKind::For {
+                pattern,
+                iterable,
+                body,
+            } => {
+                scan_expr(iterable, true, force_move, bound, out);
+                bound.push(Vec::new());
+                if let Some(scope) = bound.last_mut() {
+                    bind_pattern(pattern, scope);
+                }
+                scan_block(body, force_move, bound, out);
+                bound.pop();
+            }
+            ast::StmtKind::Match { value, arms } => {
+                scan_place(value, force_move, bound, out);
+                for arm in arms {
+                    bound.push(Vec::new());
+                    if let Some(scope) = bound.last_mut() {
+                        bind_pattern(&arm.pattern, scope);
+                    }
+                    scan_arrow_body(&arm.body, force_move, bound, out);
+                    bound.pop();
+                }
+            }
+            ast::StmtKind::With { name, value, body } => {
+                scan_expr(value, true, force_move, bound, out);
+                bound.push(vec![name.clone()]);
+                scan_block(body, force_move, bound, out);
+                bound.pop();
+            }
+            ast::StmtKind::Expression(e) => {
+                scan_expr(e, false, force_move, bound, out);
+            }
+        }
+    }
+
+    fn scan_block(
+        block: &ast::Block,
+        force_move: bool,
+        bound: &mut Vec<Vec<String>>,
+        out: &mut ClosureUsage,
+    ) {
+        bound.push(Vec::new());
+        for s in &block.statements {
+            scan_stmt(s, force_move, bound, out);
+        }
+        bound.pop();
+    }
+
+    fn scan_arrow_body(
+        body: &ast::ArrowBody,
+        force_move: bool,
+        bound: &mut Vec<Vec<String>>,
+        out: &mut ClosureUsage,
+    ) {
+        match body {
+            ast::ArrowBody::Block(b) => scan_block(b, force_move, bound, out),
+            ast::ArrowBody::Expression(e) => scan_expr(e, true, force_move, bound, out),
+        }
+    }
+
+    let mut out = ClosureUsage::default();
+    let mut bound = vec![params.iter().map(|p| p.name.clone()).collect()];
+    scan_arrow_body(body, false, &mut bound, &mut out);
+    out
 }

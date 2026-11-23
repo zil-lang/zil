@@ -177,6 +177,42 @@ impl Kernel<'_> {
         self.close(state, &self.direct(state, root))
     }
 
+    /// Top-level field index for a projection on a single-variant aggregate
+    /// (`Record`/`Package`/`Resource` or `Tuple`). Enums and other projections
+    /// return `None` so callers fall back conservatively.
+    fn tracked_field_index(&self, proj: &Projection) -> Option<usize> {
+        match proj {
+            Projection::Field(fr) => {
+                let adt = self.tys.get_adt(fr.adt)?;
+                match adt.kind {
+                    zil_ir::body::AdtKind::Record
+                    | zil_ir::body::AdtKind::Package
+                    | zil_ir::body::AdtKind::Resource => Some(fr.field.index()),
+                    zil_ir::body::AdtKind::Enum => None,
+                }
+            }
+            Projection::TupleField(idx) => Some(*idx as usize),
+            Projection::ErrorArm(_)
+            | Projection::Index(_)
+            | Projection::ConstIndex(_)
+            | Projection::Deref => None,
+        }
+    }
+
+    /// Loans reachable from `place`, narrowing to a single field's carried set
+    /// when per-field tracking is active on the root local.
+    pub(crate) fn reach_place(&self, state: &State, place: &Place) -> BitSet {
+        if let PlaceRoot::Local(l) = place.root
+            && let Some(first) = place.projections.first()
+            && let Some(idx) = self.tracked_field_index(first)
+            && let Some(fields) = state.carries.fields_of(l)
+            && let Some(field_loans) = fields.get(idx)
+        {
+            return self.close(state, field_loans);
+        }
+        self.reach(state, place.root)
+    }
+
     /// A loan of this frame's own storage in `set`, if any.
     fn anchored(&self, set: &BitSet) -> Option<OpLocation> {
         set.iter()
@@ -251,7 +287,7 @@ impl Kernel<'_> {
         let cx = self.body.cx(self.tys);
         for (role, access, place) in accesses {
             if flows_value(role, access) {
-                let mut r = self.reach(state, place.root);
+                let mut r = self.reach_place(state, place);
                 if !place.projections.is_empty()
                     && let Ok(typing) = type_place(place, &cx)
                 {
@@ -320,20 +356,44 @@ impl Kernel<'_> {
                 };
                 let field_loans = if dest.projections.is_empty() && self.place_holds_address(dest) {
                     match value {
-                        Rvalue::Aggregate {
-                            kind: zil_ir::body::AggregateKind::Closure { .. },
-                            operands,
-                        } => Some(
-                            operands
-                                .iter()
-                                .map(|op| match op {
-                                    zil_ir::body::Operand::Copy(p)
-                                    | zil_ir::body::Operand::Move(p) => self.reach(state, p.root),
-                                    zil_ir::body::Operand::Const(_)
-                                    | zil_ir::body::Operand::Pooled(_) => self.empty_loans(),
-                                })
-                                .collect(),
-                        ),
+                        Rvalue::Aggregate { kind, operands } => {
+                            let track = match kind {
+                                zil_ir::body::AggregateKind::Closure { .. }
+                                | zil_ir::body::AggregateKind::Tuple => true,
+                                zil_ir::body::AggregateKind::Adt { adt, .. } => {
+                                    self.tys.get_adt(*adt).is_some_and(|def| match def.kind {
+                                        zil_ir::body::AdtKind::Record
+                                        | zil_ir::body::AdtKind::Package
+                                        | zil_ir::body::AdtKind::Resource => true,
+                                        zil_ir::body::AdtKind::Enum => false,
+                                    })
+                                }
+                                zil_ir::body::AggregateKind::Array { .. } => false,
+                            };
+                            if track {
+                                Some(
+                                    operands
+                                        .iter()
+                                        .map(|op| match op {
+                                            zil_ir::body::Operand::Copy(p)
+                                            | zil_ir::body::Operand::Move(p) => {
+                                                if self.place_holds_address(p) {
+                                                    self.reach_place(state, p)
+                                                } else {
+                                                    self.empty_loans()
+                                                }
+                                            }
+                                            zil_ir::body::Operand::Const(_)
+                                            | zil_ir::body::Operand::Pooled(_) => {
+                                                self.empty_loans()
+                                            }
+                                        })
+                                        .collect(),
+                                )
+                            } else {
+                                None
+                            }
+                        }
                         Rvalue::Use(
                             zil_ir::body::Operand::Copy(p) | zil_ir::body::Operand::Move(p),
                         ) if p.projections.is_empty() => match p.root {
@@ -343,7 +403,6 @@ impl Kernel<'_> {
                             PlaceRoot::Capture(_) => None,
                         },
                         Rvalue::Use(_)
-                        | Rvalue::Aggregate { .. }
                         | Rvalue::ErrorUnion { .. }
                         | Rvalue::Ref { .. }
                         | Rvalue::SliceRef { .. }
@@ -376,7 +435,7 @@ impl Kernel<'_> {
                         .map(|a| (a.role, a.access, a.place.as_ref())),
                 );
                 let outgoing = if self.local_holds_address(*old) {
-                    self.reach(state, place.root)
+                    self.reach_place(state, place)
                 } else {
                     self.empty_loans()
                 };
@@ -435,6 +494,16 @@ impl Kernel<'_> {
                 PlaceRoot::Local(d) => {
                     if place.projections.is_empty() {
                         state.carries.set(d, loans.clone());
+                    } else if let Some(first) = place.projections.first()
+                        && let Some(idx) = self.tracked_field_index(first)
+                    {
+                        if place.projections.len() == 1 {
+                            if !state.carries.set_field(d, idx, loans.clone()) {
+                                state.carries.add(d, loans);
+                            }
+                        } else if !state.carries.add_field(d, idx, loans) {
+                            state.carries.add(d, loans);
+                        }
                     } else {
                         state.carries.add(d, loans);
                     }
@@ -1399,7 +1468,7 @@ impl Kernel<'_> {
                 return Ok(());
             }
         }
-        let loans = self.reach(state, place.root);
+        let loans = self.reach_place(state, place);
         if let Some(loan) = self.loans_overlap(&loans, mutated) {
             return Err(ViolationKind::LoanConflict {
                 place: place.clone(),

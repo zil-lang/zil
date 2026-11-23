@@ -390,23 +390,44 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                                         (FieldFlow::Top, FieldFlow::Top)
                                     } else {
                                         match value {
-                                            Rvalue::Aggregate {
-                                                kind: AggregateKind::Closure { .. },
-                                                operands,
-                                            } => (
-                                                FieldFlow::Known(
-                                                    operands
-                                                        .iter()
-                                                        .map(|f| op_place_deps(f, &deps))
-                                                        .collect(),
-                                                ),
-                                                FieldFlow::Known(
-                                                    operands
-                                                        .iter()
-                                                        .map(|f| op_place_cap_deps(f, &cap_deps))
-                                                        .collect(),
-                                                ),
-                                            ),
+                                            Rvalue::Aggregate { kind, operands } => {
+                                                let track = match kind {
+                                                    AggregateKind::Closure { .. }
+                                                    | AggregateKind::Tuple => true,
+                                                    AggregateKind::Adt { adt, .. } => module
+                                                        .tys
+                                                        .get_adt(*adt)
+                                                        .is_some_and(|def| match def.kind {
+                                                            zil_ir::body::AdtKind::Record
+                                                            | zil_ir::body::AdtKind::Package
+                                                            | zil_ir::body::AdtKind::Resource => {
+                                                                true
+                                                            }
+                                                            zil_ir::body::AdtKind::Enum => false,
+                                                        }),
+                                                    AggregateKind::Array { .. } => false,
+                                                };
+                                                if track {
+                                                    (
+                                                        FieldFlow::Known(
+                                                            operands
+                                                                .iter()
+                                                                .map(|f| op_place_deps(f, &deps))
+                                                                .collect(),
+                                                        ),
+                                                        FieldFlow::Known(
+                                                            operands
+                                                                .iter()
+                                                                .map(|f| {
+                                                                    op_place_cap_deps(f, &cap_deps)
+                                                                })
+                                                                .collect(),
+                                                        ),
+                                                    )
+                                                } else {
+                                                    (FieldFlow::Top, FieldFlow::Top)
+                                                }
+                                            }
                                             Rvalue::Use(Operand::Copy(p) | Operand::Move(p))
                                                 if p.projections.is_empty() =>
                                             {
@@ -425,7 +446,6 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                                                 }
                                             }
                                             Rvalue::Use(_)
-                                            | Rvalue::Aggregate { .. }
                                             | Rvalue::ErrorUnion { .. }
                                             | Rvalue::Ref { .. }
                                             | Rvalue::SliceRef { .. }
