@@ -82,6 +82,7 @@ pub struct TraitMethodDecl<'a> {
 pub struct TraitDecl<'a> {
     pub module: ModIdx,
     pub name: String,
+    pub generics: Vec<GenericInfo>,
     pub supertraits: Vec<TraitBound>,
     pub assoc_types: Vec<String>,
     pub methods: Vec<TraitMethodDecl<'a>>,
@@ -368,7 +369,7 @@ impl<'a> Items<'a> {
             TyData::Desc(_) | TyData::FnPtr { .. } => true,
             TyData::Closure { .. }
             | TyData::ImplCallable { .. }
-            | TyData::Dyn(_)
+            | TyData::Dyn { .. }
             | TyData::OwnedDyn { .. } => false,
             TyData::Managed(_) => false,
             TyData::Opaque(OpaqueKind::ForeignHandle | OpaqueKind::ForeignCallback { .. }) => true,
@@ -641,6 +642,113 @@ impl<'a> Items<'a> {
         false
     }
 
+    /// Validates that `dyn Trait<trait_args, assoc_bindings>` is object-safe:
+    /// - Trait generic argument arity matches the trait declaration.
+    /// - Every associated type binding names a declared associated type on the trait.
+    /// - Every method has a `self` receiver (`self`, `&self`, or `&mut self`), has no
+    ///   method-level generic type parameters, and does not mention `Self` in any
+    ///   non-receiver parameter or its return type after substituting `assoc_bindings`.
+    pub fn check_dyn_object_safe(
+        &self,
+        tr: TraitRef,
+        trait_args: &[Ty],
+        assoc_bindings: &[(String, Ty)],
+        types: &mut Types,
+    ) -> Result<(), String> {
+        let decl = self.trait_decl(tr);
+        if trait_args.len() != decl.generics.len() {
+            return Err(format!(
+                "trait `{}` expects {} type argument(s), found {}",
+                decl.name,
+                decl.generics.len(),
+                trait_args.len()
+            ));
+        }
+        for (name, _) in assoc_bindings {
+            if !decl.assoc_types.iter().any(|a| a == name) {
+                return Err(format!(
+                    "trait `{}` has no associated type `{name}`",
+                    decl.name
+                ));
+            }
+        }
+        let self_param = types.intern(TyData::SelfParam);
+        let decl_name = decl.name.clone();
+        let methods = decl.methods.clone();
+        for m in methods {
+            if !m.generics.is_empty() {
+                return Err(format!(
+                    "trait `{decl_name}` is not object-safe: method `{}` has generic type parameters",
+                    m.name
+                ));
+            }
+            let Some(&first) = m.params.first() else {
+                return Err(format!(
+                    "trait `{decl_name}` is not object-safe: method `{}` has no `self` receiver",
+                    m.name
+                ));
+            };
+            let valid_receiver = match *types.data(types.shallow(first)) {
+                TyData::SelfParam => true,
+                TyData::Ref { pointee, .. } => {
+                    matches!(*types.data(types.shallow(pointee)), TyData::SelfParam)
+                }
+                TyData::Unit
+                | TyData::Type
+                | TyData::ConstU32(_)
+                | TyData::Bool
+                | TyData::Never
+                | TyData::Int(_)
+                | TyData::Float(_)
+                | TyData::Tuple(_)
+                | TyData::Array { .. }
+                | TyData::ArrayConst { .. }
+                | TyData::Slice(_)
+                | TyData::Adt { .. }
+                | TyData::Managed(_)
+                | TyData::Desc(_)
+                | TyData::Opaque(_)
+                | TyData::ErrorUnion { .. }
+                | TyData::Union(_)
+                | TyData::FnPtr { .. }
+                | TyData::Closure { .. }
+                | TyData::ImplCallable { .. }
+                | TyData::Dyn { .. }
+                | TyData::OwnedDyn { .. }
+                | TyData::Param(_)
+                | TyData::ConstParam(_)
+                | TyData::Assoc { .. }
+                | TyData::Var(_)
+                | TyData::Error => false,
+            };
+            if !valid_receiver {
+                return Err(format!(
+                    "trait `{decl_name}` is not object-safe: method `{}` has no `self` receiver",
+                    m.name
+                ));
+            }
+            for &p in m.params.iter().skip(1) {
+                let t = types.subst(p, trait_args);
+                let t = types.subst_self_assoc(t, self_param, tr, assoc_bindings);
+                if types.contains_self_param(t) {
+                    return Err(format!(
+                        "trait `{decl_name}` is not object-safe: method `{}` references `Self` in a parameter type",
+                        m.name
+                    ));
+                }
+            }
+            let ret = types.subst(m.result, trait_args);
+            let ret = types.subst_self_assoc(ret, self_param, tr, assoc_bindings);
+            if types.contains_self_param(ret) {
+                return Err(format!(
+                    "trait `{decl_name}` is not object-safe: method `{}` references `Self` in its return type",
+                    m.name
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Matches a (possibly generic) inherent impl's target pattern against `self_ty`.
     /// Returns the substituted impl generic arguments if matched.
     pub fn match_inherent_impl(
@@ -901,7 +1009,7 @@ impl<'a> Items<'a> {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
-            | TyData::Dyn(_)
+            | TyData::Dyn { .. }
             | TyData::OwnedDyn { .. }
             | TyData::Param(_)
             | TyData::SelfParam
@@ -2421,6 +2529,7 @@ fn collect_trait<'a>(
     TraitDecl {
         module: mid,
         name: qualify(&modules[mid.0 as usize].path, &tr.name),
+        generics,
         supertraits,
         assoc_types,
         methods,
@@ -2458,7 +2567,7 @@ fn promote_to_managed(ty: Ty, types: &mut Types) -> Option<Ty> {
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
-        | TyData::Dyn(_)
+        | TyData::Dyn { .. }
         | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
@@ -3668,7 +3777,7 @@ fn inherent_target_adt(ty: Ty, types: &Types) -> Option<AdtRef> {
             | TyData::FnPtr { .. }
             | TyData::Closure { .. }
             | TyData::ImplCallable { .. }
-            | TyData::Dyn(_)
+            | TyData::Dyn { .. }
             | TyData::OwnedDyn { .. }
             | TyData::Param(_)
             | TyData::SelfParam
@@ -3697,7 +3806,7 @@ fn inherent_target_adt(ty: Ty, types: &Types) -> Option<AdtRef> {
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
-        | TyData::Dyn(_)
+        | TyData::Dyn { .. }
         | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
@@ -3734,7 +3843,7 @@ fn inherent_targets_overlap(a: Ty, b: Ty, types: &Types) -> bool {
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
-        | TyData::Dyn(_)
+        | TyData::Dyn { .. }
         | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
@@ -3765,7 +3874,7 @@ fn inherent_targets_overlap(a: Ty, b: Ty, types: &Types) -> bool {
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
-        | TyData::Dyn(_)
+        | TyData::Dyn { .. }
         | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
@@ -3823,7 +3932,7 @@ fn inherent_target_label(ty: Ty, items: &Items<'_>, types: &Types) -> String {
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
-        | TyData::Dyn(_)
+        | TyData::Dyn { .. }
         | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
@@ -3994,7 +4103,7 @@ fn collect_inherent_impl<'a>(
         | TyData::FnPtr { .. }
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
-        | TyData::Dyn(_)
+        | TyData::Dyn { .. }
         | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
@@ -4682,7 +4791,7 @@ fn qualify_self_assoc(
         | TyData::Opaque(_)
         | TyData::Closure { .. }
         | TyData::ImplCallable { .. }
-        | TyData::Dyn(_)
+        | TyData::Dyn { .. }
         | TyData::OwnedDyn { .. }
         | TyData::Param(_)
         | TyData::SelfParam
@@ -4821,7 +4930,12 @@ fn resolve_type_with_lifetimes(
                         None,
                         types,
                     )?;
-                    let TyData::Dyn(tr) = *types.data(inner) else {
+                    let TyData::Dyn {
+                        trait_ref: tr,
+                        trait_args,
+                        assoc_bindings,
+                    } = types.data(inner).clone()
+                    else {
                         return Err(diag::error(
                             diag::TYPE_ARGUMENT,
                             t.span,
@@ -4845,6 +4959,8 @@ fn resolve_type_with_lifetimes(
                     };
                     return Ok(types.intern(TyData::OwnedDyn {
                         trait_ref: tr,
+                        trait_args,
+                        assoc_bindings,
                         context,
                     }));
                 }
@@ -5348,9 +5464,97 @@ fn resolve_type_with_lifetimes(
                 )),
             }
         }
-        ast::TypeKind::Dyn { path, .. } => {
+        ast::TypeKind::Dyn {
+            path,
+            args,
+            bindings,
+        } => {
             if let Some(ItemRef::Trait(tr)) = lookup_item_in(modules, mod_by_path, from, path) {
-                Ok(types.intern(TyData::Dyn(tr)))
+                let mut trait_args = Vec::new();
+                let mut assoc_bindings = Vec::new();
+                for a in args {
+                    match a {
+                        ast::GenericArg::Type(arg_ty) => {
+                            trait_args.push(resolve_type_with_lifetimes(
+                                arg_ty,
+                                from,
+                                generics,
+                                lifetimes,
+                                modules,
+                                mod_by_path,
+                                adt_kinds,
+                                self_ty,
+                                None,
+                                types,
+                            )?);
+                        }
+                        ast::GenericArg::AssociatedBinding(binding) => match &binding.kind {
+                            ast::DynBindingKind::Type { member, value } if member.len() == 1 => {
+                                let val_ty = resolve_type_with_lifetimes(
+                                    value,
+                                    from,
+                                    generics,
+                                    lifetimes,
+                                    modules,
+                                    mod_by_path,
+                                    adt_kinds,
+                                    self_ty,
+                                    None,
+                                    types,
+                                )?;
+                                assoc_bindings.push((member[0].clone(), val_ty));
+                            }
+                            ast::DynBindingKind::Type { .. }
+                            | ast::DynBindingKind::Constant { .. }
+                            | ast::DynBindingKind::Method { .. } => {
+                                return Err(diag::unsupported(
+                                    "unsupported associated binding in `dyn` type",
+                                    binding.span,
+                                ));
+                            }
+                        },
+                        ast::GenericArg::Lifetime(_) => {}
+                        ast::GenericArg::Const(_) => {
+                            return Err(diag::unsupported(
+                                "const generic argument in `dyn` type",
+                                t.span,
+                            ));
+                        }
+                    }
+                }
+                for binding in bindings {
+                    match &binding.kind {
+                        ast::DynBindingKind::Type { member, value } if member.len() == 1 => {
+                            let val_ty = resolve_type_with_lifetimes(
+                                value,
+                                from,
+                                generics,
+                                lifetimes,
+                                modules,
+                                mod_by_path,
+                                adt_kinds,
+                                self_ty,
+                                None,
+                                types,
+                            )?;
+                            assoc_bindings.push((member[0].clone(), val_ty));
+                        }
+                        ast::DynBindingKind::Type { .. }
+                        | ast::DynBindingKind::Constant { .. }
+                        | ast::DynBindingKind::Method { .. } => {
+                            return Err(diag::unsupported(
+                                "unsupported binding in `dyn` type",
+                                binding.span,
+                            ));
+                        }
+                    }
+                }
+                assoc_bindings.sort_by(|a, b| a.0.cmp(&b.0));
+                Ok(types.intern(TyData::Dyn {
+                    trait_ref: tr,
+                    trait_args,
+                    assoc_bindings,
+                }))
             } else {
                 Err(diag::error(
                     diag::NAME_UNRESOLVED,

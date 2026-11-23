@@ -109,11 +109,17 @@ pub enum TyData {
         params: Vec<Ty>,
         result: Ty,
     },
-    /// `dyn Trait` unsized pointee.
-    Dyn(TraitRef),
-    /// `OwnedDyn<dyn Trait>` or `OwnedDyn<dyn Trait, Context<'a>>` affine owner.
+    /// `dyn Trait<Args, Assoc = T>` unsized pointee.
+    Dyn {
+        trait_ref: TraitRef,
+        trait_args: Vec<Ty>,
+        assoc_bindings: Vec<(String, Ty)>,
+    },
+    /// `OwnedDyn<dyn Trait<Args, Assoc = T>>` or `OwnedDyn<dyn Trait<Args, Assoc = T>, Context<'a>>` affine owner.
     OwnedDyn {
         trait_ref: TraitRef,
+        trait_args: Vec<Ty>,
+        assoc_bindings: Vec<(String, Ty)>,
         context: Option<Ty>,
     },
     /// The n-th type parameter of the enclosing generic declaration.
@@ -216,7 +222,7 @@ fn ty_data_rank(d: &TyData) -> u8 {
         TyData::FnPtr { .. } => 15,
         TyData::Closure { .. } => 16,
         TyData::ImplCallable { .. } => 17,
-        TyData::Dyn(_) => 18,
+        TyData::Dyn { .. } => 18,
         TyData::OwnedDyn { .. } => 19,
         TyData::Param(_) => 20,
         TyData::SelfParam => 21,
@@ -275,6 +281,10 @@ impl Types {
     }
     pub fn error(&mut self) -> Ty {
         self.intern(TyData::Error)
+    }
+
+    pub fn is_error(&self, ty: Ty) -> bool {
+        matches!(self.data(self.shallow(ty)), TyData::Error)
     }
     pub fn int(&mut self, i: IntTy) -> Ty {
         self.intern(TyData::Int(i))
@@ -503,17 +513,39 @@ impl Types {
                     .then_with(|| self.cmp_ty_slice(p1, p2, depth))
                     .then_with(|| self.cmp_ty_depth(*r1, *r2, depth + 1))
             }
-            (TyData::Dyn(t1), TyData::Dyn(t2)) => t1.cmp(t2),
+            (
+                TyData::Dyn {
+                    trait_ref: t1,
+                    trait_args: a1,
+                    assoc_bindings: b1,
+                },
+                TyData::Dyn {
+                    trait_ref: t2,
+                    trait_args: a2,
+                    assoc_bindings: b2,
+                },
+            ) => t1
+                .cmp(t2)
+                .then_with(|| self.cmp_ty_slice(a1, a2, depth))
+                .then_with(|| self.cmp_assoc_bindings(b1, b2, depth)),
             (
                 TyData::OwnedDyn {
                     trait_ref: t1,
+                    trait_args: a1,
+                    assoc_bindings: b1,
                     context: c1,
                 },
                 TyData::OwnedDyn {
                     trait_ref: t2,
+                    trait_args: a2,
+                    assoc_bindings: b2,
                     context: c2,
                 },
-            ) => t1.cmp(t2).then_with(|| self.cmp_opt_ty(*c1, *c2, depth)),
+            ) => t1
+                .cmp(t2)
+                .then_with(|| self.cmp_ty_slice(a1, a2, depth))
+                .then_with(|| self.cmp_assoc_bindings(b1, b2, depth))
+                .then_with(|| self.cmp_opt_ty(*c1, *c2, depth)),
             (TyData::Param(i), TyData::Param(j))
             | (TyData::ConstParam(i), TyData::ConstParam(j))
             | (TyData::ConstU32(i), TyData::ConstU32(j)) => i.cmp(j),
@@ -547,6 +579,23 @@ impl Types {
             (TyData::Var(v1), TyData::Var(v2)) => v1.cmp(v2),
             _ => unreachable!("same ty_data_rank"),
         }
+    }
+
+    fn cmp_assoc_bindings(
+        &self,
+        a: &[(String, Ty)],
+        b: &[(String, Ty)],
+        depth: u32,
+    ) -> std::cmp::Ordering {
+        for ((n1, t1), (n2, t2)) in a.iter().zip(b.iter()) {
+            let ord = n1
+                .cmp(n2)
+                .then_with(|| self.cmp_ty_depth(*t1, *t2, depth + 1));
+            if ord != std::cmp::Ordering::Equal {
+                return ord;
+            }
+        }
+        a.len().cmp(&b.len())
     }
 
     fn flatten_union_members(&self, members: Vec<Ty>) -> Vec<Ty> {
@@ -659,12 +708,28 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
-            | TyData::Dyn(_)
             | TyData::Param(_)
             | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Error => false,
-            TyData::OwnedDyn { context, .. } => context.is_some_and(|c| self.occurs(v, c)),
+            TyData::Dyn {
+                trait_args,
+                assoc_bindings,
+                ..
+            } => {
+                trait_args.iter().any(|t| self.occurs(v, *t))
+                    || assoc_bindings.iter().any(|(_, t)| self.occurs(v, *t))
+            }
+            TyData::OwnedDyn {
+                trait_args,
+                assoc_bindings,
+                context,
+                ..
+            } => {
+                trait_args.iter().any(|t| self.occurs(v, *t))
+                    || assoc_bindings.iter().any(|(_, t)| self.occurs(v, *t))
+                    || context.is_some_and(|c| self.occurs(v, c))
+            }
         }
     }
 
@@ -830,17 +895,56 @@ impl Types {
                 }
             }
             (
+                TyData::Dyn {
+                    trait_ref: t1,
+                    trait_args: a1,
+                    assoc_bindings: b1,
+                },
+                TyData::Dyn {
+                    trait_ref: t2,
+                    trait_args: a2,
+                    assoc_bindings: b2,
+                },
+            ) => {
+                if t1 != t2 || a1.len() != a2.len() || b1.len() != b2.len() {
+                    return Err(Mismatch);
+                }
+                for (x, y) in a1.into_iter().zip(a2) {
+                    self.unify(x, y)?;
+                }
+                for ((n1, x), (n2, y)) in b1.into_iter().zip(b2) {
+                    if n1 != n2 {
+                        return Err(Mismatch);
+                    }
+                    self.unify(x, y)?;
+                }
+                Ok(())
+            }
+            (
                 TyData::OwnedDyn {
                     trait_ref: t1,
+                    trait_args: a1,
+                    assoc_bindings: b1,
                     context: c1,
                 },
                 TyData::OwnedDyn {
                     trait_ref: t2,
+                    trait_args: a2,
+                    assoc_bindings: b2,
                     context: c2,
                 },
             ) => {
-                if t1 != t2 {
+                if t1 != t2 || a1.len() != a2.len() || b1.len() != b2.len() {
                     return Err(Mismatch);
+                }
+                for (x, y) in a1.into_iter().zip(a2) {
+                    self.unify(x, y)?;
+                }
+                for ((n1, x), (n2, y)) in b1.into_iter().zip(b2) {
+                    if n1 != n2 {
+                        return Err(Mismatch);
+                    }
+                    self.unify(x, y)?;
                 }
                 match (c1, c2) {
                     (None, None) => Ok(()),
@@ -1115,17 +1219,53 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
-            | TyData::Dyn(_)
             | TyData::Param(_)
             | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Error => ty,
-            TyData::OwnedDyn { trait_ref, context } => {
+            TyData::Dyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.zonk(t))
+                    .collect::<Option<Vec<_>>>()?;
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| Some((n, self.zonk(t)?)))
+                    .collect::<Option<Vec<_>>>()?;
+                self.intern(TyData::Dyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                })
+            }
+            TyData::OwnedDyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+                context,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.zonk(t))
+                    .collect::<Option<Vec<_>>>()?;
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| Some((n, self.zonk(t)?)))
+                    .collect::<Option<Vec<_>>>()?;
                 let context = match context {
                     Some(c) => Some(self.zonk(c)?),
                     None => None,
                 };
-                self.intern(TyData::OwnedDyn { trait_ref, context })
+                self.intern(TyData::OwnedDyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                    context,
+                })
             }
         })
     }
@@ -1323,12 +1463,48 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
-            | TyData::Dyn(_)
             | TyData::Var(_)
             | TyData::Error => ty,
-            TyData::OwnedDyn { trait_ref, context } => {
+            TyData::Dyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.subst_with_self(t, args, self_ty))
+                    .collect();
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| (n, self.subst_with_self(t, args, self_ty)))
+                    .collect();
+                self.intern(TyData::Dyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                })
+            }
+            TyData::OwnedDyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+                context,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.subst_with_self(t, args, self_ty))
+                    .collect();
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| (n, self.subst_with_self(t, args, self_ty)))
+                    .collect();
                 let context = context.map(|c| self.subst_with_self(c, args, self_ty));
-                self.intern(TyData::OwnedDyn { trait_ref, context })
+                self.intern(TyData::OwnedDyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                    context,
+                })
             }
         }
     }
@@ -1498,13 +1674,49 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
-            | TyData::Dyn(_)
             | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,
-            TyData::OwnedDyn { trait_ref, context } => {
+            TyData::Dyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.subst(t, args))
+                    .collect();
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| (n, self.subst(t, args)))
+                    .collect();
+                self.intern(TyData::Dyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                })
+            }
+            TyData::OwnedDyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+                context,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.subst(t, args))
+                    .collect();
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| (n, self.subst(t, args)))
+                    .collect();
                 let context = context.map(|c| self.subst(c, args));
-                self.intern(TyData::OwnedDyn { trait_ref, context })
+                self.intern(TyData::OwnedDyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                    context,
+                })
             }
         }
     }
@@ -1651,16 +1863,319 @@ impl Types {
             | TyData::Never
             | TyData::Int(_)
             | TyData::Float(_)
-            | TyData::Dyn(_)
             | TyData::Param(_)
             | TyData::ConstParam(_)
             | TyData::SelfParam
             | TyData::Var(_)
             | TyData::Error => ty,
-            TyData::OwnedDyn { trait_ref, context } => {
-                let context = context.map(|c| self.erase_regions(c));
-                self.intern(TyData::OwnedDyn { trait_ref, context })
+            TyData::Dyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.erase_regions(t))
+                    .collect();
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| (n, self.erase_regions(t)))
+                    .collect();
+                self.intern(TyData::Dyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                })
             }
+            TyData::OwnedDyn {
+                trait_ref,
+                trait_args,
+                assoc_bindings,
+                context,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.erase_regions(t))
+                    .collect();
+                let assoc_bindings = assoc_bindings
+                    .into_iter()
+                    .map(|(n, t)| (n, self.erase_regions(t)))
+                    .collect();
+                let context = context.map(|c| self.erase_regions(c));
+                self.intern(TyData::OwnedDyn {
+                    trait_ref,
+                    trait_args,
+                    assoc_bindings,
+                    context,
+                })
+            }
+        }
+    }
+
+    /// Returns `true` if `TyData::SelfParam` appears anywhere inside `ty`.
+    pub fn contains_self_param(&self, ty: Ty) -> bool {
+        let ty = self.shallow(ty);
+        match self.data(ty) {
+            TyData::SelfParam => true,
+            TyData::Unit
+            | TyData::Type
+            | TyData::ConstU32(_)
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Param(_)
+            | TyData::ConstParam(_)
+            | TyData::Var(_)
+            | TyData::Error => false,
+            TyData::Tuple(items) | TyData::Union(items) => {
+                items.iter().any(|t| self.contains_self_param(*t))
+            }
+            TyData::Array { element, .. }
+            | TyData::Slice(element)
+            | TyData::Managed(element)
+            | TyData::Desc(element) => self.contains_self_param(*element),
+            TyData::ArrayConst { element, length } => {
+                self.contains_self_param(*element) || self.contains_self_param(*length)
+            }
+            TyData::Adt { args, .. } => args.iter().any(|t| self.contains_self_param(*t)),
+            TyData::Ref { pointee, .. } => self.contains_self_param(*pointee),
+            TyData::ErrorUnion { ok, err } => {
+                self.contains_self_param(*ok) || self.contains_self_param(*err)
+            }
+            TyData::Opaque(kind) => match kind {
+                OpaqueKind::ForeignHandle | OpaqueKind::ByteBuffer | OpaqueKind::SyncCell(_) => {
+                    false
+                }
+                OpaqueKind::OwnedStore(t)
+                | OpaqueKind::Mutex(t)
+                | OpaqueKind::MutexGuard(t)
+                | OpaqueKind::Registration(t)
+                | OpaqueKind::AsyncRegistration(t) => self.contains_self_param(*t),
+                OpaqueKind::Task { result, context } => {
+                    self.contains_self_param(*result)
+                        || context.is_some_and(|c| self.contains_self_param(c))
+                }
+                OpaqueKind::ForeignCallback { params, result } => {
+                    params.iter().any(|p| self.contains_self_param(*p))
+                        || self.contains_self_param(*result)
+                }
+            },
+            TyData::FnPtr { params, result } => {
+                params.iter().any(|p| self.contains_self_param(*p))
+                    || self.contains_self_param(*result)
+            }
+            TyData::Closure { owner_args, .. } => {
+                owner_args.iter().any(|a| self.contains_self_param(*a))
+            }
+            TyData::ImplCallable {
+                owner_args,
+                params,
+                result,
+                ..
+            } => {
+                owner_args.iter().any(|a| self.contains_self_param(*a))
+                    || params.iter().any(|p| self.contains_self_param(*p))
+                    || self.contains_self_param(*result)
+            }
+            TyData::Dyn {
+                trait_args,
+                assoc_bindings,
+                ..
+            } => {
+                trait_args.iter().any(|a| self.contains_self_param(*a))
+                    || assoc_bindings
+                        .iter()
+                        .any(|(_, t)| self.contains_self_param(*t))
+            }
+            TyData::OwnedDyn {
+                trait_args,
+                assoc_bindings,
+                context,
+                ..
+            } => {
+                trait_args.iter().any(|a| self.contains_self_param(*a))
+                    || assoc_bindings
+                        .iter()
+                        .any(|(_, t)| self.contains_self_param(*t))
+                    || context.is_some_and(|c| self.contains_self_param(c))
+            }
+            TyData::Assoc { base, .. } => self.contains_self_param(*base),
+        }
+    }
+
+    /// Replaces `Self.Assoc` projections (matching `target_self` and `trait_ref`) with
+    /// their bound types from `assoc_bindings`.
+    pub fn subst_self_assoc(
+        &mut self,
+        ty: Ty,
+        target_self: Ty,
+        trait_ref: TraitRef,
+        assoc_bindings: &[(String, Ty)],
+    ) -> Ty {
+        if assoc_bindings.is_empty() {
+            return ty;
+        }
+        let ty = self.shallow(ty);
+        let data = self.data(ty).clone();
+        match data {
+            TyData::Assoc {
+                base,
+                trait_ref: tr_opt,
+                name,
+            } => {
+                let base_s = self.shallow(base);
+                let target_s = self.shallow(target_self);
+                if base_s == target_s
+                    && (tr_opt.is_none() || tr_opt == Some(trait_ref))
+                    && let Some((_, rhs)) = assoc_bindings.iter().find(|(n, _)| *n == name)
+                {
+                    return *rhs;
+                }
+                let new_base = self.subst_self_assoc(base, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::Assoc {
+                    base: new_base,
+                    trait_ref: tr_opt,
+                    name,
+                })
+            }
+            TyData::Tuple(items) => {
+                let items = items
+                    .into_iter()
+                    .map(|t| self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings))
+                    .collect();
+                self.intern(TyData::Tuple(items))
+            }
+            TyData::Union(items) => {
+                let items = items
+                    .into_iter()
+                    .map(|t| self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings))
+                    .collect();
+                self.intern(TyData::Union(items))
+            }
+            TyData::Array { element, length } => {
+                let element =
+                    self.subst_self_assoc(element, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::Array { element, length })
+            }
+            TyData::ArrayConst { element, length } => {
+                let element =
+                    self.subst_self_assoc(element, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::ArrayConst { element, length })
+            }
+            TyData::Slice(element) => {
+                let element =
+                    self.subst_self_assoc(element, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::Slice(element))
+            }
+            TyData::Adt { adt, args, regions } => {
+                let args = args
+                    .into_iter()
+                    .map(|t| self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings))
+                    .collect();
+                self.intern(TyData::Adt { adt, args, regions })
+            }
+            TyData::Ref {
+                region,
+                mutable,
+                pointee,
+            } => {
+                let pointee =
+                    self.subst_self_assoc(pointee, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::Ref {
+                    region,
+                    mutable,
+                    pointee,
+                })
+            }
+            TyData::Managed(inner) => {
+                let inner = self.subst_self_assoc(inner, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::Managed(inner))
+            }
+            TyData::Desc(inner) => {
+                let inner = self.subst_self_assoc(inner, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::Desc(inner))
+            }
+            TyData::ErrorUnion { ok, err } => {
+                let ok = self.subst_self_assoc(ok, target_self, trait_ref, assoc_bindings);
+                let err = self.subst_self_assoc(err, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::ErrorUnion { ok, err })
+            }
+            TyData::FnPtr { params, result } => {
+                let params = params
+                    .into_iter()
+                    .map(|t| self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings))
+                    .collect();
+                let result = self.subst_self_assoc(result, target_self, trait_ref, assoc_bindings);
+                self.intern(TyData::FnPtr { params, result })
+            }
+            TyData::Dyn {
+                trait_ref: tr,
+                trait_args,
+                assoc_bindings: inner_assoc,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings))
+                    .collect();
+                let inner_assoc = inner_assoc
+                    .into_iter()
+                    .map(|(n, t)| {
+                        (
+                            n,
+                            self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings),
+                        )
+                    })
+                    .collect();
+                self.intern(TyData::Dyn {
+                    trait_ref: tr,
+                    trait_args,
+                    assoc_bindings: inner_assoc,
+                })
+            }
+            TyData::OwnedDyn {
+                trait_ref: tr,
+                trait_args,
+                assoc_bindings: inner_assoc,
+                context,
+            } => {
+                let trait_args = trait_args
+                    .into_iter()
+                    .map(|t| self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings))
+                    .collect();
+                let inner_assoc = inner_assoc
+                    .into_iter()
+                    .map(|(n, t)| {
+                        (
+                            n,
+                            self.subst_self_assoc(t, target_self, trait_ref, assoc_bindings),
+                        )
+                    })
+                    .collect();
+                let context = context
+                    .map(|c| self.subst_self_assoc(c, target_self, trait_ref, assoc_bindings));
+                self.intern(TyData::OwnedDyn {
+                    trait_ref: tr,
+                    trait_args,
+                    assoc_bindings: inner_assoc,
+                    context,
+                })
+            }
+            TyData::Opaque(_)
+            | TyData::Closure { .. }
+            | TyData::ImplCallable { .. }
+            | TyData::Unit
+            | TyData::Type
+            | TyData::ConstU32(_)
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Param(_)
+            | TyData::ConstParam(_)
+            | TyData::SelfParam
+            | TyData::Var(_)
+            | TyData::Error => ty,
         }
     }
 }
