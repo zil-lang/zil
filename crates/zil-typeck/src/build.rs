@@ -3186,39 +3186,117 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
         };
         let Some((test_place, test_pat)) = first.cols.first().cloned() else {
             // Leaf: bind and enter the arm (or evaluate guard and fall through on false).
-            let mut bound_locals = Vec::new();
-            for (local, place, ref_mut) in first.bindings {
-                self.push(InstructionKind::StorageLive(local), span);
-                bound_locals.push(local);
-                if !arm_bindings[first.arm].contains(&local) {
-                    arm_bindings[first.arm].push(local);
-                }
-                let rv = match ref_mut {
-                    Some(mutability) => Rvalue::Ref {
-                        region: Region::Static,
-                        mutability,
-                        place,
-                    },
-                    None => {
-                        let ty = self.locals[local.index()].ty;
-                        Rvalue::Use(self.use_place(place, ty))
-                    }
-                };
-                self.assign(Place::local(local), rv, span);
-            }
             if let Some(guard) = &match_arms[first.arm].guard {
+                let mut guard_ref_map: HashMap<Local, Local> = HashMap::new();
+                for &(arm_lid, guard_lid) in &match_arms[first.arm].guard_refs {
+                    let arm_mir = self.local(arm_lid);
+                    let guard_mir = match self.map[guard_lid.0 as usize] {
+                        Some(local) => local,
+                        None => {
+                            let info = self.locals_info[guard_lid.0 as usize].clone();
+                            self.bind_local(guard_lid, &info)
+                        }
+                    };
+                    guard_ref_map.insert(arm_mir, guard_mir);
+                }
+
+                // 1. Bind guard-scope locals without moving non-Copy values or
+                //    creating exclusive borrows of the scrutinee.
+                let mut guard_only_locals = Vec::new();
+                let mut copy_bound_locals = Vec::new();
+                let mut deferred_arm_bindings = Vec::new();
+                for (local, place, ref_mut) in first.bindings {
+                    if !arm_bindings[first.arm].contains(&local) {
+                        arm_bindings[first.arm].push(local);
+                    }
+                    if let Some(&guard_local) = guard_ref_map.get(&local) {
+                        self.push(InstructionKind::StorageLive(guard_local), span);
+                        guard_only_locals.push(guard_local);
+                        self.assign(
+                            Place::local(guard_local),
+                            Rvalue::Ref {
+                                region: Region::Static,
+                                mutability: Mutability::Shared,
+                                place: place.clone(),
+                            },
+                            span,
+                        );
+                        deferred_arm_bindings.push((local, place, ref_mut));
+                    } else {
+                        self.push(InstructionKind::StorageLive(local), span);
+                        copy_bound_locals.push(local);
+                        let rv = match ref_mut {
+                            Some(mutability) => Rvalue::Ref {
+                                region: Region::Static,
+                                mutability,
+                                place,
+                            },
+                            None => {
+                                let ty = self.locals[local.index()].ty;
+                                Rvalue::Use(self.use_place(place, ty))
+                            }
+                        };
+                        self.assign(Place::local(local), rv, span);
+                    }
+                }
+
+                // 2. Evaluate the guard in its own temp frame so any temporaries
+                //    created during guard evaluation are cleaned up on both branches.
+                self.enter_frame();
                 let cond = self.operand(guard);
+                let guard_temps = self.frames.pop().map(|f| f.temps).unwrap_or_default();
+
+                let then_bb = self.new_block(guard.span);
                 let else_bb = self.new_block(guard.span);
                 self.terminate(
                     Terminator::Switch {
                         discr: cond,
-                        arms: vec![(1, arm_blocks[first.arm])],
+                        arms: vec![(1, then_bb)],
                         otherwise: else_bb,
                     },
                     guard.span,
                 );
+
+                // 3. True branch: clean up guard temps, end guard-only shared
+                //    borrows, then perform the real by-value / ref-mut bindings
+                //    and enter the arm body.
+                self.cur = then_bb;
+                for t in guard_temps.iter().rev().copied() {
+                    self.push_auto_drop(t, guard.span);
+                    self.push(InstructionKind::StorageDead(t), guard.span);
+                }
+                for local in guard_only_locals.iter().rev().copied() {
+                    self.push(InstructionKind::StorageDead(local), guard.span);
+                }
+                for (local, place, ref_mut) in deferred_arm_bindings {
+                    self.push(InstructionKind::StorageLive(local), span);
+                    let rv = match ref_mut {
+                        Some(mutability) => Rvalue::Ref {
+                            region: Region::Static,
+                            mutability,
+                            place,
+                        },
+                        None => {
+                            let ty = self.locals[local.index()].ty;
+                            Rvalue::Use(self.use_place(place, ty))
+                        }
+                    };
+                    self.assign(Place::local(local), rv, span);
+                }
+                self.goto(arm_blocks[first.arm], span);
+
+                // 4. False branch: clean up guard temps, guard-only shared
+                //    borrows, and any Copy bindings created for the guard,
+                //    leaving the scrutinee intact for subsequent arms.
                 self.cur = else_bb;
-                for local in bound_locals.into_iter().rev() {
+                for t in guard_temps.into_iter().rev() {
+                    self.push_auto_drop(t, guard.span);
+                    self.push(InstructionKind::StorageDead(t), guard.span);
+                }
+                for local in guard_only_locals.into_iter().rev() {
+                    self.push(InstructionKind::StorageDead(local), guard.span);
+                }
+                for local in copy_bound_locals.into_iter().rev() {
                     self.push(InstructionKind::StorageDead(local), guard.span);
                 }
                 self.decide(
@@ -3229,6 +3307,24 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     span,
                 );
             } else {
+                for (local, place, ref_mut) in first.bindings {
+                    self.push(InstructionKind::StorageLive(local), span);
+                    if !arm_bindings[first.arm].contains(&local) {
+                        arm_bindings[first.arm].push(local);
+                    }
+                    let rv = match ref_mut {
+                        Some(mutability) => Rvalue::Ref {
+                            region: Region::Static,
+                            mutability,
+                            place,
+                        },
+                        None => {
+                            let ty = self.locals[local.index()].ty;
+                            Rvalue::Use(self.use_place(place, ty))
+                        }
+                    };
+                    self.assign(Place::local(local), rv, span);
+                }
                 self.goto(arm_blocks[first.arm], span);
             }
             return;
