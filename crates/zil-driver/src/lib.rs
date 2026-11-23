@@ -886,7 +886,9 @@ const EMBEDDED_STD_MODULES: &[(&str, &str)] = &[
         "collections",
         include_str!("../../../lib/std/collections.zil"),
     ),
+    ("env", include_str!("../../../lib/std/env.zil")),
     ("float", include_str!("../../../lib/std/float.zil")),
+    ("fs", include_str!("../../../lib/std/fs.zil")),
     ("graph", include_str!("../../../lib/std/graph.zil")),
     (
         "i64_hash_map",
@@ -930,6 +932,7 @@ const EMBEDDED_STD_MODULES: &[(&str, &str)] = &[
         include_str!("../../../lib/std/string_map.zil"),
     ),
     ("text_edit", include_str!("../../../lib/std/text_edit.zil")),
+    ("time", include_str!("../../../lib/std/time.zil")),
     ("ui_input", include_str!("../../../lib/std/ui_input.zil")),
     ("ui_layout", include_str!("../../../lib/std/ui_layout.zil")),
     ("ui_raster", include_str!("../../../lib/std/ui_raster.zil")),

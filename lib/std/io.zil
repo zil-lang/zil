@@ -1,3 +1,5 @@
+import std.int
+
 // Linux x86_64 POSIX byte I/O. The foreign calls are synchronous, do not
 // retain buffer addresses, reenter ZIL, or unwind. A File owns exactly one fd.
 extern "C" fn read(fd:i32,buffer:&mut [u8;64],count:i64)->i64
@@ -11,7 +13,7 @@ contract {provides(noescape(path));effects(ffi);};
 extern "C" fn creat(path:&u8,mode:i32)->i32
 contract {provides(noescape(path));effects(ffi);};
 
-pub enum Error { Duplicate, Open, InvalidPath, Capacity, Allocation, Read, Write, NoProgress, InvalidResult }
+pub enum Error { Duplicate, Open, InvalidPath, Capacity, Allocation, Read, Write, NoProgress, InvalidResult, Remove }
 pub struct ReadResult { pub count:i64; pub eof:bool }
 pub resource File { fd:i32 }
 impl Drop for File {fn drop(self:Self){unsafe{close(.fd)}}}
@@ -26,6 +28,7 @@ pub fn duplicate(fd:i32)->Error!File contract {result(create)} {
 }
 pub fn stdin()->Error!File contract {result(create)} {return duplicate(0)}
 pub fn stdout()->Error!File contract {result(create)} {return duplicate(1)}
+pub fn stderr()->Error!File contract {result(create)} {return duplicate(2)}
 
 // Path bytes must be nonempty and contain no NUL. The private owned buffer
 // supplies exactly one terminator and stays live throughout the C call.
@@ -116,10 +119,10 @@ pub fn read_to_end(file:&File,byte_limit:i64)->Error!ByteBuffer contract {result
     return give data
 }
 
-// Complete writes of arbitrary borrowed bytes using one fixed C ABI buffer.
+// Complete writes of arbitrary borrowed bytes to a raw fd using one fixed C ABI buffer.
 // A short write is retried with the unwritten prefix; source is unchanged.
 // On error, a prefix may already have reached the fd.
-pub fn write_all(file:&File,source:&[u8])->Error!void {
+fn write_fd(fd:i32,source:&[u8])->Error!void {
     var block=empty_buffer()
     var at:i64=0
     while at<source.len() {
@@ -130,7 +133,7 @@ pub fn write_all(file:&File,source:&[u8])->Error!void {
         var remaining=length
         while remaining>0 {
             var written:i64=0
-            unsafe{written=write(file.fd,&block,remaining)}
+            unsafe{written=write(fd,&block,remaining)}
             if written<0 {return Error.Write}
             if written==0 {return Error.NoProgress}
             if written>remaining {return Error.InvalidResult}
@@ -141,6 +144,38 @@ pub fn write_all(file:&File,source:&[u8])->Error!void {
         at+=length
     }
     return ()
+}
+
+pub fn write_all(file:&File,source:&[u8])->Error!void {
+    return write_fd(file.fd,source)
+}
+
+pub fn print(bytes:&[u8])->Error!void {
+    return write_fd(1,bytes)
+}
+
+pub fn println(bytes:&[u8])->Error!void {
+    write_fd(1,bytes)?
+    return write_fd(1,"\n")
+}
+
+pub fn eprint(bytes:&[u8])->Error!void {
+    return write_fd(2,bytes)
+}
+
+pub fn eprintln(bytes:&[u8])->Error!void {
+    write_fd(2,bytes)?
+    return write_fd(2,"\n")
+}
+
+pub fn print_i64(value:i64)->Error!void {
+    let formatted=int.format_i64(value)
+    return write_fd(1,&formatted.bytes[..formatted.len])
+}
+
+pub fn println_i64(value:i64)->Error!void {
+    print_i64(value)?
+    return write_fd(1,"\n")
 }
 
 // One POSIX write. The caller owns all 64 initialized bytes; only the requested
