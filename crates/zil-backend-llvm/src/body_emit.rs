@@ -1251,7 +1251,7 @@ impl<'a> FnEmitter<'a> {
                     return Ok(());
                 };
                 match def.kind {
-                    AdtKind::Package => {
+                    AdtKind::Package | AdtKind::Record => {
                         let base_llvm = llvm_storage_ty(self.tys(), ty)?;
                         if let Some(v) = def.variants.first() {
                             for (fi, f) in v.fields.iter().enumerate() {
@@ -1349,7 +1349,7 @@ impl<'a> FnEmitter<'a> {
                         let _ = writeln!(self.out, "{done_lbl}:");
                         Ok(())
                     }
-                    AdtKind::Record | AdtKind::Resource => Ok(()),
+                    AdtKind::Resource => Ok(()),
                 }
             }
             TyKind::Tuple(elems) => {

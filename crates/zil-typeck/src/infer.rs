@@ -1951,9 +1951,32 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
     // ---- patterns ----------------------------------------------------------
 
     fn pattern(&mut self, p: &ast::Pattern, expected: Ty, mutable: bool) -> Pat {
+        self.pattern_with_ref(p, expected, mutable, None)
+    }
+
+    fn pattern_with_ref(
+        &mut self,
+        p: &ast::Pattern,
+        expected: Ty,
+        mutable: bool,
+        ref_mode: Option<bool>,
+    ) -> Pat {
         let span = p.span;
         let kind = match &p.kind {
-            ast::PatternKind::Name(n) => PatKind::Binding(self.declare(n, expected, mutable, span)),
+            ast::PatternKind::Name(n) => match ref_mode {
+                Some(is_mut) => {
+                    let ref_ty = self.types.intern(TyData::Ref {
+                        region: None,
+                        mutable: is_mut,
+                        pointee: expected,
+                    });
+                    PatKind::RefBinding {
+                        local: self.declare(n, ref_ty, mutable, span),
+                        mutable: is_mut,
+                    }
+                }
+                None => PatKind::Binding(self.declare(n, expected, mutable, span)),
+            },
             ast::PatternKind::Wildcard => PatKind::Wild,
             ast::PatternKind::Literal(l) => match self.literal(l, span) {
                 Some((lit, ty)) => {
@@ -1978,7 +2001,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         items
                             .iter()
                             .zip(tys)
-                            .map(|(i, t)| self.pattern(i, t, mutable))
+                            .map(|(i, t)| self.pattern_with_ref(i, t, mutable, ref_mode))
                             .collect(),
                     )
                 }
@@ -1998,7 +2021,8 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     let matched = self.match_union_member_path(path, &members);
                     match matched.as_slice() {
                         [member_ty] => {
-                            let inner = self.pattern(&arguments[0], *member_ty, mutable);
+                            let inner =
+                                self.pattern_with_ref(&arguments[0], *member_ty, mutable, ref_mode);
                             PatKind::UnionArm {
                                 member_ty: *member_ty,
                                 inner: Box::new(inner),
@@ -2050,7 +2074,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         .enumerate()
                         .map(|(i, a)| {
                             let ft = self.field_ty(adt, variant, i as u32, &args);
-                            self.pattern(a, ft, mutable)
+                            self.pattern_with_ref(a, ft, mutable, ref_mode)
                         })
                         .collect();
                     PatKind::Adt {
@@ -2105,7 +2129,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         continue;
                     }
                     let ft = self.field_ty(adt, variant, i as u32, &args);
-                    slots[i] = Some(self.pattern(&f.pattern, ft, mutable));
+                    slots[i] = Some(self.pattern_with_ref(&f.pattern, ft, mutable, ref_mode));
                 }
                 let mut out = Vec::new();
                 for (i, s) in slots.into_iter().enumerate() {
@@ -2147,18 +2171,52 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 mutable: is_mut,
                 pattern: inner,
             } => {
-                if let ast::PatternKind::Name(n) = &inner.kind {
-                    let ref_ty = self.types.intern(TyData::Ref {
-                        region: None,
-                        mutable: *is_mut,
-                        pointee: expected,
-                    });
-                    PatKind::RefBinding {
-                        local: self.declare(n, ref_ty, mutable, inner.span),
-                        mutable: *is_mut,
+                if ref_mode == Some(false) && *is_mut {
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        span,
+                        "cannot bind `ref mut` inside a shared `ref` pattern",
+                    );
+                }
+                return self.pattern_with_ref(inner, expected, mutable, Some(*is_mut));
+            }
+            ast::PatternKind::Deref {
+                mutable: pat_mut,
+                pattern: inner,
+            } => {
+                let et = self.types.shallow(expected);
+                if let TyData::Ref {
+                    mutable: ty_mut,
+                    pointee,
+                    ..
+                } = self.types.data(et).clone()
+                {
+                    if *pat_mut && !ty_mut {
+                        self.error(
+                            diag::TYPE_MISMATCH,
+                            span,
+                            "cannot match `&mut` pattern against a shared reference",
+                        );
+                        PatKind::Wild
+                    } else if !*pat_mut && ty_mut {
+                        self.error(
+                            diag::TYPE_MISMATCH,
+                            span,
+                            "cannot match `&` pattern against a `&mut` reference",
+                        );
+                        PatKind::Wild
+                    } else {
+                        let inner_pat = self.pattern_with_ref(inner, pointee, mutable, ref_mode);
+                        PatKind::Deref(Box::new(inner_pat))
                     }
+                } else if matches!(self.types.data(et), TyData::Error) {
+                    PatKind::Wild
                 } else {
-                    self.unsupported("nested reference patterns", span);
+                    self.error(
+                        diag::TYPE_MISMATCH,
+                        span,
+                        "reference pattern `&` requires a reference type",
+                    );
                     PatKind::Wild
                 }
             }
@@ -2166,7 +2224,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let et = self.types.shallow(expected);
                 if let TyData::ErrorUnion { ok, err } = self.types.data(et).clone() {
                     let arm_ty = if *is_error { err } else { ok };
-                    let inner = self.pattern(pattern, arm_ty, mutable);
+                    let inner = self.pattern_with_ref(pattern, arm_ty, mutable, ref_mode);
                     PatKind::ErrorArm {
                         ok: !*is_error,
                         inner: Box::new(inner),
@@ -2288,6 +2346,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
     fn irrefutable(&self, p: &Pat) -> bool {
         match &p.kind {
             PatKind::Wild | PatKind::Binding(_) | PatKind::RefBinding { .. } => true,
+            PatKind::Deref(inner) => self.irrefutable(inner),
             PatKind::Lit(_) | PatKind::ErrorArm { .. } | PatKind::UnionArm { .. } => false,
             PatKind::Tuple(items) => items.iter().all(|i| self.irrefutable(i)),
             PatKind::Adt { adt, fields, .. } => {
@@ -4227,6 +4286,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             | TyData::SelfParam
                             | TyData::Assoc { .. }
                             | TyData::Var(_)
+                            | TyData::Union(_)
                             | TyData::Error => false,
                         };
                         if !target_matches {
@@ -4327,6 +4387,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 | TyData::SelfParam
                                 | TyData::Assoc { .. }
                                 | TyData::Var(_)
+                                | TyData::Union(_)
                                 | TyData::Error => false,
                             };
                             if !target_matches {
@@ -7198,6 +7259,7 @@ impl Finalizer<'_, '_> {
         p.ty = self.zonk(p.ty, p.span);
         match &mut p.kind {
             PatKind::Wild | PatKind::Binding(_) | PatKind::RefBinding { .. } => {}
+            PatKind::Deref(inner) => self.pat(inner),
             PatKind::Lit(l) => {
                 let (l, ty, span) = (*l, p.ty, p.span);
                 self.literal(l, ty, span);
@@ -7854,9 +7916,9 @@ fn collect_pat_bindings(pat: &Pat, out: &mut Vec<LocalId>) {
                 collect_pat_bindings(p, out);
             }
         }
-        PatKind::ErrorArm { inner, .. } | PatKind::UnionArm { inner, .. } => {
-            collect_pat_bindings(inner, out)
-        }
+        PatKind::ErrorArm { inner, .. }
+        | PatKind::UnionArm { inner, .. }
+        | PatKind::Deref(inner) => collect_pat_bindings(inner, out),
         PatKind::Wild | PatKind::RefBinding { .. } | PatKind::Lit(_) => {}
     }
 }
