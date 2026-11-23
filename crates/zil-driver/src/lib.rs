@@ -549,7 +549,6 @@ impl CompilationSession {
         let mut by_logical: HashMap<String, ModuleId> = HashMap::new();
         by_logical.insert(String::new(), ModuleId(0));
 
-        let std_dir = search_root.and_then(find_std_dir);
         let mut idx = 0;
         while idx < loaded.len() {
             let raw_imports: Vec<(Vec<String>, String, Span)> = loaded[idx]
@@ -592,25 +591,7 @@ impl CompilationSession {
                 }
                 let next_id = loaded.len() as u32;
                 let mod_unit = if imp_path.first().map(String::as_str) == Some("std") {
-                    if let Some(mod_file) = std_dir.as_deref().and_then(|sd| {
-                        project::resolve_file_module(sd, &imp_path[1..], imp_span).ok()
-                    }) {
-                        match read_source_unit(
-                            &mod_file,
-                            FileId(next_id),
-                            ModuleId(next_id),
-                            &options.limits,
-                        ) {
-                            Ok(u) => u,
-                            Err(diag) => {
-                                report.phase = diag.phase;
-                                report.status = diag.category;
-                                report.diagnostics = vec![diag];
-                                report.seconds = start.elapsed().as_secs_f64();
-                                return report;
-                            }
-                        }
-                    } else if let Some((virtual_path, text)) = embedded_std_source(&imp_path[1..]) {
+                    if let Some((virtual_path, text)) = embedded_std_source(&imp_path[1..]) {
                         if text.len() > options.limits.max_source_bytes {
                             report.phase = Phase::Parse;
                             report.status = ResultCategory::ResourceLimit;
@@ -966,19 +947,6 @@ fn embedded_std_source(subpath: &[String]) -> Option<(String, &'static str)> {
         .map(|(mod_name, text)| (format!("lib/std/{mod_name}.zil"), *text))
 }
 
-fn find_std_dir(start: &Path) -> Option<PathBuf> {
-    let mut cur = start.canonicalize().ok()?;
-    loop {
-        let lib_std = cur.join("lib").join("std");
-        if lib_std.is_dir() {
-            return Some(lib_std);
-        }
-        if !cur.pop() {
-            return None;
-        }
-    }
-}
-
 fn validate_project_std_modules(project: &ProjectSources) -> Result<(), Diagnostic> {
     for (segments, mid) in &project.paths {
         if segments.first().map(String::as_str) != Some("std") {
@@ -1006,6 +974,8 @@ fn validate_project_std_modules(project: &ProjectSources) -> Result<(), Diagnost
         let sub = if let Some(rest) = unit.path.strip_prefix("std.") {
             Some(rest.strip_suffix(".zil").unwrap_or(rest))
         } else if let Some(rest) = unit.path.strip_prefix("std/") {
+            Some(rest.strip_suffix(".zil").unwrap_or(rest))
+        } else if let Some(rest) = unit.path.strip_prefix("lib/std/") {
             Some(rest.strip_suffix(".zil").unwrap_or(rest))
         } else {
             None

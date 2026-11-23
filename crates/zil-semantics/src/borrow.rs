@@ -1440,9 +1440,22 @@ impl Kernel<'_> {
                 continue;
             }
             if loan.place.root != new_loan.place.root {
-                continue;
-            }
-            if new_loan.place.relation(&loan.place) == PlaceRelation::Disjoint {
+                if loan.is_store_borrow {
+                    if new_loan.proven_unique_owner && loan.proven_unique_owner {
+                        continue;
+                    }
+                } else {
+                    let cx = self.body.cx(self.tys);
+                    let loan_holds_store = type_place(&loan.place, &cx).map_or(true, |t| {
+                        crate::ty_holds_store_or_bytes_desc(self.tys, t.ty())
+                    });
+                    if !loan_holds_store
+                        || (new_loan.proven_unique_owner && loan.proven_unique_owner)
+                    {
+                        continue;
+                    }
+                }
+            } else if new_loan.place.relation(&loan.place) == PlaceRelation::Disjoint {
                 continue;
             }
             if conflicts(PlaceAccess::Borrow(*mutability), loan.kind) {

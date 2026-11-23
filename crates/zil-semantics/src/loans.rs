@@ -46,6 +46,14 @@ pub struct Loan {
     /// The borrowed storage may itself hold addresses, so writes through the
     /// loan can store further loans into it.
     pub stores_addresses: bool,
+    /// Whether this loan was created by `IntrinsicOp::StoreBorrow` (`store_at`
+    /// / `store_at_mut`).
+    pub is_store_borrow: bool,
+    /// Whether `place` is proven to denote a unique owning storage location in
+    /// the current frame (not a `Desc` indirection and no `Deref` projection).
+    /// Distinct-root `StoreBorrow` loans are proven apart only when both loans
+    /// have `proven_unique_owner == true`.
+    pub proven_unique_owner: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -174,9 +182,10 @@ impl LoanTable {
                     | Rvalue::ForeignFnRef(_)
                     | Rvalue::StaticUtf(_) => continue,
                 };
-                let stores_addresses = type_place(place, &cx)
-                    .map(|t| tys.holds_address(t.ty()))
-                    .unwrap_or(true);
+                let place_ty = type_place(place, &cx).ok().map(|t| t.ty());
+                let is_desc = place_ty
+                    .is_some_and(|t| matches!(tys.get(t), Some(zil_ir::body::TyKind::Desc(_))));
+                let stores_addresses = place_ty.map(|t| tys.holds_address(t)).unwrap_or(true);
                 let closure_kind = body.closure.and_then(|c| tys.closure(c)).map(|c| c.kind);
                 let anchored = place.first_deref().is_none()
                     || (matches!(place.root, PlaceRoot::Capture(_))
@@ -185,6 +194,9 @@ impl LoanTable {
                             Some(zil_ir::body::ClosureKind::Fn | zil_ir::body::ClosureKind::FnMut)
                         )
                         && kind == LoanKind::Exclusive);
+                let proven_unique_owner = !is_desc
+                    && place.first_deref().is_none()
+                    && matches!(place.root, PlaceRoot::Local(_));
                 loans.push(Some(Loan {
                     origin: OpLocation {
                         block: zil_ir::body::BlockId::from_index(b),
@@ -194,6 +206,8 @@ impl LoanTable {
                     kind,
                     anchored,
                     stores_addresses,
+                    is_store_borrow: false,
+                    proven_unique_owner,
                 }));
             }
             if let Terminator::Call {
@@ -229,6 +243,9 @@ impl LoanTable {
                                 )
                             )
                             && kind == LoanKind::Exclusive));
+                let proven_unique_owner = !is_desc
+                    && store_place.first_deref().is_none()
+                    && matches!(store_place.root, PlaceRoot::Local(_));
                 loans.push(Some(Loan {
                     origin: OpLocation {
                         block: zil_ir::body::BlockId::from_index(b),
@@ -238,6 +255,8 @@ impl LoanTable {
                     kind,
                     anchored,
                     stores_addresses,
+                    is_store_borrow: true,
+                    proven_unique_owner,
                 }));
             }
         }
