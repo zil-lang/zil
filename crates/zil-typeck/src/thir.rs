@@ -163,6 +163,7 @@ pub enum ExprKind {
     TraitCall {
         trait_ref: TraitRef,
         trait_args: Vec<Ty>,
+        method_args: Vec<Ty>,
         self_ty: Ty,
         method: String,
         args: Vec<Expr>,

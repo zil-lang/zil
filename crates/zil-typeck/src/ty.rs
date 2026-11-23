@@ -123,6 +123,7 @@ pub enum TyData {
     /// Associated type projection (`I.Item`, `M.Output`, `Self.Item`).
     Assoc {
         base: Ty,
+        trait_ref: Option<TraitRef>,
         name: String,
     },
     /// Fixed-size array whose length is a const generic parameter or inference variable.
@@ -516,8 +517,20 @@ impl Types {
             (TyData::Param(i), TyData::Param(j))
             | (TyData::ConstParam(i), TyData::ConstParam(j))
             | (TyData::ConstU32(i), TyData::ConstU32(j)) => i.cmp(j),
-            (TyData::Assoc { base: b1, name: n1 }, TyData::Assoc { base: b2, name: n2 }) => self
+            (
+                TyData::Assoc {
+                    base: b1,
+                    trait_ref: t1,
+                    name: n1,
+                },
+                TyData::Assoc {
+                    base: b2,
+                    trait_ref: t2,
+                    name: n2,
+                },
+            ) => self
                 .cmp_ty_depth(*b1, *b2, depth + 1)
+                .then_with(|| t1.cmp(t2))
                 .then_with(|| n1.cmp(n2)),
             (
                 TyData::ArrayConst {
@@ -866,11 +879,18 @@ impl Types {
                 self.unify(o1, o2)?;
                 self.unify(e1, e2)
             }
-            (TyData::Assoc { base: b1, name: n1 }, TyData::Assoc { base: b2, name: n2 })
-                if n1 == n2 =>
-            {
-                self.unify(b1, b2)
-            }
+            (
+                TyData::Assoc {
+                    base: b1,
+                    trait_ref: t1,
+                    name: n1,
+                },
+                TyData::Assoc {
+                    base: b2,
+                    trait_ref: t2,
+                    name: n2,
+                },
+            ) if n1 == n2 && (t1 == t2 || t1.is_none() || t2.is_none()) => self.unify(b1, b2),
             _ => Err(Mismatch),
         }
     }
@@ -1076,9 +1096,17 @@ impl Types {
                     result,
                 })
             }
-            TyData::Assoc { base, name } => {
+            TyData::Assoc {
+                base,
+                trait_ref,
+                name,
+            } => {
                 let base = self.zonk(base)?;
-                self.intern(TyData::Assoc { base, name })
+                self.intern(TyData::Assoc {
+                    base,
+                    trait_ref,
+                    name,
+                })
             }
             TyData::Unit
             | TyData::Type
@@ -1276,9 +1304,17 @@ impl Types {
                     result,
                 })
             }
-            TyData::Assoc { base, name } => {
+            TyData::Assoc {
+                base,
+                trait_ref,
+                name,
+            } => {
                 let base = self.subst_with_self(base, args, self_ty);
-                self.intern(TyData::Assoc { base, name })
+                self.intern(TyData::Assoc {
+                    base,
+                    trait_ref,
+                    name,
+                })
             }
             TyData::Unit
             | TyData::Type
@@ -1443,9 +1479,17 @@ impl Types {
                     result,
                 })
             }
-            TyData::Assoc { base, name } => {
+            TyData::Assoc {
+                base,
+                trait_ref,
+                name,
+            } => {
                 let base = self.subst(base, args);
-                self.intern(TyData::Assoc { base, name })
+                self.intern(TyData::Assoc {
+                    base,
+                    trait_ref,
+                    name,
+                })
             }
             TyData::Unit
             | TyData::Type
@@ -1588,9 +1632,17 @@ impl Types {
                     result,
                 })
             }
-            TyData::Assoc { base, name } => {
+            TyData::Assoc {
+                base,
+                trait_ref,
+                name,
+            } => {
                 let base = self.erase_regions(base);
-                self.intern(TyData::Assoc { base, name })
+                self.intern(TyData::Assoc {
+                    base,
+                    trait_ref,
+                    name,
+                })
             }
             TyData::Unit
             | TyData::Type

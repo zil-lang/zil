@@ -768,8 +768,15 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         }
     }
 
+    fn normalize(&mut self, ty: Ty) -> Ty {
+        self.items
+            .normalize_ty_in_env(ty, &self.decl.generics, self.types)
+    }
+
     fn coerce(&mut self, value: &Expr, expected: Ty, span: Span) {
-        if self.types.coerce(value.ty, expected).is_err() {
+        let got = self.normalize(value.ty);
+        let exp = self.normalize(expected);
+        if self.types.coerce(got, exp).is_err() {
             self.error(
                 diag::TYPE_MISMATCH,
                 span,
@@ -814,8 +821,8 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         if self.types.is_never(value.ty) {
             return value;
         }
-        let et = self.items.normalize_ty(expected, self.types);
-        let vt = self.items.normalize_ty(value.ty, self.types);
+        let et = self.normalize(expected);
+        let vt = self.normalize(value.ty);
         let ed = self.types.data(et).clone();
         let vd = self.types.data(vt).clone();
 
@@ -1090,8 +1097,8 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
     }
 
     fn unify(&mut self, a: Ty, b: Ty, span: Span) {
-        let a = self.items.normalize_ty(a, self.types);
-        let b = self.items.normalize_ty(b, self.types);
+        let a = self.normalize(a);
+        let b = self.normalize(b);
         if self.types.unify(a, b).is_err() {
             self.error(diag::TYPE_MISMATCH, span, "mismatched types");
         }
@@ -2834,7 +2841,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
     }
 
     fn infer_expected(&mut self, expr: &ast::Expr, expected: Ty) -> Expr {
-        let et = self.items.normalize_ty(expected, self.types);
+        let et = self.normalize(expected);
         let ed = self.types.data(et).clone();
         match &expr.kind {
             ast::ExprKind::Closure {
@@ -4002,6 +4009,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         kind: ExprKind::TraitCall {
                             trait_ref: tr_ref,
                             trait_args: tr_args,
+                            method_args: Vec::new(),
                             self_ty: host_ty,
                             method: mname.clone(),
                             args,
@@ -4227,6 +4235,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             | TyData::SelfParam
                             | TyData::Assoc { .. }
                             | TyData::Var(_)
+                            | TyData::Union(_)
                             | TyData::Error => false,
                         };
                         if !target_matches {
@@ -4327,6 +4336,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                 | TyData::SelfParam
                                 | TyData::Assoc { .. }
                                 | TyData::Var(_)
+                                | TyData::Union(_)
                                 | TyData::Error => false,
                             };
                             if !target_matches {
@@ -4383,6 +4393,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             kind: ExprKind::TraitCall {
                                 trait_ref: tr_ref,
                                 trait_args: tr_args,
+                                method_args: Vec::new(),
                                 self_ty,
                                 method: mname.clone(),
                                 args,
@@ -4394,48 +4405,64 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
             }
             if let [param_name, method_name] = path.as_slice()
-                && explicit.is_none()
                 && let Some(param_idx) = self.generic_names.iter().rposition(|g| g == param_name)
             {
                 let bounds = self.decl.generics[param_idx].traits.clone();
                 let self_ty = self.types.intern(TyData::Param(param_idx as u32));
-                for (tr_ref, tr_args) in bounds {
-                    let tr = self.items.trait_decl(tr_ref);
-                    if let Some(m) = tr.methods.iter().find(|m| m.name == *method_name) {
-                        if arguments.len() != m.params.len() {
-                            self.error(
-                                diag::CALL_ARITY,
+                for bound in &bounds {
+                    let closure = self
+                        .items
+                        .supertrait_closure(bound, Some(self_ty), self.types);
+                    for entailed in closure {
+                        let tr = self.items.trait_decl(entailed.trait_ref);
+                        if let Some(m) = tr.methods.iter().find(|m| m.name == *method_name) {
+                            if arguments.len() != m.params.len() {
+                                self.error(
+                                    diag::CALL_ARITY,
+                                    span,
+                                    format!(
+                                        "`{param_name}.{method_name}` expects {} argument(s), found {}",
+                                        m.params.len(),
+                                        arguments.len()
+                                    ),
+                                );
+                                return self.err_expr(span);
+                            }
+                            let m_generics_len = m.generics.len();
+                            let m_params = m.params.clone();
+                            let m_result = m.result;
+                            let Some(method_args) = self.resolve_explicit_type_args(
+                                explicit.map(Vec::as_slice),
+                                m_generics_len,
                                 span,
-                                format!(
-                                    "`{param_name}.{method_name}` expects {} argument(s), found {}",
-                                    m.params.len(),
-                                    arguments.len()
-                                ),
-                            );
-                            return self.err_expr(span);
+                            ) else {
+                                return self.err_expr(span);
+                            };
+                            let mut full_subst = entailed.trait_args.clone();
+                            full_subst.extend(method_args.iter().copied());
+                            let mut args = Vec::with_capacity(arguments.len());
+                            for (a, pt) in arguments.iter().zip(&m_params) {
+                                let expected =
+                                    self.types.subst_with_self(*pt, &full_subst, self_ty);
+                                let expected = self.normalize(expected);
+                                let v = self.infer(&a.value);
+                                args.push(self.coerce_arg(v, expected, a.span));
+                            }
+                            let ret = self.types.subst_with_self(m_result, &full_subst, self_ty);
+                            let ret = self.normalize(ret);
+                            return Expr {
+                                kind: ExprKind::TraitCall {
+                                    trait_ref: entailed.trait_ref,
+                                    trait_args: entailed.trait_args,
+                                    method_args,
+                                    self_ty,
+                                    method: method_name.clone(),
+                                    args,
+                                },
+                                ty: ret,
+                                span,
+                            };
                         }
-                        let m_params = m.params.clone();
-                        let m_result = m.result;
-                        let mut args = Vec::with_capacity(arguments.len());
-                        for (a, pt) in arguments.iter().zip(&m_params) {
-                            let expected = self.types.subst_with_self(*pt, &tr_args, self_ty);
-                            let expected = self.items.normalize_ty(expected, self.types);
-                            let v = self.infer(&a.value);
-                            args.push(self.coerce_arg(v, expected, a.span));
-                        }
-                        let ret = self.types.subst_with_self(m_result, &tr_args, self_ty);
-                        let ret = self.items.normalize_ty(ret, self.types);
-                        return Expr {
-                            kind: ExprKind::TraitCall {
-                                trait_ref: tr_ref,
-                                trait_args: tr_args,
-                                self_ty,
-                                method: method_name.clone(),
-                                args,
-                            },
-                            ty: ret,
-                            span,
-                        };
                     }
                 }
             }
@@ -4672,17 +4699,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     span,
                 );
             }
-            if explicit.is_some() {
-                self.error(
-                    diag::TYPE_ARGUMENT,
-                    span,
-                    format!("method `{mname}` does not accept explicit type arguments here"),
-                );
-                return self.err_expr(span);
-            }
             if let TyData::Dyn(tr) | TyData::OwnedDyn { trait_ref: tr, .. } =
                 *self.types.data(self_ty)
             {
+                if explicit.is_some() {
+                    self.error(
+                        diag::TYPE_ARGUMENT,
+                        span,
+                        format!("dyn method `{mname}` does not accept explicit type arguments"),
+                    );
+                    return self.err_expr(span);
+                }
                 let tr_decl = self.items.trait_decl(tr);
                 if let Some((slot, m)) = tr_decl
                     .methods
@@ -4735,12 +4762,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     let mut args = Vec::with_capacity(arguments.len());
                     for (a, pt) in arguments.iter().zip(&m_params[1..]) {
                         let expected = self.types.subst_with_self(*pt, &[], self_ty);
-                        let expected = self.items.normalize_ty(expected, self.types);
+                        let expected = self.normalize(expected);
                         let v = self.infer(&a.value);
                         args.push(self.coerce_arg(v, expected, a.span));
                     }
                     let ret = self.types.subst_with_self(m_result, &[], self_ty);
-                    let ret = self.items.normalize_ty(ret, self.types);
+                    let ret = self.normalize(ret);
                     return Expr {
                         kind: ExprKind::DynCall {
                             object: Box::new(rec_expr),
@@ -4755,22 +4782,70 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             let mut resolved_self_ty = self_ty;
             let mut receiver = receiver;
             let found_trait = if let TyData::Param(param_idx) = *self.types.data(self_ty) {
-                self.decl
+                let bounds = self
+                    .decl
                     .generics
                     .get(param_idx as usize)
-                    .into_iter()
-                    .flat_map(|g| g.traits.iter())
-                    .find_map(|(tr_ref, tr_args)| {
-                        let tr = self.items.trait_decl(*tr_ref);
+                    .map(|g| g.traits.clone())
+                    .unwrap_or_default();
+                let mut found = None;
+                'search_bounds: for bound in &bounds {
+                    let closure = self
+                        .items
+                        .supertrait_closure(bound, Some(self_ty), self.types);
+                    for entailed in closure {
+                        let tr = self.items.trait_decl(entailed.trait_ref);
+                        if let Some(m) = tr
+                            .methods
+                            .iter()
+                            .find(|m| m.name == *mname && !m.params.is_empty())
+                        {
+                            found = Some((
+                                entailed.trait_ref,
+                                entailed.trait_args,
+                                m.generics.len(),
+                                m.params.clone(),
+                                m.result,
+                            ));
+                            break 'search_bounds;
+                        }
+                    }
+                }
+                if found.is_none() {
+                    // Also allow blanket impls whose bounds are satisfied by `Param(param_idx)`.
+                    let env_generics = &self.decl.generics;
+                    found = self.items.trait_impls.iter().find_map(|imp| {
+                        let impl_args =
+                            self.items
+                                .match_impl_in_env(imp, self_ty, env_generics, self.types)?;
+                        let tr = self.items.trait_decl(imp.trait_ref);
                         tr.methods
                             .iter()
                             .find(|m| m.name == *mname && !m.params.is_empty())
-                            .map(|m| (*tr_ref, tr_args.clone(), m.params.clone(), m.result))
-                    })
+                            .map(|m| {
+                                let resolved_targs: Vec<Ty> = imp
+                                    .trait_args
+                                    .iter()
+                                    .map(|t| self.types.subst(*t, &impl_args))
+                                    .collect();
+                                (
+                                    imp.trait_ref,
+                                    resolved_targs,
+                                    m.generics.len(),
+                                    m.params.clone(),
+                                    m.result,
+                                )
+                            })
+                    });
+                }
+                found
             } else {
+                let env_generics = &self.decl.generics;
                 let try_lookup = |target_ty: Ty, types: &mut Types| {
                     self.items.trait_impls.iter().find_map(|imp| {
-                        let impl_args = self.items.match_impl(imp, target_ty, types)?;
+                        let impl_args =
+                            self.items
+                                .match_impl_in_env(imp, target_ty, env_generics, types)?;
                         let tr = self.items.trait_decl(imp.trait_ref);
                         tr.methods
                             .iter()
@@ -4781,7 +4856,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                                     .iter()
                                     .map(|t| types.subst(*t, &impl_args))
                                     .collect();
-                                (imp.trait_ref, resolved_targs, m.params.clone(), m.result)
+                                (
+                                    imp.trait_ref,
+                                    resolved_targs,
+                                    m.generics.len(),
+                                    m.params.clone(),
+                                    m.result,
+                                )
                             })
                     })
                 };
@@ -4805,7 +4886,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
             };
             let self_ty = resolved_self_ty;
-            if let Some((tr_ref, tr_args, m_params, m_result)) = found_trait {
+            if let Some((tr_ref, tr_args, m_generics_len, m_params, m_result)) = found_trait {
                 if arguments.len() + 1 != m_params.len() {
                     self.error(
                         diag::CALL_ARITY,
@@ -4818,8 +4899,19 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     );
                     return self.err_expr(span);
                 }
-                let expected_self = self.types.subst_with_self(m_params[0], &tr_args, self_ty);
-                let expected_self = self.items.normalize_ty(expected_self, self.types);
+                let Some(method_args) = self.resolve_explicit_type_args(
+                    explicit.map(Vec::as_slice),
+                    m_generics_len,
+                    span,
+                ) else {
+                    return self.err_expr(span);
+                };
+                let mut full_subst = tr_args.clone();
+                full_subst.extend(method_args.iter().copied());
+                let expected_self = self
+                    .types
+                    .subst_with_self(m_params[0], &full_subst, self_ty);
+                let expected_self = self.normalize(expected_self);
                 let expected_self_shallow = self.types.shallow(expected_self);
                 let rec_expr = if let TyData::Ref { mutable, .. } =
                     *self.types.data(expected_self_shallow)
@@ -4844,17 +4936,18 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let mut args = Vec::with_capacity(m_params.len());
                 args.push(self.coerce_arg(rec_expr, expected_self, object.span));
                 for (a, pt) in arguments.iter().zip(&m_params[1..]) {
-                    let expected = self.types.subst_with_self(*pt, &tr_args, self_ty);
-                    let expected = self.items.normalize_ty(expected, self.types);
+                    let expected = self.types.subst_with_self(*pt, &full_subst, self_ty);
+                    let expected = self.normalize(expected);
                     let v = self.infer(&a.value);
                     args.push(self.coerce_arg(v, expected, a.span));
                 }
-                let ret = self.types.subst_with_self(m_result, &tr_args, self_ty);
-                let ret = self.items.normalize_ty(ret, self.types);
+                let ret = self.types.subst_with_self(m_result, &full_subst, self_ty);
+                let ret = self.normalize(ret);
                 return Expr {
                     kind: ExprKind::TraitCall {
                         trait_ref: tr_ref,
                         trait_args: tr_args,
+                        method_args,
                         self_ty,
                         method: mname.clone(),
                         args,
@@ -4862,6 +4955,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     ty: ret,
                     span,
                 };
+            }
+            if explicit.is_some() {
+                self.error(
+                    diag::TYPE_ARGUMENT,
+                    span,
+                    format!("method `{mname}` does not accept explicit type arguments here"),
+                );
+                return self.err_expr(span);
             }
             fallback_callee = Some(self.member_on_kind(
                 receiver,
@@ -6283,7 +6384,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     return Some(self.err_expr(span));
                 };
                 let fn_expr = self.infer(&fn_arg.value);
-                let fn_ty = self.items.normalize_ty(fn_expr.ty, self.types);
+                let fn_ty = self.normalize(fn_expr.ty);
                 let TyData::FnPtr { params, result } = self.types.data(fn_ty).clone() else {
                     self.error(
                         diag::FFI_DECLARATION,
@@ -6293,7 +6394,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     return Some(self.err_expr(span));
                 };
                 let is_c_scalar = |this: &mut Self, t: Ty| {
-                    let nt = this.items.normalize_ty(t, this.types);
+                    let nt = this.normalize(t);
                     matches!(
                         this.types.data(nt),
                         TyData::Int(_)
@@ -6310,7 +6411,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     }
                 }
                 if ok {
-                    let res_nt = self.items.normalize_ty(result, self.types);
+                    let res_nt = self.normalize(result);
                     ok = is_c_scalar(self, result)
                         || matches!(self.types.data(res_nt), TyData::Unit);
                 }
@@ -6651,7 +6752,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         let generics = self.items.func(f).generics.clone();
         for (g, a) in generics.iter().zip(type_args.iter()) {
             if let Some((want_k, wp, wr)) = &g.callable {
-                let resolved = self.items.normalize_ty(*a, self.types);
+                let resolved = self.normalize(*a);
                 let td = self.types.data(resolved).clone();
                 if let TyData::Closure {
                     kind: got_k,
@@ -6679,12 +6780,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         for (gp_ty, wp_ty) in gp.iter().zip(wp.iter()) {
                             let wp_sub = self.types.subst(*wp_ty, &type_args);
                             let wp_sub = self.types.erase_regions(wp_sub);
-                            let wp_sub = self.items.normalize_ty(wp_sub, self.types);
+                            let wp_sub = self.normalize(wp_sub);
                             self.unify(*gp_ty, wp_sub, span);
                         }
                         let wr_sub = self.types.subst(*wr, &type_args);
                         let wr_sub = self.types.erase_regions(wr_sub);
-                        let wr_sub = self.items.normalize_ty(wr_sub, self.types);
+                        let wr_sub = self.normalize(wr_sub);
                         self.unify(gr, wr_sub, span);
                     }
                 }
@@ -6692,6 +6793,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         }
         let ty = self.types.subst(result, &type_args);
         let ty = self.types.erase_regions(ty);
+        let ty = self.normalize(ty);
         Expr {
             kind: ExprKind::Call {
                 callee: f,
@@ -7125,72 +7227,66 @@ impl Finalizer<'_, '_> {
     }
 
     fn is_copy(&mut self, ty: Ty) -> bool {
-        self.is_copy_depth(ty, 0)
+        self.items.is_copy_in_env(ty, self.generics, self.types)
     }
 
-    fn is_copy_depth(&mut self, ty: Ty, depth: u32) -> bool {
-        // Deeper nesting than this is an infinite by-value layout, which the
-        // declaration check rejects separately.
-        if depth > 64 {
-            return false;
-        }
-        match self.data(ty) {
-            TyData::Unit
-            | TyData::Type
-            | TyData::ConstParam(_)
-            | TyData::ConstU32(_)
-            | TyData::Bool
-            | TyData::Never
-            | TyData::Int(_)
-            | TyData::Float(_)
-            | TyData::Error => true,
-            TyData::Tuple(items) | TyData::Union(items) => {
-                items.iter().all(|t| self.is_copy_depth(*t, depth + 1))
+    fn check_generic_bounds(
+        &mut self,
+        generics: &[crate::items::GenericInfo],
+        type_args: &[Ty],
+        subst_args: &[Ty],
+        span: Span,
+    ) {
+        for (g, a) in generics.iter().zip(type_args.iter()) {
+            if g.store_element && matches!(self.data(*a), TyData::Ref { .. } | TyData::Desc(_)) {
+                self.diags.push(diag::error(
+                    diag::GENERIC_BOUND,
+                    span,
+                    format!("type argument for `{}` must satisfy StoreElement", g.name),
+                ));
             }
-            TyData::Array { element, .. } | TyData::ArrayConst { element, .. } => {
-                self.is_copy_depth(element, depth + 1)
+            if g.copy && !self.is_copy(*a) {
+                self.diags.push(diag::error(
+                    diag::GENERIC_BOUND,
+                    span,
+                    format!("type argument for `{}` must be Copy", g.name),
+                ));
             }
-            TyData::Slice(_) | TyData::SelfParam => false,
-            TyData::Ref { mutable, .. } => !mutable,
-            TyData::Desc(_) | TyData::FnPtr { .. } => true,
-            TyData::Closure { .. }
-            | TyData::ImplCallable { .. }
-            | TyData::Dyn(_)
-            | TyData::OwnedDyn { .. } => false,
-            TyData::Managed(_) => false,
-            TyData::Opaque(OpaqueKind::ForeignHandle | OpaqueKind::ForeignCallback { .. }) => true,
-            TyData::Opaque(
-                OpaqueKind::ByteBuffer
-                | OpaqueKind::OwnedStore(_)
-                | OpaqueKind::Mutex(_)
-                | OpaqueKind::MutexGuard(_)
-                | OpaqueKind::Task { .. }
-                | OpaqueKind::Registration(_)
-                | OpaqueKind::AsyncRegistration(_)
-                | OpaqueKind::SyncCell(_),
-            ) => false,
-            TyData::ErrorUnion { ok, err } => {
-                self.is_copy_depth(ok, depth + 1) && self.is_copy_depth(err, depth + 1)
-            }
-            TyData::Param(i) => self.generics.get(i as usize).is_some_and(|g| g.copy),
-            TyData::Adt { adt, args, .. } => {
-                let decl = self.items.adt(adt);
-                match decl.kind {
-                    AdtKind::Record | AdtKind::Enum => {
-                        let fields: Vec<Ty> = decl
-                            .variants
-                            .iter()
-                            .flat_map(|v| v.fields.iter().map(|f| f.ty))
-                            .collect();
-                        fields.into_iter().all(|f| {
-                            let t = self.types.subst(f, &args);
-                            self.is_copy_depth(t, depth + 1)
+            for bound in &g.traits {
+                let inst_bound = crate::items::TraitBound {
+                    trait_ref: bound.trait_ref,
+                    trait_args: bound
+                        .trait_args
+                        .iter()
+                        .map(|t| {
+                            let s = self.types.subst(*t, subst_args);
+                            self.items.normalize_ty_in_env(s, self.generics, self.types)
                         })
-                    }
-                    AdtKind::Package | AdtKind::Resource => false,
+                        .collect(),
+                    assoc_bindings: bound
+                        .assoc_bindings
+                        .iter()
+                        .map(|(n, t)| {
+                            let s = self.types.subst(*t, subst_args);
+                            (
+                                n.clone(),
+                                self.items.normalize_ty_in_env(s, self.generics, self.types),
+                            )
+                        })
+                        .collect(),
+                };
+                if !self
+                    .items
+                    .satisfies_trait_bound(*a, &inst_bound, self.generics, self.types)
+                {
+                    let tname = &self.items.trait_decl(bound.trait_ref).name;
+                    self.diags.push(diag::error(
+                        diag::GENERIC_BOUND,
+                        span,
+                        format!("type argument for `{}` does not satisfy `{tname}`", g.name),
+                    ));
                 }
             }
-            TyData::Assoc { .. } | TyData::Var(_) => false,
         }
     }
 
@@ -7313,64 +7409,7 @@ impl Finalizer<'_, '_> {
                     *a = self.zonk(*a, span);
                 }
                 let generics = self.items.func(*func).generics.clone();
-                for (g, a) in generics.iter().zip(type_args.iter()) {
-                    if g.store_element
-                        && matches!(self.data(*a), TyData::Ref { .. } | TyData::Desc(_))
-                    {
-                        self.diags.push(diag::error(
-                            diag::GENERIC_BOUND,
-                            span,
-                            format!("type argument for `{}` must satisfy StoreElement", g.name),
-                        ));
-                    }
-                    if g.copy && !self.is_copy(*a) {
-                        self.diags.push(diag::error(
-                            diag::GENERIC_BOUND,
-                            span,
-                            format!("type argument for `{}` must be Copy", g.name),
-                        ));
-                    }
-                    for (tr_ref, tr_args) in &g.traits {
-                        if !matches!(self.data(*a), TyData::Param(_) | TyData::Error) {
-                            let resolved_args: Vec<Ty> = tr_args
-                                .iter()
-                                .map(|t| {
-                                    let s = self.types.subst(*t, type_args);
-                                    self.items.normalize_ty(s, self.types)
-                                })
-                                .collect();
-                            let found = self.items.trait_impls.iter().any(|imp| {
-                                if imp.trait_ref != *tr_ref {
-                                    return false;
-                                }
-                                let Some(impl_args) = self.items.match_impl(imp, *a, self.types)
-                                else {
-                                    return false;
-                                };
-                                let imp_targs: Vec<Ty> = imp
-                                    .trait_args
-                                    .iter()
-                                    .map(|t| {
-                                        let s = self.types.subst(*t, &impl_args);
-                                        self.items.normalize_ty(s, self.types)
-                                    })
-                                    .collect();
-                                imp_targs == resolved_args
-                            });
-                            if !found {
-                                let tname = &self.items.trait_decl(*tr_ref).name;
-                                self.diags.push(diag::error(
-                                    diag::GENERIC_BOUND,
-                                    span,
-                                    format!(
-                                        "type argument for `{}` does not implement `{tname}`",
-                                        g.name
-                                    ),
-                                ));
-                            }
-                        }
-                    }
-                }
+                self.check_generic_bounds(&generics, type_args, type_args, span);
             }
             ExprKind::Field { base, args, .. } => {
                 self.expr(base);
@@ -7451,64 +7490,7 @@ impl Finalizer<'_, '_> {
                     *a = self.zonk(*a, span);
                 }
                 let generics = self.items.func(*callee).generics.clone();
-                for (g, a) in generics.iter().zip(type_args.iter()) {
-                    if g.store_element
-                        && matches!(self.data(*a), TyData::Ref { .. } | TyData::Desc(_))
-                    {
-                        self.diags.push(diag::error(
-                            diag::GENERIC_BOUND,
-                            span,
-                            format!("type argument for `{}` must satisfy StoreElement", g.name),
-                        ));
-                    }
-                    if g.copy && !self.is_copy(*a) {
-                        self.diags.push(diag::error(
-                            diag::GENERIC_BOUND,
-                            span,
-                            format!("type argument for `{}` must be Copy", g.name),
-                        ));
-                    }
-                    for (tr_ref, tr_args) in &g.traits {
-                        if !matches!(self.data(*a), TyData::Param(_) | TyData::Error) {
-                            let resolved_args: Vec<Ty> = tr_args
-                                .iter()
-                                .map(|t| {
-                                    let s = self.types.subst(*t, type_args);
-                                    self.items.normalize_ty(s, self.types)
-                                })
-                                .collect();
-                            let found = self.items.trait_impls.iter().any(|imp| {
-                                if imp.trait_ref != *tr_ref {
-                                    return false;
-                                }
-                                let Some(impl_args) = self.items.match_impl(imp, *a, self.types)
-                                else {
-                                    return false;
-                                };
-                                let imp_targs: Vec<Ty> = imp
-                                    .trait_args
-                                    .iter()
-                                    .map(|t| {
-                                        let s = self.types.subst(*t, &impl_args);
-                                        self.items.normalize_ty(s, self.types)
-                                    })
-                                    .collect();
-                                imp_targs == resolved_args
-                            });
-                            if !found {
-                                let tname = &self.items.trait_decl(*tr_ref).name;
-                                self.diags.push(diag::error(
-                                    diag::GENERIC_BOUND,
-                                    span,
-                                    format!(
-                                        "type argument for `{}` does not implement `{tname}`",
-                                        g.name
-                                    ),
-                                ));
-                            }
-                        }
-                    }
-                }
+                self.check_generic_bounds(&generics, type_args, type_args, span);
                 args.iter_mut().for_each(|a| self.expr(a));
             }
             ExprKind::IndirectCall { callee, args } => {
@@ -7523,15 +7505,33 @@ impl Finalizer<'_, '_> {
                 args.iter_mut().for_each(|a| self.expr(a));
             }
             ExprKind::TraitCall {
+                trait_ref,
                 trait_args,
+                method_args,
                 self_ty,
+                method,
                 args,
-                ..
             } => {
                 for a in trait_args.iter_mut() {
                     *a = self.zonk(*a, span);
                 }
+                for a in method_args.iter_mut() {
+                    *a = self.zonk(*a, span);
+                }
                 *self_ty = self.zonk(*self_ty, span);
+                if !method_args.is_empty()
+                    && let Some(tm_generics) = self
+                        .items
+                        .trait_decl(*trait_ref)
+                        .methods
+                        .iter()
+                        .find(|m| m.name == *method)
+                        .map(|m| m.generics.clone())
+                {
+                    let mut full_subst = trait_args.clone();
+                    full_subst.extend(method_args.iter().copied());
+                    self.check_generic_bounds(&tm_generics, method_args, &full_subst, span);
+                }
                 args.iter_mut().for_each(|a| self.expr(a));
             }
             ExprKind::DynCall { object, args, .. } => {
