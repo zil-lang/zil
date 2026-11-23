@@ -5052,6 +5052,9 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                             });
                             self.coerce_arg(receiver, want_ref, object.span)
                         } else {
+                            if mutable {
+                                self.check_mutable_place(&receiver, "exclusively borrowed");
+                            }
                             let borrow_ty = self.types.intern(TyData::Ref {
                                 region: None,
                                 mutable,
