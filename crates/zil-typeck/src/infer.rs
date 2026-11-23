@@ -8100,7 +8100,9 @@ impl Finalizer<'_, '_> {
             if self.explicit_direct {
                 for (li, l) in f.locals.iter().enumerate() {
                     let lid = LocalId(li as u32);
-                    if self.may_suspend_on_drop(l.ty) && !local_is_consumed(&f.body, lid) {
+                    if self.may_suspend_on_drop(l.ty, &f.closures)
+                        && !local_is_consumed(&f.body, lid)
+                    {
                         reported.insert(lid);
                         self.diags.push(diag::error(
                             diag::GENERIC_BOUND,
@@ -8120,7 +8122,7 @@ impl Finalizer<'_, '_> {
                 loop {
                     let before = tainted.len();
                     propagate_tainted_locals(&f.body, &mut tainted, |lid| {
-                        self.may_suspend_on_drop(f.locals[lid.0 as usize].ty)
+                        self.may_suspend_on_drop(f.locals[lid.0 as usize].ty, &f.closures)
                     });
                     if tainted.len() == before {
                         break;
@@ -8208,9 +8210,18 @@ impl Finalizer<'_, '_> {
         }
     }
 
-    fn may_suspend_on_drop(&self, ty: Ty) -> bool {
+    fn may_suspend_on_drop(&self, ty: Ty, closures: &[ThirClosure]) -> bool {
         match self.data(ty) {
-            TyData::Closure { .. } | TyData::ImplCallable { .. } => true,
+            TyData::Closure { id, .. } => {
+                if let Some(clo) = closures.get(id.0 as usize) {
+                    clo.capture_tys
+                        .iter()
+                        .any(|&cty| self.may_suspend_on_drop(cty, closures))
+                } else {
+                    true
+                }
+            }
+            TyData::ImplCallable { .. } => true,
             TyData::Managed(_)
             | TyData::Tuple(_)
             | TyData::Array { .. }
