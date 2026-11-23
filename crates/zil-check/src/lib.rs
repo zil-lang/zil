@@ -44,7 +44,7 @@ pub fn check_module(
         kind: CheckErrorKind::CertificateShape(e.reason),
     })?;
     let can_suspend = check_suspend_effects(&module, &sccs)?;
-    check_contracts(&module, &can_suspend)?;
+    check_contracts(&module, &can_suspend, budget)?;
     let fn_sigs = module.fn_sigs();
     let return_summaries = zil_semantics::compute_return_summaries(&module);
     let sigs = Sigs {
@@ -226,7 +226,11 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
 /// transitive `Suspend` live-borrow freedom), fail-closed FFI `c_register_async`
 /// provider role identity, and per-path/per-result protocol-state contracts
 /// (`requires(state(...))`, `provides(retired(...))`, `on_pending`/`on_ready`).
-fn check_contracts(module: &Module, can_suspend: &[bool]) -> Result<(), CheckError> {
+fn check_contracts(
+    module: &Module,
+    can_suspend: &[bool],
+    budget: CheckBudget,
+) -> Result<(), CheckError> {
     use std::collections::{HashMap, VecDeque};
     use zil_ir::body::{
         BlockId, Callee, ClosureId, IntrinsicOp, OpLocation, Place, ResumeMode, Terminator,
@@ -383,25 +387,42 @@ fn check_contracts(module: &Module, can_suspend: &[bool]) -> Result<(), CheckErr
         verify_fn_provenance(module, fn_id, func, transfer_reachable[fi])?;
 
         // 3. Verify declared protocol-state contracts (`requires(state(...))`,
-        //    `provides(retired(...))`, `provides(on_pending/on_ready(...))`).
-        if !func.sig.state_contracts.is_empty() {
-            verify_fn_state_contracts(module, fn_id, func)?;
+        //    `requires(apart(...))`, `provides(state|retired|on_ok|on_err|on_pending|on_ready)`).
+        //    Run on every function that declares state contracts OR calls any callee
+        //    that declares state contracts, so unannotated callers cannot bypass preconditions.
+        let calls_contracted_callee = func.body.blocks.iter().any(|b| {
+            matches!(
+                &b.terminator,
+                Terminator::Call {
+                    callee: zil_ir::body::Callee::Direct(cid),
+                    ..
+                } if module
+                    .functions
+                    .get(cid.index())
+                    .is_some_and(|cf| !cf.sig.state_contracts.is_empty())
+            )
+        });
+        if !func.sig.state_contracts.is_empty() || calls_contracted_callee {
+            verify_fn_state_contracts(module, fn_id, func, budget)?;
         }
     }
     Ok(())
 }
 
-/// Independently verifies a function's `StateContractClause`s via forward CFG
-/// abstract interpretation over `{Open, Closing, Closed}` + `retired`.
+/// Independently verifies built-in and user-defined `StateContractClause`s via
+/// budget-bounded forward CFG abstract interpretation over finite state bitmasks,
+/// `retired` flags, `ErrorUnion`/`Poll` exit refinements, and `apart(a, b)` aliasing.
 fn verify_fn_state_contracts(
     module: &Module,
     fn_id: FnId,
     func: &zil_ir::body::Function,
+    budget: CheckBudget,
 ) -> Result<(), CheckError> {
     use std::collections::{HashMap, VecDeque};
     use zil_ir::body::{
-        AggregateKind, BlockId, Callee, InstructionKind, IntrinsicOp, Local, OpaqueTy, Operand,
-        PlaceRoot, ProtocolStateSet, Rvalue, StateContractClause, Terminator,
+        AdtId, AggregateKind, BlockId, Callee, FieldIdx, InstructionKind, IntrinsicOp, Local,
+        Mutability, OpaqueTy, Operand, Place, PlaceRoot, Projection, ProtocolStateSet, Rvalue,
+        StateContractClause, Terminator,
     };
 
     let tys = &module.tys;
@@ -410,7 +431,13 @@ fn verify_fn_state_contracts(
         kind: CheckErrorKind::CertificateShape(reason),
     };
 
-    let is_protocol_handle_ty = |mut ty: zil_ir::body::TyId| -> bool {
+    #[derive(Clone, Copy, Debug)]
+    struct ProtoHandleInfo {
+        variant_count: usize,
+        state_field: Option<(AdtId, FieldIdx)>,
+    }
+
+    let proto_handle_info = |mut ty: zil_ir::body::TyId| -> Option<ProtoHandleInfo> {
         for _ in 0..4 {
             match tys.get(ty) {
                 Some(
@@ -420,11 +447,46 @@ fn verify_fn_state_contracts(
                     OpaqueTy::Task { .. }
                     | OpaqueTy::Registration { .. }
                     | OpaqueTy::AsyncRegistration { .. },
-                )) => return true,
-                _ => return false,
+                )) => {
+                    return Some(ProtoHandleInfo {
+                        variant_count: 3,
+                        state_field: None,
+                    });
+                }
+                Some(TyKind::Adt { adt, .. }) => {
+                    let def = tys.get_adt(*adt)?;
+                    if def.kind == AdtKind::Enum
+                        && !def.variants.is_empty()
+                        && def.variants.len() <= 64
+                    {
+                        return Some(ProtoHandleInfo {
+                            variant_count: def.variants.len(),
+                            state_field: None,
+                        });
+                    }
+                    if def.variants.len() == 1
+                        && let Some((fi, f)) = def.variants[0]
+                            .fields
+                            .iter()
+                            .enumerate()
+                            .find(|(_, f)| f.name == "state")
+                        && let Some(TyKind::Adt { adt: state_adt, .. }) = tys.get(f.ty)
+                        && let Some(state_def) = tys.get_adt(*state_adt)
+                        && state_def.kind == AdtKind::Enum
+                        && !state_def.variants.is_empty()
+                        && state_def.variants.len() <= 64
+                    {
+                        return Some(ProtoHandleInfo {
+                            variant_count: state_def.variants.len(),
+                            state_field: Some((*adt, FieldIdx(fi as u32))),
+                        });
+                    }
+                    return None;
+                }
+                _ => return None,
             }
         }
-        false
+        None
     };
 
     let is_poll_ty = |ty: zil_ir::body::TyId| -> bool {
@@ -440,34 +502,102 @@ fn verify_fn_state_contracts(
         }
     };
 
+    let is_error_union_ty =
+        |ty: zil_ir::body::TyId| -> bool { matches!(tys.get(ty), Some(TyKind::ErrorUnion { .. })) };
+
+    let is_mut_ref_or_desc_ty = |ty: zil_ir::body::TyId| -> bool {
+        matches!(
+            tys.get(ty),
+            Some(
+                TyKind::Ref {
+                    mutability: Mutability::Exclusive,
+                    ..
+                } | TyKind::Desc(_)
+            )
+        )
+    };
+
+    let nlocals = func.body.locals.len();
     let param_count = func.body.param_count as usize;
-    let mut init_states = vec![ProtocolStateSet::ALL; param_count];
+    let local_info: Vec<Option<ProtoHandleInfo>> = func
+        .body
+        .locals
+        .iter()
+        .map(|l| proto_handle_info(l.ty))
+        .collect();
+    let mut init_states: Vec<ProtocolStateSet> = local_info
+        .iter()
+        .map(|info| {
+            info.map_or(ProtocolStateSet(0), |i| {
+                ProtocolStateSet::all_variants(i.variant_count)
+            })
+        })
+        .collect();
+
     let mut has_poll_post = false;
+    let mut has_eu_post = false;
     for clause in &func.sig.state_contracts {
-        let (param, states_opt) = match *clause {
-            StateContractClause::RequiresState { param, states } => (param, Some(states)),
-            StateContractClause::ProvidesRetired { param } => (param, None),
-            StateContractClause::ProvidesOnPending { param, states }
-            | StateContractClause::ProvidesOnReady { param, states } => {
-                has_poll_post = true;
-                (param, Some(states))
+        match *clause {
+            StateContractClause::RequiresApart { param_a, param_b } => {
+                let pa = param_a as usize;
+                let pb = param_b as usize;
+                if pa == pb
+                    || pa >= param_count
+                    || pb >= param_count
+                    || pa >= func.sig.params.len()
+                    || pb >= func.sig.params.len()
+                {
+                    return Err(fail(
+                        "state contract apart(...) references invalid parameter",
+                    ));
+                }
             }
-        };
-        let p_idx = param as usize;
-        if p_idx >= param_count || p_idx >= func.sig.params.len() {
-            return Err(fail("state contract references out-of-range parameter"));
-        }
-        if !is_protocol_handle_ty(func.sig.params[p_idx]) {
-            return Err(fail(
-                "state contract parameter is not a protocol handle type",
-            ));
-        }
-        if let Some(st) = states_opt {
-            if !st.is_valid() {
-                return Err(fail("state contract has invalid ProtocolStateSet bitmask"));
+            StateContractClause::RequiresState { param, states }
+            | StateContractClause::ProvidesState { param, states }
+            | StateContractClause::ProvidesOnPending { param, states }
+            | StateContractClause::ProvidesOnReady { param, states }
+            | StateContractClause::ProvidesOnOk { param, states }
+            | StateContractClause::ProvidesOnErr { param, states } => {
+                if matches!(
+                    clause,
+                    StateContractClause::ProvidesOnPending { .. }
+                        | StateContractClause::ProvidesOnReady { .. }
+                ) {
+                    has_poll_post = true;
+                }
+                if matches!(
+                    clause,
+                    StateContractClause::ProvidesOnOk { .. }
+                        | StateContractClause::ProvidesOnErr { .. }
+                ) {
+                    has_eu_post = true;
+                }
+                let p_idx = param as usize;
+                if p_idx >= param_count || p_idx >= func.sig.params.len() {
+                    return Err(fail("state contract references out-of-range parameter"));
+                }
+                let Some(info) = proto_handle_info(func.sig.params[p_idx]) else {
+                    return Err(fail(
+                        "state contract parameter is not a protocol handle type",
+                    ));
+                };
+                if !states.is_valid_for(info.variant_count) {
+                    return Err(fail("state contract has invalid ProtocolStateSet bitmask"));
+                }
+                if matches!(clause, StateContractClause::RequiresState { .. }) {
+                    init_states[p_idx] = states;
+                }
             }
-            if matches!(clause, StateContractClause::RequiresState { .. }) {
-                init_states[p_idx] = st;
+            StateContractClause::ProvidesRetired { param } => {
+                let p_idx = param as usize;
+                if p_idx >= param_count || p_idx >= func.sig.params.len() {
+                    return Err(fail("state contract references out-of-range parameter"));
+                }
+                if proto_handle_info(func.sig.params[p_idx]).is_none() {
+                    return Err(fail(
+                        "state contract parameter is not a protocol handle type",
+                    ));
+                }
             }
         }
     }
@@ -476,19 +606,40 @@ fn verify_fn_state_contracts(
             "on_pending/on_ready state contract requires Poll return type",
         ));
     }
+    if has_eu_post && !is_error_union_ty(func.sig.result) {
+        return Err(fail(
+            "on_ok/on_err state contract requires ErrorUnion return type",
+        ));
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum DiscrTarget {
+        Poll(Local),
+        ErrorUnion(Local),
+        HandleState(usize),
+        ValidCheck { handle: usize, inverted: bool },
+    }
+
+    type EuTransitions = Vec<(usize, Option<ProtocolStateSet>, Option<ProtocolStateSet>)>;
 
     #[derive(Clone, PartialEq, Eq)]
     struct ProtoState {
         states: Vec<ProtocolStateSet>,
         retired: Vec<bool>,
-        /// Maps a local to the protocol parameter index it aliases.
+        /// Maps a local to the root protocol handle local index it aliases.
         alias: HashMap<Local, usize>,
-        /// Maps a Poll local to `(param_idx, pending_states, ready_states)`.
+        /// Maps a local holding a copied `handle.state` field to its root handle index.
+        state_field_of: HashMap<Local, usize>,
+        /// Exact enum variant for locals constructed via `AggregateKind::Adt`.
+        enum_variant: HashMap<Local, u32>,
+        /// Exact ErrorUnion arm (`true = ok`, `false = err`) for locals constructed via `Rvalue::ErrorUnion`.
+        error_arm_const: HashMap<Local, bool>,
+        /// Maps a Poll local to `(handle_idx, pending_states, ready_states)`.
         poll_of: HashMap<Local, (usize, ProtocolStateSet, ProtocolStateSet)>,
-        /// Maps a discriminant local to the Poll local it was read from.
-        discr_of: HashMap<Local, Local>,
-        /// Maps a Poll local constructed directly from an enum variant (`0 = Pending, 1 = Ready`).
-        poll_variant: HashMap<Local, u32>,
+        /// Maps an ErrorUnion local to `(handle_idx, ok_states, err_states)` transitions.
+        eu_of: HashMap<Local, EuTransitions>,
+        /// Maps a discriminant/tag local to what it was read from.
+        discr_of: HashMap<Local, DiscrTarget>,
     }
 
     impl ProtoState {
@@ -506,31 +657,83 @@ fn verify_fn_state_contracts(
                     changed = true;
                 }
             }
+            // Intersect exact-value maps on join so stale branch facts never leak across merges.
+            let prev_ev = self.enum_variant.len();
+            self.enum_variant
+                .retain(|k, v| other.enum_variant.get(k) == Some(v));
+            if self.enum_variant.len() != prev_ev {
+                changed = true;
+            }
+            let prev_ea = self.error_arm_const.len();
+            self.error_arm_const
+                .retain(|k, v| other.error_arm_const.get(k) == Some(v));
+            if self.error_arm_const.len() != prev_ea {
+                changed = true;
+            }
             changed
         }
 
-        fn resolve_param(&self, op: &Operand) -> Option<usize> {
+        fn resolve_handle(&self, op: &Operand) -> Option<usize> {
             match op {
-                Operand::Copy(p) | Operand::Move(p) => match p.root {
+                Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => match p.root {
                     PlaceRoot::Local(l) => self.alias.get(&l).copied(),
                     PlaceRoot::Capture(_) => None,
                 },
-                Operand::Const(_) | Operand::Pooled(_) => None,
+                Operand::Copy(_) | Operand::Move(_) | Operand::Const(_) | Operand::Pooled(_) => {
+                    None
+                }
             }
+        }
+
+        fn invalidate_handle(&mut self, h_idx: usize) {
+            self.poll_of.retain(|_, (h, _, _)| *h != h_idx);
+            self.eu_of.retain(|_, entries| {
+                entries.retain(|(h, _, _)| *h != h_idx);
+                !entries.is_empty()
+            });
+            self.state_field_of.retain(|_, h| *h != h_idx);
+            self.discr_of.retain(|_, t| {
+                !matches!(
+                    t,
+                    DiscrTarget::HandleState(h) | DiscrTarget::ValidCheck { handle: h, .. }
+                        if *h == h_idx
+                )
+            });
         }
     }
 
+    let place_targets_state_field = |place: &Place, st: &ProtoState| -> Option<usize> {
+        let PlaceRoot::Local(rl) = place.root else {
+            return None;
+        };
+        let &h_idx = st.alias.get(&rl)?;
+        let (_, sf) = local_info.get(h_idx).and_then(|o| *o)?.state_field?;
+        let (last, prefix) = place.projections.split_last()?;
+        if matches!(last, Projection::Field(f) if f.field == sf)
+            && prefix.iter().all(|p| matches!(p, Projection::Deref))
+        {
+            Some(h_idx)
+        } else {
+            None
+        }
+    };
+
     let mut entry_alias = HashMap::new();
-    for i in 0..param_count {
-        entry_alias.insert(Local(i as u32), i);
+    for (i, info) in local_info.iter().enumerate() {
+        if info.is_some() {
+            entry_alias.insert(Local(i as u32), i);
+        }
     }
     let entry_state = ProtoState {
         states: init_states,
-        retired: vec![false; param_count],
+        retired: vec![false; nlocals],
         alias: entry_alias,
+        state_field_of: HashMap::new(),
+        enum_variant: HashMap::new(),
+        error_arm_const: HashMap::new(),
         poll_of: HashMap::new(),
+        eu_of: HashMap::new(),
         discr_of: HashMap::new(),
-        poll_variant: HashMap::new(),
     };
 
     let nblocks = func.body.blocks.len();
@@ -562,60 +765,264 @@ fn verify_fn_state_contracts(
         }
     };
 
+    let mut steps: u64 = 0;
     while let Some(bi) = queue.pop_front() {
+        steps += 1;
+        if steps > budget.steps.max(1024) {
+            return Err(CheckError {
+                function: fn_id,
+                kind: CheckErrorKind::ResourceLimit,
+            });
+        }
         let mut st = in_states[bi].clone().expect("enqueued block has state");
         let block = &func.body.blocks[bi];
 
         for inst in &block.instructions {
-            if let InstructionKind::Assign { dest, value } = &inst.kind
-                && dest.projections.is_empty()
-                && let PlaceRoot::Local(dl) = dest.root
-            {
-                st.alias.remove(&dl);
-                st.poll_of.remove(&dl);
-                st.discr_of.remove(&dl);
-                st.poll_variant.remove(&dl);
-                match value {
-                    Rvalue::Use(Operand::Copy(src) | Operand::Move(src))
-                    | Rvalue::Ref { place: src, .. }
-                    | Rvalue::Describe { place: src } => {
-                        if let PlaceRoot::Local(sl) = src.root {
-                            if let Some(&p) = st.alias.get(&sl) {
-                                st.alias.insert(dl, p);
-                            }
-                            if let Some(&po) = st.poll_of.get(&sl) {
-                                st.poll_of.insert(dl, po);
-                            }
-                            if let Some(&pv) = st.poll_variant.get(&sl) {
-                                st.poll_variant.insert(dl, pv);
-                            }
-                        }
-                    }
-                    Rvalue::Discriminant(src) => {
-                        if src.projections.is_empty()
-                            && let PlaceRoot::Local(sl) = src.root
-                        {
-                            st.discr_of.insert(dl, sl);
-                        }
-                    }
-                    Rvalue::Aggregate {
+            if let InstructionKind::Assign { dest, value } = &inst.kind {
+                // Case A: Writing directly to a protocol handle's `state` field (`h.state = ...`).
+                if let Some(h_idx) = place_targets_state_field(dest, &st) {
+                    let vc = local_info[h_idx].map_or(3, |i| i.variant_count);
+                    let new_state = if let Rvalue::Aggregate {
                         kind: AggregateKind::Adt { variant, .. },
                         ..
-                    } => {
-                        st.poll_variant.insert(dl, variant.0);
+                    } = value
+                    {
+                        ProtocolStateSet::single(variant.0)
+                    } else if let Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) = value
+                        && src.projections.is_empty()
+                        && let PlaceRoot::Local(sl) = src.root
+                        && let Some(&v) = st.enum_variant.get(&sl)
+                    {
+                        ProtocolStateSet::single(v)
+                    } else {
+                        ProtocolStateSet::all_variants(vc)
+                    };
+                    st.states[h_idx] = new_state;
+                    st.invalidate_handle(h_idx);
+                    continue;
+                }
+
+                // Case A2: Writing through a reference to a protocol handle (`*h = value`).
+                if !dest.projections.is_empty()
+                    && dest
+                        .projections
+                        .iter()
+                        .all(|p| matches!(p, Projection::Deref))
+                    && let PlaceRoot::Local(rl) = dest.root
+                    && let Some(&h_idx) = st.alias.get(&rl)
+                    && let Some(Some(info)) = local_info.get(h_idx)
+                {
+                    let new_state = if let Rvalue::Aggregate {
+                        kind: AggregateKind::Adt { variant, .. },
+                        operands,
+                    } = value
+                    {
+                        if let Some((_, sf)) = info.state_field {
+                            operands
+                                .get(sf.0 as usize)
+                                .and_then(|op| match op {
+                                    Operand::Copy(p) | Operand::Move(p)
+                                        if p.projections.is_empty() =>
+                                    {
+                                        if let PlaceRoot::Local(sl) = p.root {
+                                            st.enum_variant
+                                                .get(&sl)
+                                                .map(|&v| ProtocolStateSet::single(v))
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    Operand::Copy(_)
+                                    | Operand::Move(_)
+                                    | Operand::Const(_)
+                                    | Operand::Pooled(_) => None,
+                                })
+                                .unwrap_or_else(|| {
+                                    ProtocolStateSet::all_variants(info.variant_count)
+                                })
+                        } else {
+                            ProtocolStateSet::single(variant.0)
+                        }
+                    } else if let Rvalue::Use(op) = value {
+                        st.resolve_handle(op).map_or_else(
+                            || ProtocolStateSet::all_variants(info.variant_count),
+                            |src_h| st.states[src_h],
+                        )
+                    } else {
+                        ProtocolStateSet::all_variants(info.variant_count)
+                    };
+                    st.states[h_idx] = new_state;
+                    st.invalidate_handle(h_idx);
+                    continue;
+                }
+
+                // Case B: Whole-local assignment `dl = value`.
+                if dest.projections.is_empty()
+                    && let PlaceRoot::Local(dl) = dest.root
+                {
+                    let di = dl.index();
+                    st.alias.remove(&dl);
+                    if local_info.get(di).is_some_and(Option::is_some) {
+                        st.alias.insert(dl, di);
+                        st.invalidate_handle(di);
                     }
-                    Rvalue::Use(_)
-                    | Rvalue::SliceRef { .. }
-                    | Rvalue::Aggregate { .. }
-                    | Rvalue::ErrorUnion { .. }
-                    | Rvalue::Unary { .. }
-                    | Rvalue::Binary { .. }
-                    | Rvalue::Convert { .. }
-                    | Rvalue::ErrorArm(_)
-                    | Rvalue::Len(_)
-                    | Rvalue::FnRef(_)
-                    | Rvalue::ForeignFnRef(_)
-                    | Rvalue::StaticUtf(_) => {}
+                    st.state_field_of.remove(&dl);
+                    st.enum_variant.remove(&dl);
+                    st.error_arm_const.remove(&dl);
+                    st.poll_of.remove(&dl);
+                    st.eu_of.remove(&dl);
+                    st.discr_of.remove(&dl);
+                    match value {
+                        Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
+                            if let Some(h_idx) = place_targets_state_field(src, &st) {
+                                st.state_field_of.insert(dl, h_idx);
+                            } else if src.projections.is_empty()
+                                && let PlaceRoot::Local(sl) = src.root
+                            {
+                                if let Some(&h) = st.alias.get(&sl) {
+                                    let is_copy_value =
+                                        matches!(value, Rvalue::Use(Operand::Copy(_)))
+                                            && !matches!(
+                                                tys.get(func.body.locals[di].ty),
+                                                Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                            );
+                                    if is_copy_value
+                                        && local_info.get(di).is_some_and(Option::is_some)
+                                    {
+                                        // By-value Copy of a value-type protocol handle creates an independent copy.
+                                        st.states[di] = st.states[h];
+                                        st.retired[di] = st.retired[h];
+                                        st.alias.insert(dl, di);
+                                    } else {
+                                        // Move of an owning handle or copy of &/&mut/Desc preserves handle identity.
+                                        st.alias.insert(dl, h);
+                                    }
+                                }
+                                if let Some(&sf) = st.state_field_of.get(&sl) {
+                                    st.state_field_of.insert(dl, sf);
+                                }
+                                if let Some(&ev) = st.enum_variant.get(&sl) {
+                                    st.enum_variant.insert(dl, ev);
+                                }
+                                if let Some(&ea) = st.error_arm_const.get(&sl) {
+                                    st.error_arm_const.insert(dl, ea);
+                                }
+                                if let Some(&po) = st.poll_of.get(&sl) {
+                                    st.poll_of.insert(dl, po);
+                                }
+                                if let Some(eu) = st.eu_of.get(&sl).cloned() {
+                                    st.eu_of.insert(dl, eu);
+                                }
+                            }
+                        }
+                        Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
+                            if src
+                                .projections
+                                .iter()
+                                .all(|p| matches!(p, Projection::Deref))
+                                && let PlaceRoot::Local(sl) = src.root
+                                && let Some(&h) = st.alias.get(&sl)
+                            {
+                                st.alias.insert(dl, h);
+                            }
+                        }
+                        Rvalue::Discriminant(src) => {
+                            if let Some(h_idx) = place_targets_state_field(src, &st) {
+                                st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
+                            } else if src.projections.is_empty()
+                                && let PlaceRoot::Local(sl) = src.root
+                            {
+                                if let Some(&h_idx) = st.state_field_of.get(&sl) {
+                                    st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
+                                } else if st.poll_of.contains_key(&sl) {
+                                    st.discr_of.insert(dl, DiscrTarget::Poll(sl));
+                                } else if let Some(&h_idx) = st.alias.get(&sl)
+                                    && local_info
+                                        .get(h_idx)
+                                        .and_then(|o| *o)
+                                        .is_some_and(|i| i.state_field.is_none())
+                                {
+                                    st.discr_of.insert(dl, DiscrTarget::HandleState(h_idx));
+                                } else {
+                                    st.discr_of.insert(dl, DiscrTarget::Poll(sl));
+                                }
+                            }
+                        }
+                        Rvalue::ErrorArm(src) => {
+                            if src.projections.is_empty()
+                                && let PlaceRoot::Local(sl) = src.root
+                            {
+                                st.discr_of.insert(dl, DiscrTarget::ErrorUnion(sl));
+                            }
+                        }
+                        Rvalue::ErrorUnion { ok, .. } => {
+                            st.error_arm_const.insert(dl, *ok);
+                        }
+                        Rvalue::Aggregate {
+                            kind: AggregateKind::Adt { variant, .. },
+                            operands,
+                        } => {
+                            st.enum_variant.insert(dl, variant.0);
+                            if let Some(Some(info)) = local_info.get(di) {
+                                if let Some((_, sf)) = info.state_field {
+                                    let field_state = operands
+                                        .get(sf.0 as usize)
+                                        .and_then(|op| match op {
+                                            Operand::Copy(p) | Operand::Move(p)
+                                                if p.projections.is_empty() =>
+                                            {
+                                                if let PlaceRoot::Local(sl) = p.root {
+                                                    st.enum_variant
+                                                        .get(&sl)
+                                                        .map(|&v| ProtocolStateSet::single(v))
+                                                } else {
+                                                    None
+                                                }
+                                            }
+                                            Operand::Copy(_)
+                                            | Operand::Move(_)
+                                            | Operand::Const(_)
+                                            | Operand::Pooled(_) => None,
+                                        })
+                                        .unwrap_or_else(|| {
+                                            ProtocolStateSet::all_variants(info.variant_count)
+                                        });
+                                    st.states[di] = field_state;
+                                } else {
+                                    st.states[di] = ProtocolStateSet::single(variant.0);
+                                }
+                            }
+                        }
+                        Rvalue::Unary {
+                            op: zil_ir::body::UnOp::Not,
+                            operand,
+                        } => {
+                            if let Operand::Copy(p) | Operand::Move(p) = operand
+                                && p.projections.is_empty()
+                                && let PlaceRoot::Local(sl) = p.root
+                                && let Some(DiscrTarget::ValidCheck { handle, inverted }) =
+                                    st.discr_of.get(&sl).copied()
+                            {
+                                st.discr_of.insert(
+                                    dl,
+                                    DiscrTarget::ValidCheck {
+                                        handle,
+                                        inverted: !inverted,
+                                    },
+                                );
+                            }
+                        }
+                        Rvalue::Use(_)
+                        | Rvalue::SliceRef { .. }
+                        | Rvalue::Aggregate { .. }
+                        | Rvalue::Unary { .. }
+                        | Rvalue::Binary { .. }
+                        | Rvalue::Convert { .. }
+                        | Rvalue::Len(_)
+                        | Rvalue::FnRef(_)
+                        | Rvalue::ForeignFnRef(_)
+                        | Rvalue::StaticUtf(_) => {}
+                    }
                 }
             }
         }
@@ -628,13 +1035,10 @@ fn verify_fn_state_contracts(
                 arms,
                 otherwise,
             } => {
-                let poll_info = match discr {
+                let target_info = match discr {
                     Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
                         match p.root {
-                            PlaceRoot::Local(l) => st
-                                .discr_of
-                                .get(&l)
-                                .and_then(|pl| st.poll_of.get(pl).copied()),
+                            PlaceRoot::Local(l) => st.discr_of.get(&l).copied(),
                             PlaceRoot::Capture(_) => None,
                         }
                     }
@@ -643,18 +1047,97 @@ fn verify_fn_state_contracts(
                     | Operand::Const(_)
                     | Operand::Pooled(_) => None,
                 };
+                let mut covered_mask = ProtocolStateSet(0);
+                let mut covered_ok = false;
+                let mut covered_err = false;
+                let mut covered_valid_true = false;
                 for &(val, target) in arms {
                     let mut branch_st = st.clone();
-                    if let Some((p_idx, pend_st, ready_st)) = poll_info {
-                        if val == 0 {
-                            branch_st.states[p_idx] = pend_st;
-                        } else if val == 1 {
-                            branch_st.states[p_idx] = ready_st;
+                    match target_info {
+                        Some(DiscrTarget::Poll(pl)) => {
+                            if let Some((h_idx, pend_st, ready_st)) = st.poll_of.get(&pl).copied() {
+                                if val == 0 {
+                                    branch_st.states[h_idx] = pend_st;
+                                } else if val == 1 {
+                                    branch_st.states[h_idx] = ready_st;
+                                }
+                            }
                         }
+                        Some(DiscrTarget::ErrorUnion(eu_l)) => {
+                            if let Some(entries) = st.eu_of.get(&eu_l) {
+                                for &(h_idx, ok_st, err_st) in entries {
+                                    if val == 1 {
+                                        covered_ok = true;
+                                        if let Some(s) = ok_st {
+                                            branch_st.states[h_idx] = s;
+                                        }
+                                    } else if val == 0 {
+                                        covered_err = true;
+                                        if let Some(s) = err_st {
+                                            branch_st.states[h_idx] = s;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Some(DiscrTarget::HandleState(h_idx)) => {
+                            let single = ProtocolStateSet::single(val as u32);
+                            covered_mask = covered_mask.union(single);
+                            let refined = branch_st.states[h_idx].intersect(single);
+                            if refined.is_empty() {
+                                continue;
+                            }
+                            branch_st.states[h_idx] = refined;
+                        }
+                        Some(DiscrTarget::ValidCheck { handle, inverted }) => {
+                            let is_invalid = (val == 0) != inverted;
+                            if is_invalid {
+                                branch_st.states[handle] =
+                                    ProtocolStateSet(ProtocolStateSet::CLOSED);
+                            } else {
+                                covered_valid_true = true;
+                            }
+                        }
+                        None => {}
                     }
                     enqueue(target, branch_st, &mut in_states, &mut queue);
                 }
-                enqueue(*otherwise, st, &mut in_states, &mut queue);
+                let mut other_st = st;
+                match target_info {
+                    Some(DiscrTarget::HandleState(h_idx)) => {
+                        let rem = other_st.states[h_idx].subtract(covered_mask);
+                        if !rem.is_empty() {
+                            other_st.states[h_idx] = rem;
+                            enqueue(*otherwise, other_st, &mut in_states, &mut queue);
+                        }
+                    }
+                    Some(DiscrTarget::ErrorUnion(eu_l)) => {
+                        if let Some(entries) = other_st.eu_of.get(&eu_l).cloned() {
+                            for (h_idx, ok_st, err_st) in entries {
+                                if covered_ok && !covered_err {
+                                    if let Some(s) = err_st {
+                                        other_st.states[h_idx] = s;
+                                    }
+                                } else if covered_err
+                                    && !covered_ok
+                                    && let Some(s) = ok_st
+                                {
+                                    other_st.states[h_idx] = s;
+                                }
+                            }
+                        }
+                        enqueue(*otherwise, other_st, &mut in_states, &mut queue);
+                    }
+                    Some(DiscrTarget::ValidCheck { handle, .. }) => {
+                        if covered_valid_true {
+                            other_st.states[handle] = ProtocolStateSet(ProtocolStateSet::CLOSED);
+                        }
+                        enqueue(*otherwise, other_st, &mut in_states, &mut queue);
+                    }
+                    Some(DiscrTarget::Poll(_)) | None => {
+                        enqueue(*otherwise, other_st, &mut in_states, &mut queue);
+                    }
+                }
             }
             Terminator::Call {
                 callee,
@@ -674,32 +1157,74 @@ fn verify_fn_state_contracts(
                 } else {
                     None
                 };
+                let widen_mut_args = |st: &mut ProtoState| {
+                    for arg in args {
+                        if let Operand::Copy(p) | Operand::Move(p) = arg
+                            && p.projections.is_empty()
+                            && let PlaceRoot::Local(al) = p.root
+                            && func
+                                .body
+                                .locals
+                                .get(al.index())
+                                .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
+                            && let Some(&h_idx) = st.alias.get(&al)
+                            && let Some(Some(info)) = local_info.get(h_idx)
+                        {
+                            st.states[h_idx] = ProtocolStateSet::all_variants(info.variant_count);
+                            st.invalidate_handle(h_idx);
+                        }
+                    }
+                };
                 match callee {
+                    Callee::Intrinsic(IntrinsicOp::AsyncRegistrationValid) => {
+                        if let Some(a0) = args.first()
+                            && let Some(h_idx) = st.resolve_handle(a0)
+                            && let Some(dl) = dest_local
+                        {
+                            st.discr_of.insert(
+                                dl,
+                                DiscrTarget::ValidCheck {
+                                    handle: h_idx,
+                                    inverted: false,
+                                },
+                            );
+                        }
+                    }
                     Callee::Intrinsic(
                         IntrinsicOp::TaskRequestCancel | IntrinsicOp::AsyncRegistrationRequestClose,
                     ) => {
                         if let Some(a0) = args.first()
-                            && let Some(p_idx) = st.resolve_param(a0)
+                            && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            st.states[p_idx] = ProtocolStateSet(
-                                ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED,
-                            );
+                            let cur = st.states[h_idx];
+                            let mut next = ProtocolStateSet(0);
+                            if (cur.0 & (ProtocolStateSet::OPEN | ProtocolStateSet::CLOSING)) != 0 {
+                                next = next.union(ProtocolStateSet(
+                                    ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED,
+                                ));
+                            }
+                            if (cur.0 & ProtocolStateSet::CLOSED) != 0 {
+                                next = next.union(ProtocolStateSet(ProtocolStateSet::CLOSED));
+                            }
+                            st.states[h_idx] = next;
+                            st.invalidate_handle(h_idx);
                         }
                     }
                     Callee::Intrinsic(
                         IntrinsicOp::TaskPollClose | IntrinsicOp::AsyncRegistrationPollClose,
                     ) => {
                         if let Some(a0) = args.first()
-                            && let Some(p_idx) = st.resolve_param(a0)
+                            && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            st.states[p_idx] = ProtocolStateSet(
+                            st.states[h_idx] = ProtocolStateSet(
                                 ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED,
                             );
+                            st.invalidate_handle(h_idx);
                             if let Some(dl) = dest_local {
                                 st.poll_of.insert(
                                     dl,
                                     (
-                                        p_idx,
+                                        h_idx,
                                         ProtocolStateSet(ProtocolStateSet::CLOSING),
                                         ProtocolStateSet(ProtocolStateSet::CLOSED),
                                     ),
@@ -712,89 +1237,227 @@ fn verify_fn_state_contracts(
                         | IntrinsicOp::AsyncRegistrationFinishDestroy,
                     ) => {
                         if let Some(a0) = args.first()
-                            && let Some(p_idx) = st.resolve_param(a0)
+                            && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            if !st.states[p_idx]
+                            if !st.states[h_idx]
                                 .is_subset_of(ProtocolStateSet(ProtocolStateSet::CLOSED))
                             {
                                 return Err(fail(
                                     "finish_destroy called on protocol handle not proved Closed",
                                 ));
                             }
-                            st.retired[p_idx] = true;
+                            st.retired[h_idx] = true;
+                            st.invalidate_handle(h_idx);
                         }
                     }
                     Callee::Intrinsic(IntrinsicOp::RegistrationClose) => {
                         if let Some(a0) = args.first()
-                            && let Some(p_idx) = st.resolve_param(a0)
+                            && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            st.retired[p_idx] = true;
+                            st.retired[h_idx] = true;
+                            st.invalidate_handle(h_idx);
                         }
                     }
                     Callee::Direct(cid) => {
                         if let Some(callee_fn) = module.functions.get(cid.index())
                             && !callee_fn.sig.state_contracts.is_empty()
                         {
-                            let mut pend_by_param: HashMap<usize, ProtocolStateSet> =
+                            let mut pend_by_handle: HashMap<usize, ProtocolStateSet> =
                                 HashMap::new();
-                            let mut ready_by_param: HashMap<usize, ProtocolStateSet> =
+                            let mut ready_by_handle: HashMap<usize, ProtocolStateSet> =
                                 HashMap::new();
+                            let mut ok_by_handle: HashMap<usize, ProtocolStateSet> = HashMap::new();
+                            let mut err_by_handle: HashMap<usize, ProtocolStateSet> =
+                                HashMap::new();
+                            // 1. Check all preconditions BEFORE applying postconditions.
                             for c in &callee_fn.sig.state_contracts {
                                 match *c {
                                     StateContractClause::RequiresState { param, states } => {
-                                        if let Some(arg) = args.get(param as usize)
-                                            && let Some(p_idx) = st.resolve_param(arg)
-                                            && !st.states[p_idx].is_subset_of(states)
-                                        {
+                                        let Some(arg) = args.get(param as usize) else {
+                                            return Err(fail(
+                                                "callee requires(state(...)) argument missing",
+                                            ));
+                                        };
+                                        let Some(h_idx) = st.resolve_handle(arg) else {
+                                            return Err(fail(
+                                                "callee requires(state(...)) argument has unknown protocol handle state",
+                                            ));
+                                        };
+                                        if !st.states[h_idx].is_subset_of(states) {
                                             return Err(fail(
                                                 "callee requires(state(...)) precondition not satisfied",
                                             ));
                                         }
                                     }
+                                    StateContractClause::RequiresApart { param_a, param_b } => {
+                                        let (Some(aa), Some(ab)) = (
+                                            args.get(param_a as usize),
+                                            args.get(param_b as usize),
+                                        ) else {
+                                            return Err(fail(
+                                                "callee requires(apart(...)) argument missing",
+                                            ));
+                                        };
+                                        let (Some(ha), Some(hb)) =
+                                            (st.resolve_handle(aa), st.resolve_handle(ab))
+                                        else {
+                                            return Err(fail(
+                                                "callee requires(apart(...)) argument identity cannot be proved distinct",
+                                            ));
+                                        };
+                                        if ha == hb {
+                                            return Err(fail(
+                                                "callee requires(apart(...)) violated: aliasing protocol handles",
+                                            ));
+                                        }
+                                        // Two distinct parameters can only be assumed disjoint if
+                                        // at least one is local-owned, or exclusive (&mut / by-value),
+                                        // or explicitly covered by the caller's own `requires(apart(...))`.
+                                        let is_shared_param = |idx: usize| -> bool {
+                                            idx < param_count
+                                                && matches!(
+                                                    tys.get(func.body.locals[idx].ty),
+                                                    Some(
+                                                        TyKind::Ref {
+                                                            mutability: Mutability::Shared,
+                                                            ..
+                                                        } | TyKind::Desc(_)
+                                                    )
+                                                )
+                                        };
+                                        if is_shared_param(ha) && is_shared_param(hb) {
+                                            let caller_proves_apart =
+                                                func.sig.state_contracts.iter().any(|cc| {
+                                                    matches!(
+                                                        *cc,
+                                                        StateContractClause::RequiresApart {
+                                                            param_a: ca,
+                                                            param_b: cb,
+                                                        } if (ca as usize == ha && cb as usize == hb)
+                                                            || (ca as usize == hb && cb as usize == ha)
+                                                    )
+                                                });
+                                            if !caller_proves_apart {
+                                                return Err(fail(
+                                                    "callee requires(apart(...)) violated: shared parameters may alias",
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    StateContractClause::ProvidesRetired { .. }
+                                    | StateContractClause::ProvidesState { .. }
+                                    | StateContractClause::ProvidesOnPending { .. }
+                                    | StateContractClause::ProvidesOnReady { .. }
+                                    | StateContractClause::ProvidesOnOk { .. }
+                                    | StateContractClause::ProvidesOnErr { .. } => {}
+                                }
+                            }
+                            // 2. Apply postconditions.
+                            let mut contracted_handles = Vec::new();
+                            for c in &callee_fn.sig.state_contracts {
+                                match *c {
+                                    StateContractClause::RequiresState { .. }
+                                    | StateContractClause::RequiresApart { .. } => {}
                                     StateContractClause::ProvidesRetired { param } => {
                                         if let Some(arg) = args.get(param as usize)
-                                            && let Some(p_idx) = st.resolve_param(arg)
+                                            && let Some(h_idx) = st.resolve_handle(arg)
                                         {
-                                            st.retired[p_idx] = true;
+                                            st.retired[h_idx] = true;
+                                            st.invalidate_handle(h_idx);
+                                            contracted_handles.push(h_idx);
+                                        }
+                                    }
+                                    StateContractClause::ProvidesState { param, states } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(h_idx) = st.resolve_handle(arg)
+                                        {
+                                            st.states[h_idx] = states;
+                                            st.invalidate_handle(h_idx);
+                                            contracted_handles.push(h_idx);
                                         }
                                     }
                                     StateContractClause::ProvidesOnPending { param, states } => {
                                         if let Some(arg) = args.get(param as usize)
-                                            && let Some(p_idx) = st.resolve_param(arg)
+                                            && let Some(h_idx) = st.resolve_handle(arg)
                                         {
-                                            pend_by_param.insert(p_idx, states);
+                                            pend_by_handle.insert(h_idx, states);
+                                            contracted_handles.push(h_idx);
                                         }
                                     }
                                     StateContractClause::ProvidesOnReady { param, states } => {
                                         if let Some(arg) = args.get(param as usize)
-                                            && let Some(p_idx) = st.resolve_param(arg)
+                                            && let Some(h_idx) = st.resolve_handle(arg)
                                         {
-                                            ready_by_param.insert(p_idx, states);
+                                            ready_by_handle.insert(h_idx, states);
+                                            contracted_handles.push(h_idx);
+                                        }
+                                    }
+                                    StateContractClause::ProvidesOnOk { param, states } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(h_idx) = st.resolve_handle(arg)
+                                        {
+                                            ok_by_handle.insert(h_idx, states);
+                                            contracted_handles.push(h_idx);
+                                        }
+                                    }
+                                    StateContractClause::ProvidesOnErr { param, states } => {
+                                        if let Some(arg) = args.get(param as usize)
+                                            && let Some(h_idx) = st.resolve_handle(arg)
+                                        {
+                                            err_by_handle.insert(h_idx, states);
+                                            contracted_handles.push(h_idx);
                                         }
                                     }
                                 }
                             }
                             if let Some(dl) = dest_local {
-                                for (&p_idx, &pend) in &pend_by_param {
-                                    let ready = ready_by_param
-                                        .get(&p_idx)
+                                for (&h_idx, &pend) in &pend_by_handle {
+                                    let ready = ready_by_handle
+                                        .get(&h_idx)
                                         .copied()
-                                        .unwrap_or(st.states[p_idx]);
-                                    st.poll_of.insert(dl, (p_idx, pend, ready));
+                                        .unwrap_or(st.states[h_idx]);
+                                    st.poll_of.insert(dl, (h_idx, pend, ready));
                                 }
-                                for (&p_idx, &ready) in &ready_by_param {
-                                    if !pend_by_param.contains_key(&p_idx) {
-                                        st.poll_of.insert(dl, (p_idx, st.states[p_idx], ready));
+                                for (&h_idx, &ready) in &ready_by_handle {
+                                    if !pend_by_handle.contains_key(&h_idx) {
+                                        st.poll_of.insert(dl, (h_idx, st.states[h_idx], ready));
                                     }
                                 }
+                                if !ok_by_handle.is_empty() || !err_by_handle.is_empty() {
+                                    let mut entries = Vec::new();
+                                    let mut seen = Vec::new();
+                                    for (&h_idx, &ok_st) in &ok_by_handle {
+                                        let err_st = err_by_handle.get(&h_idx).copied();
+                                        let joined = err_st
+                                            .map_or(st.states[h_idx].union(ok_st), |e| {
+                                                ok_st.union(e)
+                                            });
+                                        st.states[h_idx] = joined;
+                                        st.invalidate_handle(h_idx);
+                                        entries.push((h_idx, Some(ok_st), err_st));
+                                        seen.push(h_idx);
+                                    }
+                                    for (&h_idx, &err_st) in &err_by_handle {
+                                        if !seen.contains(&h_idx) {
+                                            st.states[h_idx] = st.states[h_idx].union(err_st);
+                                            st.invalidate_handle(h_idx);
+                                            entries.push((h_idx, None, Some(err_st)));
+                                        }
+                                    }
+                                    st.eu_of.insert(dl, entries);
+                                }
                             }
+                        } else {
+                            widen_mut_args(&mut st);
                         }
                     }
                     Callee::Intrinsic(_)
                     | Callee::Indirect(_)
                     | Callee::Closure { .. }
                     | Callee::DynSlot { .. }
-                    | Callee::Foreign(_) => {}
+                    | Callee::Foreign(_) => {
+                        widen_mut_args(&mut st);
+                    }
                 }
                 enqueue(*target, st, &mut in_states, &mut queue);
             }
@@ -813,11 +1476,19 @@ fn verify_fn_state_contracts(
                 };
                 for clause in &func.sig.state_contracts {
                     match *clause {
-                        StateContractClause::RequiresState { .. } => {}
+                        StateContractClause::RequiresState { .. }
+                        | StateContractClause::RequiresApart { .. } => {}
                         StateContractClause::ProvidesRetired { param } => {
                             if !st.retired[param as usize] {
                                 return Err(fail(
                                     "function fails to satisfy provides(retired(...)) on all return paths",
+                                ));
+                            }
+                        }
+                        StateContractClause::ProvidesState { param, states } => {
+                            if !st.states[param as usize].is_subset_of(states) {
+                                return Err(fail(
+                                    "function fails to satisfy provides(state(...)) on all return paths",
                                 ));
                             }
                         }
@@ -829,7 +1500,7 @@ fn verify_fn_state_contracts(
                             {
                                 pend_st.is_subset_of(states)
                             } else if let Some(rl) = ret_local
-                                && st.poll_variant.get(&rl) == Some(&1)
+                                && st.enum_variant.get(&rl) == Some(&1)
                             {
                                 // Returning Poll.Ready directly; on_pending vacuously holds.
                                 true
@@ -850,7 +1521,7 @@ fn verify_fn_state_contracts(
                             {
                                 ready_st.is_subset_of(states)
                             } else if let Some(rl) = ret_local
-                                && st.poll_variant.get(&rl) == Some(&0)
+                                && st.enum_variant.get(&rl) == Some(&0)
                             {
                                 // Returning Poll.Pending directly; on_ready vacuously holds.
                                 true
@@ -860,6 +1531,50 @@ fn verify_fn_state_contracts(
                             if !ok {
                                 return Err(fail(
                                     "function fails to satisfy provides(on_ready(state(...)))",
+                                ));
+                            }
+                        }
+                        StateContractClause::ProvidesOnOk { param, states } => {
+                            let p_idx = param as usize;
+                            let ok = if let Some(rl) = ret_local
+                                && let Some(entries) = st.eu_of.get(&rl)
+                                && let Some(&(_, Some(ok_st), _)) =
+                                    entries.iter().find(|(h, _, _)| *h == p_idx)
+                            {
+                                ok_st.is_subset_of(states)
+                            } else if let Some(rl) = ret_local
+                                && st.error_arm_const.get(&rl) == Some(&false)
+                            {
+                                // Returning .err(...) directly; on_ok vacuously holds.
+                                true
+                            } else {
+                                st.states[p_idx].is_subset_of(states)
+                            };
+                            if !ok {
+                                return Err(fail(
+                                    "function fails to satisfy provides(on_ok(state(...)))",
+                                ));
+                            }
+                        }
+                        StateContractClause::ProvidesOnErr { param, states } => {
+                            let p_idx = param as usize;
+                            let ok = if let Some(rl) = ret_local
+                                && let Some(entries) = st.eu_of.get(&rl)
+                                && let Some(&(_, _, Some(err_st))) =
+                                    entries.iter().find(|(h, _, _)| *h == p_idx)
+                            {
+                                err_st.is_subset_of(states)
+                            } else if let Some(rl) = ret_local
+                                && st.error_arm_const.get(&rl) == Some(&true)
+                            {
+                                // Returning .ok(...) directly; on_err vacuously holds.
+                                true
+                            } else {
+                                st.states[p_idx].is_subset_of(states)
+                            };
+                            if !ok {
+                                return Err(fail(
+                                    "function fails to satisfy provides(on_err(state(...)))",
                                 ));
                             }
                         }

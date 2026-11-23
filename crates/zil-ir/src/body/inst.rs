@@ -550,15 +550,39 @@ pub enum FnRole {
     },
 }
 
-/// Bitmask of protocol handle states (`Open` | `Closing` | `Closed`).
+/// Bitmask of finite protocol states (up to 64 variants).
+/// Built-in Task/Registration handles use bits 0..3 (`Open` | `Closing` | `Closed`);
+/// user-defined state protocols use bits `0..variant_count` matching their state enum.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct ProtocolStateSet(pub u8);
+pub struct ProtocolStateSet(pub u64);
 
 impl ProtocolStateSet {
-    pub const OPEN: u8 = 1 << 0;
-    pub const CLOSING: u8 = 1 << 1;
-    pub const CLOSED: u8 = 1 << 2;
+    pub const OPEN: u64 = 1 << 0;
+    pub const CLOSING: u64 = 1 << 1;
+    pub const CLOSED: u64 = 1 << 2;
     pub const ALL: Self = Self(Self::OPEN | Self::CLOSING | Self::CLOSED);
+
+    pub const fn single(variant: u32) -> Self {
+        if variant < 64 {
+            Self(1u64 << variant)
+        } else {
+            Self(0)
+        }
+    }
+
+    pub const fn all_variants(count: usize) -> Self {
+        if count == 0 {
+            Self(0)
+        } else if count >= 64 {
+            Self(u64::MAX)
+        } else {
+            Self((1u64 << count) - 1)
+        }
+    }
+
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
 
     pub const fn is_subset_of(self, other: Self) -> bool {
         (self.0 & !other.0) == 0
@@ -568,8 +592,21 @@ impl ProtocolStateSet {
         Self(self.0 | other.0)
     }
 
+    pub const fn intersect(self, other: Self) -> Self {
+        Self(self.0 & other.0)
+    }
+
+    pub const fn subtract(self, other: Self) -> Self {
+        Self(self.0 & !other.0)
+    }
+
     pub const fn is_valid(self) -> bool {
         self.0 != 0 && (self.0 & !Self::ALL.0) == 0
+    }
+
+    pub const fn is_valid_for(self, variant_count: usize) -> bool {
+        let all = Self::all_variants(variant_count);
+        self.0 != 0 && (self.0 & !all.0) == 0
     }
 }
 
@@ -593,6 +630,23 @@ pub enum StateContractClause {
         param: u32,
         states: ProtocolStateSet,
     },
+    /// `provides(state(param, states))` — unconditional state postcondition on normal return
+    ProvidesState {
+        param: u32,
+        states: ProtocolStateSet,
+    },
+    /// `provides(on_ok(state(param, states)))` — ErrorUnion `.ok` exit postcondition
+    ProvidesOnOk {
+        param: u32,
+        states: ProtocolStateSet,
+    },
+    /// `provides(on_err(state(param, states)))` — ErrorUnion `.err` exit postcondition
+    ProvidesOnErr {
+        param: u32,
+        states: ProtocolStateSet,
+    },
+    /// `requires(apart(param_a, param_b))` — multi-role non-aliasing precondition
+    RequiresApart { param_a: u32, param_b: u32 },
 }
 
 /// Declared task resume locality contract (`contract { resume(local | transfer) }`).

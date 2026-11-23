@@ -1743,6 +1743,7 @@ pub fn collect_program<'a>(
             &items.modules,
             &items.mod_by_path,
             &items.adt_kinds,
+            &items.adts,
             types,
             diags,
         );
@@ -2931,9 +2932,101 @@ fn collect_adt_methods<'a>(
     }
 }
 
+enum ProtocolStateDomain<'a> {
+    /// Built-in 3-state handles (`Task`, `Registration`, `AsyncRegistration`).
+    Builtin,
+    /// User-defined finite state protocol: either an `enum` directly or a
+    /// `struct`/`package`/`resource` with an `enum`-typed `state` field.
+    UserEnum {
+        enum_short: &'a str,
+        variants: &'a [VariantDecl],
+    },
+}
+
+fn protocol_state_domain<'a>(
+    ty: Ty,
+    adts: &'a [AdtDecl],
+    types: &Types,
+) -> Option<ProtocolStateDomain<'a>> {
+    let mut inner = ty;
+    while let TyData::Ref { pointee, .. } | TyData::Managed(pointee) | TyData::Desc(pointee) =
+        types.data(inner)
+    {
+        inner = *pointee;
+    }
+    match types.data(inner) {
+        TyData::Opaque(
+            OpaqueKind::Task { .. }
+            | OpaqueKind::Registration(_)
+            | OpaqueKind::AsyncRegistration(_),
+        )
+        | TyData::Param(_)
+        | TyData::Error => Some(ProtocolStateDomain::Builtin),
+        TyData::Adt { adt, .. } => {
+            let decl = adts.get(adt.0 as usize)?;
+            if decl.kind == AdtKind::Enum && !decl.variants.is_empty() && decl.variants.len() <= 64
+            {
+                let short = decl.name.rsplit('.').next().unwrap_or(&decl.name);
+                return Some(ProtocolStateDomain::UserEnum {
+                    enum_short: short,
+                    variants: &decl.variants,
+                });
+            }
+            if decl.variants.len() == 1
+                && let Some(state_field) =
+                    decl.variants[0].fields.iter().find(|f| f.name == "state")
+                && let TyData::Adt { adt: state_adt, .. } = types.data(state_field.ty)
+                && let Some(state_decl) = adts.get(state_adt.0 as usize)
+                && state_decl.kind == AdtKind::Enum
+                && !state_decl.variants.is_empty()
+                && state_decl.variants.len() <= 64
+            {
+                let short = state_decl
+                    .name
+                    .rsplit('.')
+                    .next()
+                    .unwrap_or(&state_decl.name);
+                return Some(ProtocolStateDomain::UserEnum {
+                    enum_short: short,
+                    variants: &state_decl.variants,
+                });
+            }
+            None
+        }
+        TyData::Unit
+        | TyData::Bool
+        | TyData::Never
+        | TyData::Int(_)
+        | TyData::Float(_)
+        | TyData::Tuple(_)
+        | TyData::Union(_)
+        | TyData::Array { .. }
+        | TyData::ArrayConst { .. }
+        | TyData::Slice(_)
+        | TyData::Ref { .. }
+        | TyData::Managed(_)
+        | TyData::Desc(_)
+        | TyData::ErrorUnion { .. }
+        | TyData::FnPtr { .. }
+        | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
+        | TyData::Dyn { .. }
+        | TyData::OwnedDyn { .. }
+        | TyData::SelfParam
+        | TyData::Assoc { .. }
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::Type
+        | TyData::Opaque(_)
+        | TyData::Var(_) => None,
+    }
+}
+
 fn parse_state_term(
     term: &ast::ContractTerm,
-    param_names: &[&str],
+    params: &[ParamInfo],
+    adts: &[AdtDecl],
+    types: &Types,
     diags: &mut Vec<Diagnostic>,
 ) -> Option<Option<(u32, zil_ir::body::ProtocolStateSet)>> {
     if term.path.as_slice() != ["state"] || term.arguments.len() < 2 {
@@ -2942,7 +3035,7 @@ fn parse_state_term(
     let [pname] = term.arguments[0].path.as_slice() else {
         return None;
     };
-    let Some(param_idx) = param_names.iter().position(|n| *n == pname.as_str()) else {
+    let Some(param_idx) = params.iter().position(|p| p.name == *pname) else {
         diags.push(diag::error(
             diag::RESOURCE_RESULT_MODE,
             term.arguments[0].span,
@@ -2962,30 +3055,75 @@ fn parse_state_term(
         ));
         return Some(None);
     }
-    let mut mask: u8 = 0;
+    let Some(domain) = protocol_state_domain(params[param_idx].ty, adts, types) else {
+        diags.push(diag::error(
+            diag::RESOURCE_RESULT_MODE,
+            params[param_idx].span,
+            format!(
+                "protocol state contract parameter `{pname}` must be a built-in protocol handle or a user struct/package/resource with an enum `state` field"
+            ),
+        ));
+        return Some(None);
+    };
+    let mut mask: u64 = 0;
     let mut ok = true;
     for st in &term.arguments[1..] {
-        let bit = match st.path.as_slice() {
-            [s] if st.arguments.is_empty() && s == "Open" => {
-                Some(zil_ir::body::ProtocolStateSet::OPEN)
+        let bit = match &domain {
+            ProtocolStateDomain::Builtin => match st.path.as_slice() {
+                [s] if st.arguments.is_empty() && s == "Open" => {
+                    Some(zil_ir::body::ProtocolStateSet::OPEN)
+                }
+                [s] if st.arguments.is_empty() && s == "Closing" => {
+                    Some(zil_ir::body::ProtocolStateSet::CLOSING)
+                }
+                [s] if st.arguments.is_empty() && s == "Closed" => {
+                    Some(zil_ir::body::ProtocolStateSet::CLOSED)
+                }
+                _ => None,
+            },
+            ProtocolStateDomain::UserEnum {
+                enum_short,
+                variants,
+            } => {
+                if !st.arguments.is_empty() {
+                    None
+                } else {
+                    let vname = match st.path.as_slice() {
+                        [v] => Some(v.as_str()),
+                        [en, v] if en == enum_short => Some(v.as_str()),
+                        _ => None,
+                    };
+                    vname.and_then(|vn| {
+                        variants
+                            .iter()
+                            .position(|v| v.name == vn)
+                            .map(|idx| 1u64 << idx)
+                    })
+                }
             }
-            [s] if st.arguments.is_empty() && s == "Closing" => {
-                Some(zil_ir::body::ProtocolStateSet::CLOSING)
-            }
-            [s] if st.arguments.is_empty() && s == "Closed" => {
-                Some(zil_ir::body::ProtocolStateSet::CLOSED)
-            }
-            _ => None,
         };
         if let Some(b) = bit {
             mask |= b;
         } else {
             ok = false;
-            diags.push(diag::error(
-                diag::RESOURCE_RESULT_MODE,
-                st.span,
-                "contract `state(...)` only accepts `Open`, `Closing`, or `Closed`",
-            ));
+            match &domain {
+                ProtocolStateDomain::Builtin => {
+                    diags.push(diag::error(
+                        diag::RESOURCE_RESULT_MODE,
+                        st.span,
+                        "contract `state(...)` only accepts `Open`, `Closing`, or `Closed`",
+                    ));
+                }
+                ProtocolStateDomain::UserEnum { enum_short, .. } => {
+                    diags.push(diag::error(
+                        diag::RESOURCE_RESULT_MODE,
+                        st.span,
+                        format!(
+                            "contract `state(...)` expects a variant of protocol state enum `{enum_short}`"
+                        ),
+                    ));
+                }
+            }
         }
     }
     if ok && mask != 0 {
@@ -3000,7 +3138,9 @@ fn parse_state_term(
 
 fn parse_fn_contracts(
     clauses: &[ast::ContractClause],
-    param_names: &[&str],
+    params: &[ParamInfo],
+    adts: &[AdtDecl],
+    types: &Types,
     diags: &mut Vec<Diagnostic>,
 ) -> (
     ResultMode,
@@ -3068,7 +3208,40 @@ fn parse_fn_contracts(
             }
         } else if c.name == "requires" {
             for term in &c.terms {
-                match parse_state_term(term, param_names, diags) {
+                if term.path.as_slice() == ["apart"] && term.arguments.len() == 2 {
+                    let a = &term.arguments[0];
+                    let b = &term.arguments[1];
+                    if let [aname] = a.path.as_slice()
+                        && let [bname] = b.path.as_slice()
+                        && a.arguments.is_empty()
+                        && b.arguments.is_empty()
+                        && let Some(pa) = params.iter().position(|p| p.name == *aname)
+                        && let Some(pb) = params.iter().position(|p| p.name == *bname)
+                    {
+                        if pa == pb {
+                            diags.push(diag::error(
+                                diag::RESOURCE_RESULT_MODE,
+                                term.span,
+                                "contract `apart(a, b)` requires two distinct parameters",
+                            ));
+                        } else {
+                            state_contracts.push(
+                                zil_ir::body::StateContractClause::RequiresApart {
+                                    param_a: pa as u32,
+                                    param_b: pb as u32,
+                                },
+                            );
+                        }
+                    } else {
+                        diags.push(diag::error(
+                            diag::RESOURCE_RESULT_MODE,
+                            term.span,
+                            "contract `apart(a, b)` must name two parameters of this function",
+                        ));
+                    }
+                    continue;
+                }
+                match parse_state_term(term, params, adts, types, diags) {
                     Some(Some((param, states))) => {
                         state_contracts.push(zil_ir::body::StateContractClause::RequiresState {
                             param,
@@ -3085,12 +3258,23 @@ fn parse_fn_contracts(
                     let arg = &term.arguments[0];
                     if let [pname] = arg.path.as_slice()
                         && arg.arguments.is_empty()
-                        && let Some(param_idx) =
-                            param_names.iter().position(|n| *n == pname.as_str())
+                        && let Some(param_idx) = params.iter().position(|p| p.name == *pname)
                     {
-                        state_contracts.push(zil_ir::body::StateContractClause::ProvidesRetired {
-                            param: param_idx as u32,
-                        });
+                        if protocol_state_domain(params[param_idx].ty, adts, types).is_none() {
+                            diags.push(diag::error(
+                                diag::RESOURCE_RESULT_MODE,
+                                params[param_idx].span,
+                                format!(
+                                    "protocol state contract parameter `{pname}` must be a protocol handle"
+                                ),
+                            ));
+                        } else {
+                            state_contracts.push(
+                                zil_ir::body::StateContractClause::ProvidesRetired {
+                                    param: param_idx as u32,
+                                },
+                            );
+                        }
                         continue;
                     }
                     diags.push(diag::error(
@@ -3098,26 +3282,37 @@ fn parse_fn_contracts(
                         arg.span,
                         "contract `retired(...)` must name a parameter of this function",
                     ));
-                } else if matches!(term.path.as_slice(), [s] if s == "on_pending" || s == "on_ready")
-                    && term.arguments.len() == 1
-                    && let Some(parsed) = parse_state_term(&term.arguments[0], param_names, diags)
+                } else if term.path.as_slice() == ["state"]
+                    && let Some(parsed) = parse_state_term(term, params, adts, types, diags)
                 {
                     if let Some((param, states)) = parsed {
-                        if term.path[0] == "on_pending" {
-                            state_contracts.push(
-                                zil_ir::body::StateContractClause::ProvidesOnPending {
-                                    param,
-                                    states,
-                                },
-                            );
-                        } else {
-                            state_contracts.push(
-                                zil_ir::body::StateContractClause::ProvidesOnReady {
-                                    param,
-                                    states,
-                                },
-                            );
-                        }
+                        state_contracts.push(zil_ir::body::StateContractClause::ProvidesState {
+                            param,
+                            states,
+                        });
+                    }
+                } else if matches!(
+                    term.path.as_slice(),
+                    [s] if s == "on_pending" || s == "on_ready" || s == "on_ok" || s == "on_err"
+                ) && term.arguments.len() == 1
+                    && let Some(parsed) =
+                        parse_state_term(&term.arguments[0], params, adts, types, diags)
+                {
+                    if let Some((param, states)) = parsed {
+                        let clause = match term.path[0].as_str() {
+                            "on_pending" => zil_ir::body::StateContractClause::ProvidesOnPending {
+                                param,
+                                states,
+                            },
+                            "on_ready" => {
+                                zil_ir::body::StateContractClause::ProvidesOnReady { param, states }
+                            }
+                            "on_ok" => {
+                                zil_ir::body::StateContractClause::ProvidesOnOk { param, states }
+                            }
+                            _ => zil_ir::body::StateContractClause::ProvidesOnErr { param, states },
+                        };
+                        state_contracts.push(clause);
                     }
                 } else {
                     diags.push(diag::unsupported("function contracts", term.span));
@@ -3142,6 +3337,7 @@ fn collect_fn<'a>(
     modules: &[ModuleScope],
     mod_by_path: &HashMap<String, ModIdx>,
     adt_kinds: &[AdtKind],
+    adts: &[AdtDecl],
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) -> FnDecl<'a> {
@@ -3169,9 +3365,6 @@ fn collect_fn<'a>(
             diags,
         );
     }
-    let param_names: Vec<&str> = f.params.iter().map(|p| p.name.as_str()).collect();
-    let (result_mode, resume_mode, state_contracts) =
-        parse_fn_contracts(&f.contract, &param_names, diags);
     let mut params = Vec::new();
     for p in &f.params {
         let raw_ty = resolve_type_with_lifetimes(
@@ -3210,6 +3403,8 @@ fn collect_fn<'a>(
             span: p.span,
         });
     }
+    let (result_mode, resume_mode, state_contracts) =
+        parse_fn_contracts(&f.contract, &params, adts, types, diags);
     let raw_result = match &f.return_type {
         Some(t) => resolve_type_with_lifetimes(
             t,
@@ -3244,42 +3439,6 @@ fn collect_fn<'a>(
             }
         }
     };
-    for clause in &state_contracts {
-        let param_idx = match *clause {
-            zil_ir::body::StateContractClause::RequiresState { param, .. }
-            | zil_ir::body::StateContractClause::ProvidesRetired { param }
-            | zil_ir::body::StateContractClause::ProvidesOnPending { param, .. }
-            | zil_ir::body::StateContractClause::ProvidesOnReady { param, .. } => param,
-        };
-        if let Some(pinfo) = params.get(param_idx as usize) {
-            let mut inner = pinfo.ty;
-            while let TyData::Ref { pointee, .. }
-            | TyData::Managed(pointee)
-            | TyData::Desc(pointee) = types.data(inner)
-            {
-                inner = *pointee;
-            }
-            let is_protocol_handle = matches!(
-                types.data(inner),
-                TyData::Opaque(
-                    OpaqueKind::Task { .. }
-                        | OpaqueKind::Registration(_)
-                        | OpaqueKind::AsyncRegistration(_)
-                ) | TyData::Param(_)
-                    | TyData::Error
-            );
-            if !is_protocol_handle {
-                diags.push(diag::error(
-                    diag::RESOURCE_RESULT_MODE,
-                    pinfo.span,
-                    format!(
-                        "protocol state contract parameter `{}` must be a `Task`, `Registration`, or `AsyncRegistration` handle",
-                        pinfo.name
-                    ),
-                ));
-            }
-        }
-    }
     FnDecl {
         module: mid,
         name: qualify(&modules[mid.0 as usize].path, &f.name),
