@@ -6,18 +6,18 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@698ce42f4`](https://github.com/zil-lang/zil/commit/698ce42f4)（开放 PR：0；L2 G6.2 [PR #128](https://github.com/zil-lang/zil/pull/128)、日常安全与表达力 [PR #129](https://github.com/zil-lang/zil/pull/129)、日常标准库 [PR #127](https://github.com/zil-lang/zil/pull/127) 均已远端 CI 全绿合入）
-- **当前阶段**：L1–L4 核心能力及全部 P0 安全/合同门（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#129](https://github.com/zil-lang/zil/pull/129)）均已闭合：
-  - **L2 G6.2**（[PR #128](https://github.com/zil-lang/zil/pull/128)）：投影级失效上界 `effects(invalidates(p.f))` / `effects(invalidates())`、历史撤销 `H`（`effects(rollback(p))`）、`zil-check` 独立上界包含与未知/动态调用 fail-closed 证明、Raw/Wire 有效证书证明与双后端 O0/O2 原生全绿。
-  - **日常语言安全与表达力**（[PR #129](https://github.com/zil-lang/zil/pull/129)）：LLVM 数组/切片索引与子切片运行时越界检查（越界 `@abort()`）、`Option<T>` `?` 早退与 `Option`/`ErrorUnion` 常用方法（`.is_some`/`.is_none`/`.is_ok`/`.is_err`/`.unwrap`/`.unwrap_or`）、`match` 守卫（含穷尽性拒绝）、记录模式简写/省略（`Point { x, .. }`）与闭区间 `for i in a..=b`。
-  - **日常标准库**（[PR #127](https://github.com/zil-lang/zil/pull/127)）：`std.io`（`stderr`/`print`/`println`/`eprint`/`eprintln`/`print_i64`/`println_i64`）、`std.fs`（`read_to_bytes`/`write_bytes`/`exists`/`remove_file`）、`std.env`（`get`/`current_dir`/`exit`）、`std.time`（`monotonic_ns`/`sleep_ms`）全部进入内嵌信任根并双后端原生全绿。
-- **总体阻塞**：**当前看板 P0 阻塞为 0**（已验收既有安全门与日常语言 Alpha 核心功能缺口均已闭合；不等同于全语言形式化证明或正式 1.0 产品门达成）；Fixed Projects 21/21（17 原项目 + 4 预期拒绝、60/60 原生构建、152/152 比较）全绿。
+- **主线基线**：[`main@922a0f3ad`](https://github.com/zil-lang/zil/commit/922a0f3ad)（开放 PR：0；第三轮审核定点修复 [PR #130](https://github.com/zil-lang/zil/pull/130)、[PR #131](https://github.com/zil-lang/zil/pull/131)、[PR #132](https://github.com/zil-lang/zil/pull/132) 均已 4/4 远端 CI 全绿合入）
+- **当前阶段**：L1–L4 核心能力及全部审核收口门（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#132](https://github.com/zil-lang/zil/pull/132)）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入：
+  - **L2 G6.2 与 P0 验证器健全性闭环**（[PR #128](https://github.com/zil-lang/zil/pull/128)、[PR #131](https://github.com/zil-lang/zil/pull/131)）：穷尽 `InstructionKind`（含拥有字段 `Replace` 失效记录）、对称 CFG 格合并（must-map 交集 fail-closed / may-map `param_alias` & `may_alias` 并集保守失效）、路径关联历史回滚 `H`（`departed_from` + `rolled_back`）、导出上界 `actual ⊆ upper`、正反分支顺序对称负例、Raw/Wire 有效证书独立 `zil-check` 证明与双后端 O0/O2 原生全绿。
+  - **日常语言安全与表达力闭环**（[PR #129](https://github.com/zil-lang/zil/pull/129)、[PR #132](https://github.com/zil-lang/zil/pull/132)）：LLVM 数组/切片与子切片无符号越界检查（含负数索引/切片边界 trap 实测）、`Option<T>` `?` 与立即求值 `Option`/`ErrorUnion` 方法、`match` 守卫拥有资源借用求值与条件提交（守卫失败不消费 scrutinee、精确单次 Drop）、记录模式简写/省略与闭区间 `for i in a..=b`。
+  - **日常标准库闭环**（[PR #127](https://github.com/zil-lang/zil/pull/127)、[PR #130](https://github.com/zil-lang/zil/pull/130)）：`std.io`（`stderr`/`print`/`println`/`eprint`/`eprintln`/`print_i64`/`println_i64` + `EINTR` 重试与实测探针）、`std.fs`（含独立 `fs.RemoveError` 保持 `io.Error` 向后兼容）、`std.env`、`std.time` 全部接入内嵌信任根并双后端原生全绿。
+- **总体阻塞**：已审核指出的 3 项 G6.2 P0 验证器缺陷与 2 项 P1 缺陷均已定点闭合并通过 4/4 远端 CI（不等同于全语言形式化证明或正式 1.0 产品门达成）；Fixed Projects 21/21（17 原项目 + 4 预期拒绝、60/60 原生构建、152/152 比较）全绿。
 - **下一发布门**：剩余均为 P1/P2 扩展项（Windows x64 原生支持、ZUI 窗口层、G6.3 状态协议与异步联合、`match` 表达式/或模式/带标签 `break` 等进一步语法糖、以及独立编译性能专项）。
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@698ce42f4 为基线）
+## 下一阶段施工安排（以 main@922a0f3ad 为基线）
 
-日常语言 Alpha 核心能力与全部 L2 P0 合同门（G6.1 PR #126、G6.2 PR #128、日常安全/表达力 PR #129、日常标准库 PR #127）已合入。后续并行语言 PR 必须在实际合并目标上执行 post-merge 编译与回归验证，不能只凭独立 PR 绿灯宣告集成成功。
+审核定点修复 PR #130/#131/#132 已全部 4/4 远端 CI 绿灯合入。后续并行语言 PR 必须在实际合并目标上执行 post-merge 编译与回归验证，不能只凭独立 PR 绿灯宣告集成成功。
 
 **统一计量及安全门**：全仓 `tests/**/*.zil` `zil check --json` `status == "Success"` 计数**不是正例通过率或功能完成率**。每批须以精确文件路径、原始输入哈希和预期结果分开统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
