@@ -3250,13 +3250,36 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             .pop()
             .expect("capture_stack pushed above");
         let mut moved_caps = Vec::new();
-        collect_moved_captures(&body_expr, &mut moved_caps);
+        let mut given_fields = Vec::new();
+        let mut assigned_fields = Vec::new();
+        collect_moved_captures(
+            &body_expr,
+            &mut moved_caps,
+            &mut given_fields,
+            &mut assigned_fields,
+        );
         for idx in moved_caps {
             if let Some(cap) = env.captures.get_mut(idx as usize)
                 && cap.by_value
                 && ty_is_non_copy(self.items, self.types, cap.orig_ty)
             {
                 cap.consumed = true;
+            }
+        }
+        for (idx, opt_field) in given_fields {
+            if let Some(cap) = env.captures.get_mut(idx as usize)
+                && cap.by_value
+                && ty_is_non_copy(self.items, self.types, cap.orig_ty)
+            {
+                let refilled = cap.mutable
+                    && assigned_fields.iter().any(|(ci, f)| {
+                        *ci == idx && (f.is_none() || (opt_field.is_some() && *f == opt_field))
+                    });
+                if refilled {
+                    cap.mutated = true;
+                } else {
+                    cap.consumed = true;
+                }
             }
         }
 
@@ -9107,15 +9130,89 @@ fn ty_is_non_copy(items: &Items, types: &mut crate::ty::Types, ty: Ty) -> bool {
     walk(items, types, ty, 0)
 }
 
-fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
-    fn walk_place(e: &Expr, out: &mut Vec<u32>) {
+fn capture_place_field(expr: &Expr) -> Option<(u32, Option<u32>)> {
+    let mut top_field: Option<u32> = None;
+    let mut cur = expr;
+    loop {
+        match &cur.kind {
+            ExprKind::Capture(idx) => return Some((*idx, top_field)),
+            ExprKind::Field { base, field, .. } => {
+                top_field = Some(*field);
+                cur = base;
+            }
+            ExprKind::TupleField { base, index } => {
+                top_field = Some(*index);
+                cur = base;
+            }
+            ExprKind::Index { base, .. } => {
+                top_field = None;
+                cur = base;
+            }
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::Adt { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Tuple(_)
+            | ExprKind::Array(_)
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Unary { .. }
+            | ExprKind::Binary { .. }
+            | ExprKind::Logical { .. }
+            | ExprKind::Convert { .. }
+            | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Describe(_)
+            | ExprKind::Give(_)
+            | ExprKind::Len(_)
+            | ExprKind::Call { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
+            | ExprKind::Block(_)
+            | ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Loop(_)
+            | ExprKind::While { .. }
+            | ExprKind::Break
+            | ExprKind::Continue
+            | ExprKind::Return(_)
+            | ExprKind::Assign { .. } => return None,
+        }
+    }
+}
+
+fn collect_moved_captures(
+    expr: &Expr,
+    out: &mut Vec<u32>,
+    given_fields: &mut Vec<(u32, Option<u32>)>,
+    assigned_fields: &mut Vec<(u32, Option<u32>)>,
+) {
+    fn walk_place(
+        e: &Expr,
+        out: &mut Vec<u32>,
+        given_fields: &mut Vec<(u32, Option<u32>)>,
+        assigned_fields: &mut Vec<(u32, Option<u32>)>,
+    ) {
         match &e.kind {
             ExprKind::Field { base, .. }
             | ExprKind::TupleField { base, .. }
-            | ExprKind::Deref(base) => walk_place(base, out),
+            | ExprKind::Deref(base) => walk_place(base, out, given_fields, assigned_fields),
             ExprKind::Index { base, index } => {
-                walk_place(base, out);
-                collect_moved_captures(index, out);
+                walk_place(base, out, given_fields, assigned_fields);
+                collect_moved_captures(index, out, given_fields, assigned_fields);
             }
             ExprKind::Capture(_) | ExprKind::Local(_) => {}
             ExprKind::Lit(_)
@@ -9157,7 +9254,9 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
             | ExprKind::Break
             | ExprKind::Continue
             | ExprKind::Return(_)
-            | ExprKind::Assign { .. } => collect_moved_captures(e, out),
+            | ExprKind::Assign { .. } => {
+                collect_moved_captures(e, out, given_fields, assigned_fields);
+            }
         }
     }
 
@@ -9172,83 +9271,34 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
         | ExprKind::Deref(base)
         | ExprKind::Borrow { place: base, .. }
         | ExprKind::Describe(base)
-        | ExprKind::Len(base) => walk_place(base, out),
+        | ExprKind::Len(base) => walk_place(base, out, given_fields, assigned_fields),
         ExprKind::SliceBorrow {
             place, start, end, ..
         } => {
-            walk_place(place, out);
+            walk_place(place, out, given_fields, assigned_fields);
             if let Some(s) = start {
-                collect_moved_captures(s, out);
+                collect_moved_captures(s, out, given_fields, assigned_fields);
             }
             if let Some(e) = end {
-                collect_moved_captures(e, out);
+                collect_moved_captures(e, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Index { base, index } => {
-            walk_place(base, out);
-            collect_moved_captures(index, out);
+            walk_place(base, out, given_fields, assigned_fields);
+            collect_moved_captures(index, out, given_fields, assigned_fields);
         }
         ExprKind::Give(inner) => {
-            let mut cur = inner.as_ref();
-            loop {
-                match &cur.kind {
-                    ExprKind::Capture(idx) => {
-                        if !out.contains(idx) {
-                            out.push(*idx);
-                        }
-                        break;
-                    }
-                    ExprKind::Field { base, .. } | ExprKind::TupleField { base, .. } => cur = base,
-                    ExprKind::Index { base, index } => {
-                        collect_moved_captures(index, out);
-                        cur = base;
-                    }
-                    ExprKind::Lit(_)
-                    | ExprKind::ConstGeneric(_)
-                    | ExprKind::StaticUtf(_)
-                    | ExprKind::Local(_)
-                    | ExprKind::FnRef { .. }
-                    | ExprKind::ForeignRef(_)
-                    | ExprKind::Adt { .. }
-                    | ExprKind::ErrorInject { .. }
-                    | ExprKind::UnionInject { .. }
-                    | ExprKind::ManagedCreate { .. }
-                    | ExprKind::Tuple(_)
-                    | ExprKind::Array(_)
-                    | ExprKind::Closure { .. }
-                    | ExprKind::ClosureFnRef(_)
-                    | ExprKind::Unary { .. }
-                    | ExprKind::Binary { .. }
-                    | ExprKind::Logical { .. }
-                    | ExprKind::Convert { .. }
-                    | ExprKind::Borrow { .. }
-                    | ExprKind::SliceBorrow { .. }
-                    | ExprKind::Deref(_)
-                    | ExprKind::Describe(_)
-                    | ExprKind::Give(_)
-                    | ExprKind::Len(_)
-                    | ExprKind::Call { .. }
-                    | ExprKind::ForeignCall { .. }
-                    | ExprKind::IndirectCall { .. }
-                    | ExprKind::ClosureCall { .. }
-                    | ExprKind::TraitCall { .. }
-                    | ExprKind::DynCall { .. }
-                    | ExprKind::Intrinsic { .. }
-                    | ExprKind::Try(_)
-                    | ExprKind::CtEval(_)
-                    | ExprKind::Block(_)
-                    | ExprKind::If { .. }
-                    | ExprKind::Match { .. }
-                    | ExprKind::Loop(_)
-                    | ExprKind::While { .. }
-                    | ExprKind::Break
-                    | ExprKind::Continue
-                    | ExprKind::Return(_)
-                    | ExprKind::Assign { .. } => {
-                        collect_moved_captures(cur, out);
-                        break;
-                    }
+            if let ExprKind::Capture(idx) = inner.kind {
+                if !out.contains(&idx) {
+                    out.push(idx);
                 }
+            } else if let Some(pair) = capture_place_field(inner) {
+                if !given_fields.contains(&pair) {
+                    given_fields.push(pair);
+                }
+                walk_place(inner, out, given_fields, assigned_fields);
+            } else {
+                collect_moved_captures(inner, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Try(inner)
@@ -9256,28 +9306,35 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
         | ExprKind::UnionInject { value: inner }
         | ExprKind::Unary { operand: inner, .. }
         | ExprKind::Convert { operand: inner, .. }
-        | ExprKind::Loop(inner) => collect_moved_captures(inner, out),
+        | ExprKind::Loop(inner) => {
+            collect_moved_captures(inner, out, given_fields, assigned_fields);
+        }
         ExprKind::Binary { lhs, rhs, .. } | ExprKind::Logical { lhs, rhs, .. } => {
-            collect_moved_captures(lhs, out);
-            collect_moved_captures(rhs, out);
+            collect_moved_captures(lhs, out, given_fields, assigned_fields);
+            collect_moved_captures(rhs, out, given_fields, assigned_fields);
         }
         ExprKind::Assign { place, value, .. } => {
-            walk_place(place, out);
-            collect_moved_captures(value, out);
+            if let Some(pair) = capture_place_field(place)
+                && !assigned_fields.contains(&pair)
+            {
+                assigned_fields.push(pair);
+            }
+            walk_place(place, out, given_fields, assigned_fields);
+            collect_moved_captures(value, out, given_fields, assigned_fields);
         }
         ExprKind::Adt { fields, .. } | ExprKind::ManagedCreate { fields, .. } => {
             for f in fields {
-                collect_moved_captures(f, out);
+                collect_moved_captures(f, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
             for x in xs {
-                collect_moved_captures(x, out);
+                collect_moved_captures(x, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Closure { captures, .. } => {
             for c in captures {
-                collect_moved_captures(c, out);
+                collect_moved_captures(c, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Call { args, .. }
@@ -9285,13 +9342,13 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
         | ExprKind::TraitCall { args, .. }
         | ExprKind::Intrinsic { args, .. } => {
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::IndirectCall { callee, args } => {
-            collect_moved_captures(callee, out);
+            collect_moved_captures(callee, out, given_fields, assigned_fields);
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::ClosureCall {
@@ -9300,25 +9357,29 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
             args,
         } => {
             if *mode == ClosureCallMode::Once {
-                collect_moved_captures(closure, out);
+                collect_moved_captures(closure, out, given_fields, assigned_fields);
             } else {
-                walk_place(closure, out);
+                walk_place(closure, out, given_fields, assigned_fields);
             }
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::DynCall { object, args, .. } => {
-            walk_place(object, out);
+            walk_place(object, out, given_fields, assigned_fields);
             for a in args {
-                collect_moved_captures(a, out);
+                collect_moved_captures(a, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Block(stmts) => {
             for s in stmts {
                 match s {
-                    Stmt::Let { init, .. } => collect_moved_captures(init, out),
-                    Stmt::Expr(e) | Stmt::Defer(e) => collect_moved_captures(e, out),
+                    Stmt::Let { init, .. } => {
+                        collect_moved_captures(init, out, given_fields, assigned_fields);
+                    }
+                    Stmt::Expr(e) | Stmt::Defer(e) => {
+                        collect_moved_captures(e, out, given_fields, assigned_fields);
+                    }
                 }
             }
         }
@@ -9327,23 +9388,25 @@ fn collect_moved_captures(expr: &Expr, out: &mut Vec<u32>) {
             then,
             otherwise,
         } => {
-            collect_moved_captures(cond, out);
-            collect_moved_captures(then, out);
+            collect_moved_captures(cond, out, given_fields, assigned_fields);
+            collect_moved_captures(then, out, given_fields, assigned_fields);
             if let Some(o) = otherwise {
-                collect_moved_captures(o, out);
+                collect_moved_captures(o, out, given_fields, assigned_fields);
             }
         }
         ExprKind::Match { scrutinee, arms } => {
-            walk_place(scrutinee, out);
+            walk_place(scrutinee, out, given_fields, assigned_fields);
             for arm in arms {
-                collect_moved_captures(&arm.body, out);
+                collect_moved_captures(&arm.body, out, given_fields, assigned_fields);
             }
         }
         ExprKind::While { cond, body } => {
-            collect_moved_captures(cond, out);
-            collect_moved_captures(body, out);
+            collect_moved_captures(cond, out, given_fields, assigned_fields);
+            collect_moved_captures(body, out, given_fields, assigned_fields);
         }
-        ExprKind::Return(Some(v)) => collect_moved_captures(v, out),
+        ExprKind::Return(Some(v)) => {
+            collect_moved_captures(v, out, given_fields, assigned_fields);
+        }
         ExprKind::Return(None)
         | ExprKind::Lit(_)
         | ExprKind::ConstGeneric(_)
