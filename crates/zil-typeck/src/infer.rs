@@ -1169,11 +1169,18 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         }
         if path.len() >= 2 {
             let (enum_path, variant) = (&path[..path.len() - 1], &path[path.len() - 1]);
-            if let Some(adt) = self
-                .items
-                .resolve_adt_of(self.decl.module, enum_path, self.types)
+            let resolved_enum = if enum_path == ["Self"]
+                && let Some(self_ty) = self.decl.self_ty
+                && let TyData::Adt { adt, .. } = *self.types.data(self.types.shallow(self_ty))
                 && self.items.adt(adt).kind == AdtKind::Enum
             {
+                Some(adt)
+            } else {
+                self.items
+                    .resolve_adt_of(self.decl.module, enum_path, self.types)
+                    .filter(|&adt| self.items.adt(adt).kind == AdtKind::Enum)
+            };
+            if let Some(adt) = resolved_enum {
                 return match self.items.adt(adt).variant_named(variant) {
                     Some(v) => Some((adt, v)),
                     None => {
@@ -2154,9 +2161,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 self.unsupported("string literals", span);
                 None
             }
-            ast::Literal::Char(_) => {
-                self.unsupported("character literals", span);
-                None
+            ast::Literal::Char(raw) => {
+                let Some(v) = literal::parse_char(raw) else {
+                    self.error("E-CHAR-LITERAL", span, "malformed character literal");
+                    return None;
+                };
+                let ty = self.types.int(IntTy::U32);
+                Some((Lit::Int(v as i128), ty))
             }
         }
     }
@@ -2356,10 +2367,6 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 )
             }
             ast::ExprKind::Record { ty, base, fields } => {
-                if let Some(b) = base {
-                    self.unsupported("record update syntax", b.span);
-                    return self.err_expr(span);
-                }
                 let Some(ty) = ty else {
                     self.error(
                         "E-RECORD-NO-CONTEXT",
@@ -2381,7 +2388,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 let Some((adt, variant)) = self.resolve_variant_path(&path, span) else {
                     return self.err_expr(span);
                 };
-                self.record(adt, variant, explicit_args, fields, span)
+                self.record(adt, variant, explicit_args, base.as_deref(), fields, span)
             }
             ast::ExprKind::If {
                 condition,
@@ -2423,9 +2430,20 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 self.unsupported("generated type ascriptions", span);
                 self.err_expr(span)
             }
-            ast::ExprKind::Pipeline { .. } => {
-                self.unsupported("pipelines", span);
-                self.err_expr(span)
+            ast::ExprKind::Pipeline { input, target } => {
+                let first_arg = ast::Argument {
+                    spread: false,
+                    value: (**input).clone(),
+                    span: input.span,
+                };
+                if let ast::ExprKind::Call { callee, arguments } = &target.kind {
+                    let mut new_args = Vec::with_capacity(arguments.len() + 1);
+                    new_args.push(first_arg);
+                    new_args.extend(arguments.iter().cloned());
+                    self.call(callee, &new_args, span)
+                } else {
+                    self.call(target, &[first_arg], span)
+                }
             }
             ast::ExprKind::TypeApply { callee, arguments } => {
                 if let Some(path) = Self::expr_path(callee).filter(|p| !self.path_is_value(p))
@@ -3378,11 +3396,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         adt: AdtRef,
         variant: u32,
         explicit: Option<&[ast::GenericArg]>,
+        base: Option<&ast::Expr>,
         fields: &[ast::RecordField],
         span: Span,
     ) -> Expr {
         let decl = self.items.adt(adt);
         let is_cross_mod = decl.kind != AdtKind::Enum && decl.module != self.decl.module;
+        let adt_kind = decl.kind;
+        let user_drop = decl.user_drop;
         let adt_name = decl.name.clone();
         let decl_fields: Vec<(String, bool)> = decl.variants[variant as usize]
             .fields
@@ -3394,6 +3415,18 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 diag::ENUM_ARITY,
                 span,
                 "this variant is not a record variant",
+            );
+            return self.err_expr(span);
+        }
+        if let Some(b) = base
+            && (adt_kind != AdtKind::Record || user_drop)
+        {
+            self.error(
+                "E-RECORD-UPDATE",
+                b.span,
+                format!(
+                    "record update syntax is only supported on plain `struct` types without custom teardown (`{adt_name}`)"
+                ),
             );
             return self.err_expr(span);
         }
@@ -3425,6 +3458,19 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
             }
         };
+        let adt_ty = self.adt_ty(adt, &args);
+        let base_binding = base.map(|b| {
+            let base_expr = self.infer_expected(b, adt_ty);
+            let base_expr = self.coerce_value(base_expr, adt_ty, b.span);
+            let base_local = LocalId(self.locals.len() as u32);
+            self.locals.push(LocalInfo {
+                name: String::new(),
+                ty: adt_ty,
+                mutable: false,
+                span: b.span,
+            });
+            (base_local, base_expr, b.span)
+        });
         let mut slots: Vec<Option<Expr>> = vec![None; decl_fields.len()];
         for f in fields {
             let Some(i) = decl_fields.iter().position(|(n, _)| *n == f.name) else {
@@ -3478,26 +3524,44 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         out.push(self.err_expr(span));
                         continue;
                     }
-                    let default_expr = self.items.adt(adt).variants[variant as usize].fields[i]
-                        .default
-                        .clone();
-                    if let Some(def_expr) = default_expr {
-                        let v = self.infer(&def_expr);
+                    if let Some((base_local, _, b_span)) = &base_binding {
                         let ft = self.field_ty(adt, variant, i as u32, &args);
-                        out.push(self.coerce_value(v, ft, span));
+                        out.push(Expr {
+                            kind: ExprKind::Field {
+                                base: Box::new(Expr {
+                                    kind: ExprKind::Local(*base_local),
+                                    ty: adt_ty,
+                                    span: *b_span,
+                                }),
+                                adt,
+                                variant,
+                                args: args.clone(),
+                                field: i as u32,
+                            },
+                            ty: ft,
+                            span: *b_span,
+                        });
                     } else {
-                        self.error(
-                            diag::RECORD_MISSING_FIELD,
-                            span,
-                            format!("field `{}` is missing", decl_fields[i].0),
-                        );
-                        out.push(self.err_expr(span));
+                        let default_expr = self.items.adt(adt).variants[variant as usize].fields[i]
+                            .default
+                            .clone();
+                        if let Some(def_expr) = default_expr {
+                            let v = self.infer(&def_expr);
+                            let ft = self.field_ty(adt, variant, i as u32, &args);
+                            out.push(self.coerce_value(v, ft, span));
+                        } else {
+                            self.error(
+                                diag::RECORD_MISSING_FIELD,
+                                span,
+                                format!("field `{}` is missing", decl_fields[i].0),
+                            );
+                            out.push(self.err_expr(span));
+                        }
                     }
                 }
             }
         }
-        let adt_ty = self.adt_ty(adt, &args);
-        if self.items.adt(adt).kind == AdtKind::Resource {
+        let result = if self.items.adt(adt).kind == AdtKind::Resource {
             let ty = self.types.intern(TyData::Managed(adt_ty));
             Expr {
                 kind: ExprKind::ManagedCreate { args, fields: out },
@@ -3515,6 +3579,25 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 ty: adt_ty,
                 span,
             }
+        };
+        if let Some((base_local, base_expr, b_span)) = base_binding {
+            Expr {
+                kind: ExprKind::Block(vec![
+                    Stmt::Let {
+                        pattern: Pat {
+                            kind: PatKind::Binding(base_local),
+                            ty: adt_ty,
+                            span: b_span,
+                        },
+                        init: base_expr,
+                    },
+                    Stmt::Expr(result),
+                ]),
+                ty: adt_ty,
+                span,
+            }
+        } else {
+            result
         }
     }
 
@@ -3544,15 +3627,8 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 .items
                 .resolve_adt_of(self.decl.module, &enum_path, self.types)
             && self.items.adt(adt).kind == AdtKind::Enum
+            && let Some(v_idx) = self.items.adt(adt).variant_named(variant)
         {
-            let Some(v_idx) = self.items.adt(adt).variant_named(variant) else {
-                self.error(
-                    diag::ENUM_VARIANT,
-                    span,
-                    format!("`{}` has no variant `{variant}`", enum_path.join(".")),
-                );
-                return self.err_expr(span);
-            };
             let v = &self.items.adt(adt).variants[v_idx as usize];
             let shape_ok = v.shape == VariantShape::Tuple
                 || (v.shape == VariantShape::Unit && arguments.is_empty());
@@ -3606,7 +3682,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 span,
             };
         }
-        // Static inline method call with explicit host generics: `Host::<T>.method::<U>(args...)`.
+        // Static method call with explicit host generics: `Host::<T>.method::<U>(args...)`.
         if let ast::ExprKind::Member {
             object,
             member: ast::MemberName::Name(mname),
@@ -3619,39 +3695,146 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             && let Some(adt) = self
                 .items
                 .resolve_adt_of(self.decl.module, &host_path, self.types)
-            && let Some(method) = self.items.adt(adt).method_named(mname).cloned()
         {
-            if !method.public && self.decl.module != self.items.adt(adt).module {
-                self.error(
-                    "E-VISIBILITY",
-                    span,
-                    format!(
-                        "method `{mname}` on `{}` is private",
-                        self.items.adt(adt).name
-                    ),
-                );
-                return self.err_expr(span);
+            if let Some(method) = self.items.adt(adt).method_named(mname).cloned() {
+                if !method.public && self.decl.module != self.items.adt(adt).module {
+                    self.error(
+                        "E-VISIBILITY",
+                        span,
+                        format!(
+                            "method `{mname}` on `{}` is private",
+                            self.items.adt(adt).name
+                        ),
+                    );
+                    return self.err_expr(span);
+                }
+                let Some(mut full_args) = self.resolve_explicit_type_args(
+                    Some(host_type_args.as_slice()),
+                    method.host_generic_count,
+                    object.span,
+                ) else {
+                    return self.err_expr(span);
+                };
+                let method_n = self
+                    .items
+                    .func(method.fn_ref)
+                    .generics
+                    .len()
+                    .saturating_sub(method.host_generic_count);
+                let Some(method_args) =
+                    self.resolve_explicit_type_args(explicit.map(Vec::as_slice), method_n, span)
+                else {
+                    return self.err_expr(span);
+                };
+                full_args.extend(method_args);
+                return self.direct_call_with_args(method.fn_ref, full_args, None, arguments, span);
             }
-            let Some(mut full_args) = self.resolve_explicit_type_args(
+            let expected_host_n = self.items.adt(adt).generics.len();
+            if let Some(host_args) = self.resolve_explicit_type_args(
                 Some(host_type_args.as_slice()),
-                method.host_generic_count,
+                expected_host_n,
                 object.span,
-            ) else {
-                return self.err_expr(span);
-            };
-            let method_n = self
-                .items
-                .func(method.fn_ref)
-                .generics
-                .len()
-                .saturating_sub(method.host_generic_count);
-            let Some(method_args) =
-                self.resolve_explicit_type_args(explicit.map(Vec::as_slice), method_n, span)
-            else {
-                return self.err_expr(span);
-            };
-            full_args.extend(method_args);
-            return self.direct_call_with_args(method.fn_ref, full_args, None, arguments, span);
+            ) {
+                let host_adt_ty = self.adt_ty(adt, &host_args);
+                let host_ty = if self.items.adt(adt).kind == AdtKind::Resource {
+                    self.types.intern(TyData::Desc(host_adt_ty))
+                } else {
+                    host_adt_ty
+                };
+                if let Some((method, impl_args)) =
+                    self.items.inherent_impls.iter().find_map(|imp| {
+                        let impl_args = self.items.match_inherent_impl(imp, host_ty, self.types)?;
+                        imp.methods
+                            .iter()
+                            .find(|m| m.name == *mname)
+                            .cloned()
+                            .map(|m| (m, impl_args))
+                    })
+                {
+                    if !method.public && self.decl.module != method.module {
+                        self.error(
+                            "E-VISIBILITY",
+                            span,
+                            format!(
+                                "method `{mname}` on `{}` is private",
+                                self.items.adt(adt).name
+                            ),
+                        );
+                        return self.err_expr(span);
+                    }
+                    let method_n = self
+                        .items
+                        .func(method.fn_ref)
+                        .generics
+                        .len()
+                        .saturating_sub(method.impl_generic_count);
+                    let Some(method_args) = self.resolve_explicit_type_args(
+                        explicit.map(Vec::as_slice),
+                        method_n,
+                        span,
+                    ) else {
+                        return self.err_expr(span);
+                    };
+                    let mut full_args = impl_args;
+                    full_args.extend(method_args);
+                    return self.direct_call_with_args(
+                        method.fn_ref,
+                        full_args,
+                        None,
+                        arguments,
+                        span,
+                    );
+                }
+                if explicit.is_none()
+                    && let Some((tr_ref, tr_args, m_params, m_result)) =
+                        self.items.trait_impls.iter().find_map(|imp| {
+                            let impl_args = self.items.match_impl(imp, host_ty, self.types)?;
+                            let tr = self.items.trait_decl(imp.trait_ref);
+                            tr.methods.iter().find(|m| m.name == *mname).map(|m| {
+                                let resolved_targs: Vec<Ty> = imp
+                                    .trait_args
+                                    .iter()
+                                    .map(|t| self.types.subst(*t, &impl_args))
+                                    .collect();
+                                (imp.trait_ref, resolved_targs, m.params.clone(), m.result)
+                            })
+                        })
+                {
+                    if arguments.len() != m_params.len() {
+                        self.error(
+                            diag::CALL_ARITY,
+                            span,
+                            format!(
+                                "`{}.{mname}` expects {} argument(s), found {}",
+                                host_path.join("."),
+                                m_params.len(),
+                                arguments.len()
+                            ),
+                        );
+                        return self.err_expr(span);
+                    }
+                    let mut args = Vec::with_capacity(arguments.len());
+                    for (a, pt) in arguments.iter().zip(&m_params) {
+                        let expected = self.types.subst_with_self(*pt, &tr_args, host_ty);
+                        let expected = self.items.normalize_ty(expected, self.types);
+                        let v = self.infer(&a.value);
+                        args.push(self.coerce_arg(v, expected, a.span));
+                    }
+                    let ret = self.types.subst_with_self(m_result, &tr_args, host_ty);
+                    let ret = self.items.normalize_ty(ret, self.types);
+                    return Expr {
+                        kind: ExprKind::TraitCall {
+                            trait_ref: tr_ref,
+                            trait_args: tr_args,
+                            self_ty: host_ty,
+                            method: mname.clone(),
+                            args,
+                        },
+                        ty: ret,
+                        span,
+                    };
+                }
+            }
         }
         if let Some(path) = Self::expr_path(callee).filter(|p| !self.path_is_value(p)) {
             if let [name] = path.as_slice()
@@ -3705,19 +3888,20 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             }
             if path.len() >= 2 && explicit.is_none() {
                 let (enum_path, variant) = (&path[..path.len() - 1], &path[path.len() - 1]);
-                if let Some(adt) =
-                    self.items
-                        .resolve_adt_of(self.decl.module, enum_path, self.types)
+                let resolved_enum = if enum_path == ["Self"]
+                    && let Some(self_ty) = self.decl.self_ty
+                    && let TyData::Adt { adt, .. } = *self.types.data(self.types.shallow(self_ty))
                     && self.items.adt(adt).kind == AdtKind::Enum
                 {
-                    let Some(v_idx) = self.items.adt(adt).variant_named(variant) else {
-                        self.error(
-                            diag::ENUM_VARIANT,
-                            span,
-                            format!("`{}` has no variant `{variant}`", enum_path.join(".")),
-                        );
-                        return self.err_expr(span);
-                    };
+                    Some(adt)
+                } else {
+                    self.items
+                        .resolve_adt_of(self.decl.module, enum_path, self.types)
+                        .filter(|&adt| self.items.adt(adt).kind == AdtKind::Enum)
+                };
+                if let Some(adt) = resolved_enum
+                    && let Some(v_idx) = self.items.adt(adt).variant_named(variant)
+                {
                     let v = &self.items.adt(adt).variants[v_idx as usize];
                     let shape_ok = v.shape == VariantShape::Tuple
                         || (v.shape == VariantShape::Unit && arguments.is_empty());
@@ -3805,6 +3989,233 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         span,
                     );
                 }
+                // Static inherent impl method call: `Type.fn(...)`, `Self.fn(...)`, `i64.fn(...)`.
+                let exact_host_ty: Option<Ty> = if host_path == ["Self"] {
+                    self.decl.self_ty.map(|t| self.types.shallow(t))
+                } else if let [scalar_name] = host_path
+                    && let Some(scalar) = scalar_type(scalar_name)
+                {
+                    Some(self.types.intern(scalar))
+                } else if let Some(ItemRef::TypeAlias(ta_mod, ta_idx)) =
+                    self.items.lookup_item(self.decl.module, host_path)
+                {
+                    Some(self.items.modules[ta_mod.0 as usize].type_aliases[ta_idx as usize].1)
+                } else {
+                    None
+                };
+                let bare_host_adt = if exact_host_ty.is_none() {
+                    self.items
+                        .resolve_adt_of(self.decl.module, host_path, self.types)
+                } else {
+                    None
+                };
+                let found_inherent = if let Some(host_ty) = exact_host_ty {
+                    self.items.inherent_impls.iter().find_map(|imp| {
+                        let impl_args = self.items.match_inherent_impl(imp, host_ty, self.types)?;
+                        imp.methods
+                            .iter()
+                            .find(|m| m.name == *mname)
+                            .cloned()
+                            .map(|m| (m, impl_args))
+                    })
+                } else if let Some(adt) = bare_host_adt {
+                    self.items.inherent_impls.iter().find_map(|imp| {
+                        let target_matches = match *self.types.data(imp.target) {
+                            TyData::Adt { adt: imp_adt, .. } => imp_adt == adt,
+                            TyData::Desc(inner) => matches!(
+                                *self.types.data(inner),
+                                TyData::Adt { adt: imp_adt, .. } if imp_adt == adt
+                            ),
+                            TyData::Unit
+                            | TyData::Type
+                            | TyData::ConstParam(_)
+                            | TyData::ConstU32(_)
+                            | TyData::Bool
+                            | TyData::Never
+                            | TyData::Int(_)
+                            | TyData::Float(_)
+                            | TyData::Tuple(_)
+                            | TyData::Array { .. }
+                            | TyData::ArrayConst { .. }
+                            | TyData::Slice(_)
+                            | TyData::Ref { .. }
+                            | TyData::Managed(_)
+                            | TyData::Opaque(_)
+                            | TyData::ErrorUnion { .. }
+                            | TyData::FnPtr { .. }
+                            | TyData::Closure { .. }
+                            | TyData::ImplCallable { .. }
+                            | TyData::Dyn(_)
+                            | TyData::OwnedDyn { .. }
+                            | TyData::Param(_)
+                            | TyData::SelfParam
+                            | TyData::Assoc { .. }
+                            | TyData::Var(_)
+                            | TyData::Error => false,
+                        };
+                        if !target_matches {
+                            return None;
+                        }
+                        let m = imp.methods.iter().find(|m| m.name == *mname)?.clone();
+                        let impl_args = (0..imp.generics.len())
+                            .map(|_| self.types.fresh(VarKind::General))
+                            .collect();
+                        Some((m, impl_args))
+                    })
+                } else {
+                    None
+                };
+                if let Some((method, impl_args)) = found_inherent {
+                    if !method.public && self.decl.module != method.module {
+                        self.error(
+                            "E-VISIBILITY",
+                            span,
+                            format!("method `{mname}` on `{}` is private", host_path.join(".")),
+                        );
+                        return self.err_expr(span);
+                    }
+                    let method_n = self
+                        .items
+                        .func(method.fn_ref)
+                        .generics
+                        .len()
+                        .saturating_sub(method.impl_generic_count);
+                    let Some(method_args) = self.resolve_explicit_type_args(
+                        explicit.map(Vec::as_slice),
+                        method_n,
+                        span,
+                    ) else {
+                        return self.err_expr(span);
+                    };
+                    let mut full_args = impl_args;
+                    full_args.extend(method_args);
+                    return self.direct_call_with_args(
+                        method.fn_ref,
+                        full_args,
+                        None,
+                        arguments,
+                        span,
+                    );
+                }
+                // Static trait impl method call on concrete types, Self, primitives, or bare ADTs.
+                if explicit.is_none() {
+                    let found_static_trait = if let Some(host_ty) = exact_host_ty {
+                        self.items.trait_impls.iter().find_map(|imp| {
+                            let impl_args = self.items.match_impl(imp, host_ty, self.types)?;
+                            let tr = self.items.trait_decl(imp.trait_ref);
+                            tr.methods.iter().find(|m| m.name == *mname).map(|m| {
+                                let resolved_targs: Vec<Ty> = imp
+                                    .trait_args
+                                    .iter()
+                                    .map(|t| self.types.subst(*t, &impl_args))
+                                    .collect();
+                                (
+                                    imp.trait_ref,
+                                    resolved_targs,
+                                    host_ty,
+                                    m.params.clone(),
+                                    m.result,
+                                )
+                            })
+                        })
+                    } else if let Some(adt) = bare_host_adt {
+                        self.items.trait_impls.iter().find_map(|imp| {
+                            let target_matches = match *self.types.data(imp.target) {
+                                TyData::Adt { adt: imp_adt, .. } => imp_adt == adt,
+                                TyData::Desc(inner) => matches!(
+                                    *self.types.data(inner),
+                                    TyData::Adt { adt: imp_adt, .. } if imp_adt == adt
+                                ),
+                                TyData::Unit
+                                | TyData::Type
+                                | TyData::ConstParam(_)
+                                | TyData::ConstU32(_)
+                                | TyData::Bool
+                                | TyData::Never
+                                | TyData::Int(_)
+                                | TyData::Float(_)
+                                | TyData::Tuple(_)
+                                | TyData::Array { .. }
+                                | TyData::ArrayConst { .. }
+                                | TyData::Slice(_)
+                                | TyData::Ref { .. }
+                                | TyData::Managed(_)
+                                | TyData::Opaque(_)
+                                | TyData::ErrorUnion { .. }
+                                | TyData::FnPtr { .. }
+                                | TyData::Closure { .. }
+                                | TyData::ImplCallable { .. }
+                                | TyData::Dyn(_)
+                                | TyData::OwnedDyn { .. }
+                                | TyData::Param(_)
+                                | TyData::SelfParam
+                                | TyData::Assoc { .. }
+                                | TyData::Var(_)
+                                | TyData::Error => false,
+                            };
+                            if !target_matches {
+                                return None;
+                            }
+                            let tr = self.items.trait_decl(imp.trait_ref);
+                            tr.methods.iter().find(|m| m.name == *mname).map(|m| {
+                                let impl_args: Vec<Ty> = (0..imp.generics.len())
+                                    .map(|_| self.types.fresh(VarKind::General))
+                                    .collect();
+                                let self_ty = self.types.subst(imp.target, &impl_args);
+                                let resolved_targs: Vec<Ty> = imp
+                                    .trait_args
+                                    .iter()
+                                    .map(|t| self.types.subst(*t, &impl_args))
+                                    .collect();
+                                (
+                                    imp.trait_ref,
+                                    resolved_targs,
+                                    self_ty,
+                                    m.params.clone(),
+                                    m.result,
+                                )
+                            })
+                        })
+                    } else {
+                        None
+                    };
+                    if let Some((tr_ref, tr_args, self_ty, m_params, m_result)) = found_static_trait
+                    {
+                        if arguments.len() != m_params.len() {
+                            self.error(
+                                diag::CALL_ARITY,
+                                span,
+                                format!(
+                                    "`{}.{mname}` expects {} argument(s), found {}",
+                                    host_path.join("."),
+                                    m_params.len(),
+                                    arguments.len()
+                                ),
+                            );
+                            return self.err_expr(span);
+                        }
+                        let mut args = Vec::with_capacity(arguments.len());
+                        for (a, pt) in arguments.iter().zip(&m_params) {
+                            let expected = self.types.subst_with_self(*pt, &tr_args, self_ty);
+                            let expected = self.items.normalize_ty(expected, self.types);
+                            let v = self.infer(&a.value);
+                            args.push(self.coerce_arg(v, expected, a.span));
+                        }
+                        let ret = self.types.subst_with_self(m_result, &tr_args, self_ty);
+                        let ret = self.items.normalize_ty(ret, self.types);
+                        return Expr {
+                            kind: ExprKind::TraitCall {
+                                trait_ref: tr_ref,
+                                trait_args: tr_args,
+                                self_ty,
+                                method: mname.clone(),
+                                args,
+                            },
+                            ty: ret,
+                            span,
+                        };
+                    }
+                }
             }
             if let [param_name, method_name] = path.as_slice()
                 && explicit.is_none()
@@ -3832,10 +4243,12 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         let mut args = Vec::with_capacity(arguments.len());
                         for (a, pt) in arguments.iter().zip(&m_params) {
                             let expected = self.types.subst_with_self(*pt, &tr_args, self_ty);
+                            let expected = self.items.normalize_ty(expected, self.types);
                             let v = self.infer(&a.value);
                             args.push(self.coerce_arg(v, expected, a.span));
                         }
                         let ret = self.types.subst_with_self(m_result, &tr_args, self_ty);
+                        let ret = self.items.normalize_ty(ret, self.types);
                         return Expr {
                             kind: ExprKind::TraitCall {
                                 trait_ref: tr_ref,
@@ -3940,6 +4353,104 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     return self.err_expr(span);
                 };
                 let mut full_args = adt_args;
+                full_args.extend(method_args);
+                let expected_self = self
+                    .types
+                    .subst(self.items.func(method.fn_ref).params[0].ty, &full_args);
+                let expected_self = self.types.shallow(expected_self);
+                let rec_expr = if let TyData::Ref { mutable, .. } = *self.types.data(expected_self)
+                {
+                    if matches!(self.types.data(rec_ty), TyData::Ref { .. }) {
+                        receiver
+                    } else {
+                        if mutable {
+                            self.check_mutable_place(&receiver, "borrowed mutably");
+                        }
+                        let borrow_ty = self.types.intern(TyData::Ref {
+                            region: None,
+                            mutable,
+                            pointee: rec_ty,
+                        });
+                        Expr {
+                            kind: ExprKind::Borrow {
+                                mutable,
+                                place: Box::new(receiver),
+                            },
+                            ty: borrow_ty,
+                            span: object.span,
+                        }
+                    }
+                } else if is_managed && let TyData::Desc(inner) = *self.types.data(expected_self) {
+                    let desc_ty = self.types.intern(TyData::Desc(inner));
+                    Expr {
+                        kind: ExprKind::Describe(Box::new(receiver)),
+                        ty: desc_ty,
+                        span: object.span,
+                    }
+                } else {
+                    receiver
+                };
+                return self.direct_call_with_args(
+                    method.fn_ref,
+                    full_args,
+                    Some(rec_expr),
+                    arguments,
+                    span,
+                );
+            }
+            let found_inherent_method = self
+                .items
+                .inherent_impls
+                .iter()
+                .find_map(|imp| {
+                    let impl_args = self.items.match_inherent_impl(imp, self_ty, self.types)?;
+                    imp.methods
+                        .iter()
+                        .find(|m| m.name == *mname)
+                        .cloned()
+                        .map(|m| (m, impl_args, false))
+                })
+                .or_else(|| {
+                    if let TyData::Managed(inner) = *self.types.data(self_ty) {
+                        let desc_ty = self.types.intern(TyData::Desc(inner));
+                        self.items.inherent_impls.iter().find_map(|imp| {
+                            let impl_args =
+                                self.items.match_inherent_impl(imp, desc_ty, self.types)?;
+                            imp.methods
+                                .iter()
+                                .find(|m| m.name == *mname)
+                                .cloned()
+                                .map(|m| (m, impl_args, true))
+                        })
+                    } else {
+                        None
+                    }
+                });
+            if let Some((method, impl_args, is_managed)) = found_inherent_method {
+                if !method.public && self.decl.module != method.module {
+                    self.error("E-VISIBILITY", span, format!("method `{mname}` is private"));
+                    return self.err_expr(span);
+                }
+                if !method.has_self {
+                    self.error(
+                        diag::CALL_ARITY,
+                        span,
+                        format!("associated function `{mname}` takes no `self` receiver"),
+                    );
+                    return self.err_expr(span);
+                }
+                let method_n = self
+                    .items
+                    .func(method.fn_ref)
+                    .generics
+                    .len()
+                    .saturating_sub(method.impl_generic_count);
+                let Some(method_args) =
+                    self.resolve_explicit_type_args(explicit.map(Vec::as_slice), method_n, span)
+                else {
+                    return self.err_expr(span);
+                };
+                let mut full_args = impl_args;
                 full_args.extend(method_args);
                 let expected_self = self
                     .types

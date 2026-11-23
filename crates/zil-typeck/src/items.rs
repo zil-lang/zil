@@ -86,6 +86,23 @@ pub struct TraitImplDecl {
 }
 
 #[derive(Clone, Debug)]
+pub struct InherentMethodDecl {
+    pub name: String,
+    pub fn_ref: FnRef,
+    pub public: bool,
+    pub has_self: bool,
+    pub impl_generic_count: usize,
+    pub module: ModIdx,
+}
+
+#[derive(Clone, Debug)]
+pub struct InherentImplDecl {
+    pub generics: Vec<GenericInfo>,
+    pub target: Ty,
+    pub methods: Vec<InherentMethodDecl>,
+}
+
+#[derive(Clone, Debug)]
 pub struct ParamInfo {
     pub name: String,
     pub ty: Ty,
@@ -201,6 +218,7 @@ pub struct Items<'a> {
     pub foreigns: Vec<ForeignDeclInfo>,
     pub traits: Vec<TraitDecl<'a>>,
     pub trait_impls: Vec<TraitImplDecl>,
+    pub inherent_impls: Vec<InherentImplDecl>,
     pub adt_kinds: Vec<AdtKind>,
     pub consts: Vec<ConstDeclInfo<'a>>,
 }
@@ -250,6 +268,21 @@ impl<'a> Items<'a> {
     /// Matches a (possibly generic) trait impl's target pattern against `self_ty`.
     /// Returns the substituted impl generic arguments if matched.
     pub fn match_impl(&self, imp: &TraitImplDecl, self_ty: Ty, types: &Types) -> Option<Vec<Ty>> {
+        let mut bindings: Vec<Option<Ty>> = vec![None; imp.generics.len()];
+        if !match_template(imp.target, self_ty, types, &mut bindings) {
+            return None;
+        }
+        bindings.into_iter().collect()
+    }
+
+    /// Matches a (possibly generic) inherent impl's target pattern against `self_ty`.
+    /// Returns the substituted impl generic arguments if matched.
+    pub fn match_inherent_impl(
+        &self,
+        imp: &InherentImplDecl,
+        self_ty: Ty,
+        types: &Types,
+    ) -> Option<Vec<Ty>> {
         let mut bindings: Vec<Option<Ty>> = vec![None; imp.generics.len()];
         if !match_template(imp.target, self_ty, types, &mut bindings) {
             return None;
@@ -610,6 +643,7 @@ pub fn collect_program<'a>(
         foreigns: Vec::new(),
         traits: Vec::new(),
         trait_impls: Vec::new(),
+        inherent_impls: Vec::new(),
         adt_kinds: Vec::new(),
         consts: Vec::new(),
     };
@@ -2736,16 +2770,533 @@ fn collect_impl<'a>(
     });
 }
 
+fn inherent_target_adt(ty: Ty, types: &Types) -> Option<AdtRef> {
+    match types.data(ty) {
+        TyData::Adt { adt, .. } => Some(*adt),
+        TyData::Desc(inner) => match types.data(*inner) {
+            TyData::Adt { adt, .. } => Some(*adt),
+            TyData::Unit
+            | TyData::Type
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Tuple(_)
+            | TyData::Array { .. }
+            | TyData::ArrayConst { .. }
+            | TyData::Slice(_)
+            | TyData::Ref { .. }
+            | TyData::Managed(_)
+            | TyData::Desc(_)
+            | TyData::Opaque(_)
+            | TyData::ErrorUnion { .. }
+            | TyData::FnPtr { .. }
+            | TyData::Closure { .. }
+            | TyData::ImplCallable { .. }
+            | TyData::Dyn(_)
+            | TyData::OwnedDyn { .. }
+            | TyData::Param(_)
+            | TyData::SelfParam
+            | TyData::Assoc { .. }
+            | TyData::Var(_)
+            | TyData::Error => None,
+        },
+        TyData::Unit
+        | TyData::Type
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::Bool
+        | TyData::Never
+        | TyData::Int(_)
+        | TyData::Float(_)
+        | TyData::Tuple(_)
+        | TyData::Array { .. }
+        | TyData::ArrayConst { .. }
+        | TyData::Slice(_)
+        | TyData::Ref { .. }
+        | TyData::Managed(_)
+        | TyData::Opaque(_)
+        | TyData::ErrorUnion { .. }
+        | TyData::FnPtr { .. }
+        | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
+        | TyData::Dyn(_)
+        | TyData::OwnedDyn { .. }
+        | TyData::Param(_)
+        | TyData::SelfParam
+        | TyData::Assoc { .. }
+        | TyData::Var(_)
+        | TyData::Error => None,
+    }
+}
+
+fn inherent_targets_overlap(a: Ty, b: Ty, types: &Types) -> bool {
+    if a == b {
+        return true;
+    }
+    let ua = match *types.data(a) {
+        TyData::Desc(inner) => inner,
+        TyData::Unit
+        | TyData::Type
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::Bool
+        | TyData::Never
+        | TyData::Int(_)
+        | TyData::Float(_)
+        | TyData::Adt { .. }
+        | TyData::Tuple(_)
+        | TyData::Array { .. }
+        | TyData::ArrayConst { .. }
+        | TyData::Slice(_)
+        | TyData::Ref { .. }
+        | TyData::Managed(_)
+        | TyData::Opaque(_)
+        | TyData::ErrorUnion { .. }
+        | TyData::FnPtr { .. }
+        | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
+        | TyData::Dyn(_)
+        | TyData::OwnedDyn { .. }
+        | TyData::Param(_)
+        | TyData::SelfParam
+        | TyData::Assoc { .. }
+        | TyData::Var(_)
+        | TyData::Error => a,
+    };
+    let ub = match *types.data(b) {
+        TyData::Desc(inner) => inner,
+        TyData::Unit
+        | TyData::Type
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::Bool
+        | TyData::Never
+        | TyData::Int(_)
+        | TyData::Float(_)
+        | TyData::Adt { .. }
+        | TyData::Tuple(_)
+        | TyData::Array { .. }
+        | TyData::ArrayConst { .. }
+        | TyData::Slice(_)
+        | TyData::Ref { .. }
+        | TyData::Managed(_)
+        | TyData::Opaque(_)
+        | TyData::ErrorUnion { .. }
+        | TyData::FnPtr { .. }
+        | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
+        | TyData::Dyn(_)
+        | TyData::OwnedDyn { .. }
+        | TyData::Param(_)
+        | TyData::SelfParam
+        | TyData::Assoc { .. }
+        | TyData::Var(_)
+        | TyData::Error => b,
+    };
+    if ua == ub {
+        return true;
+    }
+    if let (
+        TyData::Adt {
+            adt: a1,
+            args: args1,
+            ..
+        },
+        TyData::Adt {
+            adt: a2,
+            args: args2,
+            ..
+        },
+    ) = (types.data(ua), types.data(ub))
+    {
+        return a1 == a2
+            && args1.len() == args2.len()
+            && args1.iter().zip(args2.iter()).all(|(&x, &y)| {
+                x == y
+                    || matches!(types.data(x), TyData::Param(_))
+                    || matches!(types.data(y), TyData::Param(_))
+            });
+    }
+    false
+}
+
+fn inherent_target_label(ty: Ty, items: &Items<'_>, types: &Types) -> String {
+    match types.data(ty) {
+        TyData::Adt { adt, .. } => items.adts[adt.0 as usize].name.clone(),
+        TyData::Desc(inner) => inherent_target_label(*inner, items, types),
+        TyData::Int(it) => format!("{it:?}").to_lowercase(),
+        TyData::Float(ft) => format!("{ft:?}").to_lowercase(),
+        TyData::Bool => "bool".to_string(),
+        TyData::Unit => "void".to_string(),
+        TyData::Type
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::Never
+        | TyData::Tuple(_)
+        | TyData::Array { .. }
+        | TyData::ArrayConst { .. }
+        | TyData::Slice(_)
+        | TyData::Ref { .. }
+        | TyData::Managed(_)
+        | TyData::Opaque(_)
+        | TyData::ErrorUnion { .. }
+        | TyData::FnPtr { .. }
+        | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
+        | TyData::Dyn(_)
+        | TyData::OwnedDyn { .. }
+        | TyData::Param(_)
+        | TyData::SelfParam
+        | TyData::Assoc { .. }
+        | TyData::Var(_)
+        | TyData::Error => "impl".to_string(),
+    }
+}
+
+fn collect_inherent_impl<'a>(
+    mid: ModIdx,
+    imp: &'a ast::ImplBlock,
+    items: &mut Items<'a>,
+    types: &mut Types,
+    diags: &mut Vec<Diagnostic>,
+) {
+    let (mut impl_generics, impl_lifetimes) = type_generics(
+        mid,
+        &imp.generics,
+        &items.modules,
+        &items.mod_by_path,
+        &items.adt_kinds,
+        types,
+        diags,
+    );
+    let scope: Vec<String> = impl_generics.iter().map(|g| g.name.clone()).collect();
+    for clause in &imp.where_clause {
+        match &clause.subject {
+            ast::BoundSubject::Type(sub_ty) => {
+                if let ast::TypeKind::Named { path, args } = &sub_ty.kind
+                    && args.is_empty()
+                    && let [pname] = path.as_slice()
+                    && let Some(g_idx) = impl_generics.iter().position(|g| g.name == *pname)
+                {
+                    for b in &clause.bounds {
+                        if let Some(c) = resolve_callable_bound(
+                            b,
+                            mid,
+                            &scope,
+                            &items.modules,
+                            &items.mod_by_path,
+                            &items.adt_kinds,
+                            types,
+                            diags,
+                        ) {
+                            impl_generics[g_idx].callable = Some(c);
+                            continue;
+                        }
+                        if let ast::TypeKind::Named { path, args } = &b.kind {
+                            if args.is_empty() && path == &["Copy"] {
+                                impl_generics[g_idx].copy = true;
+                            } else if args.is_empty() && path == &["StoreElement"] {
+                                impl_generics[g_idx].store_element = true;
+                            } else if args.is_empty() && path == &["SyncDrop"] {
+                                impl_generics[g_idx].sync_drop = true;
+                            } else if args.is_empty()
+                                && matches!(
+                                    path.as_slice(),
+                                    [s] if matches!(
+                                        s.as_str(),
+                                        "Value"
+                                            | "ClosedEnvironment"
+                                            | "Transfer"
+                                            | "Share"
+                                            | "ThreadCallable"
+                                    )
+                                )
+                            {
+                                continue;
+                            } else if let Some(ItemRef::Trait(tr)) =
+                                lookup_item_in(&items.modules, &items.mod_by_path, mid, path)
+                            {
+                                let mut targs = Vec::new();
+                                for a in args {
+                                    if let ast::GenericArg::Type(t) = a {
+                                        targs.push(
+                                            resolve_type_in(
+                                                t,
+                                                mid,
+                                                &scope,
+                                                &items.modules,
+                                                &items.mod_by_path,
+                                                &items.adt_kinds,
+                                                None,
+                                                None,
+                                                types,
+                                            )
+                                            .unwrap_or_else(|d| {
+                                                diags.push(d);
+                                                types.error()
+                                            }),
+                                        );
+                                    } else {
+                                        diags.push(diag::unsupported(
+                                            "non-type trait bound argument",
+                                            b.span,
+                                        ));
+                                    }
+                                }
+                                impl_generics[g_idx].traits.push((tr, targs));
+                            } else {
+                                diags.push(diag::error(
+                                    diag::GENERIC_BOUND,
+                                    b.span,
+                                    format!("unknown bound `{}`", path.join(".")),
+                                ));
+                            }
+                        } else {
+                            diags.push(diag::unsupported("non-named generic bound", b.span));
+                        }
+                    }
+                } else {
+                    diags.push(diag::unsupported(
+                        "where clause on non-parameter type",
+                        clause.span,
+                    ));
+                }
+            }
+            ast::BoundSubject::Lifetime(_) => {
+                diags.push(diag::unsupported(
+                    "lifetime where clause on inherent impl",
+                    clause.span,
+                ));
+            }
+        }
+    }
+    let target = resolve_type_with_lifetimes(
+        &imp.target,
+        mid,
+        &scope,
+        &impl_lifetimes,
+        &items.modules,
+        &items.mod_by_path,
+        &items.adt_kinds,
+        None,
+        None,
+        types,
+    )
+    .unwrap_or_else(|d| {
+        diags.push(d);
+        types.error()
+    });
+    match types.data(target) {
+        TyData::Error => return,
+        TyData::Adt { .. }
+        | TyData::Desc(_)
+        | TyData::Int(_)
+        | TyData::Float(_)
+        | TyData::Bool
+        | TyData::Unit => {}
+        TyData::Type
+        | TyData::ConstParam(_)
+        | TyData::ConstU32(_)
+        | TyData::Never
+        | TyData::Tuple(_)
+        | TyData::Array { .. }
+        | TyData::ArrayConst { .. }
+        | TyData::Slice(_)
+        | TyData::Ref { .. }
+        | TyData::Managed(_)
+        | TyData::Opaque(_)
+        | TyData::ErrorUnion { .. }
+        | TyData::FnPtr { .. }
+        | TyData::Closure { .. }
+        | TyData::ImplCallable { .. }
+        | TyData::Dyn(_)
+        | TyData::OwnedDyn { .. }
+        | TyData::Param(_)
+        | TyData::SelfParam
+        | TyData::Assoc { .. }
+        | TyData::Var(_) => {
+            diags.push(diag::unsupported(
+                "inherent impl for this target type",
+                imp.target.span,
+            ));
+            return;
+        }
+    }
+    let target_label = inherent_target_label(target, items, types);
+    let target_adt = inherent_target_adt(target, types);
+    let impl_generic_count = impl_generics.len();
+    let mut methods: Vec<InherentMethodDecl> = Vec::new();
+    for m in &imp.members {
+        match &m.kind {
+            ast::ItemKind::Function(f) => {
+                let dup_in_block = methods.iter().any(|em| em.name == f.name);
+                let dup_in_inline = target_adt.is_some_and(|adt| {
+                    items.adts[adt.0 as usize]
+                        .methods
+                        .iter()
+                        .any(|em| em.name == f.name)
+                });
+                let dup_in_other = items.inherent_impls.iter().any(|existing| {
+                    inherent_targets_overlap(existing.target, target, types)
+                        && existing.methods.iter().any(|em| em.name == f.name)
+                });
+                if dup_in_block || dup_in_inline || dup_in_other {
+                    diags.push(diag::error(
+                        diag::NAME_DUPLICATE,
+                        m.span,
+                        format!(
+                            "method `{}` is declared more than once on `{target_label}`",
+                            f.name
+                        ),
+                    ));
+                    continue;
+                }
+                if !f.contract.is_empty() {
+                    let has_non_result = f.contract.iter().any(|c| c.name != "result");
+                    if has_non_result {
+                        diags.push(diag::unsupported("function contracts", f.span));
+                    }
+                }
+                let (method_generics, method_lifetimes) = type_generics(
+                    mid,
+                    &f.generics,
+                    &items.modules,
+                    &items.mod_by_path,
+                    &items.adt_kinds,
+                    types,
+                    diags,
+                );
+                let mut combined_generics = impl_generics.clone();
+                combined_generics.extend(method_generics);
+                let mut combined_lifetimes = impl_lifetimes.clone();
+                combined_lifetimes.extend(method_lifetimes);
+                let combined_scope: Vec<String> =
+                    combined_generics.iter().map(|g| g.name.clone()).collect();
+                let fn_ref = FnRef(items.fns.len() as u32);
+                let mut params = Vec::with_capacity(f.params.len() + 1);
+                if f.params.first().map(|p| p.name.as_str()) != Some("self")
+                    && let Some(recv_p) = &imp.receiver_default
+                {
+                    let recv_ty = resolve_type_with_lifetimes(
+                        &recv_p.ty,
+                        mid,
+                        &combined_scope,
+                        &combined_lifetimes,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(target),
+                        Some(fn_ref),
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    params.push(ParamInfo {
+                        name: "self".into(),
+                        ty: recv_ty,
+                        span: recv_p.span,
+                    });
+                }
+                for p in &f.params {
+                    let ty = resolve_type_with_lifetimes(
+                        &p.ty,
+                        mid,
+                        &combined_scope,
+                        &combined_lifetimes,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(target),
+                        Some(fn_ref),
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    });
+                    params.push(ParamInfo {
+                        name: p.name.clone(),
+                        ty,
+                        span: p.span,
+                    });
+                }
+                let result = match &f.return_type {
+                    Some(t) => resolve_type_with_lifetimes(
+                        t,
+                        mid,
+                        &combined_scope,
+                        &combined_lifetimes,
+                        &items.modules,
+                        &items.mod_by_path,
+                        &items.adt_kinds,
+                        Some(target),
+                        Some(fn_ref),
+                        types,
+                    )
+                    .unwrap_or_else(|d| {
+                        diags.push(d);
+                        types.error()
+                    }),
+                    None => types.unit(),
+                };
+                let has_self = params.first().is_some_and(|p| p.name == "self");
+                items.fns.push(FnDecl {
+                    module: mid,
+                    name: format!("{target_label}::{}", f.name),
+                    generics: combined_generics,
+                    region_params: combined_lifetimes,
+                    params,
+                    result,
+                    self_ty: Some(target),
+                    role: FnRoleSpec::Normal,
+                    resume_mode: zil_ir::body::ResumeMode::Local,
+                    state_contracts: Vec::new(),
+                    ast: f,
+                });
+                methods.push(InherentMethodDecl {
+                    name: f.name.clone(),
+                    fn_ref,
+                    public: m.public,
+                    has_self,
+                    impl_generic_count,
+                    module: mid,
+                });
+            }
+            ast::ItemKind::Import(_)
+            | ast::ItemKind::Aggregate(_)
+            | ast::ItemKind::Enum(_)
+            | ast::ItemKind::Extern { .. }
+            | ast::ItemKind::Impl(_)
+            | ast::ItemKind::Trait(_)
+            | ast::ItemKind::TypeAlias(_)
+            | ast::ItemKind::Const(_)
+            | ast::ItemKind::Meta(_) => {
+                diags.push(diag::unsupported("non-function impl member", m.span));
+            }
+        }
+    }
+    items.inherent_impls.push(InherentImplDecl {
+        generics: impl_generics,
+        target,
+        methods,
+    });
+}
+
 fn collect_trait_impl<'a>(
     mid: ModIdx,
     imp: &'a ast::ImplBlock,
-    span: Span,
+    _span: Span,
     items: &mut Items<'a>,
     types: &mut Types,
     diags: &mut Vec<Diagnostic>,
 ) {
     let Some(trait_ty) = &imp.trait_type else {
-        diags.push(diag::unsupported("inherent impl blocks", span));
+        collect_inherent_impl(mid, imp, items, types, diags);
         return;
     };
     let ast::TypeKind::Named { path, args } = &trait_ty.kind else {
