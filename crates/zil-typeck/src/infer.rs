@@ -6,6 +6,8 @@
 //! end. `finalize` then zonks every type and applies the typing rules that
 //! need closed types (operator domains, literal ranges, bounds).
 
+use std::collections::BTreeSet;
+
 use crate::diag;
 use crate::items::{
     ConstRef, FnDecl, ForeignDeclInfo, ItemRef, Items, ModIdx, VariantShape,
@@ -3342,16 +3344,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             .capture_stack
             .pop()
             .expect("capture_stack pushed above");
-        let mut moved_caps = Vec::new();
-        let mut given_fields = Vec::new();
-        let mut assigned_fields = Vec::new();
-        collect_moved_captures(
-            &body_expr,
-            &mut moved_caps,
-            &mut given_fields,
-            &mut assigned_fields,
-        );
-        for idx in moved_caps {
+        let (end_state, move_res) = analyze_capture_moves(&body_expr);
+        let still_uninit: BTreeSet<(u32, Option<u32>)> = end_state
+            .uninit
+            .into_iter()
+            .chain(move_res.escaped_uninit)
+            .collect();
+        for idx in move_res.whole_moved {
             if let Some(cap) = env.captures.get_mut(idx as usize)
                 && cap.by_value
                 && ty_is_non_copy(self.items, self.types, cap.orig_ty)
@@ -3359,16 +3358,14 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 cap.consumed = true;
             }
         }
-        for (idx, opt_field) in given_fields {
+        for (idx, opt_field) in move_res.ever_given {
             if let Some(cap) = env.captures.get_mut(idx as usize)
                 && cap.by_value
                 && ty_is_non_copy(self.items, self.types, cap.orig_ty)
             {
-                let refilled = cap.mutable
-                    && assigned_fields.iter().any(|(ci, f)| {
-                        *ci == idx && (f.is_none() || (opt_field.is_some() && *f == opt_field))
-                    });
-                if refilled {
+                let unrefilled =
+                    still_uninit.contains(&(idx, opt_field)) || still_uninit.contains(&(idx, None));
+                if !unrefilled && cap.mutable {
                     cap.mutated = true;
                 } else {
                     cap.consumed = true;
@@ -9341,25 +9338,186 @@ fn capture_place_field(expr: &Expr) -> Option<(u32, Option<u32>)> {
     }
 }
 
-fn collect_moved_captures(
-    expr: &Expr,
-    out: &mut Vec<u32>,
-    given_fields: &mut Vec<(u32, Option<u32>)>,
-    assigned_fields: &mut Vec<(u32, Option<u32>)>,
-) {
-    fn walk_place(
-        e: &Expr,
-        out: &mut Vec<u32>,
-        given_fields: &mut Vec<(u32, Option<u32>)>,
-        assigned_fields: &mut Vec<(u32, Option<u32>)>,
-    ) {
+/// Returns `Some((cap_idx, opt_field))` only when `expr` directly names a
+/// capture (`cap`) or a direct single field of a capture (`cap.f` / `cap.0`).
+/// Deeper projections (such as `cap.a.b` or `cap.arr[i]`) return `None`
+/// because assigning to a sub-projection does not refill the enclosing field
+/// or capture.
+fn direct_capture_assign_target(expr: &Expr) -> Option<(u32, Option<u32>)> {
+    match &expr.kind {
+        ExprKind::Capture(idx) => Some((*idx, None)),
+        ExprKind::Field { base, field, .. } => match base.kind {
+            ExprKind::Capture(idx) => Some((idx, Some(*field))),
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::Adt { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Tuple(_)
+            | ExprKind::Array(_)
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Unary { .. }
+            | ExprKind::Binary { .. }
+            | ExprKind::Logical { .. }
+            | ExprKind::Convert { .. }
+            | ExprKind::Field { .. }
+            | ExprKind::TupleField { .. }
+            | ExprKind::Index { .. }
+            | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Describe(_)
+            | ExprKind::Give(_)
+            | ExprKind::Len(_)
+            | ExprKind::Call { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
+            | ExprKind::Block(_)
+            | ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Loop(_)
+            | ExprKind::While { .. }
+            | ExprKind::Break
+            | ExprKind::Continue
+            | ExprKind::Return(_)
+            | ExprKind::Assign { .. } => None,
+        },
+        ExprKind::TupleField { base, index } => match base.kind {
+            ExprKind::Capture(idx) => Some((idx, Some(*index))),
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::Adt { .. }
+            | ExprKind::ErrorInject { .. }
+            | ExprKind::UnionInject { .. }
+            | ExprKind::ManagedCreate { .. }
+            | ExprKind::Tuple(_)
+            | ExprKind::Array(_)
+            | ExprKind::Closure { .. }
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::Unary { .. }
+            | ExprKind::Binary { .. }
+            | ExprKind::Logical { .. }
+            | ExprKind::Convert { .. }
+            | ExprKind::Field { .. }
+            | ExprKind::TupleField { .. }
+            | ExprKind::Index { .. }
+            | ExprKind::Borrow { .. }
+            | ExprKind::SliceBorrow { .. }
+            | ExprKind::Deref(_)
+            | ExprKind::Describe(_)
+            | ExprKind::Give(_)
+            | ExprKind::Len(_)
+            | ExprKind::Call { .. }
+            | ExprKind::ForeignCall { .. }
+            | ExprKind::IndirectCall { .. }
+            | ExprKind::ClosureCall { .. }
+            | ExprKind::TraitCall { .. }
+            | ExprKind::DynCall { .. }
+            | ExprKind::Intrinsic { .. }
+            | ExprKind::Try(_)
+            | ExprKind::CtEval(_)
+            | ExprKind::Block(_)
+            | ExprKind::If { .. }
+            | ExprKind::Match { .. }
+            | ExprKind::Loop(_)
+            | ExprKind::While { .. }
+            | ExprKind::Break
+            | ExprKind::Continue
+            | ExprKind::Return(_)
+            | ExprKind::Assign { .. } => None,
+        },
+        ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Local(_)
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::Adt { .. }
+        | ExprKind::ErrorInject { .. }
+        | ExprKind::UnionInject { .. }
+        | ExprKind::ManagedCreate { .. }
+        | ExprKind::Tuple(_)
+        | ExprKind::Array(_)
+        | ExprKind::Closure { .. }
+        | ExprKind::ClosureFnRef(_)
+        | ExprKind::Unary { .. }
+        | ExprKind::Binary { .. }
+        | ExprKind::Logical { .. }
+        | ExprKind::Convert { .. }
+        | ExprKind::Index { .. }
+        | ExprKind::Borrow { .. }
+        | ExprKind::SliceBorrow { .. }
+        | ExprKind::Deref(_)
+        | ExprKind::Describe(_)
+        | ExprKind::Give(_)
+        | ExprKind::Len(_)
+        | ExprKind::Call { .. }
+        | ExprKind::ForeignCall { .. }
+        | ExprKind::IndirectCall { .. }
+        | ExprKind::ClosureCall { .. }
+        | ExprKind::TraitCall { .. }
+        | ExprKind::DynCall { .. }
+        | ExprKind::Intrinsic { .. }
+        | ExprKind::Try(_)
+        | ExprKind::CtEval(_)
+        | ExprKind::Block(_)
+        | ExprKind::If { .. }
+        | ExprKind::Match { .. }
+        | ExprKind::Loop(_)
+        | ExprKind::While { .. }
+        | ExprKind::Break
+        | ExprKind::Continue
+        | ExprKind::Return(_)
+        | ExprKind::Assign { .. } => None,
+    }
+}
+
+#[derive(Clone, Default)]
+struct CaptureMoveState {
+    /// Captures or top-level capture fields that may currently be uninitialized
+    /// along at least one path reaching the current program point.
+    uninit: BTreeSet<(u32, Option<u32>)>,
+}
+
+#[derive(Default)]
+struct CaptureMoveResult {
+    /// Whole captures moved directly in value position or via `give cap`.
+    whole_moved: BTreeSet<u32>,
+    /// Capture fields (or indexed capture places) ever moved via `give`.
+    ever_given: BTreeSet<(u32, Option<u32>)>,
+    /// Capture fields still uninitialized at an early exit (`return`, `?`,
+    /// `break`, `continue`, or `defer`).
+    escaped_uninit: BTreeSet<(u32, Option<u32>)>,
+}
+
+/// Path-sensitive forward analysis over a closure body to prove whether every
+/// `give cap.field` is refilled along all normal and early-exit paths before
+/// the closure can be classified as `FnMut`.
+fn analyze_capture_moves(expr: &Expr) -> (CaptureMoveState, CaptureMoveResult) {
+    fn walk_place(e: &Expr, state: &mut CaptureMoveState, res: &mut CaptureMoveResult) {
         match &e.kind {
             ExprKind::Field { base, .. }
             | ExprKind::TupleField { base, .. }
-            | ExprKind::Deref(base) => walk_place(base, out, given_fields, assigned_fields),
+            | ExprKind::Deref(base) => walk_place(base, state, res),
             ExprKind::Index { base, index } => {
-                walk_place(base, out, given_fields, assigned_fields);
-                collect_moved_captures(index, out, given_fields, assigned_fields);
+                walk_place(base, state, res);
+                let _ = walk_expr(index, state, res);
             }
             ExprKind::Capture(_) | ExprKind::Local(_) => {}
             ExprKind::Lit(_)
@@ -9402,170 +9560,307 @@ fn collect_moved_captures(
             | ExprKind::Continue
             | ExprKind::Return(_)
             | ExprKind::Assign { .. } => {
-                collect_moved_captures(e, out, given_fields, assigned_fields);
+                let _ = walk_expr(e, state, res);
             }
         }
     }
 
-    match &expr.kind {
-        ExprKind::Capture(idx) => {
-            if !out.contains(idx) {
-                out.push(*idx);
+    /// Returns `true` if `expr` unconditionally diverges (e.g., `return`,
+    /// `break`, `continue`, or all branches of an `if`/`match` diverge).
+    fn walk_expr(expr: &Expr, state: &mut CaptureMoveState, res: &mut CaptureMoveResult) -> bool {
+        match &expr.kind {
+            ExprKind::Capture(idx) => {
+                res.whole_moved.insert(*idx);
+                state.uninit.insert((*idx, None));
+                false
             }
-        }
-        ExprKind::Field { base, .. }
-        | ExprKind::TupleField { base, .. }
-        | ExprKind::Deref(base)
-        | ExprKind::Borrow { place: base, .. }
-        | ExprKind::Describe(base)
-        | ExprKind::Len(base) => walk_place(base, out, given_fields, assigned_fields),
-        ExprKind::SliceBorrow {
-            place, start, end, ..
-        } => {
-            walk_place(place, out, given_fields, assigned_fields);
-            if let Some(s) = start {
-                collect_moved_captures(s, out, given_fields, assigned_fields);
+            ExprKind::Field { base, .. }
+            | ExprKind::TupleField { base, .. }
+            | ExprKind::Deref(base)
+            | ExprKind::Borrow { place: base, .. }
+            | ExprKind::Describe(base)
+            | ExprKind::Len(base) => {
+                walk_place(base, state, res);
+                false
             }
-            if let Some(e) = end {
-                collect_moved_captures(e, out, given_fields, assigned_fields);
-            }
-        }
-        ExprKind::Index { base, index } => {
-            walk_place(base, out, given_fields, assigned_fields);
-            collect_moved_captures(index, out, given_fields, assigned_fields);
-        }
-        ExprKind::Give(inner) => {
-            if let ExprKind::Capture(idx) = inner.kind {
-                if !out.contains(&idx) {
-                    out.push(idx);
+            ExprKind::SliceBorrow {
+                place, start, end, ..
+            } => {
+                walk_place(place, state, res);
+                if let Some(s) = start {
+                    let _ = walk_expr(s, state, res);
                 }
-            } else if let Some(pair) = capture_place_field(inner) {
-                if !given_fields.contains(&pair) {
-                    given_fields.push(pair);
+                if let Some(e) = end {
+                    let _ = walk_expr(e, state, res);
                 }
-                walk_place(inner, out, given_fields, assigned_fields);
-            } else {
-                collect_moved_captures(inner, out, given_fields, assigned_fields);
+                false
             }
-        }
-        ExprKind::Try(inner)
-        | ExprKind::ErrorInject { value: inner, .. }
-        | ExprKind::UnionInject { value: inner }
-        | ExprKind::Unary { operand: inner, .. }
-        | ExprKind::Convert { operand: inner, .. }
-        | ExprKind::Loop(inner) => {
-            collect_moved_captures(inner, out, given_fields, assigned_fields);
-        }
-        ExprKind::Binary { lhs, rhs, .. } | ExprKind::Logical { lhs, rhs, .. } => {
-            collect_moved_captures(lhs, out, given_fields, assigned_fields);
-            collect_moved_captures(rhs, out, given_fields, assigned_fields);
-        }
-        ExprKind::Assign { place, value, .. } => {
-            if let Some(pair) = capture_place_field(place)
-                && !assigned_fields.contains(&pair)
-            {
-                assigned_fields.push(pair);
+            ExprKind::Index { base, index } => {
+                walk_place(base, state, res);
+                let _ = walk_expr(index, state, res);
+                false
             }
-            walk_place(place, out, given_fields, assigned_fields);
-            collect_moved_captures(value, out, given_fields, assigned_fields);
-        }
-        ExprKind::Adt { fields, .. } | ExprKind::ManagedCreate { fields, .. } => {
-            for f in fields {
-                collect_moved_captures(f, out, given_fields, assigned_fields);
+            ExprKind::Give(inner) => {
+                if let ExprKind::Capture(idx) = inner.kind {
+                    res.whole_moved.insert(idx);
+                    state.uninit.insert((idx, None));
+                } else if let Some(pair) = capture_place_field(inner) {
+                    walk_place(inner, state, res);
+                    res.ever_given.insert(pair);
+                    state.uninit.insert(pair);
+                } else {
+                    return walk_expr(inner, state, res);
+                }
+                false
             }
-        }
-        ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
-            for x in xs {
-                collect_moved_captures(x, out, given_fields, assigned_fields);
+            ExprKind::Try(inner) => {
+                let div = walk_expr(inner, state, res);
+                // `?` may exit the closure early on the error path.
+                res.escaped_uninit.extend(state.uninit.iter().copied());
+                div
             }
-        }
-        ExprKind::Closure { captures, .. } => {
-            for c in captures {
-                collect_moved_captures(c, out, given_fields, assigned_fields);
+            ExprKind::ErrorInject { value: inner, .. }
+            | ExprKind::UnionInject { value: inner }
+            | ExprKind::Unary { operand: inner, .. }
+            | ExprKind::Convert { operand: inner, .. } => walk_expr(inner, state, res),
+            ExprKind::Binary { lhs, rhs, .. } => {
+                let l_div = walk_expr(lhs, state, res);
+                if l_div {
+                    return true;
+                }
+                walk_expr(rhs, state, res)
             }
-        }
-        ExprKind::Call { args, .. }
-        | ExprKind::ForeignCall { args, .. }
-        | ExprKind::TraitCall { args, .. }
-        | ExprKind::Intrinsic { args, .. } => {
-            for a in args {
-                collect_moved_captures(a, out, given_fields, assigned_fields);
+            ExprKind::Logical { lhs, rhs, .. } => {
+                if walk_expr(lhs, state, res) {
+                    return true;
+                }
+                // Short-circuit: `rhs` may or may not execute, so it cannot
+                // unconditionally refill a field, but any move in `rhs` may happen.
+                let mut rhs_state = state.clone();
+                let _ = walk_expr(rhs, &mut rhs_state, res);
+                state.uninit.extend(rhs_state.uninit);
+                false
             }
-        }
-        ExprKind::IndirectCall { callee, args } => {
-            collect_moved_captures(callee, out, given_fields, assigned_fields);
-            for a in args {
-                collect_moved_captures(a, out, given_fields, assigned_fields);
-            }
-        }
-        ExprKind::ClosureCall {
-            closure,
-            mode,
-            args,
-        } => {
-            if *mode == ClosureCallMode::Once {
-                collect_moved_captures(closure, out, given_fields, assigned_fields);
-            } else {
-                walk_place(closure, out, given_fields, assigned_fields);
-            }
-            for a in args {
-                collect_moved_captures(a, out, given_fields, assigned_fields);
-            }
-        }
-        ExprKind::DynCall { object, args, .. } => {
-            walk_place(object, out, given_fields, assigned_fields);
-            for a in args {
-                collect_moved_captures(a, out, given_fields, assigned_fields);
-            }
-        }
-        ExprKind::Block(stmts) => {
-            for s in stmts {
-                match s {
-                    Stmt::Let { init, .. } => {
-                        collect_moved_captures(init, out, given_fields, assigned_fields);
-                    }
-                    Stmt::Expr(e) | Stmt::Defer(e) => {
-                        collect_moved_captures(e, out, given_fields, assigned_fields);
+            ExprKind::Assign { place, value, .. } => {
+                walk_place(place, state, res);
+                let div = walk_expr(value, state, res);
+                if !div && let Some((ci, opt_field)) = direct_capture_assign_target(place) {
+                    if let Some(fi) = opt_field {
+                        state.uninit.remove(&(ci, Some(fi)));
+                    } else {
+                        state.uninit.retain(|(c, _)| *c != ci);
                     }
                 }
+                div
             }
-        }
-        ExprKind::If {
-            cond,
-            then,
-            otherwise,
-        } => {
-            collect_moved_captures(cond, out, given_fields, assigned_fields);
-            collect_moved_captures(then, out, given_fields, assigned_fields);
-            if let Some(o) = otherwise {
-                collect_moved_captures(o, out, given_fields, assigned_fields);
+            ExprKind::Adt { fields, .. } | ExprKind::ManagedCreate { fields, .. } => {
+                for f in fields {
+                    if walk_expr(f, state, res) {
+                        return true;
+                    }
+                }
+                false
             }
-        }
-        ExprKind::Match { scrutinee, arms } => {
-            walk_place(scrutinee, out, given_fields, assigned_fields);
-            for arm in arms {
-                collect_moved_captures(&arm.body, out, given_fields, assigned_fields);
+            ExprKind::Tuple(xs) | ExprKind::Array(xs) => {
+                for x in xs {
+                    if walk_expr(x, state, res) {
+                        return true;
+                    }
+                }
+                false
             }
+            ExprKind::Closure { captures, .. } => {
+                for c in captures {
+                    if walk_expr(c, state, res) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprKind::Call { args, .. }
+            | ExprKind::ForeignCall { args, .. }
+            | ExprKind::TraitCall { args, .. }
+            | ExprKind::Intrinsic { args, .. } => {
+                for a in args {
+                    if walk_expr(a, state, res) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprKind::IndirectCall { callee, args } => {
+                if walk_expr(callee, state, res) {
+                    return true;
+                }
+                for a in args {
+                    if walk_expr(a, state, res) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprKind::ClosureCall {
+                closure,
+                mode,
+                args,
+            } => {
+                if *mode == ClosureCallMode::Once {
+                    if walk_expr(closure, state, res) {
+                        return true;
+                    }
+                } else {
+                    walk_place(closure, state, res);
+                }
+                for a in args {
+                    if walk_expr(a, state, res) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprKind::DynCall { object, args, .. } => {
+                // `object` is a `Borrow` for `&self`/`&mut self` slots (which
+                // delegates to `walk_place`) and a bare value for `self: Self`
+                // slots (which moves an `OwnedDyn` capture).
+                if walk_expr(object, state, res) {
+                    return true;
+                }
+                for a in args {
+                    if walk_expr(a, state, res) {
+                        return true;
+                    }
+                }
+                false
+            }
+            ExprKind::Block(stmts) => {
+                for s in stmts {
+                    match s {
+                        Stmt::Let { init, .. } => {
+                            if walk_expr(init, state, res) {
+                                return true;
+                            }
+                        }
+                        Stmt::Expr(e) => {
+                            if walk_expr(e, state, res) {
+                                return true;
+                            }
+                        }
+                        Stmt::Defer(e) => {
+                            // `defer` executes on scope exit; analyze conservatively
+                            // so moves inside `defer` are recorded without letting
+                            // a `defer` prematurely clear `state.uninit`.
+                            let mut defer_state = state.clone();
+                            let _ = walk_expr(e, &mut defer_state, res);
+                            for item in defer_state.uninit {
+                                res.escaped_uninit.insert(item);
+                                state.uninit.insert(item);
+                            }
+                        }
+                    }
+                }
+                false
+            }
+            ExprKind::If {
+                cond,
+                then,
+                otherwise,
+            } => {
+                if walk_expr(cond, state, res) {
+                    return true;
+                }
+                let mut then_state = state.clone();
+                let then_div = walk_expr(then, &mut then_state, res);
+                let mut else_state = state.clone();
+                let else_div = if let Some(o) = otherwise {
+                    walk_expr(o, &mut else_state, res)
+                } else {
+                    false
+                };
+                match (then_div, else_div) {
+                    (true, true) => true,
+                    (true, false) => {
+                        *state = else_state;
+                        false
+                    }
+                    (false, true) => {
+                        *state = then_state;
+                        false
+                    }
+                    (false, false) => {
+                        state.uninit = then_state
+                            .uninit
+                            .into_iter()
+                            .chain(else_state.uninit)
+                            .collect();
+                        false
+                    }
+                }
+            }
+            ExprKind::Match { scrutinee, arms } => {
+                walk_place(scrutinee, state, res);
+                if arms.is_empty() {
+                    return false;
+                }
+                let mut merged = BTreeSet::new();
+                let mut any_normal = false;
+                for arm in arms {
+                    let mut arm_state = state.clone();
+                    if !walk_expr(&arm.body, &mut arm_state, res) {
+                        any_normal = true;
+                        merged.extend(arm_state.uninit);
+                    }
+                }
+                if any_normal {
+                    state.uninit = merged;
+                    false
+                } else {
+                    true
+                }
+            }
+            ExprKind::While { cond, body } => {
+                if walk_expr(cond, state, res) {
+                    return true;
+                }
+                let mut body_state = state.clone();
+                let _ = walk_expr(body, &mut body_state, res);
+                // Loop body may execute 0 or more times: it cannot unconditionally
+                // refill pre-loop uninit fields, and any uninit left by the body
+                // persists on exit or next iteration.
+                state.uninit.extend(body_state.uninit);
+                false
+            }
+            ExprKind::Loop(body) => {
+                let mut body_state = state.clone();
+                let _ = walk_expr(body, &mut body_state, res);
+                state.uninit.extend(body_state.uninit);
+                false
+            }
+            ExprKind::Return(opt_v) => {
+                if let Some(v) = opt_v {
+                    let _ = walk_expr(v, state, res);
+                }
+                res.escaped_uninit.extend(state.uninit.iter().copied());
+                true
+            }
+            ExprKind::Break | ExprKind::Continue => {
+                res.escaped_uninit.extend(state.uninit.iter().copied());
+                true
+            }
+            ExprKind::Lit(_)
+            | ExprKind::ConstGeneric(_)
+            | ExprKind::StaticUtf(_)
+            | ExprKind::Local(_)
+            | ExprKind::FnRef { .. }
+            | ExprKind::ForeignRef(_)
+            | ExprKind::ClosureFnRef(_)
+            | ExprKind::CtEval(_) => false,
         }
-        ExprKind::While { cond, body } => {
-            collect_moved_captures(cond, out, given_fields, assigned_fields);
-            collect_moved_captures(body, out, given_fields, assigned_fields);
-        }
-        ExprKind::Return(Some(v)) => {
-            collect_moved_captures(v, out, given_fields, assigned_fields);
-        }
-        ExprKind::Return(None)
-        | ExprKind::Lit(_)
-        | ExprKind::ConstGeneric(_)
-        | ExprKind::StaticUtf(_)
-        | ExprKind::Local(_)
-        | ExprKind::FnRef { .. }
-        | ExprKind::ForeignRef(_)
-        | ExprKind::ClosureFnRef(_)
-        | ExprKind::CtEval(_)
-        | ExprKind::Break
-        | ExprKind::Continue => {}
     }
+
+    let mut state = CaptureMoveState::default();
+    let mut res = CaptureMoveResult::default();
+    let _ = walk_expr(expr, &mut state, &mut res);
+    (state, res)
 }
 
 /// Pre-scans a non-`move` closure AST body to classify free outer variable

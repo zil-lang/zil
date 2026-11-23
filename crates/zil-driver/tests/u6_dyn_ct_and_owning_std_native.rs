@@ -922,3 +922,409 @@ fn main() -> i32 {{
     let (code, _stdout) = build_and_run_dual(&dir, &entry);
     assert_eq!(code, 0);
 }
+
+#[test]
+fn u6_owned_dyn_by_value_self_zero_leak_and_drop_native() {
+    let dir = temp_dir("owned-dyn-byval");
+    let src = r#"
+extern "C" fn putchar(c: i32) -> i32;
+
+trait Consumer {
+    fn consume(self: Self) -> i64;
+}
+
+struct CopyItem {
+    val: i64,
+}
+
+impl Consumer for CopyItem {
+    fn consume(self: Self) -> i64 {
+        return self.val + 10
+    }
+}
+
+resource DropToken {
+    tag: i32,
+}
+
+impl Drop for DropToken {
+    fn drop(self: Self) {
+        unsafe { putchar(.tag) }
+    }
+}
+
+package OwnedItem {
+    manages token: DropToken,
+    manages buf: ByteBuffer,
+}
+
+impl Consumer for OwnedItem {
+    fn consume(self: Self) -> i64 {
+        return bytes_len(self.buf) + 100
+    }
+}
+
+struct EmptyItem {}
+
+impl Consumer for EmptyItem {
+    fn consume(self: Self) -> i64 {
+        return 7
+    }
+}
+
+fn run_consumer(c: OwnedDyn<dyn Consumer>) -> i64 {
+    return c.consume()
+}
+
+fn run_all() -> DynCreateError!i32 {
+    let b = bytes_new()
+    bytes_reserve(b, 4)
+    bytes_push(b, u8(65))
+    bytes_push(b, u8(66))
+
+    let d1 = owned_dyn::<dyn Consumer>(CopyItem { val: 32 })?
+    let d2 = owned_dyn::<dyn Consumer>(OwnedItem {
+        token: DropToken { tag: 68 },
+        buf: give b,
+    })?
+    let d3 = owned_dyn::<dyn Consumer>(EmptyItem {})?
+
+    let r1 = run_consumer(d1)
+    let r2 = run_consumer(d2)
+    let r3 = run_consumer(d3)
+    if r1 != 42 { return 11 }
+    if r2 != 102 { return 12 }
+    if r3 != 7 { return 13 }
+    return 0
+}
+
+fn main() -> i32 {
+    match run_all() {
+        .ok(code) => { return code }
+        .err(_) => { return 99 }
+    }
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+
+    // 1. Dual-backend (Clang O0/O2 + LLVM C-API O0/O2) functional + Drop-once check.
+    // OwnedItem has DropToken tag 68 ('D'), so Drop must run exactly once ("D").
+    let (code, stdout) = build_and_run_dual(&dir, &entry);
+    assert_eq!(code, 0);
+    assert_eq!(
+        stdout, "D",
+        "OwnedItem Drop must execute exactly once on by-value OwnedDyn consumption"
+    );
+
+    // 2. Allocator-wrap zero-leak verification (-Wl,--wrap=calloc -Wl,--wrap=free)
+    // across both O0 and O2: every OwnedDyn box (Copy, Owning, ZST) must be freed
+    // with zero live allocations and zero double-frees at process exit.
+    let probe_c = dir.join("alloc_probe.c");
+    std::fs::write(
+        &probe_c,
+        r#"
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+void *__real_calloc(size_t count, size_t size);
+void __real_free(void *ptr);
+
+static void *live_ptrs[256];
+static int calloc_count = 0;
+static int free_count = 0;
+static int live_count = 0;
+static int double_free = 0;
+
+void *__wrap_calloc(size_t count, size_t size) {
+    void *p = __real_calloc(count, size);
+    if (p) {
+        calloc_count++;
+        live_count++;
+        for (int i = 0; i < 256; i++) {
+            if (!live_ptrs[i]) {
+                live_ptrs[i] = p;
+                break;
+            }
+        }
+    }
+    return p;
+}
+
+void __wrap_free(void *ptr) {
+    if (!ptr) {
+        __real_free(ptr);
+        return;
+    }
+    int found = 0;
+    for (int i = 0; i < 256; i++) {
+        if (live_ptrs[i] == ptr) {
+            live_ptrs[i] = NULL;
+            found = 1;
+            break;
+        }
+    }
+    if (found) {
+        free_count++;
+        live_count--;
+    }
+    __real_free(ptr);
+}
+
+__attribute__((destructor))
+static void report_allocs(void) {
+    fprintf(stderr, "ALLOC_STATS calloc=%d free=%d live=%d double_free=%d\n",
+            calloc_count, free_count, live_count, double_free);
+    if (calloc_count < 3 || calloc_count != free_count || live_count != 0 || double_free != 0) {
+        _Exit(97);
+    }
+}
+"#,
+    )
+    .expect("write alloc_probe.c");
+
+    let mut session = CompilationSession::new();
+    let emit_exe = dir.join("emit-bin");
+    let emit_opts = CompileOptions {
+        stop_after: Stage::Build,
+        output: Some(emit_exe),
+        codegen: CodegenOptions { units: 1, jobs: 1 },
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&entry, &emit_opts);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "Build failed: {:?}",
+        report.diagnostics
+    );
+    let ll_path = report
+        .artifacts
+        .get("llvm")
+        .expect("llvm artifact path must be populated")
+        .clone();
+
+    let clang = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".to_string());
+    for opt_flag in ["-O0", "-O2"] {
+        let probed_exe = dir.join(format!("probed-{opt_flag}"));
+        let link = Command::new(&clang)
+            .arg(opt_flag)
+            .arg(&ll_path)
+            .arg(&probe_c)
+            .arg("-Wl,--wrap=calloc")
+            .arg("-Wl,--wrap=free")
+            .arg("-o")
+            .arg(&probed_exe)
+            .output()
+            .expect("invoke clang for allocator probe");
+        assert!(
+            link.status.success(),
+            "clang link failed ({opt_flag}): {}",
+            String::from_utf8_lossy(&link.stderr)
+        );
+        let run = Command::new(&probed_exe)
+            .output()
+            .expect("run probed executable");
+        let stderr = String::from_utf8_lossy(&run.stderr);
+        let stdout = String::from_utf8_lossy(&run.stdout);
+        assert!(
+            run.status.success(),
+            "allocator probe failed ({opt_flag}, code={:?}): stderr={stderr}",
+            run.status.code()
+        );
+        assert_eq!(stdout, "D");
+        assert!(
+            stderr.contains("live=0 double_free=0"),
+            "expected zero leaks ({opt_flag}), got: {stderr}"
+        );
+    }
+
+    // 3. Safety negative: using OwnedDyn after by-value consume MUST be SafeReject.
+    check_rejected(
+        &dir,
+        "owned_dyn_double_consume",
+        r#"
+trait Consumer {
+    fn consume(self: Self) -> i64;
+}
+struct Item { v: i64 }
+impl Consumer for Item {
+    fn consume(self: Self) -> i64 { return self.v }
+}
+fn bad() -> DynCreateError!i64 {
+    let d = owned_dyn::<dyn Consumer>(Item { v: 1 })?
+    let a = d.consume()
+    let b = d.consume()
+    return a + b
+}
+fn main() -> i32 {
+    match bad() {
+        .ok(v) => { return i32(v) }
+        .err(_) => { return 1 }
+    }
+}
+"#,
+        "E-SAFETY",
+    );
+}
+
+#[test]
+fn raw_wire_valid_cert_owned_dyn_double_byval_consume_rejected() {
+    use zil_base::{FileId, Span};
+    use zil_check::{CheckBudget, CheckErrorKind, Violation, ViolationKind, check_module};
+    use zil_ir::body::{
+        Block, BlockId, Body, Callee, Certificate, ConstValue, DynDef, DynSlotSig, FnId, FnRole,
+        FnSig, Function, FunctionCertificate, Instruction, InstructionKind, IntTy, Local,
+        LocalDecl, Module, Operand, ParamEnv, Place, ResumeMode, Rvalue, Terminator, TyKind,
+        TyTable, decode_module, encode_module,
+    };
+    use zil_solve::{Budget, SolveError};
+
+    let sp = Span::new(FileId(0), 0, 1);
+    let mut tys = TyTable::new();
+    let i64_ty = tys.intern(TyKind::Int(IntTy::I64));
+    let dyn_id = tys.add_dyn(DynDef {
+        name: "Consumer".into(),
+        slots: vec![DynSlotSig {
+            name: "consume".into(),
+            receiver: None,
+            params: Vec::new(),
+            result: i64_ty,
+        }],
+    });
+    let owned_dyn_ty = tys.intern(TyKind::OwnedDyn {
+        def: dyn_id,
+        context: None,
+    });
+
+    // fn bad(d: OwnedDyn<dyn Consumer>) -> i64:
+    //   r1 = DynSlot(Move(d), slot 0)
+    //   r2 = DynSlot(Move(d), slot 0)   // UseOfUninit!
+    //   return r2
+    let locals = vec![
+        LocalDecl {
+            ty: owned_dyn_ty,
+            name: Some("d".into()),
+        },
+        LocalDecl {
+            ty: i64_ty,
+            name: Some("r1".into()),
+        },
+        LocalDecl {
+            ty: i64_ty,
+            name: Some("r2".into()),
+        },
+    ];
+    let body = Body {
+        locals,
+        param_count: 1,
+        result: i64_ty,
+        captures: Vec::new(),
+        closure: None,
+        param_env: ParamEnv::default(),
+        drop_flags: Vec::new(),
+        blocks: vec![
+            Block {
+                instructions: Vec::new(),
+                terminator: Terminator::Call {
+                    callee: Callee::DynSlot {
+                        object: Operand::Move(Place::local(Local(0))),
+                        slot: 0,
+                    },
+                    args: Vec::new(),
+                    dest: Place::local(Local(1)),
+                    target: BlockId(1),
+                    cancel: None,
+                },
+                terminator_span: sp,
+            },
+            Block {
+                instructions: Vec::new(),
+                terminator: Terminator::Call {
+                    callee: Callee::DynSlot {
+                        object: Operand::Move(Place::local(Local(0))),
+                        slot: 0,
+                    },
+                    args: Vec::new(),
+                    dest: Place::local(Local(2)),
+                    target: BlockId(2),
+                    cancel: None,
+                },
+                terminator_span: sp,
+            },
+            Block {
+                instructions: vec![Instruction {
+                    kind: InstructionKind::Assign {
+                        dest: Place::local(Local(2)),
+                        value: Rvalue::Use(Operand::Const(ConstValue::Int {
+                            ty: IntTy::I64,
+                            bits: 0,
+                        })),
+                    },
+                    span: sp,
+                }],
+                terminator: Terminator::Return {
+                    value: Operand::Copy(Place::local(Local(2))),
+                },
+                terminator_span: sp,
+            },
+        ],
+    };
+
+    let module = Module {
+        tys,
+        functions: vec![Function {
+            name: "bad_double_consume".into(),
+            sig: FnSig {
+                type_params: 0,
+                region_params: 0,
+                params: vec![owned_dyn_ty],
+                result: i64_ty,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: Vec::new(),
+            },
+            body,
+        }],
+        foreigns: Vec::new(),
+        statics: Vec::new(),
+        dyn_impls: Vec::new(),
+    };
+
+    let bytes = encode_module(&module);
+    let decoded = decode_module(&bytes).expect("wire roundtrip must decode");
+    let solve_errs = zil_solve::solve_module(&decoded, Budget { steps: 200_000 })
+        .expect_err("solver must reject second by-value DynSlot call on moved OwnedDyn");
+    assert!(
+        solve_errs.iter().any(|e| matches!(
+            e,
+            SolveError::Violation {
+                violation: Violation {
+                    kind: ViolationKind::UseOfUninit { .. },
+                    ..
+                },
+                ..
+            }
+        )),
+        "expected UseOfUninit from solver, got: {solve_errs:?}"
+    );
+
+    let valid_cert = Certificate {
+        functions: vec![FunctionCertificate {
+            function: FnId(0),
+            invariants: Vec::new(),
+        }],
+    };
+    let check_err = check_module(decoded, &valid_cert, CheckBudget { steps: 200_000 })
+        .expect_err("zil-check must reject second by-value DynSlot call on moved OwnedDyn");
+    assert!(
+        matches!(
+            check_err.kind,
+            CheckErrorKind::Violation(Violation {
+                kind: ViolationKind::UseOfUninit { .. },
+                ..
+            })
+        ),
+        "expected exact ViolationKind::UseOfUninit from zil-check, got: {check_err:?}"
+    );
+}
