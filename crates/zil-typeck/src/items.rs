@@ -3198,13 +3198,119 @@ fn parse_fn_contracts(
             }
         } else if c.name == "effects" {
             for term in &c.terms {
-                let valid = matches!(
+                if matches!(
                     term.path.as_slice(),
                     [s] if (s == "suspend" || s == "io") && term.arguments.is_empty()
-                );
-                if !valid {
-                    diags.push(diag::unsupported("function effect clause", term.span));
+                ) {
+                    continue;
                 }
+                if term.path.as_slice() == ["invalidates"] {
+                    if !state_contracts
+                        .contains(&zil_ir::body::StateContractClause::InvalidationUpperBound)
+                    {
+                        state_contracts
+                            .push(zil_ir::body::StateContractClause::InvalidationUpperBound);
+                    }
+                    for arg in &term.arguments {
+                        if !arg.arguments.is_empty()
+                            || arg.path.is_empty()
+                            || arg.path.len() > 1 + zil_ir::body::ContractFieldPath::MAX_DEPTH
+                        {
+                            diags.push(diag::error(
+                                diag::RESOURCE_RESULT_MODE,
+                                arg.span,
+                                "contract `invalidates(...)` target must be a parameter or dotted field path (max depth 4)",
+                            ));
+                            continue;
+                        }
+                        let Some(p_idx) = params.iter().position(|p| p.name == arg.path[0]) else {
+                            diags.push(diag::error(
+                                diag::RESOURCE_RESULT_MODE,
+                                arg.span,
+                                format!(
+                                    "contract `invalidates(...)` references unknown parameter `{}`",
+                                    arg.path[0]
+                                ),
+                            ));
+                            continue;
+                        };
+                        let mut cur_ty = params[p_idx].ty;
+                        let mut field_indices = Vec::new();
+                        let mut ok = true;
+                        for seg in &arg.path[1..] {
+                            while let TyData::Ref { pointee, .. }
+                            | TyData::Managed(pointee)
+                            | TyData::Desc(pointee) = types.data(cur_ty)
+                            {
+                                cur_ty = *pointee;
+                            }
+                            if let TyData::Adt { adt, .. } = types.data(cur_ty)
+                                && let Some(decl) = adts.get(adt.0 as usize)
+                                && decl.variants.len() == 1
+                                && let Some((fi, fdecl)) = decl.variants[0]
+                                    .fields
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, f)| f.name == *seg)
+                            {
+                                field_indices.push(zil_ir::body::FieldIdx(fi as u32));
+                                cur_ty = fdecl.ty;
+                            } else {
+                                diags.push(diag::error(
+                                    diag::RESOURCE_RESULT_MODE,
+                                    arg.span,
+                                    format!(
+                                        "contract `invalidates(...)` references unknown field `{seg}`"
+                                    ),
+                                ));
+                                ok = false;
+                                break;
+                            }
+                        }
+                        if ok
+                            && let Some(path) =
+                                zil_ir::body::ContractFieldPath::from_slice(&field_indices)
+                        {
+                            state_contracts.push(zil_ir::body::StateContractClause::Invalidates {
+                                param: p_idx as u32,
+                                path,
+                            });
+                        }
+                    }
+                    continue;
+                }
+                if term.path.as_slice() == ["rollback"] && !term.arguments.is_empty() {
+                    for arg in &term.arguments {
+                        if let [pname] = arg.path.as_slice()
+                            && arg.arguments.is_empty()
+                            && let Some(p_idx) = params.iter().position(|p| p.name == *pname)
+                        {
+                            if protocol_state_domain(params[p_idx].ty, adts, types).is_none() {
+                                diags.push(diag::error(
+                                    diag::RESOURCE_RESULT_MODE,
+                                    arg.span,
+                                    format!(
+                                        "contract `rollback({pname})` requires a protocol handle parameter"
+                                    ),
+                                ));
+                            } else {
+                                state_contracts.push(
+                                    zil_ir::body::StateContractClause::AllowsRollback {
+                                        param: p_idx as u32,
+                                    },
+                                );
+                            }
+                        } else {
+                            diags.push(diag::error(
+                                diag::RESOURCE_RESULT_MODE,
+                                arg.span,
+                                "contract `rollback(...)` must name a parameter of this function",
+                            ));
+                        }
+                    }
+                    continue;
+                }
+                diags.push(diag::unsupported("function effect clause", term.span));
             }
         } else if c.name == "requires" {
             for term in &c.terms {
