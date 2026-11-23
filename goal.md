@@ -6,15 +6,18 @@
 
 ## 1. 当前目标与里程碑
 
-- **主线基线**：[`main@c820695c5`](https://github.com/zil-lang/zil/commit/c820695c5)（开放 PR：0；Wave 3、PR #123/#124、L2 G5.3 [PR #125](https://github.com/zil-lang/zil/pull/125) 及 L2 G6.1 [PR #126](https://github.com/zil-lang/zil/pull/126) 均已 4/4 远端 CI 全绿合入）
-- **当前阶段**：L1–L4 核心能力及 P0 安全收口（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#114](https://github.com/zil-lang/zil/pull/114)）、**方向 1 + 方向 2 基础语言可用性**（[PR #115](https://github.com/zil-lang/zil/pull/115)–[#119](https://github.com/zil-lang/zil/pull/119)）、Wave 3 与审核收口（[PR #120](https://github.com/zil-lang/zil/pull/120)–[#124](https://github.com/zil-lang/zil/pull/124)）、**L2 G5.3**（[PR #125](https://github.com/zil-lang/zil/pull/125)）以及 **L2 G6.1**（[PR #126](https://github.com/zil-lang/zil/pull/126)：用户定义有限状态协议 64 态 `ProtocolStateSet`、`requires(state/apart)`、`provides(state/on_ok/on_err)`、跨 `match` 分支精化、未标注调用方前置核验、共享参数 `apart` 健全性、未知可变调用保守宽化、Raw/Wire 有效证书独立 `zil-check` 证明与双后端 O0/O2 原生全绿）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入 `main`。
-- **总体阻塞**：已验收的既有安全门均已闭合（不等同于对全语言所有权与控制流模型的完整形式化证明）；Fixed Projects 21/21（17 原项目 + 4 预期拒绝、60/60 原生构建、152/152 比较）全绿。
-- **下一发布门**：按原 P0 优先级推进 L2 剩余项 **G6.2（投影失效、历史撤销与导出上界）**；编译性能专项保持独立。
+- **主线基线**：[`main@698ce42f4`](https://github.com/zil-lang/zil/commit/698ce42f4)（开放 PR：0；L2 G6.2 [PR #128](https://github.com/zil-lang/zil/pull/128)、日常安全与表达力 [PR #129](https://github.com/zil-lang/zil/pull/129)、日常标准库 [PR #127](https://github.com/zil-lang/zil/pull/127) 均已远端 CI 全绿合入）
+- **当前阶段**：L1–L4 核心能力及全部 P0 安全/合同门（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#129](https://github.com/zil-lang/zil/pull/129)）均已闭合：
+  - **L2 G6.2**（[PR #128](https://github.com/zil-lang/zil/pull/128)）：投影级失效上界 `effects(invalidates(p.f))` / `effects(invalidates())`、历史撤销 `H`（`effects(rollback(p))`）、`zil-check` 独立上界包含与未知/动态调用 fail-closed 证明、Raw/Wire 有效证书证明与双后端 O0/O2 原生全绿。
+  - **日常语言安全与表达力**（[PR #129](https://github.com/zil-lang/zil/pull/129)）：LLVM 数组/切片索引与子切片运行时越界检查（越界 `@abort()`）、`Option<T>` `?` 早退与 `Option`/`ErrorUnion` 常用方法（`.is_some`/`.is_none`/`.is_ok`/`.is_err`/`.unwrap`/`.unwrap_or`）、`match` 守卫（含穷尽性拒绝）、记录模式简写/省略（`Point { x, .. }`）与闭区间 `for i in a..=b`。
+  - **日常标准库**（[PR #127](https://github.com/zil-lang/zil/pull/127)）：`std.io`（`stderr`/`print`/`println`/`eprint`/`eprintln`/`print_i64`/`println_i64`）、`std.fs`（`read_to_bytes`/`write_bytes`/`exists`/`remove_file`）、`std.env`（`get`/`current_dir`/`exit`）、`std.time`（`monotonic_ns`/`sleep_ms`）全部进入内嵌信任根并双后端原生全绿。
+- **总体阻塞**：**当前看板 P0 阻塞为 0**（已验收既有安全门与日常语言 Alpha 核心功能缺口均已闭合；不等同于全语言形式化证明或正式 1.0 产品门达成）；Fixed Projects 21/21（17 原项目 + 4 预期拒绝、60/60 原生构建、152/152 比较）全绿。
+- **下一发布门**：剩余均为 P1/P2 扩展项（Windows x64 原生支持、ZUI 窗口层、G6.3 状态协议与异步联合、`match` 表达式/或模式/带标签 `break` 等进一步语法糖、以及独立编译性能专项）。
 - **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
 
-## 下一阶段施工安排（以 main@c820695c5 为基线）
+## 下一阶段施工安排（以 main@698ce42f4 为基线）
 
-L2 G6.1（PR #126）已合入。后续并行语言 PR 必须在实际合并目标上执行 post-merge 编译及 Fixed Projects，不能只凭独立 PR 绿灯宣告集成成功。
+日常语言 Alpha 核心能力与全部 L2 P0 合同门（G6.1 PR #126、G6.2 PR #128、日常安全/表达力 PR #129、日常标准库 PR #127）已合入。后续并行语言 PR 必须在实际合并目标上执行 post-merge 编译与回归验证，不能只凭独立 PR 绿灯宣告集成成功。
 
 **统一计量及安全门**：全仓 `tests/**/*.zil` `zil check --json` `status == "Success"` 计数**不是正例通过率或功能完成率**。每批须以精确文件路径、原始输入哈希和预期结果分开统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
 
@@ -36,7 +39,7 @@ L2 G6.1（PR #126）已合入。后续并行语言 PR 必须在实际合并目�
 | G5.2 | 剩余：有限泛型 method slot 派发；**核心闭环与按值 `self: Self` 堆释放已合入**（PR #121/#123/#124：`check_dyn_object_safe`、参数化 `dyn Trait<T>` / `Assoc = T`、按值 thunk `load` 后 `free(%data)` 经 Clang/LLVM API × O0/O2 四组合单次 Drop + Clang `-O0`/`-O2` `-Wl,--wrap=calloc/free` 零泄漏与主动 `double_free` 探针自检 + Raw/Wire 有效证书 `UseOfUninit` 全绿） | 部分实现 | P1 | 仅余有限泛型 method slot 派发；按值/借用 `OwnedDyn` 既定门已闭环 |
 | G5.3 | 剩余：trait 生命周期参数化 `dyn Trait<'a>` 方法返回区域替换（`static-callback-getter-cycle-control.zil`）；**核心闭环已合入**（PR #100/#125：借入 provider `OwnedDyn<dyn Trait, Context<'a>>`、共同借入 `Store<OwnedDyn<..., Context<'a>>>` push/at/pop、`OwnedDynCreate` 独占/可写地址 Context 健全性、entry-block 循环 `alloca` 提升、16 份 `dyn-context` + 40 万次分配循环双后端原生 + Raw/Wire 有效证书 `zil-check` 全绿） | 部分实现 | P1 | 仅余 trait 生命周期参数方法返回区域替换；共同借入 Store 与 Context 健全性既定门已闭环 |
 | G6.1 | 剩余：超 64 态或泛型参数化状态域等远期扩展；**核心闭环已合入**（PR #102/#126：内建协议 `requires(state)`/`provides(retired|on_pending|on_ready)` 与用户定义有限状态协议 `enum`/含 `state` 字段句柄的 64 态 `ProtocolStateSet`、`requires(state/apart)`、`provides(state/on_ok/on_err)`、跨 `match` 分支精化、未标注调用方前置核验、共享参数 `apart` 健全性、未知可变调用保守宽化、Raw/Wire 有效证书独立 `zil-check` 证明与双后端 O0/O2 原生全绿） | 部分实现 | P1 | 既定门已闭环；下一 P0 推进 G6.2 |
-| G6.2 | 剩余：真实投影、失效关系、历史撤销与导出上界组合 | 部分实现 | P0 | 依赖 G6.1、G3.4；覆盖失效后访问拒绝负例与原生正例 |
+| G6.2 | 剩余：超 4 层嵌套字段路径或跨模块导出上界扩展；**核心闭环已合入**（PR #128：`ContractFieldPath`、`effects(invalidates(p.f))` / `effects(invalidates())`、`effects(rollback(p))`、历史撤销 `H` 独立检测、`actual ⊆ upper` 导出上界包含验证、未知/动态调用 fail-closed、Raw/Wire 有效证书 `zil-check` 证明与双后端 O0/O2 原生全绿） | 部分实现 | P1 | 既定 P0 门已闭环 |
 | G6.3 | 剩余：状态协议与拥有存储、替换及异步责任共同运行 | 待排期 | P1 | 依赖 G6.2、G8.4、G8.6；联合原生正例 + 跨状态替换/取消负例 |
 
 ## 4. L3 · 并发与外部生命周期
