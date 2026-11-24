@@ -2994,10 +2994,11 @@ fn raw_wire_unified_call_effects_closure_dynslot_and_desc_alias_checked() {
         ));
     }
 
-    // --- Part C: DynSlot receiver effects (positive &self vs negative &mut self) ---
+    // --- Part C: DynSlot receiver effects (positive pure &self vs negative &mut self) ---
     let build_dynslot_module = |slot_mut: bool| -> Module {
         let mut tys = TyTable::new();
         let unit_ty = tys.intern(TyKind::Unit);
+        let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
         let recv_mut = if slot_mut {
             Mutability::Exclusive
         } else {
@@ -3017,6 +3018,11 @@ fn raw_wire_unified_call_effects_closure_dynslot_and_desc_alias_checked() {
             region: Region::Static,
             mutability: recv_mut,
             pointee: dyn_ty,
+        });
+        let ref_i32 = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: recv_mut,
+            pointee: i32_ty,
         });
         let func = Function {
             name: "dynslot_effect_probe".into(),
@@ -3075,12 +3081,51 @@ fn raw_wire_unified_call_effects_closure_dynslot_and_desc_alias_checked() {
                 ],
             },
         };
+        let slot_impl = Function {
+            name: "op_run_i32".into(),
+            sig: FnSig {
+                params: vec![ref_i32],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::DynSlotImpl {
+                    dyn_id,
+                    concrete_ty: i32_ty,
+                    slot: 0,
+                },
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![LocalDecl {
+                    ty: ref_i32,
+                    name: Some("self".into()),
+                }],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![Block {
+                    instructions: vec![],
+                    terminator: Terminator::Return {
+                        value: Operand::Const(ConstValue::Unit),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                }],
+            },
+        };
         Module {
             tys,
-            functions: vec![func],
+            functions: vec![func, slot_impl],
             foreigns: vec![],
             statics: vec![],
-            dyn_impls: vec![],
+            dyn_impls: vec![zil_ir::body::DynImpl {
+                dyn_id,
+                concrete_ty: i32_ty,
+                methods: vec![FnId(1)],
+            }],
         }
     };
 
@@ -3450,5 +3495,675 @@ fn raw_wire_preconstructed_aggregate_mut_cap_checked() {
             .expect("solve ptr upper ctx module");
         zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
             .expect("checker must accept exact c.ptr invalidation upper bound");
+    }
+}
+
+#[test]
+fn complete_type_graph_dyn_desc_and_readonly_controls_checked() {
+    let dir = temp_dir("complete-type-graph-source");
+
+    // 1. Negative Source: `&OwnedDyn<dyn Reader>` (`&self` slot) where a concrete provider manages
+    //    `Store<i64>` and mutates it via descriptor inside `read(&self)` MUST be rejected by
+    //    `zil-check` under `effects(invalidates())`.
+    check_rejected(
+        &dir,
+        "shared_dyn_with_desc_provider_violates_empty_invalidates",
+        r#"
+package StoreWriter { manages target: Store<i64>; }
+
+trait Reader {
+    fn read(self: &Self) -> i64;
+}
+
+impl Reader for StoreWriter {
+    fn read(self: &Self) -> i64 {
+        store_push(self.target, 1)
+        return store_len(self.target)
+    }
+}
+
+fn bad(r: &OwnedDyn<dyn Reader>) -> i64
+    contract { effects(invalidates()); }
+{
+    return r.read()
+}
+
+fn main() -> i32 {
+    let s: Store<i64> = store_new()
+    if !store_reserve(s, 2) { return 1 }
+    match owned_dyn::<dyn Reader>(StoreWriter { target: give s }) {
+        .err(_) => { return 2 }
+        .ok(owner) => {
+            let _ = bad(&owner)
+        }
+    }
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 2. Negative Source: shared reference `&DescBox` managing `Store<i64>` passed to
+    //    an uncontracted `Direct` callee MUST be rejected under `effects(invalidates())`.
+    check_rejected(
+        &dir,
+        "shared_ref_to_desc_box_violates_empty_invalidates",
+        r#"
+package DescBox { manages s: Store<i64>; pub tag: i32; }
+
+fn touch_store(b: &DescBox) {
+    store_push(b.s, 7)
+}
+
+fn bad(b: &DescBox)
+    contract { effects(invalidates()); }
+{
+    touch_store(b)
+}
+
+fn main() -> i32 {
+    let s: Store<i64> = store_new()
+    if !store_reserve(s, 2) { return 1 }
+    let box_val = DescBox { s: give s, tag: 3 }
+    bad(&box_val)
+    return 0
+}
+"#,
+        ResultCategory::SafeReject,
+        "E-SAFETY-CHECK",
+    );
+
+    // 3. Positive dual-backend O0/O2 control:
+    //    - Pure `&OwnedDyn<dyn PureReader>` (all impls have no `Desc`/`&mut`/mutable `Managed`) under `effects(invalidates())`.
+    //    - Exact projection `effects(invalidates(b.s))` on `&DescBox` (does not widen to `b.tag`).
+    let ok_src = r#"
+struct PureBox { x: i64 }
+package DescBox { manages s: Store<i64>; pub tag: i32; }
+
+trait PureReader {
+    fn read(self: &Self) -> i64;
+}
+
+impl PureReader for PureBox {
+    fn read(self: &Self) -> i64 {
+        return self.x
+    }
+}
+
+fn read_pure_dyn(r: &OwnedDyn<dyn PureReader>) -> i64
+    contract { effects(invalidates()); }
+{
+    return r.read()
+}
+
+fn push_via_box(b: &DescBox) {
+    store_push(b.s, 42)
+}
+
+fn precise_desc_box_projection(b: &DescBox)
+    contract { effects(invalidates(b.s)); }
+{
+    push_via_box(b)
+}
+
+fn main() -> i32 {
+    var got: i64 = 0
+    match owned_dyn::<dyn PureReader>(PureBox { x: 10 }) {
+        .err(_) => { return 90 }
+        .ok(owner) => {
+            got = read_pure_dyn(&owner)
+        }
+    }
+    let s: Store<i64> = store_new()
+    if !store_reserve(s, 2) { return 91 }
+    let b = DescBox { s: give s, tag: 5 }
+    precise_desc_box_projection(&b)
+    if got == 10 && store_len(b.s) == 1 && b.tag == 5 {
+        return 0
+    }
+    return 1
+}
+"#;
+    let entry = write_source(&dir, "ok_main.zil", ok_src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert!(stdout.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_complete_type_graph_param_dyn_and_opaque_checked() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, Block, BlockId, Body, Callee, ConstValue, ContractFieldPath, DynDef,
+        DynImpl, DynSlotSig, FieldDef, FnId, FnRole, FnSig, Function, GenericArgs, IntTy, Local,
+        LocalDecl, Module, Mutability, OpaqueTy, Operand, ParamEnv, Place, Region, ResumeMode,
+        StateContractClause, Terminator, TyKind, TyTable, VariantDef, decode_module, encode_module,
+    };
+
+    // --- 1. Raw/Wire: `&Param(0)` behind shared reference passed to indirect call ---
+    {
+        let build_param_module = |allow_invalidation: bool| -> Module {
+            let mut tys = TyTable::new();
+            let unit_ty = tys.intern(TyKind::Unit);
+            let t_param = tys.intern(TyKind::Param(0));
+            let shared_t = tys.intern(TyKind::Ref {
+                region: Region::Static,
+                mutability: Mutability::Shared,
+                pointee: t_param,
+            });
+            let fn_ptr_ty = tys.intern(TyKind::FnPtr {
+                params: vec![shared_t],
+                result: unit_ty,
+            });
+            let mut contracts = vec![StateContractClause::InvalidationUpperBound];
+            if allow_invalidation {
+                contracts.push(StateContractClause::Invalidates {
+                    param: 0,
+                    path: ContractFieldPath::from_slice(&[]).unwrap(),
+                });
+            }
+            let caller = Function {
+                name: "generic_shared_caller".into(),
+                sig: FnSig {
+                    params: vec![shared_t, fn_ptr_ty],
+                    result: unit_ty,
+                    type_params: 1,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: contracts,
+                },
+                body: Body {
+                    param_count: 2,
+                    locals: vec![
+                        LocalDecl {
+                            ty: shared_t,
+                            name: Some("v".into()),
+                        },
+                        LocalDecl {
+                            ty: fn_ptr_ty,
+                            name: Some("f".into()),
+                        },
+                        LocalDecl {
+                            ty: unit_ty,
+                            name: Some("res".into()),
+                        },
+                    ],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Call {
+                                callee: Callee::Indirect(Operand::Copy(Place::local(Local(1)))),
+                                args: vec![Operand::Copy(Place::local(Local(0)))],
+                                dest: Place::local(Local(2)),
+                                target: BlockId(1),
+                                cancel: None,
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Return {
+                                value: Operand::Const(ConstValue::Unit),
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                    ],
+                },
+            };
+            Module {
+                tys,
+                functions: vec![caller],
+                foreigns: vec![],
+                statics: vec![],
+                dyn_impls: vec![],
+            }
+        };
+
+        // 1a. Negative: `&Param(0)` under empty upper bound MUST be rejected (`CertificateShape`).
+        let m_bad = build_param_module(false);
+        let decoded = decode_module(&encode_module(&m_bad)).expect("decode &Param bad module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve &Param bad module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject &Param(0) under empty invalidation upper bound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 1b. Positive: `&Param(0)` with declared `Invalidates(0, [])` MUST be accepted.
+        let m_ok = build_param_module(true);
+        let decoded = decode_module(&encode_module(&m_ok)).expect("decode &Param ok module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve &Param ok module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept &Param(0) when invalidation is declared");
+    }
+
+    // --- 2. Raw/Wire: `&dyn Trait` + `&self` with Desc-carrying provider or empty impls ---
+    {
+        #[derive(Clone, Copy)]
+        enum DynImplCase {
+            DescProvider,
+            EmptyImpls,
+            PureProvider,
+        }
+        let build_shared_dyn_module = |case: DynImplCase| -> Module {
+            let mut tys = TyTable::new();
+            let unit_ty = tys.intern(TyKind::Unit);
+            let i64_ty = tys.intern(TyKind::Int(IntTy::I64));
+            let empty_args = tys.intern_args(GenericArgs {
+                tys: vec![],
+                regions: vec![],
+            });
+            let store_ty = tys.intern(TyKind::Opaque(OpaqueTy::OwnedStore { element: i64_ty }));
+            let desc_store = tys.intern(TyKind::Desc(store_ty));
+            let provider_adt = tys.add_adt(AdtDef {
+                name: "Provider".into(),
+                kind: AdtKind::Record,
+                type_params: 0,
+                region_params: 0,
+                variants: vec![VariantDef {
+                    name: "Provider".into(),
+                    fields: vec![FieldDef {
+                        name: "payload".into(),
+                        ty: match case {
+                            DynImplCase::DescProvider => desc_store,
+                            DynImplCase::EmptyImpls | DynImplCase::PureProvider => i64_ty,
+                        },
+                    }],
+                }],
+                user_drop: false,
+            });
+            let provider_ty = tys.intern(TyKind::Adt {
+                adt: provider_adt,
+                args: empty_args,
+            });
+            let ref_provider = tys.intern(TyKind::Ref {
+                region: Region::Static,
+                mutability: Mutability::Shared,
+                pointee: provider_ty,
+            });
+            let dyn_id = tys.add_dyn(DynDef {
+                name: "Act".into(),
+                slots: vec![DynSlotSig {
+                    name: "run".into(),
+                    receiver: Some(Mutability::Shared),
+                    params: vec![],
+                    result: unit_ty,
+                }],
+            });
+            let dyn_ty = tys.intern(TyKind::Dyn(dyn_id));
+            let ref_dyn = tys.intern(TyKind::Ref {
+                region: Region::Static,
+                mutability: Mutability::Shared,
+                pointee: dyn_ty,
+            });
+            let caller = Function {
+                name: "shared_dyn_caller".into(),
+                sig: FnSig {
+                    params: vec![ref_dyn],
+                    result: unit_ty,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: vec![StateContractClause::InvalidationUpperBound],
+                },
+                body: Body {
+                    param_count: 1,
+                    locals: vec![
+                        LocalDecl {
+                            ty: ref_dyn,
+                            name: Some("obj".into()),
+                        },
+                        LocalDecl {
+                            ty: unit_ty,
+                            name: Some("res".into()),
+                        },
+                    ],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Call {
+                                callee: Callee::DynSlot {
+                                    object: Operand::Copy(Place::local(Local(0))),
+                                    slot: 0,
+                                },
+                                args: vec![],
+                                dest: Place::local(Local(1)),
+                                target: BlockId(1),
+                                cancel: None,
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Return {
+                                value: Operand::Const(ConstValue::Unit),
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                    ],
+                },
+            };
+            let mut functions = vec![caller];
+            let mut dyn_impls = Vec::new();
+            if !matches!(case, DynImplCase::EmptyImpls) {
+                functions.push(Function {
+                    name: "act_run_provider".into(),
+                    sig: FnSig {
+                        params: vec![ref_provider],
+                        result: unit_ty,
+                        type_params: 0,
+                        region_params: 0,
+                        role: FnRole::DynSlotImpl {
+                            dyn_id,
+                            concrete_ty: provider_ty,
+                            slot: 0,
+                        },
+                        resume_mode: ResumeMode::Local,
+                        state_contracts: vec![],
+                    },
+                    body: Body {
+                        param_count: 1,
+                        locals: vec![LocalDecl {
+                            ty: ref_provider,
+                            name: Some("self".into()),
+                        }],
+                        captures: vec![],
+                        closure: None,
+                        result: unit_ty,
+                        param_env: ParamEnv::default(),
+                        drop_flags: vec![],
+                        blocks: vec![Block {
+                            instructions: vec![],
+                            terminator: Terminator::Return {
+                                value: Operand::Const(ConstValue::Unit),
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        }],
+                    },
+                });
+                dyn_impls.push(DynImpl {
+                    dyn_id,
+                    concrete_ty: provider_ty,
+                    methods: vec![FnId(1)],
+                });
+            }
+            Module {
+                tys,
+                functions,
+                foreigns: vec![],
+                statics: vec![],
+                dyn_impls,
+            }
+        };
+
+        // 2a. Negative: `&dyn Act` (&self) with Desc-carrying Provider MUST be rejected.
+        let m_desc = build_shared_dyn_module(DynImplCase::DescProvider);
+        let decoded = decode_module(&encode_module(&m_desc)).expect("decode dyn desc module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve dyn desc module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject &dyn (&self) when provider holds Desc");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 2b. Negative: `&dyn Act` (&self) with empty dyn_impls MUST fail closed.
+        let m_empty = build_shared_dyn_module(DynImplCase::EmptyImpls);
+        let decoded = decode_module(&encode_module(&m_empty)).expect("decode dyn empty module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve dyn empty module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject &dyn (&self) when no concrete impls are known");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 2c. Positive: `&dyn Act` (&self) with verifiably pure Provider MUST be accepted.
+        let m_pure = build_shared_dyn_module(DynImplCase::PureProvider);
+        let decoded = decode_module(&encode_module(&m_pure)).expect("decode dyn pure module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve dyn pure module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept &dyn (&self) when all concrete impls are pure");
+    }
+
+    // --- 3. Raw/Wire: Opaque payloads (`Task<Unit, Context<&mut>>` & `&Mutex<Context<Desc>>`) ---
+    {
+        #[derive(Clone, Copy)]
+        enum OpaqueCase {
+            TaskWithMutContext,
+            MutexWithDescContext,
+            MutexPureI64,
+        }
+        let build_opaque_module = |case: OpaqueCase| -> Module {
+            let mut tys = TyTable::new();
+            let unit_ty = tys.intern(TyKind::Unit);
+            let i64_ty = tys.intern(TyKind::Int(IntTy::I64));
+            let empty_args = tys.intern_args(GenericArgs {
+                tys: vec![],
+                regions: vec![],
+            });
+            let mut_i64 = tys.intern(TyKind::Ref {
+                region: Region::Static,
+                mutability: Mutability::Exclusive,
+                pointee: i64_ty,
+            });
+            let store_ty = tys.intern(TyKind::Opaque(OpaqueTy::OwnedStore { element: i64_ty }));
+            let desc_store = tys.intern(TyKind::Desc(store_ty));
+            let param_ty = match case {
+                OpaqueCase::TaskWithMutContext => {
+                    let ctx_adt = tys.add_adt(AdtDef {
+                        name: "TaskCtx".into(),
+                        kind: AdtKind::Record,
+                        type_params: 0,
+                        region_params: 0,
+                        variants: vec![VariantDef {
+                            name: "TaskCtx".into(),
+                            fields: vec![FieldDef {
+                                name: "ptr".into(),
+                                ty: mut_i64,
+                            }],
+                        }],
+                        user_drop: false,
+                    });
+                    let ctx_ty = tys.intern(TyKind::Adt {
+                        adt: ctx_adt,
+                        args: empty_args,
+                    });
+                    let task_ty = tys.intern(TyKind::Opaque(OpaqueTy::Task {
+                        result: unit_ty,
+                        context: Some(ctx_ty),
+                    }));
+                    tys.intern(TyKind::Ref {
+                        region: Region::Static,
+                        mutability: Mutability::Shared,
+                        pointee: task_ty,
+                    })
+                }
+                OpaqueCase::MutexWithDescContext => {
+                    let ctx_adt = tys.add_adt(AdtDef {
+                        name: "MutexCtx".into(),
+                        kind: AdtKind::Record,
+                        type_params: 0,
+                        region_params: 0,
+                        variants: vec![VariantDef {
+                            name: "MutexCtx".into(),
+                            fields: vec![FieldDef {
+                                name: "s".into(),
+                                ty: desc_store,
+                            }],
+                        }],
+                        user_drop: false,
+                    });
+                    let ctx_ty = tys.intern(TyKind::Adt {
+                        adt: ctx_adt,
+                        args: empty_args,
+                    });
+                    let mutex_ty = tys.intern(TyKind::Opaque(OpaqueTy::Mutex { payload: ctx_ty }));
+                    tys.intern(TyKind::Ref {
+                        region: Region::Static,
+                        mutability: Mutability::Shared,
+                        pointee: mutex_ty,
+                    })
+                }
+                OpaqueCase::MutexPureI64 => {
+                    let mutex_ty = tys.intern(TyKind::Opaque(OpaqueTy::Mutex { payload: i64_ty }));
+                    tys.intern(TyKind::Ref {
+                        region: Region::Static,
+                        mutability: Mutability::Shared,
+                        pointee: mutex_ty,
+                    })
+                }
+            };
+            let caller = Function {
+                name: "opaque_payload_caller".into(),
+                sig: FnSig {
+                    params: vec![param_ty],
+                    result: unit_ty,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: vec![StateContractClause::InvalidationUpperBound],
+                },
+                body: Body {
+                    param_count: 1,
+                    locals: vec![
+                        LocalDecl {
+                            ty: param_ty,
+                            name: Some("h".into()),
+                        },
+                        LocalDecl {
+                            ty: unit_ty,
+                            name: Some("res".into()),
+                        },
+                    ],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Call {
+                                callee: Callee::Direct(FnId(1)),
+                                args: vec![Operand::Copy(Place::local(Local(0)))],
+                                dest: Place::local(Local(1)),
+                                target: BlockId(1),
+                                cancel: None,
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Return {
+                                value: Operand::Const(ConstValue::Unit),
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                    ],
+                },
+            };
+            let callee = Function {
+                name: "unknown_opaque_callee".into(),
+                sig: FnSig {
+                    params: vec![param_ty],
+                    result: unit_ty,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: vec![],
+                },
+                body: Body {
+                    param_count: 1,
+                    locals: vec![LocalDecl {
+                        ty: param_ty,
+                        name: Some("h".into()),
+                    }],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    }],
+                },
+            };
+            Module {
+                tys,
+                functions: vec![caller, callee],
+                foreigns: vec![],
+                statics: vec![],
+                dyn_impls: vec![],
+            }
+        };
+
+        // 3a. Negative: `&Task<Unit, Context<&mut>>` under empty upper bound MUST be rejected.
+        let m_task = build_opaque_module(OpaqueCase::TaskWithMutContext);
+        let decoded = decode_module(&encode_module(&m_task)).expect("decode Task ctx module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve Task ctx module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject Task carrying &mut context under empty bound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 3b. Negative: `&Mutex<Context<Desc>>` under empty upper bound MUST be rejected.
+        let m_mutex = build_opaque_module(OpaqueCase::MutexWithDescContext);
+        let decoded = decode_module(&encode_module(&m_mutex)).expect("decode Mutex desc module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve Mutex desc module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject Mutex carrying Desc payload under empty bound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 3c. Positive: `&Mutex<i64>` (no external Desc/&mut) accepted under empty upper bound.
+        let m_pure_mutex = build_opaque_module(OpaqueCase::MutexPureI64);
+        let decoded =
+            decode_module(&encode_module(&m_pure_mutex)).expect("decode pure Mutex module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve pure Mutex module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept pure Mutex<i64> read-only control");
     }
 }

@@ -1028,179 +1028,216 @@ fn verify_fn_state_contracts(
             }
         }
     }
-    fn collect_entry_mut_cap_paths(
-        tys: &zil_ir::body::TyTable,
-        ty: zil_ir::body::TyId,
+    struct EntryCapScan<'a> {
+        tys: &'a zil_ir::body::TyTable,
+        dyn_impls: &'a [zil_ir::body::DynImpl],
         param_idx: usize,
-        prefix: &mut Vec<FieldIdx>,
-        desc_only: bool,
-        depth: u32,
-        out: &mut BTreeSet<(usize, Vec<FieldIdx>)>,
-    ) {
-        if depth > 8 {
-            out.insert((param_idx, prefix.clone()));
-            return;
+    }
+
+    impl EntryCapScan<'_> {
+        fn has_nested_cap(
+            &self,
+            ty: zil_ir::body::TyId,
+            desc_only: bool,
+            depth: u32,
+            visiting: &mut Vec<zil_ir::body::TyId>,
+        ) -> bool {
+            let mut sub = BTreeSet::new();
+            let mut tmp_prefix = Vec::new();
+            self.scan(ty, &mut tmp_prefix, desc_only, depth, visiting, &mut sub);
+            !sub.is_empty()
         }
-        let Some(kind) = tys.get(ty) else {
-            out.insert((param_idx, prefix.clone()));
-            return;
-        };
-        match kind {
-            TyKind::Desc(_) => {
-                out.insert((param_idx, prefix.clone()));
-            }
-            TyKind::Ref {
-                mutability: Mutability::Exclusive,
-                ..
-            } => {
-                if !desc_only {
-                    out.insert((param_idx, prefix.clone()));
+
+        fn scan_dyn_impls(
+            &self,
+            dyn_id: zil_ir::body::DynId,
+            desc_only: bool,
+            depth: u32,
+            visiting: &mut Vec<zil_ir::body::TyId>,
+        ) -> bool {
+            let mut found_any = false;
+            for di in self.dyn_impls {
+                if di.dyn_id == dyn_id {
+                    found_any = true;
+                    if self.has_nested_cap(di.concrete_ty, desc_only, depth + 1, visiting) {
+                        return true;
+                    }
                 }
             }
-            TyKind::Ref {
-                mutability: Mutability::Shared,
-                pointee,
-                ..
-            } => {
-                // Shared references cannot mutate through `&(&mut T)`, but may still
-                // mutate through an interior `Desc` or borrowed-context `OwnedDyn`.
-                collect_entry_mut_cap_paths(tys, *pointee, param_idx, prefix, true, depth + 1, out);
+            // Fail closed when no concrete implementations are known in the module.
+            !found_any
+        }
+
+        fn scan(
+            &self,
+            ty: zil_ir::body::TyId,
+            prefix: &mut Vec<FieldIdx>,
+            desc_only: bool,
+            depth: u32,
+            visiting: &mut Vec<zil_ir::body::TyId>,
+            out: &mut BTreeSet<(usize, Vec<FieldIdx>)>,
+        ) {
+            if visiting.contains(&ty) {
+                return;
             }
-            TyKind::Managed(pointee) => {
-                collect_entry_mut_cap_paths(
-                    tys,
-                    *pointee,
-                    param_idx,
-                    prefix,
-                    desc_only,
-                    depth + 1,
-                    out,
-                );
+            if depth > 8 {
+                out.insert((self.param_idx, prefix.clone()));
+                return;
             }
-            TyKind::Adt { adt, args } => {
-                let Some(def) = tys.get_adt(*adt) else {
-                    out.insert((param_idx, prefix.clone()));
-                    return;
-                };
-                if def.variants.len() == 1 {
-                    for (fi, f) in def.variants[0].fields.iter().enumerate() {
-                        let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
-                        let pushed = prefix.len() < ContractFieldPath::MAX_DEPTH;
-                        if pushed {
-                            prefix.push(FieldIdx(fi as u32));
-                        }
-                        collect_entry_mut_cap_paths(
-                            tys,
-                            fty,
-                            param_idx,
-                            prefix,
-                            desc_only,
-                            depth + 1,
-                            out,
-                        );
-                        if pushed {
-                            prefix.pop();
-                        }
+            let Some(kind) = self.tys.get(ty) else {
+                out.insert((self.param_idx, prefix.clone()));
+                return;
+            };
+            visiting.push(ty);
+            match kind {
+                TyKind::Desc(_) => {
+                    out.insert((self.param_idx, prefix.clone()));
+                }
+                TyKind::Ref {
+                    mutability: Mutability::Exclusive,
+                    ..
+                } => {
+                    if !desc_only {
+                        out.insert((self.param_idx, prefix.clone()));
                     }
-                } else {
-                    for v in &def.variants {
-                        for f in &v.fields {
-                            let fty = tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
-                            let mut sub = BTreeSet::new();
-                            let mut tmp_prefix = prefix.clone();
-                            collect_entry_mut_cap_paths(
-                                tys,
-                                fty,
-                                param_idx,
-                                &mut tmp_prefix,
-                                desc_only,
-                                depth + 1,
-                                &mut sub,
-                            );
-                            if !sub.is_empty() {
-                                out.insert((param_idx, prefix.clone()));
-                                return;
+                }
+                TyKind::Ref {
+                    mutability: Mutability::Shared,
+                    pointee,
+                    ..
+                } => {
+                    // Shared references cannot mutate through `&(&mut T)`, but may still
+                    // mutate through interior `Desc`, unconstrained `Param`, `Dyn`/`OwnedDyn`,
+                    // or `Opaque` payloads.
+                    self.scan(*pointee, prefix, true, depth + 1, visiting, out);
+                }
+                TyKind::Managed(pointee) => {
+                    self.scan(*pointee, prefix, desc_only, depth + 1, visiting, out);
+                }
+                TyKind::Adt { adt, args } => {
+                    let Some(def) = self.tys.get_adt(*adt) else {
+                        out.insert((self.param_idx, prefix.clone()));
+                        visiting.pop();
+                        return;
+                    };
+                    if def.variants.len() == 1 {
+                        for (fi, f) in def.variants[0].fields.iter().enumerate() {
+                            let fty = self.tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                            let pushed = prefix.len() < ContractFieldPath::MAX_DEPTH;
+                            if pushed {
+                                prefix.push(FieldIdx(fi as u32));
+                            }
+                            self.scan(fty, prefix, desc_only, depth + 1, visiting, out);
+                            if pushed {
+                                prefix.pop();
+                            }
+                        }
+                    } else {
+                        for v in &def.variants {
+                            for f in &v.fields {
+                                let fty = self.tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                                if self.has_nested_cap(fty, desc_only, depth + 1, visiting) {
+                                    out.insert((self.param_idx, prefix.clone()));
+                                    visiting.pop();
+                                    return;
+                                }
                             }
                         }
                     }
                 }
-            }
-            TyKind::Tuple(elems) => {
-                for &elem in elems {
-                    collect_entry_mut_cap_paths(
-                        tys,
-                        elem,
-                        param_idx,
-                        prefix,
-                        desc_only,
-                        depth + 1,
-                        out,
-                    );
+                TyKind::Tuple(elems) => {
+                    if elems
+                        .iter()
+                        .any(|&elem| self.has_nested_cap(elem, desc_only, depth + 1, visiting))
+                    {
+                        out.insert((self.param_idx, prefix.clone()));
+                    }
                 }
-            }
-            TyKind::Array { element: elem, .. } | TyKind::Slice(elem) => {
-                collect_entry_mut_cap_paths(
-                    tys,
-                    *elem,
-                    param_idx,
-                    prefix,
-                    desc_only,
-                    depth + 1,
-                    out,
-                );
-            }
-            TyKind::ErrorUnion { ok, err } => {
-                collect_entry_mut_cap_paths(tys, *ok, param_idx, prefix, desc_only, depth + 1, out);
-                collect_entry_mut_cap_paths(
-                    tys,
-                    *err,
-                    param_idx,
-                    prefix,
-                    desc_only,
-                    depth + 1,
-                    out,
-                );
-            }
-            TyKind::Closure { def, args } => {
-                let Some(cdef) = tys.closure(*def) else {
-                    out.insert((param_idx, prefix.clone()));
-                    return;
-                };
-                for &cty in &cdef.captures {
-                    let cty = tys.subst_lookup(cty, *args).unwrap_or(cty);
-                    collect_entry_mut_cap_paths(
-                        tys,
-                        cty,
-                        param_idx,
-                        prefix,
-                        desc_only,
-                        depth + 1,
-                        out,
-                    );
+                TyKind::Array { element: elem, .. } | TyKind::Slice(elem) => {
+                    if self.has_nested_cap(*elem, desc_only, depth + 1, visiting) {
+                        out.insert((self.param_idx, prefix.clone()));
+                    }
                 }
-            }
-            TyKind::OwnedDyn { context, .. } => {
-                // Borrowed-context `OwnedDyn<dyn Trait, Context<'a>>` erases a provider
-                // that may carry `&mut` or `Desc` capabilities.
-                if context.is_some() {
-                    out.insert((param_idx, prefix.clone()));
+                TyKind::ErrorUnion { ok, err } => {
+                    if self.has_nested_cap(*ok, desc_only, depth + 1, visiting)
+                        || self.has_nested_cap(*err, desc_only, depth + 1, visiting)
+                    {
+                        out.insert((self.param_idx, prefix.clone()));
+                    }
                 }
-            }
-            TyKind::Param(_) => {
-                // Unconstrained generic type parameter may be instantiated with an
-                // aggregate containing `&mut` or `Desc`.
-                if !desc_only {
-                    out.insert((param_idx, prefix.clone()));
+                TyKind::Closure { def, args } => {
+                    let Some(cdef) = self.tys.closure(*def) else {
+                        out.insert((self.param_idx, prefix.clone()));
+                        visiting.pop();
+                        return;
+                    };
+                    if cdef.captures.iter().any(|&cty| {
+                        let cty = self.tys.subst_lookup(cty, *args).unwrap_or(cty);
+                        self.has_nested_cap(cty, desc_only, depth + 1, visiting)
+                    }) {
+                        out.insert((self.param_idx, prefix.clone()));
+                    }
                 }
+                TyKind::Dyn(dyn_id) => {
+                    if self.scan_dyn_impls(*dyn_id, desc_only, depth, visiting) {
+                        out.insert((self.param_idx, prefix.clone()));
+                    }
+                }
+                TyKind::OwnedDyn {
+                    def: dyn_id,
+                    context,
+                } => {
+                    let ctx_has_cap = context.is_some_and(|ctx_ty| {
+                        self.has_nested_cap(ctx_ty, desc_only, depth + 1, visiting)
+                    });
+                    if ctx_has_cap || self.scan_dyn_impls(*dyn_id, desc_only, depth, visiting) {
+                        out.insert((self.param_idx, prefix.clone()));
+                    }
+                }
+                TyKind::Opaque(opaque) => match opaque {
+                    OpaqueTy::ForeignHandle | OpaqueTy::ForeignCallback { .. } => {}
+                    OpaqueTy::ByteBuffer
+                    | OpaqueTy::OwnedStore { .. }
+                    | OpaqueTy::SyncCell(_)
+                    | OpaqueTy::CWideString => {
+                        // `OwnedStore`, `ByteBuffer`, and `SyncCell` admit interior mutation
+                        // through shared references / descriptors (`Rvalue::Describe` / atomics),
+                        // and `CWideString` has opaque layout (fail-closed).
+                        out.insert((self.param_idx, prefix.clone()));
+                    }
+                    OpaqueTy::Mutex { payload } | OpaqueTy::MutexGuard { payload, .. } => {
+                        if self.has_nested_cap(*payload, false, depth + 1, visiting) {
+                            out.insert((self.param_idx, prefix.clone()));
+                        }
+                    }
+                    OpaqueTy::Registration { environment }
+                    | OpaqueTy::AsyncRegistration { environment } => {
+                        if self.has_nested_cap(*environment, false, depth + 1, visiting) {
+                            out.insert((self.param_idx, prefix.clone()));
+                        }
+                    }
+                    OpaqueTy::Task { result, context } => {
+                        if self.has_nested_cap(*result, false, depth + 1, visiting)
+                            || context
+                                .is_some_and(|c| self.has_nested_cap(c, false, depth + 1, visiting))
+                        {
+                            out.insert((self.param_idx, prefix.clone()));
+                        }
+                    }
+                },
+                TyKind::Param(_) => {
+                    // Unconstrained generic type parameter may be instantiated with an
+                    // aggregate containing `Desc` or `&mut`, even behind a shared `&T`.
+                    out.insert((self.param_idx, prefix.clone()));
+                }
+                TyKind::Unit
+                | TyKind::Bool
+                | TyKind::Never
+                | TyKind::Int(_)
+                | TyKind::Float(_)
+                | TyKind::FnPtr { .. } => {}
             }
-            TyKind::Unit
-            | TyKind::Bool
-            | TyKind::Never
-            | TyKind::Int(_)
-            | TyKind::Float(_)
-            | TyKind::FnPtr { .. }
-            | TyKind::Dyn(_)
-            | TyKind::Opaque(_) => {}
+            visiting.pop();
         }
     }
 
@@ -1208,9 +1245,15 @@ fn verify_fn_state_contracts(
     for (i, local_decl) in func.body.locals.iter().enumerate().take(param_count) {
         let pty = local_decl.ty;
         if !is_mut_ref_or_desc_ty(pty) {
+            let scanner = EntryCapScan {
+                tys,
+                dyn_impls: &module.dyn_impls,
+                param_idx: i,
+            };
             let mut caps = ParamAliasSet::new();
             let mut prefix = Vec::new();
-            collect_entry_mut_cap_paths(tys, pty, i, &mut prefix, false, 0, &mut caps);
+            let mut visiting = Vec::new();
+            scanner.scan(pty, &mut prefix, false, 0, &mut visiting, &mut caps);
             if !caps.is_empty() {
                 entry_mut_cap_params.insert(Local(i as u32), caps);
             }
