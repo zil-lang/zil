@@ -110,6 +110,37 @@ fn check_rejected(
     );
 }
 
+fn check_rejected_with_reason(
+    dir: &Path,
+    name: &str,
+    src: &str,
+    expected_code_prefix: &str,
+    expected_reason_substr: &str,
+) {
+    let entry = write_source(dir, &format!("{name}.zil"), src);
+    let mut session = CompilationSession::new();
+    let opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let report = session.compile_path(&entry, &opts);
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "unexpected status for `{name}`: {:?}",
+        report.diagnostics
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code.starts_with(expected_code_prefix)
+                && d.message.contains(expected_reason_substr)),
+        "expected `{expected_code_prefix}` containing `{expected_reason_substr}` for `{name}`, got: {:?}",
+        report.diagnostics
+    );
+}
+
 #[test]
 fn task_resume_local_and_transfer_contracts_execute_natively_on_dual_backends() {
     let dir = temp_dir("task-contracts-native");
@@ -4165,5 +4196,831 @@ fn raw_wire_complete_type_graph_param_dyn_and_opaque_checked() {
             .expect("solve pure Mutex module");
         zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
             .expect("checker must accept pure Mutex<i64> read-only control");
+    }
+}
+
+#[test]
+fn managed_describe_protocol_and_projection_controls_execute_natively_on_dual_backends() {
+    let dir = temp_dir("managed-describe-native");
+    let src = r#"
+enum ChanState { Open, Closed }
+resource Channel { state: ChanState }
+package Context { manages handle: Channel; pub tag: i32; }
+
+fn flip_via_desc(ch: &Managed<Channel>) {
+    let d: Channel = ch
+    d.state = ChanState.Closed
+    d.state = ChanState.Open
+}
+
+fn allowed_rollback(ch: &Managed<Channel>)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open, ChanState.Closed));
+        effects(rollback(ch));
+    }
+{
+    flip_via_desc(ch)
+}
+
+fn mutate_context_handle(c: &Context) {
+    let d: Channel = c.handle
+    d.state = ChanState.Closed
+}
+
+fn precise_handle_projection(c: &Context)
+    contract { effects(invalidates(c.handle)); }
+{
+    mutate_context_handle(c)
+}
+
+fn main() -> i32 {
+    let ch = Channel { state: ChanState.Open }
+    allowed_rollback(&ch)
+    let ctx = Context { handle: give ch, tag: 7 }
+    precise_handle_projection(&ctx)
+    match ctx.handle.state {
+        ChanState.Closed() => {
+            if ctx.tag == 7 {
+                return 0
+            }
+        }
+        ChanState.Open() => {}
+    }
+    return 1
+}
+"#;
+    let entry = write_source(&dir, "main.zil", src);
+    let (code, stdout) = build_and_run_dual_with_c(&dir, &entry, &[]);
+    assert_eq!(code, 0);
+    assert!(stdout.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn managed_describe_protocol_dyn_and_projection_violations_are_rejected() {
+    let dir = temp_dir("managed-describe-reject");
+
+    // 1. `&Managed<Channel>` passed to uncontracted Direct `change(ch)` violates `provides(state(ch, Open))`.
+    check_rejected_with_reason(
+        &dir,
+        "managed_shared_ref_direct_call_violates_state_preservation",
+        r#"
+enum ChanState { Open, Closed }
+resource Channel { state: ChanState }
+fn change(ch: &Managed<Channel>) {
+    let d: Channel = ch
+    d.state = ChanState.Closed
+}
+fn bad(ch: &Managed<Channel>)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open));
+    }
+{
+    change(ch)
+}
+fn main() -> i32 {
+    let ch = Channel { state: ChanState.Open }
+    bad(&ch)
+    return 0
+}
+"#,
+        "E-SAFETY-CHECK",
+        "provides(state(...))",
+    );
+
+    // 2. `&Managed<Channel>` Open -> Closed -> Open via uncontracted Direct call triggers `H` rollback rejection
+    //    even when `provides(state(ch, Open, Closed))` allows both states.
+    check_rejected_with_reason(
+        &dir,
+        "managed_shared_ref_direct_call_triggers_history_rollback_h",
+        r#"
+enum ChanState { Open, Closed }
+resource Channel { state: ChanState }
+fn bounce(ch: &Managed<Channel>) {
+    let d: Channel = ch
+    d.state = ChanState.Closed
+    d.state = ChanState.Open
+}
+fn bad(ch: &Managed<Channel>)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open, ChanState.Closed));
+    }
+{
+    bounce(ch)
+}
+fn main() -> i32 {
+    let ch = Channel { state: ChanState.Open }
+    bad(&ch)
+    return 0
+}
+"#,
+        "E-SAFETY-CHECK",
+        "rollback",
+    );
+
+    // 3. `Provider { manages channel: Channel }` via `&self` `DynSlot` mutating state MUST be rejected
+    //    under `effects(invalidates())`.
+    check_rejected_with_reason(
+        &dir,
+        "managed_dyn_provider_shared_slot_violates_empty_invalidates",
+        r#"
+enum ChanState { Open, Closed }
+resource Channel { state: ChanState }
+package Provider { manages channel: Channel; }
+trait Inspector {
+    fn inspect(self: &Self) -> i32;
+}
+impl Inspector for Provider {
+    fn inspect(self: &Self) -> i32 {
+        let d: Channel = self.channel
+        d.state = ChanState.Closed
+        return 1
+    }
+}
+fn bad(r: &OwnedDyn<dyn Inspector>) -> i32
+    contract { effects(invalidates()); }
+{
+    return r.inspect()
+}
+fn main() -> i32 {
+    let ch = Channel { state: ChanState.Open }
+    match owned_dyn::<dyn Inspector>(Provider { channel: give ch }) {
+        .err(_) => { return 1 }
+        .ok(owner) => {
+            let _ = bad(&owner)
+        }
+    }
+    return 0
+}
+"#,
+        "E-SAFETY-CHECK",
+        "invalidates",
+    );
+
+    // 4. Borrowed provider wrapping `ch: &'a Managed<Channel>` via `&self` `DynSlot` MUST invalidate
+    //    `ch`'s protocol state and trigger rejection under `provides(state(ch, Open))`.
+    check_rejected_with_reason(
+        &dir,
+        "managed_borrowed_dyn_provider_shared_slot_violates_protocol_state",
+        r#"
+enum ChanState { Open, Closed }
+resource Channel { state: ChanState }
+struct Context<life a> { leaf: &'a Managed<Channel> }
+struct ChanProvider<life a> { channel: &'a Managed<Channel> }
+trait Inspector {
+    fn inspect(self: &Self) -> i32;
+}
+impl<life a> Inspector for ChanProvider<'a> {
+    fn inspect(self: &Self) -> i32 {
+        let d: Channel = self.channel
+        d.state = ChanState.Closed
+        return 1
+    }
+}
+fn bad<life a>(ch: &'a Managed<Channel>)
+    contract {
+        requires(state(ch, ChanState.Open));
+        provides(state(ch, ChanState.Open));
+    }
+{
+    match owned_dyn::<dyn Inspector, Context<'a>>(ChanProvider::<'a> { channel: ch }) {
+        .err(_) => {}
+        .ok(owner) => {
+            let _ = owner.inspect()
+        }
+    }
+}
+fn main() -> i32 {
+    let ch = Channel { state: ChanState.Open }
+    bad(&ch)
+    return 0
+}
+"#,
+        "E-SAFETY-CHECK",
+        "provides(state(...))",
+    );
+
+    // 5. `Context { manages handle: Channel; pub tag: i32 }` under `effects(invalidates())`
+    //    and under disjoint `effects(invalidates(c.tag))` MUST be rejected.
+    check_rejected_with_reason(
+        &dir,
+        "managed_context_violates_empty_invalidates",
+        r#"
+enum ChanState { Open, Closed }
+resource Channel { state: ChanState }
+package Context { manages handle: Channel; pub tag: i32; }
+fn change(c: &Context) {
+    let d: Channel = c.handle
+    d.state = ChanState.Closed
+}
+fn bad(c: &Context) contract { effects(invalidates()); } {
+    change(c)
+}
+fn main() -> i32 {
+    let ch = Channel { state: ChanState.Open }
+    let ctx = Context { handle: give ch, tag: 7 }
+    bad(&ctx)
+    return 0
+}
+"#,
+        "E-SAFETY-CHECK",
+        "invalidates",
+    );
+
+    check_rejected_with_reason(
+        &dir,
+        "managed_context_violates_disjoint_tag_invalidates",
+        r#"
+enum ChanState { Open, Closed }
+resource Channel { state: ChanState }
+package Context { manages handle: Channel; pub tag: i32; }
+fn change(c: &Context) {
+    let d: Channel = c.handle
+    d.state = ChanState.Closed
+}
+fn bad(c: &Context) contract { effects(invalidates(c.tag)); } {
+    change(c)
+}
+fn main() -> i32 {
+    let ch = Channel { state: ChanState.Open }
+    let ctx = Context { handle: give ch, tag: 7 }
+    bad(&ctx)
+    return 0
+}
+"#,
+        "E-SAFETY-CHECK",
+        "invalidates",
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn raw_wire_managed_describe_protocol_dyn_and_projection_checked() {
+    use zil_ir::body::{
+        AdtDef, AdtKind, Block, BlockId, Body, Callee, ConstValue, ContractFieldPath, DynDef,
+        DynImpl, DynSlotSig, FieldDef, FieldIdx, FnId, FnRole, FnSig, Function, GenericArgs, IntTy,
+        Local, LocalDecl, Module, Mutability, Operand, ParamEnv, Place, ProtocolStateSet, Region,
+        ResumeMode, StateContractClause, Terminator, TyKind, TyTable, VariantDef, decode_module,
+        encode_module,
+    };
+
+    let make_channel_types = |tys: &mut TyTable| {
+        let empty_args = tys.intern_args(GenericArgs {
+            tys: vec![],
+            regions: vec![],
+        });
+        let st_adt = tys.add_adt(AdtDef {
+            name: "ChanState".into(),
+            kind: AdtKind::Enum,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![
+                VariantDef {
+                    name: "Open".into(),
+                    fields: vec![],
+                },
+                VariantDef {
+                    name: "Closed".into(),
+                    fields: vec![],
+                },
+            ],
+            user_drop: false,
+        });
+        let st_ty = tys.intern(TyKind::Adt {
+            adt: st_adt,
+            args: empty_args,
+        });
+        let ch_adt = tys.add_adt(AdtDef {
+            name: "Channel".into(),
+            kind: AdtKind::Resource,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![VariantDef {
+                name: "Channel".into(),
+                fields: vec![FieldDef {
+                    name: "state".into(),
+                    ty: st_ty,
+                }],
+            }],
+            user_drop: false,
+        });
+        let ch_ty = tys.intern(TyKind::Adt {
+            adt: ch_adt,
+            args: empty_args,
+        });
+        let managed_ch = tys.intern(TyKind::Managed(ch_ty));
+        let ref_managed_ch = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Shared,
+            pointee: managed_ch,
+        });
+        (empty_args, managed_ch, ref_managed_ch)
+    };
+
+    // --- 1. Raw/Wire: `&Managed<Channel>` uncontracted Direct call (state preservation vs H rollback) ---
+    {
+        #[derive(Clone, Copy)]
+        enum ManagedCallContract {
+            PreserveOpen,
+            WideNoRollback,
+            WideWithRollback,
+        }
+        let build_managed_call_module = |mode: ManagedCallContract| -> Module {
+            let mut tys = TyTable::new();
+            let unit_ty = tys.intern(TyKind::Unit);
+            let (_, _, ref_managed_ch) = make_channel_types(&mut tys);
+            let open = ProtocolStateSet::single(0);
+            let both = open.union(ProtocolStateSet::single(1));
+            let contracts = match mode {
+                ManagedCallContract::PreserveOpen => vec![
+                    StateContractClause::RequiresState {
+                        param: 0,
+                        states: open,
+                    },
+                    StateContractClause::ProvidesState {
+                        param: 0,
+                        states: open,
+                    },
+                ],
+                ManagedCallContract::WideNoRollback => vec![
+                    StateContractClause::RequiresState {
+                        param: 0,
+                        states: open,
+                    },
+                    StateContractClause::ProvidesState {
+                        param: 0,
+                        states: both,
+                    },
+                ],
+                ManagedCallContract::WideWithRollback => vec![
+                    StateContractClause::RequiresState {
+                        param: 0,
+                        states: open,
+                    },
+                    StateContractClause::ProvidesState {
+                        param: 0,
+                        states: both,
+                    },
+                    StateContractClause::AllowsRollback { param: 0 },
+                ],
+            };
+            let caller = Function {
+                name: "managed_caller".into(),
+                sig: FnSig {
+                    params: vec![ref_managed_ch],
+                    result: unit_ty,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: contracts,
+                },
+                body: Body {
+                    param_count: 1,
+                    locals: vec![
+                        LocalDecl {
+                            ty: ref_managed_ch,
+                            name: Some("ch".into()),
+                        },
+                        LocalDecl {
+                            ty: unit_ty,
+                            name: Some("res".into()),
+                        },
+                    ],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Call {
+                                callee: Callee::Direct(FnId(1)),
+                                args: vec![Operand::Copy(Place::local(Local(0)))],
+                                dest: Place::local(Local(1)),
+                                target: BlockId(1),
+                                cancel: None,
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Return {
+                                value: Operand::Const(ConstValue::Unit),
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                    ],
+                },
+            };
+            let callee = Function {
+                name: "opaque_change".into(),
+                sig: FnSig {
+                    params: vec![ref_managed_ch],
+                    result: unit_ty,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: vec![],
+                },
+                body: Body {
+                    param_count: 1,
+                    locals: vec![LocalDecl {
+                        ty: ref_managed_ch,
+                        name: Some("ch".into()),
+                    }],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    }],
+                },
+            };
+            Module {
+                tys,
+                functions: vec![caller, callee],
+                foreigns: vec![],
+                statics: vec![],
+                dyn_impls: vec![],
+            }
+        };
+
+        // 1a. Negative: preserving Open across uncontracted `&Managed<Channel>` call rejected.
+        let m1 = build_managed_call_module(ManagedCallContract::PreserveOpen);
+        let decoded = decode_module(&encode_module(&m1)).expect("decode managed preserve module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve managed preserve module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject preserving Open across &Managed<Channel> call");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 1b. Negative: widening to Open|Closed without AllowsRollback rejected by rollback H check.
+        let m2 = build_managed_call_module(ManagedCallContract::WideNoRollback);
+        let decoded = decode_module(&encode_module(&m2)).expect("decode managed rollback module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve managed rollback module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject &Managed<Channel> call lacking AllowsRollback");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 1c. Positive: Open|Closed WITH explicit AllowsRollback(0) accepted.
+        let m3 = build_managed_call_module(ManagedCallContract::WideWithRollback);
+        let decoded = decode_module(&encode_module(&m3)).expect("decode managed ok module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve managed ok module");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect(
+                "checker must accept &Managed<Channel> call with ProvidesState + AllowsRollback",
+            );
+    }
+
+    // --- 2. Raw/Wire: `Provider { channel: Managed<Channel> }` behind `&self` `DynSlot` ---
+    {
+        let mut tys = TyTable::new();
+        let unit_ty = tys.intern(TyKind::Unit);
+        let (empty_args, managed_ch, _) = make_channel_types(&mut tys);
+        let prov_adt = tys.add_adt(AdtDef {
+            name: "Provider".into(),
+            kind: AdtKind::Package,
+            type_params: 0,
+            region_params: 0,
+            variants: vec![VariantDef {
+                name: "Provider".into(),
+                fields: vec![FieldDef {
+                    name: "channel".into(),
+                    ty: managed_ch,
+                }],
+            }],
+            user_drop: false,
+        });
+        let prov_ty = tys.intern(TyKind::Adt {
+            adt: prov_adt,
+            args: empty_args,
+        });
+        let ref_prov = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Shared,
+            pointee: prov_ty,
+        });
+        let dyn_id = tys.add_dyn(DynDef {
+            name: "Inspect".into(),
+            slots: vec![DynSlotSig {
+                name: "inspect".into(),
+                receiver: Some(Mutability::Shared),
+                params: vec![],
+                result: unit_ty,
+            }],
+        });
+        let dyn_ty = tys.intern(TyKind::Dyn(dyn_id));
+        let ref_dyn = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Shared,
+            pointee: dyn_ty,
+        });
+        let caller = Function {
+            name: "managed_dyn_caller".into(),
+            sig: FnSig {
+                params: vec![ref_dyn],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![StateContractClause::InvalidationUpperBound],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![
+                    LocalDecl {
+                        ty: ref_dyn,
+                        name: Some("r".into()),
+                    },
+                    LocalDecl {
+                        ty: unit_ty,
+                        name: Some("res".into()),
+                    },
+                ],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Call {
+                            callee: Callee::DynSlot {
+                                object: Operand::Copy(Place::local(Local(0))),
+                                slot: 0,
+                            },
+                            args: vec![],
+                            dest: Place::local(Local(1)),
+                            target: BlockId(1),
+                            cancel: None,
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                    Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    },
+                ],
+            },
+        };
+        let impl_fn = Function {
+            name: "inspect_provider".into(),
+            sig: FnSig {
+                params: vec![ref_prov],
+                result: unit_ty,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::DynSlotImpl {
+                    dyn_id,
+                    concrete_ty: prov_ty,
+                    slot: 0,
+                },
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![LocalDecl {
+                    ty: ref_prov,
+                    name: Some("self".into()),
+                }],
+                captures: vec![],
+                closure: None,
+                result: unit_ty,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![Block {
+                    instructions: vec![],
+                    terminator: Terminator::Return {
+                        value: Operand::Const(ConstValue::Unit),
+                    },
+                    terminator_span: zil_base::Span::default(),
+                }],
+            },
+        };
+        let m = Module {
+            tys,
+            functions: vec![caller, impl_fn],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![DynImpl {
+                dyn_id,
+                concrete_ty: prov_ty,
+                methods: vec![FnId(1)],
+            }],
+        };
+        let decoded = decode_module(&encode_module(&m)).expect("decode managed dyn module");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve managed dyn module");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err(
+                    "checker must reject &dyn (&self) when provider holds Managed<Channel>",
+                );
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+    }
+
+    // --- 3. Raw/Wire: `&Context { handle: Managed<Channel>, tag: i32 }` precise field projection ---
+    {
+        let build_ctx_module = |declared_field: Option<u32>| -> Module {
+            let mut tys = TyTable::new();
+            let unit_ty = tys.intern(TyKind::Unit);
+            let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+            let (empty_args, managed_ch, _) = make_channel_types(&mut tys);
+            let ctx_adt = tys.add_adt(AdtDef {
+                name: "Context".into(),
+                kind: AdtKind::Package,
+                type_params: 0,
+                region_params: 0,
+                variants: vec![VariantDef {
+                    name: "Context".into(),
+                    fields: vec![
+                        FieldDef {
+                            name: "handle".into(),
+                            ty: managed_ch,
+                        },
+                        FieldDef {
+                            name: "tag".into(),
+                            ty: i32_ty,
+                        },
+                    ],
+                }],
+                user_drop: false,
+            });
+            let ctx_ty = tys.intern(TyKind::Adt {
+                adt: ctx_adt,
+                args: empty_args,
+            });
+            let ref_ctx = tys.intern(TyKind::Ref {
+                region: Region::Static,
+                mutability: Mutability::Shared,
+                pointee: ctx_ty,
+            });
+            let mut contracts = vec![StateContractClause::InvalidationUpperBound];
+            if let Some(fi) = declared_field {
+                contracts.push(StateContractClause::Invalidates {
+                    param: 0,
+                    path: ContractFieldPath::from_slice(&[FieldIdx(fi)]).unwrap(),
+                });
+            }
+            let caller = Function {
+                name: "managed_ctx_caller".into(),
+                sig: FnSig {
+                    params: vec![ref_ctx],
+                    result: unit_ty,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: contracts,
+                },
+                body: Body {
+                    param_count: 1,
+                    locals: vec![
+                        LocalDecl {
+                            ty: ref_ctx,
+                            name: Some("c".into()),
+                        },
+                        LocalDecl {
+                            ty: unit_ty,
+                            name: Some("res".into()),
+                        },
+                    ],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Call {
+                                callee: Callee::Direct(FnId(1)),
+                                args: vec![Operand::Copy(Place::local(Local(0)))],
+                                dest: Place::local(Local(1)),
+                                target: BlockId(1),
+                                cancel: None,
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                        Block {
+                            instructions: vec![],
+                            terminator: Terminator::Return {
+                                value: Operand::Const(ConstValue::Unit),
+                            },
+                            terminator_span: zil_base::Span::default(),
+                        },
+                    ],
+                },
+            };
+            let callee = Function {
+                name: "opaque_ctx_callee".into(),
+                sig: FnSig {
+                    params: vec![ref_ctx],
+                    result: unit_ty,
+                    type_params: 0,
+                    region_params: 0,
+                    role: FnRole::Normal,
+                    resume_mode: ResumeMode::Local,
+                    state_contracts: vec![],
+                },
+                body: Body {
+                    param_count: 1,
+                    locals: vec![LocalDecl {
+                        ty: ref_ctx,
+                        name: Some("c".into()),
+                    }],
+                    captures: vec![],
+                    closure: None,
+                    result: unit_ty,
+                    param_env: ParamEnv::default(),
+                    drop_flags: vec![],
+                    blocks: vec![Block {
+                        instructions: vec![],
+                        terminator: Terminator::Return {
+                            value: Operand::Const(ConstValue::Unit),
+                        },
+                        terminator_span: zil_base::Span::default(),
+                    }],
+                },
+            };
+            Module {
+                tys,
+                functions: vec![caller, callee],
+                foreigns: vec![],
+                statics: vec![],
+                dyn_impls: vec![],
+            }
+        };
+
+        // 3a. Negative: empty upper bound rejected.
+        let m_empty = build_ctx_module(None);
+        let decoded = decode_module(&encode_module(&m_empty)).expect("decode managed ctx empty");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve managed ctx empty");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject &Context<Managed> under empty bound");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 3b. Negative: disjoint `c.tag` (field 1) rejected.
+        let m_tag = build_ctx_module(Some(1));
+        let decoded = decode_module(&encode_module(&m_tag)).expect("decode managed ctx tag");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve managed ctx tag");
+        let err =
+            zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+                .expect_err("checker must reject disjoint c.tag for &Context<Managed>");
+        assert_eq!(err.function, FnId(0));
+        assert!(matches!(
+            err.kind,
+            zil_check::CheckErrorKind::CertificateShape(_)
+        ));
+
+        // 3c. Positive: exact `c.handle` (field 0) accepted without widening to `c.tag`.
+        let m_handle = build_ctx_module(Some(0));
+        let decoded = decode_module(&encode_module(&m_handle)).expect("decode managed ctx handle");
+        let cert = zil_solve::solve_module(&decoded, zil_solve::Budget { steps: 1_000_000 })
+            .expect("solve managed ctx handle");
+        zil_check::check_module(decoded, &cert, zil_check::CheckBudget { steps: 1_000_000 })
+            .expect("checker must accept exact c.handle upper bound");
     }
 }

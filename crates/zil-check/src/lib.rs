@@ -505,16 +505,31 @@ fn verify_fn_state_contracts(
     let is_error_union_ty =
         |ty: zil_ir::body::TyId| -> bool { matches!(tys.get(ty), Some(TyKind::ErrorUnion { .. })) };
 
+    let is_describable_ty = |ty: zil_ir::body::TyId| -> bool {
+        match tys.get(ty) {
+            Some(TyKind::Desc(_) | TyKind::Managed(_)) => true,
+            Some(TyKind::Ref { pointee, .. }) => match tys.get(*pointee) {
+                Some(TyKind::Desc(_) | TyKind::Managed(_)) => true,
+                Some(TyKind::Adt { adt, .. }) => tys
+                    .get_adt(*adt)
+                    .is_some_and(|d| d.kind == AdtKind::Resource),
+                _ => false,
+            },
+            Some(TyKind::Adt { adt, .. }) => tys
+                .get_adt(*adt)
+                .is_some_and(|d| d.kind == AdtKind::Resource),
+            _ => false,
+        }
+    };
+
     let is_mut_ref_or_desc_ty = |ty: zil_ir::body::TyId| -> bool {
         matches!(
             tys.get(ty),
-            Some(
-                TyKind::Ref {
-                    mutability: Mutability::Exclusive,
-                    ..
-                } | TyKind::Desc(_)
-            )
-        )
+            Some(TyKind::Ref {
+                mutability: Mutability::Exclusive,
+                ..
+            })
+        ) || is_describable_ty(ty)
     };
 
     let nlocals = func.body.locals.len();
@@ -980,7 +995,6 @@ fn verify_fn_state_contracts(
             }
             let ti = func.body.locals[i].ty;
             let tj = func.body.locals[j].ty;
-            let is_desc = |ty| matches!(tys.get(ty), Some(TyKind::Desc(_)));
             let is_shared_ref = |ty| {
                 matches!(
                     tys.get(ty),
@@ -990,8 +1004,13 @@ fn verify_fn_state_contracts(
                     })
                 )
             };
-            let pair_can_alias = (is_desc(ti) && (is_desc(tj) || is_shared_ref(tj)))
-                || (is_desc(tj) && is_shared_ref(ti));
+            let is_desc_capable_shared = |ty| {
+                matches!(tys.get(ty), Some(TyKind::Desc(_)))
+                    || (is_shared_ref(ty) && is_describable_ty(ty))
+            };
+            let pair_can_alias = (is_desc_capable_shared(ti)
+                && (is_desc_capable_shared(tj) || is_shared_ref(tj)))
+                || (is_desc_capable_shared(tj) && is_shared_ref(ti));
             if !pair_can_alias {
                 continue;
             }
@@ -1107,12 +1126,14 @@ fn verify_fn_state_contracts(
                     ..
                 } => {
                     // Shared references cannot mutate through `&(&mut T)`, but may still
-                    // mutate through interior `Desc`, unconstrained `Param`, `Dyn`/`OwnedDyn`,
-                    // or `Opaque` payloads.
+                    // mutate through interior `Desc`, `Managed`, `Resource`, unconstrained
+                    // `Param`, `Dyn`/`OwnedDyn`, or `Opaque` payloads.
                     self.scan(*pointee, prefix, true, depth + 1, visiting, out);
                 }
-                TyKind::Managed(pointee) => {
-                    self.scan(*pointee, prefix, desc_only, depth + 1, visiting, out);
+                TyKind::Managed(_) => {
+                    // `Managed<R>` (even behind a shared `&Managed<R>`) supports auto-describe
+                    // (`Rvalue::Describe`) to obtain `Desc<R>`, granting mutation capability.
+                    out.insert((self.param_idx, prefix.clone()));
                 }
                 TyKind::Adt { adt, args } => {
                     let Some(def) = self.tys.get_adt(*adt) else {
@@ -1120,6 +1141,13 @@ fn verify_fn_state_contracts(
                         visiting.pop();
                         return;
                     };
+                    if def.kind == AdtKind::Resource {
+                        // `Rvalue::Describe` accepts `AdtKind::Resource` directly (and behind `&`),
+                        // granting a `Desc<Resource>` capability.
+                        out.insert((self.param_idx, prefix.clone()));
+                        visiting.pop();
+                        return;
+                    }
                     if def.variants.len() == 1 {
                         for (fi, f) in def.variants[0].fields.iter().enumerate() {
                             let fty = self.tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
@@ -1242,9 +1270,14 @@ fn verify_fn_state_contracts(
     }
 
     let mut entry_mut_cap_params: HashMap<Local, ParamAliasSet> = HashMap::new();
+    let mut entry_mut_cap_handles: HashMap<Local, BTreeSet<usize>> = HashMap::new();
     for (i, local_decl) in func.body.locals.iter().enumerate().take(param_count) {
         let pty = local_decl.ty;
-        if !is_mut_ref_or_desc_ty(pty) {
+        if is_describable_ty(pty) {
+            if let Some(ma) = entry_may_alias.get(&Local(i as u32)) {
+                entry_mut_cap_handles.insert(Local(i as u32), ma.clone());
+            }
+        } else if !is_mut_ref_or_desc_ty(pty) {
             let scanner = EntryCapScan {
                 tys,
                 dyn_impls: &module.dyn_impls,
@@ -1272,7 +1305,7 @@ fn verify_fn_state_contracts(
         alias: entry_alias,
         may_alias: entry_may_alias,
         mut_cap_params: entry_mut_cap_params,
-        mut_cap_handles: HashMap::new(),
+        mut_cap_handles: entry_mut_cap_handles,
         state_field_of: HashMap::new(),
         enum_variant: HashMap::new(),
         error_arm_const: HashMap::new(),
@@ -1594,7 +1627,18 @@ fn verify_fn_state_contracts(
                         st.discr_of.remove(&dl);
                         match value {
                             Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
-                                if let PlaceRoot::Local(sl) = src.root {
+                                let dest_is_pure_scalar = matches!(
+                                    tys.get(func.body.locals[di].ty),
+                                    Some(
+                                        TyKind::Unit
+                                            | TyKind::Bool
+                                            | TyKind::Never
+                                            | TyKind::Int(_)
+                                            | TyKind::Float(_)
+                                            | TyKind::FnPtr { .. }
+                                    )
+                                );
+                                if !dest_is_pure_scalar && let PlaceRoot::Local(sl) = src.root {
                                     if let Some(mcp) = st.mut_cap_params.get(&sl).cloned() {
                                         st.mut_cap_params.insert(dl, mcp);
                                     }
@@ -1602,15 +1646,14 @@ fn verify_fn_state_contracts(
                                         st.mut_cap_handles.insert(dl, mch);
                                     }
                                 }
-                                if src.projections.is_empty()
-                                    && let PlaceRoot::Local(sl) = src.root
-                                    && let Some(pa) = st.param_alias.get(&sl).cloned()
-                                    && matches!(
-                                        tys.get(func.body.locals[di].ty),
-                                        Some(TyKind::Ref { .. } | TyKind::Desc(_))
-                                    )
-                                {
-                                    st.param_alias.insert(dl, pa);
+                                if matches!(
+                                    tys.get(func.body.locals[di].ty),
+                                    Some(TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Managed(_))
+                                ) {
+                                    let pa = st.resolve_param_places(src);
+                                    if !pa.is_empty() {
+                                        st.param_alias.insert(dl, pa);
+                                    }
                                 }
                                 if let Some(h_idx) = place_targets_state_field(src, &st) {
                                     st.state_field_of.insert(dl, h_idx);
@@ -1622,7 +1665,11 @@ fn verify_fn_state_contracts(
                                             matches!(value, Rvalue::Use(Operand::Copy(_)))
                                                 && !matches!(
                                                     tys.get(func.body.locals[di].ty),
-                                                    Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                                    Some(
+                                                        TyKind::Ref { .. }
+                                                            | TyKind::Desc(_)
+                                                            | TyKind::Managed(_)
+                                                    )
                                                 );
                                         if !is_copy_value {
                                             st.may_alias.insert(dl, ma);
@@ -1633,7 +1680,11 @@ fn verify_fn_state_contracts(
                                             matches!(value, Rvalue::Use(Operand::Copy(_)))
                                                 && !matches!(
                                                     tys.get(func.body.locals[di].ty),
-                                                    Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                                    Some(
+                                                        TyKind::Ref { .. }
+                                                            | TyKind::Desc(_)
+                                                            | TyKind::Managed(_)
+                                                    )
                                                 );
                                         if is_copy_value
                                             && local_info.get(di).is_some_and(Option::is_some)
@@ -1675,10 +1726,37 @@ fn verify_fn_state_contracts(
                             }
                             Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
                                 if let PlaceRoot::Local(sl) = src.root {
-                                    if let Some(mcp) = st.mut_cap_params.get(&sl).cloned() {
-                                        st.mut_cap_params.insert(dl, mcp);
+                                    let field_proj: Vec<FieldIdx> = src
+                                        .projections
+                                        .iter()
+                                        .filter_map(|p| match p {
+                                            Projection::Field(f) => Some(f.field),
+                                            Projection::Deref
+                                            | Projection::Index(_)
+                                            | Projection::TupleField(_)
+                                            | Projection::ErrorArm(_)
+                                            | Projection::ConstIndex(_) => None,
+                                        })
+                                        .collect();
+                                    if let Some(mcp) = st.mut_cap_params.get(&sl) {
+                                        let filtered: ParamAliasSet = if field_proj.is_empty() {
+                                            mcp.clone()
+                                        } else {
+                                            mcp.iter()
+                                                .filter(|(_, path)| {
+                                                    path.starts_with(&field_proj)
+                                                        || field_proj.starts_with(path)
+                                                })
+                                                .cloned()
+                                                .collect()
+                                        };
+                                        if !filtered.is_empty() {
+                                            st.mut_cap_params.insert(dl, filtered);
+                                        }
                                     }
-                                    if let Some(mch) = st.mut_cap_handles.get(&sl).cloned() {
+                                    if field_proj.is_empty()
+                                        && let Some(mch) = st.mut_cap_handles.get(&sl).cloned()
+                                    {
                                         st.mut_cap_handles.insert(dl, mch);
                                     }
                                 }
@@ -1826,14 +1904,25 @@ fn verify_fn_state_contracts(
                                     let mut cap_handles =
                                         st.mut_cap_handles.get(&sl).cloned().unwrap_or_default();
                                     if p.projections.is_empty() {
+                                        let src_is_describable = func
+                                            .body
+                                            .locals
+                                            .get(sl.index())
+                                            .is_some_and(|ld| is_describable_ty(ld.ty));
                                         if matches!(
                                             tys.get(*to),
                                             Some(TyKind::Ref { .. } | TyKind::Desc(_))
                                         ) {
                                             if let Some(pa) = st.param_alias.get(&sl).cloned() {
+                                                if src_is_describable {
+                                                    cap_params.extend(pa.iter().cloned());
+                                                }
                                                 st.param_alias.insert(dl, pa);
                                             }
                                             if let Some(ma) = st.may_alias.get(&sl).cloned() {
+                                                if src_is_describable {
+                                                    cap_handles.extend(ma.iter().copied());
+                                                }
                                                 st.may_alias.insert(dl, ma);
                                             }
                                             if let Some(&h) = st.alias.get(&sl) {
@@ -2127,6 +2216,80 @@ fn verify_fn_state_contracts(
                     }
                 };
                 match callee {
+                    Callee::Intrinsic(IntrinsicOp::ManagedCreate) => {
+                        if let Some(dl) = dest_local {
+                            let di = dl.index();
+                            let mut cap_params = ParamAliasSet::new();
+                            let mut cap_handles = BTreeSet::new();
+                            for arg in args {
+                                if let Operand::Copy(p) | Operand::Move(p) = arg
+                                    && let PlaceRoot::Local(al) = p.root
+                                {
+                                    if let Some(mcp) = st.mut_cap_params.get(&al) {
+                                        cap_params.extend(mcp.iter().cloned());
+                                    }
+                                    if let Some(mch) = st.mut_cap_handles.get(&al) {
+                                        cap_handles.extend(mch.iter().copied());
+                                    }
+                                    if p.projections.is_empty()
+                                        && func
+                                            .body
+                                            .locals
+                                            .get(al.index())
+                                            .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
+                                    {
+                                        if let Some(pa) = st.param_alias.get(&al) {
+                                            cap_params.extend(pa.iter().cloned());
+                                        }
+                                        if let Some(ma) = st.may_alias.get(&al) {
+                                            cap_handles.extend(ma.iter().copied());
+                                        }
+                                    }
+                                }
+                            }
+                            if !cap_params.is_empty() {
+                                st.mut_cap_params.insert(dl, cap_params);
+                            }
+                            if !cap_handles.is_empty() {
+                                st.mut_cap_handles.insert(dl, cap_handles);
+                            }
+                            if let Some(Some(info)) = local_info.get(di) {
+                                st.alias.insert(dl, di);
+                                let mut s = BTreeSet::new();
+                                s.insert(di);
+                                st.may_alias.insert(dl, s);
+                                st.invalidate_handle(di);
+                                if let Some((_, sf)) = info.state_field {
+                                    let field_state = args
+                                        .get(sf.0 as usize)
+                                        .and_then(|op| match op {
+                                            Operand::Copy(p) | Operand::Move(p)
+                                                if p.projections.is_empty() =>
+                                            {
+                                                if let PlaceRoot::Local(sl) = p.root {
+                                                    st.enum_variant
+                                                        .get(&sl)
+                                                        .map(|&v| ProtocolStateSet::single(v))
+                                                } else {
+                                                    None
+                                                }
+                                            }
+                                            Operand::Copy(_)
+                                            | Operand::Move(_)
+                                            | Operand::Const(_)
+                                            | Operand::Pooled(_) => None,
+                                        })
+                                        .unwrap_or_else(|| {
+                                            ProtocolStateSet::all_variants(info.variant_count)
+                                        });
+                                    st.states[di] = field_state;
+                                    st.history[di] = field_state;
+                                    st.departed_from[di] = ProtocolStateSet(0);
+                                    st.rolled_back[di] = false;
+                                }
+                            }
+                        }
+                    }
                     Callee::Intrinsic(IntrinsicOp::OwnedDynCreate) => {
                         if let Some(dl) = dest_local {
                             let mut cap_params = ParamAliasSet::new();
