@@ -696,6 +696,7 @@ fn verify_fn_state_contracts(
 
     type EuTransitions = Vec<(usize, Option<ProtocolStateSet>, Option<ProtocolStateSet>)>;
     type ParamAliasSet = BTreeSet<(usize, Vec<FieldIdx>)>;
+    type HandleCapSet = BTreeSet<(Vec<FieldIdx>, usize)>;
 
     #[derive(Clone, PartialEq, Eq)]
     struct ProtoState {
@@ -715,10 +716,12 @@ fn verify_fn_state_contracts(
         alias: HashMap<Local, usize>,
         /// May-alias map: local -> all protocol handle indices it may alias (unioned on join; conservatively widened on writes).
         may_alias: HashMap<Local, BTreeSet<usize>>,
-        /// May-map: local (closure / dyn / aggregate wrapper) -> parameter projections reachable via captured `&mut`/`Desc`.
+        /// May-map: local -> all root local indices whose storage/resources it may alias or borrow from (unioned on join).
+        local_roots: HashMap<Local, BTreeSet<usize>>,
+        /// May-map: local (closure / dyn / aggregate wrapper) -> parameter projections reachable via captured `&mut`/`Desc`/`Managed`.
         mut_cap_params: HashMap<Local, ParamAliasSet>,
-        /// May-map: local (closure / dyn / aggregate wrapper) -> protocol handle indices reachable via captured `&mut`/`Desc`.
-        mut_cap_handles: HashMap<Local, BTreeSet<usize>>,
+        /// May-map: local -> `(field_path, handle_idx)` protocol handles reachable via nested `&mut`/`Desc`/`Managed`/`Resource`.
+        mut_cap_handles: HashMap<Local, HandleCapSet>,
         /// Must-map: local holding copied `handle.state` field -> root handle index (intersected on join).
         state_field_of: HashMap<Local, usize>,
         /// Must-map: exact enum variant for locals constructed via `AggregateKind::Adt` (intersected on join).
@@ -785,6 +788,14 @@ fn verify_fn_state_contracts(
                     }
                 }
             }
+            for (k, other_set) in &other.local_roots {
+                let entry = self.local_roots.entry(*k).or_default();
+                for &r in other_set {
+                    if entry.insert(r) {
+                        changed = true;
+                    }
+                }
+            }
             for (k, other_set) in &other.mut_cap_params {
                 let entry = self.mut_cap_params.entry(*k).or_default();
                 for item in other_set {
@@ -795,8 +806,8 @@ fn verify_fn_state_contracts(
             }
             for (k, other_set) in &other.mut_cap_handles {
                 let entry = self.mut_cap_handles.entry(*k).or_default();
-                for &h in other_set {
-                    if entry.insert(h) {
+                for item in other_set {
+                    if entry.insert(item.clone()) {
                         changed = true;
                     }
                 }
@@ -963,8 +974,12 @@ fn verify_fn_state_contracts(
 
     let mut entry_alias = HashMap::new();
     let mut entry_may_alias: HashMap<Local, BTreeSet<usize>> = HashMap::new();
+    let mut entry_local_roots: HashMap<Local, BTreeSet<usize>> = HashMap::new();
     for (i, info) in local_info.iter().enumerate() {
         entry_alias.insert(Local(i as u32), i);
+        let mut root_set = BTreeSet::new();
+        root_set.insert(i);
+        entry_local_roots.insert(Local(i as u32), root_set);
         if info.is_some() {
             let mut s = BTreeSet::new();
             s.insert(i);
@@ -977,20 +992,22 @@ fn verify_fn_state_contracts(
         s.insert((i, Vec::new()));
         entry_param_alias.insert(Local(i as u32), s);
     }
+    let declared_apart = |pa: usize, pb: usize| -> bool {
+        func.sig.state_contracts.iter().any(|c| {
+            matches!(
+                *c,
+                StateContractClause::RequiresApart { param_a, param_b }
+                    if (param_a as usize == pa && param_b as usize == pb)
+                        || (param_a as usize == pb && param_b as usize == pa)
+            )
+        })
+    };
     // Cross-parameter Desc may-aliasing: two `Desc` parameters (or a `Desc` and a shared `&`
     // parameter) with compatible pointee types may alias at function entry unless the function
     // explicitly declares `requires(apart(a, b))`.
     for i in 0..param_count {
         for j in (i + 1)..param_count {
-            let declared_apart = func.sig.state_contracts.iter().any(|c| {
-                matches!(
-                    *c,
-                    StateContractClause::RequiresApart { param_a, param_b }
-                        if (param_a as usize == i && param_b as usize == j)
-                            || (param_a as usize == j && param_b as usize == i)
-                )
-            });
-            if declared_apart {
+            if declared_apart(i, j) {
                 continue;
             }
             let ti = func.body.locals[i].ty;
@@ -1047,6 +1064,17 @@ fn verify_fn_state_contracts(
             }
         }
     }
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    enum NestedCapTarget {
+        /// Exact stripped resource/ADT type reachable at a field projection.
+        Exact(zil_ir::body::TyId),
+        /// Unknown or polymorphic target (`Param`, unknown `Dyn`, depth overflow).
+        Wildcard,
+    }
+
+    type NestedCapSet = BTreeSet<(Vec<FieldIdx>, NestedCapTarget)>;
+
     struct EntryCapScan<'a> {
         tys: &'a zil_ir::body::TyTable,
         dyn_impls: &'a [zil_ir::body::DynImpl],
@@ -1054,71 +1082,157 @@ fn verify_fn_state_contracts(
     }
 
     impl EntryCapScan<'_> {
-        fn has_nested_cap(
-            &self,
-            ty: zil_ir::body::TyId,
-            desc_only: bool,
-            depth: u32,
-            visiting: &mut Vec<zil_ir::body::TyId>,
-        ) -> bool {
-            let mut sub = BTreeSet::new();
-            let mut tmp_prefix = Vec::new();
-            self.scan(ty, &mut tmp_prefix, desc_only, depth, visiting, &mut sub);
-            !sub.is_empty()
+        fn target_of(&self, mut ty: zil_ir::body::TyId) -> NestedCapTarget {
+            for _ in 0..4 {
+                match self.tys.get(ty) {
+                    Some(
+                        TyKind::Ref { pointee, .. }
+                        | TyKind::Managed(pointee)
+                        | TyKind::Desc(pointee),
+                    ) => ty = *pointee,
+                    _ => break,
+                }
+            }
+            match self.tys.get(ty) {
+                Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. }) | None => {
+                    NestedCapTarget::Wildcard
+                }
+                Some(_) => NestedCapTarget::Exact(ty),
+            }
         }
 
+        #[allow(clippy::too_many_arguments)]
+        fn scan_container_member(
+            &self,
+            ty: zil_ir::body::TyId,
+            prefix: &[FieldIdx],
+            desc_only: bool,
+            behind_indirection: bool,
+            depth: u32,
+            visiting: &mut Vec<zil_ir::body::TyId>,
+            out_params: &mut BTreeSet<(usize, Vec<FieldIdx>)>,
+            out_nested: &mut NestedCapSet,
+        ) {
+            let mut sub_params = BTreeSet::new();
+            let mut sub_nested = NestedCapSet::new();
+            let mut tmp_prefix = Vec::new();
+            self.scan(
+                ty,
+                &mut tmp_prefix,
+                desc_only,
+                behind_indirection,
+                depth + 1,
+                visiting,
+                &mut sub_params,
+                &mut sub_nested,
+            );
+            if !sub_params.is_empty() {
+                out_params.insert((self.param_idx, prefix.to_vec()));
+            }
+            for (_, target) in sub_nested {
+                out_nested.insert((prefix.to_vec(), target));
+            }
+        }
+
+        #[allow(clippy::too_many_arguments)]
         fn scan_dyn_impls(
             &self,
             dyn_id: zil_ir::body::DynId,
+            prefix: &[FieldIdx],
             desc_only: bool,
+            behind_indirection: bool,
             depth: u32,
             visiting: &mut Vec<zil_ir::body::TyId>,
-        ) -> bool {
+            out_params: &mut BTreeSet<(usize, Vec<FieldIdx>)>,
+            out_nested: &mut NestedCapSet,
+        ) {
             let mut found_any = false;
             for di in self.dyn_impls {
                 if di.dyn_id == dyn_id {
                     found_any = true;
-                    if self.has_nested_cap(di.concrete_ty, desc_only, depth + 1, visiting) {
-                        return true;
-                    }
+                    self.scan_container_member(
+                        di.concrete_ty,
+                        prefix,
+                        desc_only,
+                        behind_indirection,
+                        depth,
+                        visiting,
+                        out_params,
+                        out_nested,
+                    );
                 }
             }
             // Fail closed when no concrete implementations are known in the module.
-            !found_any
+            if !found_any {
+                out_params.insert((self.param_idx, prefix.to_vec()));
+                out_nested.insert((prefix.to_vec(), NestedCapTarget::Wildcard));
+            }
         }
 
+        #[allow(clippy::too_many_arguments)]
         fn scan(
             &self,
             ty: zil_ir::body::TyId,
             prefix: &mut Vec<FieldIdx>,
             desc_only: bool,
+            behind_indirection: bool,
             depth: u32,
             visiting: &mut Vec<zil_ir::body::TyId>,
-            out: &mut BTreeSet<(usize, Vec<FieldIdx>)>,
+            out_params: &mut BTreeSet<(usize, Vec<FieldIdx>)>,
+            out_nested: &mut NestedCapSet,
         ) {
             if visiting.contains(&ty) {
                 return;
             }
             if depth > 8 {
-                out.insert((self.param_idx, prefix.clone()));
+                out_params.insert((self.param_idx, prefix.clone()));
+                out_nested.insert((prefix.clone(), NestedCapTarget::Wildcard));
                 return;
             }
             let Some(kind) = self.tys.get(ty) else {
-                out.insert((self.param_idx, prefix.clone()));
+                out_params.insert((self.param_idx, prefix.clone()));
+                out_nested.insert((prefix.clone(), NestedCapTarget::Wildcard));
                 return;
             };
             visiting.push(ty);
             match kind {
-                TyKind::Desc(_) => {
-                    out.insert((self.param_idx, prefix.clone()));
+                TyKind::Desc(inner) => {
+                    out_params.insert((self.param_idx, prefix.clone()));
+                    out_nested.insert((prefix.clone(), self.target_of(*inner)));
+                    // Also discover any nested resources/descriptors inside `*inner`.
+                    let mut scratch_params = BTreeSet::new();
+                    self.scan(
+                        *inner,
+                        prefix,
+                        true,
+                        true,
+                        depth + 1,
+                        visiting,
+                        &mut scratch_params,
+                        out_nested,
+                    );
                 }
                 TyKind::Ref {
                     mutability: Mutability::Exclusive,
+                    pointee,
                     ..
                 } => {
                     if !desc_only {
-                        out.insert((self.param_idx, prefix.clone()));
+                        out_params.insert((self.param_idx, prefix.clone()));
                     }
+                    // Even behind `&mut S`, nested `Desc`/`&Managed`/`Param`/`Dyn`/`Opaque`
+                    // fields can alias another shared/descriptor parameter.
+                    let mut scratch_params = BTreeSet::new();
+                    self.scan(
+                        *pointee,
+                        prefix,
+                        true,
+                        false,
+                        depth + 1,
+                        visiting,
+                        &mut scratch_params,
+                        out_nested,
+                    );
                 }
                 TyKind::Ref {
                     mutability: Mutability::Shared,
@@ -1127,24 +1241,75 @@ fn verify_fn_state_contracts(
                 } => {
                     // Shared references cannot mutate through `&(&mut T)`, but may still
                     // mutate through interior `Desc`, `Managed`, `Resource`, unconstrained
-                    // `Param`, `Dyn`/`OwnedDyn`, or `Opaque` payloads.
-                    self.scan(*pointee, prefix, true, depth + 1, visiting, out);
+                    // `Param`, `Dyn`/`OwnedDyn`, or `Opaque` payloads, and any nested
+                    // resource reachable through `&` can alias another shared/`Desc` parameter.
+                    self.scan(
+                        *pointee,
+                        prefix,
+                        true,
+                        true,
+                        depth + 1,
+                        visiting,
+                        out_params,
+                        out_nested,
+                    );
                 }
-                TyKind::Managed(_) => {
+                TyKind::Managed(inner) => {
                     // `Managed<R>` (even behind a shared `&Managed<R>`) supports auto-describe
                     // (`Rvalue::Describe`) to obtain `Desc<R>`, granting mutation capability.
-                    out.insert((self.param_idx, prefix.clone()));
+                    out_params.insert((self.param_idx, prefix.clone()));
+                    if behind_indirection {
+                        out_nested.insert((prefix.clone(), self.target_of(*inner)));
+                    }
+                    let mut scratch_params = BTreeSet::new();
+                    self.scan(
+                        *inner,
+                        prefix,
+                        true,
+                        behind_indirection,
+                        depth + 1,
+                        visiting,
+                        &mut scratch_params,
+                        out_nested,
+                    );
                 }
                 TyKind::Adt { adt, args } => {
                     let Some(def) = self.tys.get_adt(*adt) else {
-                        out.insert((self.param_idx, prefix.clone()));
+                        out_params.insert((self.param_idx, prefix.clone()));
+                        out_nested.insert((prefix.clone(), NestedCapTarget::Wildcard));
                         visiting.pop();
                         return;
                     };
                     if def.kind == AdtKind::Resource {
                         // `Rvalue::Describe` accepts `AdtKind::Resource` directly (and behind `&`),
                         // granting a `Desc<Resource>` capability.
-                        out.insert((self.param_idx, prefix.clone()));
+                        out_params.insert((self.param_idx, prefix.clone()));
+                        if behind_indirection {
+                            out_nested.insert((prefix.clone(), NestedCapTarget::Exact(ty)));
+                        }
+                        if def.variants.len() == 1 {
+                            let mut scratch_params = BTreeSet::new();
+                            for (fi, f) in def.variants[0].fields.iter().enumerate() {
+                                let fty = self.tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
+                                let pushed = prefix.len() < ContractFieldPath::MAX_DEPTH;
+                                if pushed {
+                                    prefix.push(FieldIdx(fi as u32));
+                                }
+                                self.scan(
+                                    fty,
+                                    prefix,
+                                    true,
+                                    behind_indirection,
+                                    depth + 1,
+                                    visiting,
+                                    &mut scratch_params,
+                                    out_nested,
+                                );
+                                if pushed {
+                                    prefix.pop();
+                                }
+                            }
+                        }
                         visiting.pop();
                         return;
                     }
@@ -1155,7 +1320,16 @@ fn verify_fn_state_contracts(
                             if pushed {
                                 prefix.push(FieldIdx(fi as u32));
                             }
-                            self.scan(fty, prefix, desc_only, depth + 1, visiting, out);
+                            self.scan(
+                                fty,
+                                prefix,
+                                desc_only,
+                                behind_indirection,
+                                depth + 1,
+                                visiting,
+                                out_params,
+                                out_nested,
+                            );
                             if pushed {
                                 prefix.pop();
                             }
@@ -1164,99 +1338,183 @@ fn verify_fn_state_contracts(
                         for v in &def.variants {
                             for f in &v.fields {
                                 let fty = self.tys.subst_lookup(f.ty, *args).unwrap_or(f.ty);
-                                if self.has_nested_cap(fty, desc_only, depth + 1, visiting) {
-                                    out.insert((self.param_idx, prefix.clone()));
-                                    visiting.pop();
-                                    return;
-                                }
+                                self.scan_container_member(
+                                    fty,
+                                    prefix,
+                                    desc_only,
+                                    behind_indirection,
+                                    depth,
+                                    visiting,
+                                    out_params,
+                                    out_nested,
+                                );
                             }
                         }
                     }
                 }
                 TyKind::Tuple(elems) => {
-                    if elems
-                        .iter()
-                        .any(|&elem| self.has_nested_cap(elem, desc_only, depth + 1, visiting))
-                    {
-                        out.insert((self.param_idx, prefix.clone()));
+                    for &elem in elems {
+                        self.scan_container_member(
+                            elem,
+                            prefix,
+                            desc_only,
+                            behind_indirection,
+                            depth,
+                            visiting,
+                            out_params,
+                            out_nested,
+                        );
                     }
                 }
                 TyKind::Array { element: elem, .. } | TyKind::Slice(elem) => {
-                    if self.has_nested_cap(*elem, desc_only, depth + 1, visiting) {
-                        out.insert((self.param_idx, prefix.clone()));
-                    }
+                    self.scan_container_member(
+                        *elem,
+                        prefix,
+                        desc_only,
+                        behind_indirection,
+                        depth,
+                        visiting,
+                        out_params,
+                        out_nested,
+                    );
                 }
                 TyKind::ErrorUnion { ok, err } => {
-                    if self.has_nested_cap(*ok, desc_only, depth + 1, visiting)
-                        || self.has_nested_cap(*err, desc_only, depth + 1, visiting)
-                    {
-                        out.insert((self.param_idx, prefix.clone()));
-                    }
+                    self.scan_container_member(
+                        *ok,
+                        prefix,
+                        desc_only,
+                        behind_indirection,
+                        depth,
+                        visiting,
+                        out_params,
+                        out_nested,
+                    );
+                    self.scan_container_member(
+                        *err,
+                        prefix,
+                        desc_only,
+                        behind_indirection,
+                        depth,
+                        visiting,
+                        out_params,
+                        out_nested,
+                    );
                 }
                 TyKind::Closure { def, args } => {
                     let Some(cdef) = self.tys.closure(*def) else {
-                        out.insert((self.param_idx, prefix.clone()));
+                        out_params.insert((self.param_idx, prefix.clone()));
+                        out_nested.insert((prefix.clone(), NestedCapTarget::Wildcard));
                         visiting.pop();
                         return;
                     };
-                    if cdef.captures.iter().any(|&cty| {
+                    for &cty in &cdef.captures {
                         let cty = self.tys.subst_lookup(cty, *args).unwrap_or(cty);
-                        self.has_nested_cap(cty, desc_only, depth + 1, visiting)
-                    }) {
-                        out.insert((self.param_idx, prefix.clone()));
+                        self.scan_container_member(
+                            cty,
+                            prefix,
+                            desc_only,
+                            behind_indirection,
+                            depth,
+                            visiting,
+                            out_params,
+                            out_nested,
+                        );
                     }
                 }
                 TyKind::Dyn(dyn_id) => {
-                    if self.scan_dyn_impls(*dyn_id, desc_only, depth, visiting) {
-                        out.insert((self.param_idx, prefix.clone()));
-                    }
+                    self.scan_dyn_impls(
+                        *dyn_id,
+                        prefix,
+                        desc_only,
+                        behind_indirection,
+                        depth,
+                        visiting,
+                        out_params,
+                        out_nested,
+                    );
                 }
                 TyKind::OwnedDyn {
                     def: dyn_id,
                     context,
                 } => {
-                    let ctx_has_cap = context.is_some_and(|ctx_ty| {
-                        self.has_nested_cap(ctx_ty, desc_only, depth + 1, visiting)
-                    });
-                    if ctx_has_cap || self.scan_dyn_impls(*dyn_id, desc_only, depth, visiting) {
-                        out.insert((self.param_idx, prefix.clone()));
+                    if let Some(ctx_ty) = context {
+                        self.scan_container_member(
+                            *ctx_ty,
+                            prefix,
+                            desc_only,
+                            behind_indirection,
+                            depth,
+                            visiting,
+                            out_params,
+                            out_nested,
+                        );
                     }
+                    self.scan_dyn_impls(
+                        *dyn_id,
+                        prefix,
+                        desc_only,
+                        behind_indirection,
+                        depth,
+                        visiting,
+                        out_params,
+                        out_nested,
+                    );
                 }
                 TyKind::Opaque(opaque) => match opaque {
                     OpaqueTy::ForeignHandle | OpaqueTy::ForeignCallback { .. } => {}
-                    OpaqueTy::ByteBuffer
-                    | OpaqueTy::OwnedStore { .. }
-                    | OpaqueTy::SyncCell(_)
-                    | OpaqueTy::CWideString => {
-                        // `OwnedStore`, `ByteBuffer`, and `SyncCell` admit interior mutation
-                        // through shared references / descriptors (`Rvalue::Describe` / atomics),
-                        // and `CWideString` has opaque layout (fail-closed).
-                        out.insert((self.param_idx, prefix.clone()));
+                    OpaqueTy::OwnedStore { element } => {
+                        out_params.insert((self.param_idx, prefix.clone()));
+                        self.scan_container_member(
+                            *element,
+                            prefix,
+                            true,
+                            behind_indirection,
+                            depth,
+                            visiting,
+                            out_params,
+                            out_nested,
+                        );
+                    }
+                    OpaqueTy::ByteBuffer | OpaqueTy::SyncCell(_) | OpaqueTy::CWideString => {
+                        // `ByteBuffer` and `SyncCell` admit interior mutation through shared
+                        // references / atomics, and `CWideString` has opaque layout (fail-closed).
+                        out_params.insert((self.param_idx, prefix.clone()));
                     }
                     OpaqueTy::Mutex { payload } | OpaqueTy::MutexGuard { payload, .. } => {
-                        if self.has_nested_cap(*payload, false, depth + 1, visiting) {
-                            out.insert((self.param_idx, prefix.clone()));
-                        }
+                        self.scan_container_member(
+                            *payload, prefix, false, true, depth, visiting, out_params, out_nested,
+                        );
                     }
                     OpaqueTy::Registration { environment }
                     | OpaqueTy::AsyncRegistration { environment } => {
-                        if self.has_nested_cap(*environment, false, depth + 1, visiting) {
-                            out.insert((self.param_idx, prefix.clone()));
-                        }
+                        self.scan_container_member(
+                            *environment,
+                            prefix,
+                            false,
+                            true,
+                            depth,
+                            visiting,
+                            out_params,
+                            out_nested,
+                        );
                     }
                     OpaqueTy::Task { result, context } => {
-                        if self.has_nested_cap(*result, false, depth + 1, visiting)
-                            || context
-                                .is_some_and(|c| self.has_nested_cap(c, false, depth + 1, visiting))
-                        {
-                            out.insert((self.param_idx, prefix.clone()));
+                        self.scan_container_member(
+                            *result, prefix, false, true, depth, visiting, out_params, out_nested,
+                        );
+                        if let Some(ctx_ty) = context {
+                            self.scan_container_member(
+                                *ctx_ty, prefix, false, true, depth, visiting, out_params,
+                                out_nested,
+                            );
                         }
                     }
                 },
                 TyKind::Param(_) => {
                     // Unconstrained generic type parameter may be instantiated with an
-                    // aggregate containing `Desc` or `&mut`, even behind a shared `&T`.
-                    out.insert((self.param_idx, prefix.clone()));
+                    // aggregate containing `Desc`, `Managed`, or `&mut`, even behind `&T`.
+                    out_params.insert((self.param_idx, prefix.clone()));
+                    out_nested.insert((prefix.clone(), NestedCapTarget::Wildcard));
                 }
                 TyKind::Unit
                 | TyKind::Bool
@@ -1270,25 +1528,86 @@ fn verify_fn_state_contracts(
     }
 
     let mut entry_mut_cap_params: HashMap<Local, ParamAliasSet> = HashMap::new();
-    let mut entry_mut_cap_handles: HashMap<Local, BTreeSet<usize>> = HashMap::new();
+    let mut entry_mut_cap_handles: HashMap<Local, HandleCapSet> = HashMap::new();
     for (i, local_decl) in func.body.locals.iter().enumerate().take(param_count) {
         let pty = local_decl.ty;
-        if is_describable_ty(pty) {
-            if let Some(ma) = entry_may_alias.get(&Local(i as u32)) {
-                entry_mut_cap_handles.insert(Local(i as u32), ma.clone());
+        if is_describable_ty(pty)
+            && let Some(ma) = entry_may_alias.get(&Local(i as u32))
+        {
+            let entry = entry_mut_cap_handles.entry(Local(i as u32)).or_default();
+            for &h in ma {
+                entry.insert((Vec::new(), h));
             }
-        } else if !is_mut_ref_or_desc_ty(pty) {
-            let scanner = EntryCapScan {
-                tys,
-                dyn_impls: &module.dyn_impls,
-                param_idx: i,
-            };
-            let mut caps = ParamAliasSet::new();
-            let mut prefix = Vec::new();
-            let mut visiting = Vec::new();
-            scanner.scan(pty, &mut prefix, false, 0, &mut visiting, &mut caps);
-            if !caps.is_empty() {
-                entry_mut_cap_params.insert(Local(i as u32), caps);
+        }
+        let scanner = EntryCapScan {
+            tys,
+            dyn_impls: &module.dyn_impls,
+            param_idx: i,
+        };
+        let mut caps = ParamAliasSet::new();
+        let mut nested_res = NestedCapSet::new();
+        let mut prefix = Vec::new();
+        let mut visiting = Vec::new();
+        scanner.scan(
+            pty,
+            &mut prefix,
+            false,
+            false,
+            0,
+            &mut visiting,
+            &mut caps,
+            &mut nested_res,
+        );
+        if !is_mut_ref_or_desc_ty(pty) && !caps.is_empty() {
+            entry_mut_cap_params.insert(Local(i as u32), caps);
+        }
+        // Associate nested aliasable resource capabilities (e.g. `ctx.handle: Managed<Channel>`
+        // inside `ctx: &Context` or `ctx: ContextBorrow<'a>`) with every compatible aliasable
+        // protocol-handle parameter `j`, unless `requires(apart(i, j))` is declared.
+        for (path, target) in &nested_res {
+            for j in 0..param_count {
+                if j == i || local_info[j].is_none() || declared_apart(i, j) {
+                    continue;
+                }
+                let tj = func.body.locals[j].ty;
+                let j_is_aliasable = matches!(
+                    tys.get(tj),
+                    Some(
+                        TyKind::Desc(_)
+                            | TyKind::Ref {
+                                mutability: Mutability::Shared,
+                                ..
+                            }
+                    )
+                );
+                if !j_is_aliasable {
+                    continue;
+                }
+                let inner_j = strip_indirection(tj);
+                let target_compatible = match *target {
+                    NestedCapTarget::Wildcard => true,
+                    NestedCapTarget::Exact(inner_i) => {
+                        inner_i == inner_j
+                            || matches!(
+                                tys.get(inner_i),
+                                Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                            )
+                            || matches!(
+                                tys.get(inner_j),
+                                Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                            )
+                    }
+                };
+                if target_compatible {
+                    entry_mut_cap_handles
+                        .entry(Local(i as u32))
+                        .or_default()
+                        .insert((path.clone(), j));
+                    entry_param_alias
+                        .entry(Local(j as u32))
+                        .or_default()
+                        .insert((i, path.clone()));
+                }
             }
         }
     }
@@ -1304,8 +1623,9 @@ fn verify_fn_state_contracts(
         param_alias: entry_param_alias,
         alias: entry_alias,
         may_alias: entry_may_alias,
-        mut_cap_params: entry_mut_cap_params,
-        mut_cap_handles: entry_mut_cap_handles,
+        local_roots: entry_local_roots,
+        mut_cap_params: entry_mut_cap_params.clone(),
+        mut_cap_handles: entry_mut_cap_handles.clone(),
         state_field_of: HashMap::new(),
         enum_variant: HashMap::new(),
         error_arm_const: HashMap::new(),
@@ -1343,6 +1663,48 @@ fn verify_fn_state_contracts(
         }
     };
 
+    let extract_field_proj = |place: &Place| -> Vec<FieldIdx> {
+        place
+            .projections
+            .iter()
+            .filter_map(|p| match p {
+                Projection::Field(f) => Some(f.field),
+                Projection::Deref
+                | Projection::Index(_)
+                | Projection::TupleField(_)
+                | Projection::ErrorArm(_)
+                | Projection::ConstIndex(_) => None,
+            })
+            .collect()
+    };
+    let filter_handle_caps = |mch: &HandleCapSet, field_proj: &[FieldIdx]| -> HandleCapSet {
+        if field_proj.is_empty() {
+            return mch.clone();
+        }
+        let mut out = HandleCapSet::new();
+        for (cap_path, h_idx) in mch {
+            if cap_path.starts_with(field_proj) {
+                out.insert((cap_path[field_proj.len()..].to_vec(), *h_idx));
+            } else if field_proj.starts_with(cap_path) {
+                out.insert((Vec::new(), *h_idx));
+            }
+        }
+        out
+    };
+    let is_pure_scalar_ty = |ty: zil_ir::body::TyId| -> bool {
+        matches!(
+            tys.get(ty),
+            Some(
+                TyKind::Unit
+                    | TyKind::Bool
+                    | TyKind::Never
+                    | TyKind::Int(_)
+                    | TyKind::Float(_)
+                    | TyKind::FnPtr { .. }
+            )
+        )
+    };
+
     let mut steps: u64 = 0;
     while let Some(bi) = queue.pop_front() {
         steps += 1;
@@ -1368,6 +1730,7 @@ fn verify_fn_state_contracts(
                     // Clear stale alias/value facts on `old`.
                     st.alias.remove(old);
                     st.may_alias.remove(old);
+                    st.local_roots.remove(old);
                     st.param_alias.remove(old);
                     st.mut_cap_params.remove(old);
                     st.mut_cap_handles.remove(old);
@@ -1447,6 +1810,7 @@ fn verify_fn_state_contracts(
                 InstructionKind::StorageDead(dl) => {
                     st.alias.remove(dl);
                     st.may_alias.remove(dl);
+                    st.local_roots.remove(dl);
                     st.param_alias.remove(dl);
                     st.mut_cap_params.remove(dl);
                     st.mut_cap_handles.remove(dl);
@@ -1596,8 +1960,12 @@ fn verify_fn_state_contracts(
                         && let PlaceRoot::Local(dl) = dest.root
                     {
                         let di = dl.index();
+                        let dest_ty = func.body.locals[di].ty;
                         st.alias.remove(&dl);
                         st.may_alias.remove(&dl);
+                        let mut own_root = BTreeSet::new();
+                        own_root.insert(di);
+                        st.local_roots.insert(dl, own_root);
                         st.param_alias.remove(&dl);
                         st.mut_cap_params.remove(&dl);
                         st.mut_cap_handles.remove(&dl);
@@ -1606,10 +1974,7 @@ fn verify_fn_state_contracts(
                             s.insert((di, Vec::new()));
                             st.param_alias.insert(dl, s);
                         }
-                        if !matches!(
-                            tys.get(func.body.locals[di].ty),
-                            Some(TyKind::Ref { .. } | TyKind::Desc(_))
-                        ) {
+                        if !matches!(tys.get(dest_ty), Some(TyKind::Ref { .. } | TyKind::Desc(_))) {
                             st.alias.insert(dl, di);
                         }
                         if local_info.get(di).is_some_and(Option::is_some) {
@@ -1627,29 +1992,49 @@ fn verify_fn_state_contracts(
                         st.discr_of.remove(&dl);
                         match value {
                             Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
-                                let dest_is_pure_scalar = matches!(
-                                    tys.get(func.body.locals[di].ty),
-                                    Some(
-                                        TyKind::Unit
-                                            | TyKind::Bool
-                                            | TyKind::Never
-                                            | TyKind::Int(_)
-                                            | TyKind::Float(_)
-                                            | TyKind::FnPtr { .. }
-                                    )
+                                let dest_is_pure_scalar = is_pure_scalar_ty(dest_ty);
+                                let dest_is_indirect = matches!(
+                                    tys.get(dest_ty),
+                                    Some(TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Managed(_))
                                 );
+                                let is_copy_value = matches!(value, Rvalue::Use(Operand::Copy(_)))
+                                    && !dest_is_indirect;
+                                let field_proj = extract_field_proj(src);
+                                let mut matched_handle_caps = HandleCapSet::new();
                                 if !dest_is_pure_scalar && let PlaceRoot::Local(sl) = src.root {
-                                    if let Some(mcp) = st.mut_cap_params.get(&sl).cloned() {
-                                        st.mut_cap_params.insert(dl, mcp);
+                                    if let Some(mcp) = st.mut_cap_params.get(&sl) {
+                                        let filtered: ParamAliasSet = if field_proj.is_empty() {
+                                            mcp.clone()
+                                        } else {
+                                            mcp.iter()
+                                                .filter(|(_, path)| {
+                                                    path.starts_with(&field_proj)
+                                                        || field_proj.starts_with(path)
+                                                })
+                                                .cloned()
+                                                .collect()
+                                        };
+                                        if !filtered.is_empty() {
+                                            st.mut_cap_params.insert(dl, filtered);
+                                        }
                                     }
-                                    if let Some(mch) = st.mut_cap_handles.get(&sl).cloned() {
-                                        st.mut_cap_handles.insert(dl, mch);
+                                    if let Some(mch) = st.mut_cap_handles.get(&sl) {
+                                        matched_handle_caps = filter_handle_caps(mch, &field_proj);
+                                        if !matched_handle_caps.is_empty() {
+                                            st.mut_cap_handles
+                                                .insert(dl, matched_handle_caps.clone());
+                                        }
+                                    }
+                                    if (dest_is_indirect
+                                        || !is_copy_value
+                                        || st.mut_cap_params.contains_key(&dl)
+                                        || st.mut_cap_handles.contains_key(&dl))
+                                        && let Some(sr) = st.local_roots.get(&sl).cloned()
+                                    {
+                                        st.local_roots.insert(dl, sr);
                                     }
                                 }
-                                if matches!(
-                                    tys.get(func.body.locals[di].ty),
-                                    Some(TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Managed(_))
-                                ) {
+                                if dest_is_indirect {
                                     let pa = st.resolve_param_places(src);
                                     if !pa.is_empty() {
                                         st.param_alias.insert(dl, pa);
@@ -1660,32 +2045,12 @@ fn verify_fn_state_contracts(
                                 } else if src.projections.is_empty()
                                     && let PlaceRoot::Local(sl) = src.root
                                 {
-                                    if let Some(ma) = st.may_alias.get(&sl).cloned() {
-                                        let is_copy_value =
-                                            matches!(value, Rvalue::Use(Operand::Copy(_)))
-                                                && !matches!(
-                                                    tys.get(func.body.locals[di].ty),
-                                                    Some(
-                                                        TyKind::Ref { .. }
-                                                            | TyKind::Desc(_)
-                                                            | TyKind::Managed(_)
-                                                    )
-                                                );
-                                        if !is_copy_value {
-                                            st.may_alias.insert(dl, ma);
-                                        }
+                                    if let Some(ma) = st.may_alias.get(&sl).cloned()
+                                        && !is_copy_value
+                                    {
+                                        st.may_alias.insert(dl, ma);
                                     }
                                     if let Some(&h) = st.alias.get(&sl) {
-                                        let is_copy_value =
-                                            matches!(value, Rvalue::Use(Operand::Copy(_)))
-                                                && !matches!(
-                                                    tys.get(func.body.locals[di].ty),
-                                                    Some(
-                                                        TyKind::Ref { .. }
-                                                            | TyKind::Desc(_)
-                                                            | TyKind::Managed(_)
-                                                    )
-                                                );
                                         if is_copy_value
                                             && local_info.get(di).is_some_and(Option::is_some)
                                         {
@@ -1701,7 +2066,7 @@ fn verify_fn_state_contracts(
                                             st.alias.insert(dl, h);
                                         }
                                     } else if matches!(
-                                        tys.get(func.body.locals[di].ty),
+                                        tys.get(dest_ty),
                                         Some(TyKind::Ref { .. } | TyKind::Desc(_))
                                     ) {
                                         // Source reference had ambiguous alias; destination must also be ambiguous!
@@ -1723,43 +2088,21 @@ fn verify_fn_state_contracts(
                                         st.eu_of.insert(dl, eu);
                                     }
                                 }
-                            }
-                            Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
-                                if let PlaceRoot::Local(sl) = src.root {
-                                    let field_proj: Vec<FieldIdx> = src
-                                        .projections
-                                        .iter()
-                                        .filter_map(|p| match p {
-                                            Projection::Field(f) => Some(f.field),
-                                            Projection::Deref
-                                            | Projection::Index(_)
-                                            | Projection::TupleField(_)
-                                            | Projection::ErrorArm(_)
-                                            | Projection::ConstIndex(_) => None,
-                                        })
-                                        .collect();
-                                    if let Some(mcp) = st.mut_cap_params.get(&sl) {
-                                        let filtered: ParamAliasSet = if field_proj.is_empty() {
-                                            mcp.clone()
-                                        } else {
-                                            mcp.iter()
-                                                .filter(|(_, path)| {
-                                                    path.starts_with(&field_proj)
-                                                        || field_proj.starts_with(path)
-                                                })
-                                                .cloned()
-                                                .collect()
-                                        };
-                                        if !filtered.is_empty() {
-                                            st.mut_cap_params.insert(dl, filtered);
+                                // Propagate nested resource handle identities into `may_alias` when
+                                // projecting an indirect protocol handle field (e.g. `ctx_borrow.handle`).
+                                if !is_copy_value
+                                    && local_info.get(di).is_some_and(Option::is_some)
+                                    && !matched_handle_caps.is_empty()
+                                {
+                                    let entry = st.may_alias.entry(dl).or_default();
+                                    for (rem_path, h_idx) in &matched_handle_caps {
+                                        if rem_path.is_empty() {
+                                            entry.insert(*h_idx);
                                         }
                                     }
-                                    if field_proj.is_empty()
-                                        && let Some(mch) = st.mut_cap_handles.get(&sl).cloned()
-                                    {
-                                        st.mut_cap_handles.insert(dl, mch);
-                                    }
                                 }
+                            }
+                            Rvalue::Ref { place: src, .. } | Rvalue::Describe { place: src } => {
                                 let pa = st.resolve_param_places(src);
                                 if !pa.is_empty() {
                                     st.param_alias.insert(dl, pa);
@@ -1777,6 +2120,42 @@ fn verify_fn_state_contracts(
                                     }
                                     if let Some(ma) = st.may_alias.get(&sl).cloned() {
                                         st.may_alias.insert(dl, ma);
+                                    }
+                                }
+                                if let PlaceRoot::Local(sl) = src.root {
+                                    if let Some(sr) = st.local_roots.get(&sl).cloned() {
+                                        st.local_roots.insert(dl, sr);
+                                    }
+                                    let field_proj = extract_field_proj(src);
+                                    if let Some(mcp) = st.mut_cap_params.get(&sl) {
+                                        let filtered: ParamAliasSet = if field_proj.is_empty() {
+                                            mcp.clone()
+                                        } else {
+                                            mcp.iter()
+                                                .filter(|(_, path)| {
+                                                    path.starts_with(&field_proj)
+                                                        || field_proj.starts_with(path)
+                                                })
+                                                .cloned()
+                                                .collect()
+                                        };
+                                        if !filtered.is_empty() {
+                                            st.mut_cap_params.insert(dl, filtered);
+                                        }
+                                    }
+                                    if let Some(mch) = st.mut_cap_handles.get(&sl) {
+                                        let filtered = filter_handle_caps(mch, &field_proj);
+                                        if !filtered.is_empty() {
+                                            if local_info.get(di).is_some_and(Option::is_some) {
+                                                let entry = st.may_alias.entry(dl).or_default();
+                                                for (rem_path, h_idx) in &filtered {
+                                                    if rem_path.is_empty() {
+                                                        entry.insert(*h_idx);
+                                                    }
+                                                }
+                                            }
+                                            st.mut_cap_handles.insert(dl, filtered);
+                                        }
                                     }
                                 }
                             }
@@ -1819,24 +2198,67 @@ fn verify_fn_state_contracts(
                                     if let Some(mcp) = st.mut_cap_params.get(&sl).cloned() {
                                         st.mut_cap_params.insert(dl, mcp);
                                     }
-                                    if let Some(mch) = st.mut_cap_handles.get(&sl).cloned() {
-                                        st.mut_cap_handles.insert(dl, mch);
+                                    if let Some(mch) = st.mut_cap_handles.get(&sl) {
+                                        let flattened: HandleCapSet = mch
+                                            .iter()
+                                            .map(|(_, h_idx)| (Vec::new(), *h_idx))
+                                            .collect();
+                                        if !flattened.is_empty() {
+                                            st.mut_cap_handles.insert(dl, flattened);
+                                        }
+                                    }
+                                    if func
+                                        .body
+                                        .locals
+                                        .get(sl.index())
+                                        .is_some_and(|ld| !is_pure_scalar_ty(ld.ty))
+                                        && let Some(sr) = st.local_roots.get(&sl).cloned()
+                                    {
+                                        st.local_roots.entry(dl).or_default().extend(sr);
                                     }
                                 }
                             }
                             Rvalue::Aggregate { kind, operands } => {
                                 // Track mutable capabilities captured inside closures or wrapped in aggregates.
+                                let is_single_variant_adt = matches!(
+                                    kind,
+                                    AggregateKind::Adt { adt, .. }
+                                        if tys.get_adt(*adt).is_some_and(|d| d.variants.len() == 1)
+                                );
                                 let mut cap_params = ParamAliasSet::new();
-                                let mut cap_handles = BTreeSet::new();
-                                for op in operands {
+                                let mut cap_handles = HandleCapSet::new();
+                                let mut agg_roots = BTreeSet::new();
+                                agg_roots.insert(di);
+                                for (fi, op) in operands.iter().enumerate() {
                                     if let Operand::Copy(p) | Operand::Move(p) = op
                                         && let PlaceRoot::Local(sl) = p.root
                                     {
+                                        let field_proj = extract_field_proj(p);
                                         if let Some(mcp) = st.mut_cap_params.get(&sl) {
                                             cap_params.extend(mcp.iter().cloned());
                                         }
                                         if let Some(mch) = st.mut_cap_handles.get(&sl) {
-                                            cap_handles.extend(mch.iter().copied());
+                                            for (sub_path, h_idx) in
+                                                filter_handle_caps(mch, &field_proj)
+                                            {
+                                                if is_single_variant_adt {
+                                                    let mut new_path = Vec::with_capacity(
+                                                        (sub_path.len() + 1)
+                                                            .min(ContractFieldPath::MAX_DEPTH),
+                                                    );
+                                                    new_path.push(FieldIdx(fi as u32));
+                                                    for f in sub_path {
+                                                        if new_path.len()
+                                                            < ContractFieldPath::MAX_DEPTH
+                                                        {
+                                                            new_path.push(f);
+                                                        }
+                                                    }
+                                                    cap_handles.insert((new_path, h_idx));
+                                                } else {
+                                                    cap_handles.insert((Vec::new(), h_idx));
+                                                }
+                                            }
                                         }
                                         if p.projections.is_empty()
                                             && func
@@ -1849,11 +2271,30 @@ fn verify_fn_state_contracts(
                                                 cap_params.extend(pa.iter().cloned());
                                             }
                                             if let Some(ma) = st.may_alias.get(&sl) {
-                                                cap_handles.extend(ma.iter().copied());
+                                                for &h_idx in ma {
+                                                    if is_single_variant_adt {
+                                                        cap_handles.insert((
+                                                            vec![FieldIdx(fi as u32)],
+                                                            h_idx,
+                                                        ));
+                                                    } else {
+                                                        cap_handles.insert((Vec::new(), h_idx));
+                                                    }
+                                                }
                                             }
+                                        }
+                                        if func
+                                            .body
+                                            .locals
+                                            .get(sl.index())
+                                            .is_some_and(|ld| !is_pure_scalar_ty(ld.ty))
+                                            && let Some(sr) = st.local_roots.get(&sl)
+                                        {
+                                            agg_roots.extend(sr.iter().copied());
                                         }
                                     }
                                 }
+                                st.local_roots.insert(dl, agg_roots);
                                 if !cap_params.is_empty() {
                                     st.mut_cap_params.insert(dl, cap_params);
                                 }
@@ -1899,10 +2340,30 @@ fn verify_fn_state_contracts(
                                 if let Operand::Copy(p) | Operand::Move(p) = operand
                                     && let PlaceRoot::Local(sl) = p.root
                                 {
+                                    let field_proj = extract_field_proj(p);
                                     let mut cap_params =
                                         st.mut_cap_params.get(&sl).cloned().unwrap_or_default();
-                                    let mut cap_handles =
-                                        st.mut_cap_handles.get(&sl).cloned().unwrap_or_default();
+                                    let mut cap_handles = st
+                                        .mut_cap_handles
+                                        .get(&sl)
+                                        .map(|mch| filter_handle_caps(mch, &field_proj))
+                                        .unwrap_or_default();
+                                    if !is_pure_scalar_ty(*to)
+                                        && let Some(sr) = st.local_roots.get(&sl).cloned()
+                                    {
+                                        st.local_roots.insert(dl, sr);
+                                    }
+                                    let target_is_dyn = matches!(
+                                        tys.get(*to),
+                                        Some(TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                                    ) || matches!(
+                                        tys.get(*to),
+                                        Some(TyKind::Ref { pointee, .. })
+                                            if matches!(
+                                                tys.get(*pointee),
+                                                Some(TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                                            )
+                                    );
                                     if p.projections.is_empty() {
                                         let src_is_describable = func
                                             .body
@@ -1921,7 +2382,9 @@ fn verify_fn_state_contracts(
                                             }
                                             if let Some(ma) = st.may_alias.get(&sl).cloned() {
                                                 if src_is_describable {
-                                                    cap_handles.extend(ma.iter().copied());
+                                                    for &h_idx in &ma {
+                                                        cap_handles.insert((Vec::new(), h_idx));
+                                                    }
                                                 }
                                                 st.may_alias.insert(dl, ma);
                                             }
@@ -1943,7 +2406,28 @@ fn verify_fn_state_contracts(
                                                 cap_params.extend(pa.iter().cloned());
                                             }
                                             if let Some(ma) = st.may_alias.get(&sl) {
-                                                cap_handles.extend(ma.iter().copied());
+                                                for &h_idx in ma {
+                                                    cap_handles.insert((Vec::new(), h_idx));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if target_is_dyn {
+                                        cap_handles = cap_handles
+                                            .into_iter()
+                                            .map(|(_, h_idx)| (Vec::new(), h_idx))
+                                            .collect();
+                                    }
+                                    if local_info.get(di).is_some_and(Option::is_some)
+                                        && matches!(
+                                            tys.get(*to),
+                                            Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                        )
+                                    {
+                                        let entry = st.may_alias.entry(dl).or_default();
+                                        for (rem_path, h_idx) in &cap_handles {
+                                            if rem_path.is_empty() {
+                                                entry.insert(*h_idx);
                                             }
                                         }
                                     }
@@ -2120,8 +2604,27 @@ fn verify_fn_state_contracts(
                     None
                 };
                 if let Some(dl) = dest_local {
+                    let di = dl.index();
                     st.mut_cap_params.remove(&dl);
                     st.mut_cap_handles.remove(&dl);
+                    let mut dest_roots = BTreeSet::new();
+                    dest_roots.insert(di);
+                    if !is_pure_scalar_ty(func.body.locals[di].ty) {
+                        for arg in args {
+                            if let Operand::Copy(p) | Operand::Move(p) = arg
+                                && let PlaceRoot::Local(al) = p.root
+                                && func
+                                    .body
+                                    .locals
+                                    .get(al.index())
+                                    .is_some_and(|ld| !is_pure_scalar_ty(ld.ty))
+                                && let Some(sr) = st.local_roots.get(&al)
+                            {
+                                dest_roots.extend(sr.iter().copied());
+                            }
+                        }
+                    }
+                    st.local_roots.insert(dl, dest_roots);
                 }
                 let apply_local_effects =
                     |st: &mut ProtoState,
@@ -2134,7 +2637,7 @@ fn verify_fn_state_contracts(
                             }
                         }
                         if let Some(mch) = st.mut_cap_handles.get(&local).cloned() {
-                            for h_idx in mch {
+                            for (_, h_idx) in mch {
                                 if !excluded_handles.contains(&h_idx)
                                     && let Some(Some(info)) = local_info.get(h_idx)
                                 {
@@ -2220,16 +2723,31 @@ fn verify_fn_state_contracts(
                         if let Some(dl) = dest_local {
                             let di = dl.index();
                             let mut cap_params = ParamAliasSet::new();
-                            let mut cap_handles = BTreeSet::new();
-                            for arg in args {
+                            let mut cap_handles = HandleCapSet::new();
+                            for (fi, arg) in args.iter().enumerate() {
                                 if let Operand::Copy(p) | Operand::Move(p) = arg
                                     && let PlaceRoot::Local(al) = p.root
                                 {
+                                    let field_proj = extract_field_proj(p);
                                     if let Some(mcp) = st.mut_cap_params.get(&al) {
                                         cap_params.extend(mcp.iter().cloned());
                                     }
                                     if let Some(mch) = st.mut_cap_handles.get(&al) {
-                                        cap_handles.extend(mch.iter().copied());
+                                        for (sub_path, h_idx) in
+                                            filter_handle_caps(mch, &field_proj)
+                                        {
+                                            let mut new_path = Vec::with_capacity(
+                                                (sub_path.len() + 1)
+                                                    .min(ContractFieldPath::MAX_DEPTH),
+                                            );
+                                            new_path.push(FieldIdx(fi as u32));
+                                            for f in sub_path {
+                                                if new_path.len() < ContractFieldPath::MAX_DEPTH {
+                                                    new_path.push(f);
+                                                }
+                                            }
+                                            cap_handles.insert((new_path, h_idx));
+                                        }
                                     }
                                     if p.projections.is_empty()
                                         && func
@@ -2242,7 +2760,10 @@ fn verify_fn_state_contracts(
                                             cap_params.extend(pa.iter().cloned());
                                         }
                                         if let Some(ma) = st.may_alias.get(&al) {
-                                            cap_handles.extend(ma.iter().copied());
+                                            for &h_idx in ma {
+                                                cap_handles
+                                                    .insert((vec![FieldIdx(fi as u32)], h_idx));
+                                            }
                                         }
                                     }
                                 }
@@ -2293,16 +2814,19 @@ fn verify_fn_state_contracts(
                     Callee::Intrinsic(IntrinsicOp::OwnedDynCreate) => {
                         if let Some(dl) = dest_local {
                             let mut cap_params = ParamAliasSet::new();
-                            let mut cap_handles = BTreeSet::new();
+                            let mut cap_handles = HandleCapSet::new();
                             for arg in args {
                                 if let Operand::Copy(p) | Operand::Move(p) = arg
                                     && let PlaceRoot::Local(al) = p.root
                                 {
+                                    let field_proj = extract_field_proj(p);
                                     if let Some(mcp) = st.mut_cap_params.get(&al) {
                                         cap_params.extend(mcp.iter().cloned());
                                     }
                                     if let Some(mch) = st.mut_cap_handles.get(&al) {
-                                        cap_handles.extend(mch.iter().copied());
+                                        for (_, h_idx) in filter_handle_caps(mch, &field_proj) {
+                                            cap_handles.insert((Vec::new(), h_idx));
+                                        }
                                     }
                                     if p.projections.is_empty()
                                         && func
@@ -2315,7 +2839,9 @@ fn verify_fn_state_contracts(
                                             cap_params.extend(pa.iter().cloned());
                                         }
                                         if let Some(ma) = st.may_alias.get(&al) {
-                                            cap_handles.extend(ma.iter().copied());
+                                            for &h_idx in ma {
+                                                cap_handles.insert((Vec::new(), h_idx));
+                                            }
                                         }
                                     }
                                 }
@@ -2457,49 +2983,89 @@ fn verify_fn_state_contracts(
                                                 "callee requires(apart(...)) argument missing",
                                             ));
                                         };
-                                        let (Some(ha), Some(hb)) =
-                                            (st.resolve_handle(aa), st.resolve_handle(ab))
+                                        let collect_roots =
+                                            |op: &Operand| -> Option<BTreeSet<usize>> {
+                                                match op {
+                                                    Operand::Copy(p) | Operand::Move(p)
+                                                        if p.projections.is_empty() =>
+                                                    {
+                                                        let PlaceRoot::Local(l) = p.root else {
+                                                            return None;
+                                                        };
+                                                        let mut roots = BTreeSet::new();
+                                                        if let Some(lr) = st.local_roots.get(&l) {
+                                                            roots.extend(lr.iter().copied());
+                                                        } else if let Some(&h) = st.alias.get(&l) {
+                                                            roots.insert(h);
+                                                        } else {
+                                                            return None;
+                                                        }
+                                                        if let Some(ma) = st.may_alias.get(&l) {
+                                                            roots.extend(ma.iter().copied());
+                                                        }
+                                                        if let Some(mch) =
+                                                            st.mut_cap_handles.get(&l)
+                                                        {
+                                                            for (_, h_idx) in mch {
+                                                                roots.insert(*h_idx);
+                                                            }
+                                                        }
+                                                        if roots.is_empty() {
+                                                            None
+                                                        } else {
+                                                            Some(roots)
+                                                        }
+                                                    }
+                                                    Operand::Copy(_)
+                                                    | Operand::Move(_)
+                                                    | Operand::Const(_)
+                                                    | Operand::Pooled(_) => None,
+                                                }
+                                            };
+                                        let (Some(roots_a), Some(roots_b)) =
+                                            (collect_roots(aa), collect_roots(ab))
                                         else {
                                             return Err(fail(
                                                 "callee requires(apart(...)) argument identity cannot be proved distinct",
                                             ));
                                         };
-                                        if ha == hb {
-                                            return Err(fail(
-                                                "callee requires(apart(...)) violated: aliasing protocol handles",
-                                            ));
-                                        }
                                         // Two distinct parameters can only be assumed disjoint if
-                                        // at least one is local-owned, or exclusive (&mut / by-value),
-                                        // or explicitly covered by the caller's own `requires(apart(...))`.
-                                        let is_shared_param = |idx: usize| -> bool {
-                                            idx < param_count
-                                                && matches!(
-                                                    tys.get(func.body.locals[idx].ty),
-                                                    Some(
-                                                        TyKind::Ref {
-                                                            mutability: Mutability::Shared,
-                                                            ..
-                                                        } | TyKind::Desc(_)
-                                                    )
+                                        // at least one is local-owned, or exclusive (&mut / by-value
+                                        // without shared/desc capabilities), or explicitly covered by
+                                        // the caller's own `requires(apart(...))`.
+                                        let param_can_alias_at_entry = |idx: usize| -> bool {
+                                            if idx >= param_count {
+                                                return false;
+                                            }
+                                            let pty = func.body.locals[idx].ty;
+                                            matches!(
+                                                tys.get(pty),
+                                                Some(
+                                                    TyKind::Ref {
+                                                        mutability: Mutability::Shared,
+                                                        ..
+                                                    } | TyKind::Desc(_)
                                                 )
+                                            ) || entry_mut_cap_params
+                                                .contains_key(&Local(idx as u32))
+                                                || entry_mut_cap_handles
+                                                    .contains_key(&Local(idx as u32))
                                         };
-                                        if is_shared_param(ha) && is_shared_param(hb) {
-                                            let caller_proves_apart =
-                                                func.sig.state_contracts.iter().any(|cc| {
-                                                    matches!(
-                                                        *cc,
-                                                        StateContractClause::RequiresApart {
-                                                            param_a: ca,
-                                                            param_b: cb,
-                                                        } if (ca as usize == ha && cb as usize == hb)
-                                                            || (ca as usize == hb && cb as usize == ha)
-                                                    )
-                                                });
-                                            if !caller_proves_apart {
-                                                return Err(fail(
-                                                    "callee requires(apart(...)) violated: shared parameters may alias",
-                                                ));
+                                        for &ra in &roots_a {
+                                            for &rb in &roots_b {
+                                                if ra == rb {
+                                                    return Err(fail(
+                                                        "callee requires(apart(...)) violated: aliasing protocol handles",
+                                                    ));
+                                                }
+                                                if param_can_alias_at_entry(ra)
+                                                    && param_can_alias_at_entry(rb)
+                                                    && !declared_apart(ra, rb)
+                                                {
+                                                    return Err(fail(
+                                                        "callee requires(apart(...)) violated: shared parameters may alias",
+                                                    ));
+                                                }
                                             }
                                         }
                                     }
@@ -2625,8 +3191,8 @@ fn verify_fn_state_contracts(
                                 }
                             }
                             if callee_has_inv_upper {
-                                // Projection-scoped invalidation: only widen protocol handle state
-                                // if an invalidated path overlaps the handle's `state` field (or root).
+                                // Projection-scoped invalidation: widen protocol handles whose
+                                // direct state field or nested capability path overlaps `path`.
                                 for &(c_param, path) in &callee_invalidated_targets {
                                     if let Some(Operand::Copy(p) | Operand::Move(p)) =
                                         args.get(c_param)
@@ -2640,6 +3206,33 @@ fn verify_fn_state_contracts(
                                                 false,
                                                 &contracted_handles,
                                             );
+                                        } else {
+                                            if let Some(mch) = st.mut_cap_handles.get(&al).cloned()
+                                            {
+                                                for (cap_path, h_idx) in mch {
+                                                    if path.overlaps(&cap_path)
+                                                        && !contracted_handles.contains(&h_idx)
+                                                        && let Some(Some(info)) =
+                                                            local_info.get(h_idx)
+                                                    {
+                                                        st.set_handle_state(
+                                                            h_idx,
+                                                            ProtocolStateSet::all_variants(
+                                                                info.variant_count,
+                                                            ),
+                                                        );
+                                                        st.rolled_back[h_idx] = true;
+                                                        st.invalidate_handle(h_idx);
+                                                    }
+                                                }
+                                            }
+                                            if let Some(mcp) = st.mut_cap_params.get(&al).cloned() {
+                                                for (p_idx, cap_path) in mcp {
+                                                    if path.overlaps(&cap_path) {
+                                                        st.invalidated.insert((p_idx, cap_path));
+                                                    }
+                                                }
+                                            }
                                         }
                                         if let Some(ma_set) = st.may_alias.get(&al).cloned() {
                                             for h_idx in ma_set {
