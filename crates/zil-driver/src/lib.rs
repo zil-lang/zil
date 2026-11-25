@@ -917,6 +917,7 @@ const EMBEDDED_STD_MODULES: &[(&str, &str)] = &[
         "owning_map",
         include_str!("../../../lib/std/owning_map.zil"),
     ),
+    ("path", include_str!("../../../lib/std/path.zil")),
     (
         "pod_hash_map",
         include_str!("../../../lib/std/pod_hash_map.zil"),
