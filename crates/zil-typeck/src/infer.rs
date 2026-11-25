@@ -1001,14 +1001,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         }
         if let (
             TyData::Ref {
-                mutable: false,
+                mutable: want_mut,
                 pointee: want_pt,
                 ..
             },
             TyData::Ref {
-                pointee: got_pt, ..
+                mutable: got_mut,
+                pointee: got_pt,
+                ..
             },
         ) = (&ed, &vd)
+            && (!*want_mut || *got_mut)
         {
             let want_pt = self.types.shallow(*want_pt);
             let got_pt = self.types.shallow(*got_pt);
@@ -1034,7 +1037,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 };
                 return Expr {
                     kind: ExprKind::Borrow {
-                        mutable: false,
+                        mutable: *want_mut,
                         place: Box::new(desc),
                     },
                     ty: expected,
@@ -5661,11 +5664,13 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             if let TyData::Dyn {
                 trait_ref: tr,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
             }
             | TyData::OwnedDyn {
                 trait_ref: tr,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
                 ..
             } = self.types.data(self_ty).clone()
@@ -5679,6 +5684,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     return self.err_expr(span);
                 }
                 let tr_decl = self.items.trait_decl(tr);
+                let tr_region_count = tr_decl.region_params.len();
                 if let Some((slot, m)) = tr_decl
                     .methods
                     .iter()
@@ -5699,6 +5705,26 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         );
                         return self.err_expr(span);
                     }
+                    let recv_region = if let TyData::Ref { region, .. } =
+                        *self.types.data(self.types.shallow(m_params[0]))
+                    {
+                        region
+                    } else {
+                        None
+                    };
+                    let mut method_region_map: Vec<Option<u32>> = (0..tr_region_count)
+                        .map(|i| {
+                            if recv_region == Some(i as u32) {
+                                None
+                            } else {
+                                trait_regions.get(i).copied().flatten()
+                            }
+                        })
+                        .collect();
+                    // If the receiver had no explicit trait lifetime args in source
+                    // (e.g. elided or erased), keep length == tr_region_count so
+                    // method-local lifetimes (`>= tr_region_count`) still erase to `None`.
+                    method_region_map.resize(tr_region_count, None);
                     let rec_expr = if let TyData::Ref { mutable, .. } =
                         *self.types.data(self.types.shallow(m_params[0]))
                     {
@@ -5736,6 +5762,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                         let expected =
                             self.types
                                 .subst_self_assoc(expected, self_ty, tr, &assoc_bindings);
+                        let expected = self.types.subst_regions(expected, &method_region_map);
                         let expected = self.normalize(expected);
                         let v = self.infer_expected(&a.value, expected);
                         args.push(self.coerce_arg(v, expected, a.span));
@@ -5744,6 +5771,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                     let ret = self
                         .types
                         .subst_self_assoc(ret, self_ty, tr, &assoc_bindings);
+                    let ret = self.types.subst_regions(ret, &method_region_map);
                     let ret = self.normalize(ret);
                     return Expr {
                         kind: ExprKind::DynCall {
@@ -6150,6 +6178,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             let TyData::Dyn {
                 trait_ref: tr,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
             } = self.types.data(target).clone()
             else {
@@ -6200,6 +6229,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
             let ok = self.types.intern(TyData::OwnedDyn {
                 trait_ref: tr,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
                 context,
             });
@@ -7806,8 +7836,20 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 }
             }
         }
+        let region_count = self.items.func(f).region_params.len();
         let ty = self.types.subst(result, &type_args);
-        let ty = self.types.erase_regions(ty);
+        let ty = if region_count == 0 {
+            self.types.erase_regions(ty)
+        } else {
+            let mut bindings: Vec<Option<Option<u32>>> = vec![None; region_count];
+            for (p, arg) in param_tys.iter().zip(&args) {
+                let p_sub = self.types.subst(*p, &type_args);
+                self.types
+                    .collect_region_bindings(p_sub, arg.ty, &mut bindings);
+            }
+            let region_map: Vec<Option<u32>> = bindings.into_iter().map(Option::flatten).collect();
+            self.types.subst_regions(ty, &region_map)
+        };
         let ty = self.normalize(ty);
         Expr {
             kind: ExprKind::Call {

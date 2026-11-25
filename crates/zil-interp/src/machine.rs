@@ -639,7 +639,7 @@ impl<'m> Machine<'m> {
                         | TyKind::ErrorUnion { .. }
                         | TyKind::FnPtr { .. }
                         | TyKind::Closure { .. }
-                        | TyKind::Dyn(_)
+                        | TyKind::Dyn { .. }
                         | TyKind::OwnedDyn { .. }
                         | TyKind::Param(_)
                         | TyKind::Opaque(_),

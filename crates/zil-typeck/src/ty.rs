@@ -113,12 +113,14 @@ pub enum TyData {
     Dyn {
         trait_ref: TraitRef,
         trait_args: Vec<Ty>,
+        trait_regions: Vec<Option<u32>>,
         assoc_bindings: Vec<(String, Ty)>,
     },
     /// `OwnedDyn<dyn Trait<Args, Assoc = T>>` or `OwnedDyn<dyn Trait<Args, Assoc = T>, Context<'a>>` affine owner.
     OwnedDyn {
         trait_ref: TraitRef,
         trait_args: Vec<Ty>,
+        trait_regions: Vec<Option<u32>>,
         assoc_bindings: Vec<(String, Ty)>,
         context: Option<Ty>,
     },
@@ -517,33 +519,39 @@ impl Types {
                 TyData::Dyn {
                     trait_ref: t1,
                     trait_args: a1,
+                    trait_regions: r1,
                     assoc_bindings: b1,
                 },
                 TyData::Dyn {
                     trait_ref: t2,
                     trait_args: a2,
+                    trait_regions: r2,
                     assoc_bindings: b2,
                 },
             ) => t1
                 .cmp(t2)
                 .then_with(|| self.cmp_ty_slice(a1, a2, depth))
+                .then_with(|| r1.cmp(r2))
                 .then_with(|| self.cmp_assoc_bindings(b1, b2, depth)),
             (
                 TyData::OwnedDyn {
                     trait_ref: t1,
                     trait_args: a1,
+                    trait_regions: r1,
                     assoc_bindings: b1,
                     context: c1,
                 },
                 TyData::OwnedDyn {
                     trait_ref: t2,
                     trait_args: a2,
+                    trait_regions: r2,
                     assoc_bindings: b2,
                     context: c2,
                 },
             ) => t1
                 .cmp(t2)
                 .then_with(|| self.cmp_ty_slice(a1, a2, depth))
+                .then_with(|| r1.cmp(r2))
                 .then_with(|| self.cmp_assoc_bindings(b1, b2, depth))
                 .then_with(|| self.cmp_opt_ty(*c1, *c2, depth)),
             (TyData::Param(i), TyData::Param(j))
@@ -898,15 +906,24 @@ impl Types {
                 TyData::Dyn {
                     trait_ref: t1,
                     trait_args: a1,
+                    trait_regions: r1,
                     assoc_bindings: b1,
                 },
                 TyData::Dyn {
                     trait_ref: t2,
                     trait_args: a2,
+                    trait_regions: r2,
                     assoc_bindings: b2,
                 },
             ) => {
-                if t1 != t2 || a1.len() != a2.len() || b1.len() != b2.len() {
+                if t1 != t2
+                    || a1.len() != a2.len()
+                    || b1.len() != b2.len()
+                    || !r1.iter().zip(&r2).all(|(x, y)| match (x, y) {
+                        (Some(x), Some(y)) => x == y,
+                        _ => true,
+                    })
+                {
                     return Err(Mismatch);
                 }
                 for (x, y) in a1.into_iter().zip(a2) {
@@ -924,17 +941,26 @@ impl Types {
                 TyData::OwnedDyn {
                     trait_ref: t1,
                     trait_args: a1,
+                    trait_regions: r1,
                     assoc_bindings: b1,
                     context: c1,
                 },
                 TyData::OwnedDyn {
                     trait_ref: t2,
                     trait_args: a2,
+                    trait_regions: r2,
                     assoc_bindings: b2,
                     context: c2,
                 },
             ) => {
-                if t1 != t2 || a1.len() != a2.len() || b1.len() != b2.len() {
+                if t1 != t2
+                    || a1.len() != a2.len()
+                    || b1.len() != b2.len()
+                    || !r1.iter().zip(&r2).all(|(x, y)| match (x, y) {
+                        (Some(x), Some(y)) => x == y,
+                        _ => true,
+                    })
+                {
                     return Err(Mismatch);
                 }
                 for (x, y) in a1.into_iter().zip(a2) {
@@ -1226,6 +1252,7 @@ impl Types {
             TyData::Dyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
             } => {
                 let trait_args = trait_args
@@ -1239,12 +1266,14 @@ impl Types {
                 self.intern(TyData::Dyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                 })
             }
             TyData::OwnedDyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
                 context,
             } => {
@@ -1263,6 +1292,7 @@ impl Types {
                 self.intern(TyData::OwnedDyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                     context,
                 })
@@ -1468,6 +1498,7 @@ impl Types {
             TyData::Dyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
             } => {
                 let trait_args = trait_args
@@ -1481,12 +1512,14 @@ impl Types {
                 self.intern(TyData::Dyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                 })
             }
             TyData::OwnedDyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
                 context,
             } => {
@@ -1502,6 +1535,7 @@ impl Types {
                 self.intern(TyData::OwnedDyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                     context,
                 })
@@ -1680,6 +1714,7 @@ impl Types {
             TyData::Dyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
             } => {
                 let trait_args = trait_args
@@ -1693,12 +1728,14 @@ impl Types {
                 self.intern(TyData::Dyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                 })
             }
             TyData::OwnedDyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
                 context,
             } => {
@@ -1714,6 +1751,7 @@ impl Types {
                 self.intern(TyData::OwnedDyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                     context,
                 })
@@ -1726,69 +1764,99 @@ impl Types {
     /// callee's region indices do not collide with the caller's rigid region
     /// parameters. (Local closures in the same function keep their rigid regions.)
     pub fn erase_regions(&mut self, ty: Ty) -> Ty {
+        self.subst_regions(ty, &[])
+    }
+
+    /// Substitutes region parameter indices `Some(i)` in `ty` with
+    /// `region_map.get(i).copied().flatten()`, mapping out-of-range indices to
+    /// `None` (erased/invocation-scoped) and preserving `None` as `None`.
+    pub fn subst_regions(&mut self, ty: Ty, region_map: &[Option<u32>]) -> Ty {
+        let map_reg = |r: Option<u32>| -> Option<u32> {
+            r.and_then(|i| region_map.get(i as usize).copied().flatten())
+        };
         let ty = self.shallow(ty);
         let data = self.data(ty).clone();
         match data {
             TyData::Adt { adt, args, regions } => {
-                let args = args.iter().map(|t| self.erase_regions(*t)).collect();
-                let regions = vec![None; regions.len()];
+                let args = args
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
+                let regions = regions.into_iter().map(map_reg).collect();
                 self.intern(TyData::Adt { adt, args, regions })
             }
             TyData::Tuple(items) => {
-                let items = items.iter().map(|t| self.erase_regions(*t)).collect();
+                let items = items
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
                 self.intern(TyData::Tuple(items))
             }
             TyData::Union(items) => {
-                let items = items.iter().map(|t| self.erase_regions(*t)).collect();
+                let items = items
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
                 self.canonicalize_union_raw(items)
             }
             TyData::Array { element, length } => {
-                let element = self.erase_regions(element);
+                let element = self.subst_regions(element, region_map);
                 self.intern(TyData::Array { element, length })
             }
             TyData::ArrayConst { element, length } => {
-                let element = self.erase_regions(element);
-                let length = self.erase_regions(length);
+                let element = self.subst_regions(element, region_map);
+                let length = self.subst_regions(length, region_map);
                 self.intern(TyData::ArrayConst { element, length })
             }
             TyData::Slice(element) => {
-                let element = self.erase_regions(element);
+                let element = self.subst_regions(element, region_map);
                 self.intern(TyData::Slice(element))
             }
             TyData::Ref {
-                mutable, pointee, ..
+                region,
+                mutable,
+                pointee,
             } => {
-                let pointee = self.erase_regions(pointee);
+                let pointee = self.subst_regions(pointee, region_map);
                 self.intern(TyData::Ref {
-                    region: None,
+                    region: map_reg(region),
                     mutable,
                     pointee,
                 })
             }
             TyData::Managed(inner) => {
-                let inner = self.erase_regions(inner);
+                let inner = self.subst_regions(inner, region_map);
                 self.intern(TyData::Managed(inner))
             }
             TyData::Desc(inner) => {
-                let inner = self.erase_regions(inner);
+                let inner = self.subst_regions(inner, region_map);
                 self.intern(TyData::Desc(inner))
             }
             TyData::Opaque(o) => {
                 let o = match o {
-                    OpaqueKind::OwnedStore(e) => OpaqueKind::OwnedStore(self.erase_regions(e)),
-                    OpaqueKind::Mutex(e) => OpaqueKind::Mutex(self.erase_regions(e)),
-                    OpaqueKind::MutexGuard(e) => OpaqueKind::MutexGuard(self.erase_regions(e)),
+                    OpaqueKind::OwnedStore(e) => {
+                        OpaqueKind::OwnedStore(self.subst_regions(e, region_map))
+                    }
+                    OpaqueKind::Mutex(e) => OpaqueKind::Mutex(self.subst_regions(e, region_map)),
+                    OpaqueKind::MutexGuard(e) => {
+                        OpaqueKind::MutexGuard(self.subst_regions(e, region_map))
+                    }
                     OpaqueKind::Task { result, context } => OpaqueKind::Task {
-                        result: self.erase_regions(result),
-                        context: context.map(|c| self.erase_regions(c)),
+                        result: self.subst_regions(result, region_map),
+                        context: context.map(|c| self.subst_regions(c, region_map)),
                     },
-                    OpaqueKind::Registration(e) => OpaqueKind::Registration(self.erase_regions(e)),
+                    OpaqueKind::Registration(e) => {
+                        OpaqueKind::Registration(self.subst_regions(e, region_map))
+                    }
                     OpaqueKind::AsyncRegistration(e) => {
-                        OpaqueKind::AsyncRegistration(self.erase_regions(e))
+                        OpaqueKind::AsyncRegistration(self.subst_regions(e, region_map))
                     }
                     OpaqueKind::ForeignCallback { params, result } => OpaqueKind::ForeignCallback {
-                        params: params.iter().map(|t| self.erase_regions(*t)).collect(),
-                        result: self.erase_regions(result),
+                        params: params
+                            .iter()
+                            .map(|t| self.subst_regions(*t, region_map))
+                            .collect(),
+                        result: self.subst_regions(result, region_map),
                     },
                     OpaqueKind::ByteBuffer
                     | OpaqueKind::ForeignHandle
@@ -1797,13 +1865,16 @@ impl Types {
                 self.intern(TyData::Opaque(o))
             }
             TyData::ErrorUnion { ok, err } => {
-                let ok = self.erase_regions(ok);
-                let err = self.erase_regions(err);
+                let ok = self.subst_regions(ok, region_map);
+                let err = self.subst_regions(err, region_map);
                 self.intern(TyData::ErrorUnion { ok, err })
             }
             TyData::FnPtr { params, result } => {
-                let params = params.iter().map(|t| self.erase_regions(*t)).collect();
-                let result = self.erase_regions(result);
+                let params = params
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
+                let result = self.subst_regions(result, region_map);
                 self.intern(TyData::FnPtr { params, result })
             }
             TyData::Closure {
@@ -1814,9 +1885,15 @@ impl Types {
                 params,
                 result,
             } => {
-                let owner_args = owner_args.iter().map(|t| self.erase_regions(*t)).collect();
-                let params = params.iter().map(|t| self.erase_regions(*t)).collect();
-                let result = self.erase_regions(result);
+                let owner_args = owner_args
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
+                let params = params
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
+                let result = self.subst_regions(result, region_map);
                 self.intern(TyData::Closure {
                     owner,
                     id,
@@ -1833,9 +1910,15 @@ impl Types {
                 params,
                 result,
             } => {
-                let owner_args = owner_args.iter().map(|t| self.erase_regions(*t)).collect();
-                let params = params.iter().map(|t| self.erase_regions(*t)).collect();
-                let result = self.erase_regions(result);
+                let owner_args = owner_args
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
+                let params = params
+                    .iter()
+                    .map(|t| self.subst_regions(*t, region_map))
+                    .collect();
+                let result = self.subst_regions(result, region_map);
                 self.intern(TyData::ImplCallable {
                     owner,
                     owner_args,
@@ -1849,7 +1932,7 @@ impl Types {
                 trait_ref,
                 name,
             } => {
-                let base = self.erase_regions(base);
+                let base = self.subst_regions(base, region_map);
                 self.intern(TyData::Assoc {
                     base,
                     trait_ref,
@@ -1871,44 +1954,219 @@ impl Types {
             TyData::Dyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
             } => {
                 let trait_args = trait_args
                     .into_iter()
-                    .map(|t| self.erase_regions(t))
+                    .map(|t| self.subst_regions(t, region_map))
                     .collect();
+                let trait_regions = trait_regions.into_iter().map(map_reg).collect();
                 let assoc_bindings = assoc_bindings
                     .into_iter()
-                    .map(|(n, t)| (n, self.erase_regions(t)))
+                    .map(|(n, t)| (n, self.subst_regions(t, region_map)))
                     .collect();
                 self.intern(TyData::Dyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                 })
             }
             TyData::OwnedDyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
                 context,
             } => {
                 let trait_args = trait_args
                     .into_iter()
-                    .map(|t| self.erase_regions(t))
+                    .map(|t| self.subst_regions(t, region_map))
                     .collect();
+                let trait_regions = trait_regions.into_iter().map(map_reg).collect();
                 let assoc_bindings = assoc_bindings
                     .into_iter()
-                    .map(|(n, t)| (n, self.erase_regions(t)))
+                    .map(|(n, t)| (n, self.subst_regions(t, region_map)))
                     .collect();
-                let context = context.map(|c| self.erase_regions(c));
+                let context = context.map(|c| self.subst_regions(c, region_map));
                 self.intern(TyData::OwnedDyn {
                     trait_ref,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                     context,
                 })
             }
+        }
+    }
+
+    /// Infers callee-to-caller region bindings by structurally matching a
+    /// callee parameter type against an actual caller argument type.
+    pub fn collect_region_bindings(
+        &self,
+        param_ty: Ty,
+        arg_ty: Ty,
+        bindings: &mut [Option<Option<u32>>],
+    ) {
+        let record =
+            |callee_r: Option<u32>, caller_r: Option<u32>, bindings: &mut [Option<Option<u32>>]| {
+                let (Some(cr_idx), Some(caller_idx)) = (callee_r, caller_r) else {
+                    return;
+                };
+                let Some(slot) = bindings.get_mut(cr_idx as usize) else {
+                    return;
+                };
+                match *slot {
+                    None => *slot = Some(Some(caller_idx)),
+                    Some(Some(prev)) if prev == caller_idx => {}
+                    Some(_) => *slot = Some(None),
+                }
+            };
+        let p = self.shallow(param_ty);
+        let a = self.shallow(arg_ty);
+        match (self.data(p), self.data(a)) {
+            (
+                TyData::Ref {
+                    region: r1,
+                    pointee: p1,
+                    ..
+                },
+                TyData::Ref {
+                    region: r2,
+                    pointee: p2,
+                    ..
+                },
+            ) => {
+                record(*r1, *r2, bindings);
+                self.collect_region_bindings(*p1, *p2, bindings);
+            }
+            (
+                TyData::Adt {
+                    adt: a1,
+                    args: args1,
+                    regions: r1,
+                },
+                TyData::Adt {
+                    adt: a2,
+                    args: args2,
+                    regions: r2,
+                },
+            ) if a1 == a2 => {
+                for (cr, ar) in r1.iter().zip(r2.iter()) {
+                    record(*cr, *ar, bindings);
+                }
+                for (t1, t2) in args1.iter().zip(args2.iter()) {
+                    self.collect_region_bindings(*t1, *t2, bindings);
+                }
+            }
+            (
+                TyData::Dyn {
+                    trait_ref: t1,
+                    trait_args: a1,
+                    trait_regions: r1,
+                    assoc_bindings: b1,
+                },
+                TyData::Dyn {
+                    trait_ref: t2,
+                    trait_args: a2,
+                    trait_regions: r2,
+                    assoc_bindings: b2,
+                },
+            ) if t1 == t2 => {
+                for (cr, ar) in r1.iter().zip(r2.iter()) {
+                    record(*cr, *ar, bindings);
+                }
+                for (x, y) in a1.iter().zip(a2.iter()) {
+                    self.collect_region_bindings(*x, *y, bindings);
+                }
+                for ((n1, x), (n2, y)) in b1.iter().zip(b2.iter()) {
+                    if n1 == n2 {
+                        self.collect_region_bindings(*x, *y, bindings);
+                    }
+                }
+            }
+            (
+                TyData::OwnedDyn {
+                    trait_ref: t1,
+                    trait_args: a1,
+                    trait_regions: r1,
+                    assoc_bindings: b1,
+                    context: c1,
+                },
+                TyData::OwnedDyn {
+                    trait_ref: t2,
+                    trait_args: a2,
+                    trait_regions: r2,
+                    assoc_bindings: b2,
+                    context: c2,
+                },
+            ) if t1 == t2 => {
+                for (cr, ar) in r1.iter().zip(r2.iter()) {
+                    record(*cr, *ar, bindings);
+                }
+                for (x, y) in a1.iter().zip(a2.iter()) {
+                    self.collect_region_bindings(*x, *y, bindings);
+                }
+                for ((n1, x), (n2, y)) in b1.iter().zip(b2.iter()) {
+                    if n1 == n2 {
+                        self.collect_region_bindings(*x, *y, bindings);
+                    }
+                }
+                if let (Some(x), Some(y)) = (*c1, *c2) {
+                    self.collect_region_bindings(x, y, bindings);
+                }
+            }
+            (TyData::Tuple(xs), TyData::Tuple(ys)) => {
+                for (x, y) in xs.iter().zip(ys.iter()) {
+                    self.collect_region_bindings(*x, *y, bindings);
+                }
+            }
+            (TyData::Array { element: e1, .. }, TyData::Array { element: e2, .. })
+            | (TyData::Slice(e1), TyData::Slice(e2))
+            | (TyData::Managed(e1), TyData::Managed(e2))
+            | (TyData::Desc(e1), TyData::Desc(e2)) => {
+                self.collect_region_bindings(*e1, *e2, bindings);
+            }
+            (TyData::ErrorUnion { ok: o1, err: e1 }, TyData::ErrorUnion { ok: o2, err: e2 }) => {
+                self.collect_region_bindings(*o1, *o2, bindings);
+                self.collect_region_bindings(*e1, *e2, bindings);
+            }
+            (
+                TyData::Opaque(OpaqueKind::OwnedStore(e1)),
+                TyData::Opaque(OpaqueKind::OwnedStore(e2)),
+            )
+            | (TyData::Opaque(OpaqueKind::Mutex(e1)), TyData::Opaque(OpaqueKind::Mutex(e2)))
+            | (
+                TyData::Opaque(OpaqueKind::MutexGuard(e1)),
+                TyData::Opaque(OpaqueKind::MutexGuard(e2)),
+            )
+            | (
+                TyData::Opaque(OpaqueKind::Registration(e1)),
+                TyData::Opaque(OpaqueKind::Registration(e2)),
+            )
+            | (
+                TyData::Opaque(OpaqueKind::AsyncRegistration(e1)),
+                TyData::Opaque(OpaqueKind::AsyncRegistration(e2)),
+            ) => {
+                self.collect_region_bindings(*e1, *e2, bindings);
+            }
+            (
+                TyData::Opaque(OpaqueKind::Task {
+                    result: r1,
+                    context: c1,
+                }),
+                TyData::Opaque(OpaqueKind::Task {
+                    result: r2,
+                    context: c2,
+                }),
+            ) => {
+                self.collect_region_bindings(*r1, *r2, bindings);
+                if let (Some(x), Some(y)) = (*c1, *c2) {
+                    self.collect_region_bindings(x, y, bindings);
+                }
+            }
+            _ => {}
         }
     }
 
@@ -2112,6 +2370,7 @@ impl Types {
             TyData::Dyn {
                 trait_ref: tr,
                 trait_args,
+                trait_regions,
                 assoc_bindings: inner_assoc,
             } => {
                 let trait_args = trait_args
@@ -2130,12 +2389,14 @@ impl Types {
                 self.intern(TyData::Dyn {
                     trait_ref: tr,
                     trait_args,
+                    trait_regions,
                     assoc_bindings: inner_assoc,
                 })
             }
             TyData::OwnedDyn {
                 trait_ref: tr,
                 trait_args,
+                trait_regions,
                 assoc_bindings: inner_assoc,
                 context,
             } => {
@@ -2157,6 +2418,7 @@ impl Types {
                 self.intern(TyData::OwnedDyn {
                     trait_ref: tr,
                     trait_args,
+                    trait_regions,
                     assoc_bindings: inner_assoc,
                     context,
                 })

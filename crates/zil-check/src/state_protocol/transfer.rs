@@ -983,13 +983,13 @@ impl ProtocolVerifier<'_> {
                     }
                     let target_is_dyn = matches!(
                         self.tys.get(*to),
-                        Some(TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                        Some(TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                     ) || matches!(
                         self.tys.get(*to),
                         Some(TyKind::Ref { pointee, .. })
                             if matches!(
                                 self.tys.get(*pointee),
-                                Some(TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                                Some(TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                             )
                     );
                     if p.projections.is_empty() {

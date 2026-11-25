@@ -509,13 +509,19 @@ fn encode_ty_kind(w: &mut Writer, k: &TyKind) {
             w.u32(def.0);
             w.u32(args.0);
         }
-        TyKind::Dyn(d) => {
+        TyKind::Dyn { def, regions } => {
             w.u8(15);
-            w.u32(d.0);
+            w.u32(def.0);
+            w.vec(regions, encode_region);
         }
-        TyKind::OwnedDyn { def, context } => {
+        TyKind::OwnedDyn {
+            def,
+            regions,
+            context,
+        } => {
             w.u8(16);
             w.u32(def.0);
+            w.vec(regions, encode_region);
             match context {
                 None => w.u8(0),
                 Some(ctx) => {
@@ -570,15 +576,23 @@ fn decode_ty_kind(r: &mut Reader<'_>) -> Result<TyKind, WireError> {
             def: ClosureId(r.u32()?),
             args: ArgsId(r.u32()?),
         }),
-        15 => Ok(TyKind::Dyn(DynId(r.u32()?))),
+        15 => Ok(TyKind::Dyn {
+            def: DynId(r.u32()?),
+            regions: r.vec(decode_region)?,
+        }),
         16 => {
             let def = DynId(r.u32()?);
+            let regions = r.vec(decode_region)?;
             let context = match r.u8()? {
                 0 => None,
                 1 => Some(TyId(r.u32()?)),
                 t => return Err(WireError::InvalidTag("OwnedDynContext", t)),
             };
-            Ok(TyKind::OwnedDyn { def, context })
+            Ok(TyKind::OwnedDyn {
+                def,
+                regions,
+                context,
+            })
         }
         17 => Ok(TyKind::Param(r.u32()?)),
         18 => Ok(TyKind::Opaque(decode_opaque(r)?)),

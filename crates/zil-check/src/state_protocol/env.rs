@@ -503,7 +503,7 @@ impl EntryCapScan<'_> {
             }
         }
         match self.tys.get(ty) {
-            Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. }) | None => {
+            Some(TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. }) | None => {
                 NestedCapTarget::Wildcard
             }
             Some(_) => NestedCapTarget::Exact(ty),
@@ -830,7 +830,7 @@ impl EntryCapScan<'_> {
                     );
                 }
             }
-            TyKind::Dyn(dyn_id) => {
+            TyKind::Dyn { def: dyn_id, .. } => {
                 self.scan_dyn_impls(
                     *dyn_id,
                     prefix,
@@ -845,6 +845,7 @@ impl EntryCapScan<'_> {
             TyKind::OwnedDyn {
                 def: dyn_id,
                 context,
+                ..
             } => {
                 if let Some(ctx_ty) = context {
                     self.scan_container_member(

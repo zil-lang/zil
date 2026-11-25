@@ -142,5 +142,7 @@ pub(crate) fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
             }
         }
     }
+    zil_semantics::check_dyn_impl_region_contract(module)
+        .map_err(|(fid, reason)| fail(fid, reason))?;
     Ok(())
 }

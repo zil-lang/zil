@@ -778,8 +778,10 @@ impl ProtocolVerifier<'_> {
                         if let PlaceRoot::Local(ol) = p.root
                             && let Some(ld) = self.func.body.locals.get(ol.index())
                             && let Some(TyKind::Ref { pointee, .. }) = self.tys.get(ld.ty)
-                            && let Some(TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. }) =
-                                self.tys.get(*pointee)
+                            && let Some(
+                                TyKind::Dyn { def: dyn_id, .. }
+                                | TyKind::OwnedDyn { def: dyn_id, .. },
+                            ) = self.tys.get(*pointee)
                             && let Some(def) = self.tys.get_dyn(*dyn_id)
                             && let Some(sig) = def.slots.get(*slot as usize)
                         {
