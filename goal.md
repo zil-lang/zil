@@ -1,77 +1,68 @@
 # ZIL 实时任务看板
 
-> 更新：2026-11-23（Asia/Shanghai） · 唯一职责：仅追踪**未完成任务、优先级、依赖与可执行退出门**，不记录历史施工流水账。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；精简前历史快照固定于 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
+> 更新：2026-11-25（Asia/Shanghai） · 按**语言功能分类**组织，仅追踪 **Alpha** 差距、未闭合能力、优先级、依赖与可执行退出门。已合入能力以主树 [`docs/guide/supported-language.md`](https://github.com/zil-lang/zil/blob/main/docs/guide/supported-language.md) 与 [`_zil_design.md`](https://github.com/zil-lang/zil/blob/main/_zil_design.md) 为准；历史按阶段/施工步骤快照固定于 [`goal@e8faf57b2`](https://github.com/zil-lang/zil/blob/e8faf57b2/goal.md) 与 [`goal@e630d5f03`](https://github.com/zil-lang/zil/blob/e630d5f03/goal.md)。
 
 [工作流规则](workflow.md) · [源码与恢复参考](README.md) · [分支与备份规则](AGENTS.md)
 
-## 1. 当前目标与里程碑
+## 1. 当前目标与 Alpha 口径
 
-- **主线基线**：[`main@08da36ff0`](https://github.com/zil-lang/zil/commit/08da36ff0)（开放 PR：0；G6.2 P0-9 嵌套资源能力与跨参数协议句柄关联及 `ManagedCreate` Raw/Wire 证书 [PR #137](https://github.com/zil-lang/zil/pull/137) 已 4/4 远端 CI 全绿合入）
-- **当前阶段**：L1–L4 核心能力及全部审核收口门（[PR #96](https://github.com/zil-lang/zil/pull/96)–[#137](https://github.com/zil-lang/zil/pull/137)）均已 4/4 远端 CI（含 `alpha-acceptance`）全绿合入：
-  - **L2 G6.2 与 P0 验证器健全性闭环**（[PR #128](https://github.com/zil-lang/zil/pull/128)、[PR #131](https://github.com/zil-lang/zil/pull/131)、[PR #133](https://github.com/zil-lang/zil/pull/133)、[PR #134](https://github.com/zil-lang/zil/pull/134)、[PR #135](https://github.com/zil-lang/zil/pull/135)、[PR #136](https://github.com/zil-lang/zil/pull/136)、[PR #137](https://github.com/zil-lang/zil/pull/137)）：穷尽 `InstructionKind`（含拥有字段 `Replace` 失效记录）、对称 CFG 格合并（must-map 交集 fail-closed / may-map `param_alias`、`may_alias`、`local_roots`、`mut_cap_params`、`mut_cap_handles` 并集保守失效）、路径关联历史回滚 `H`（`departed_from` + `rolled_back` + `weak_update_handle_state`）、统一调用效果模型（覆盖 `Direct`、`Closure` 捕获环境、`DynSlot` 接收者可变性、`Indirect`、`Foreign`、`OwnedDynCreate`）、函数入口跨参数 `Desc`/`&Managed`/`&Resource` 可能别名与完整类型图递归能力扫描 `EntryCapScan`（与 `holds_exclusive_ref`/`opaque_contents`/`module.dyn_impls`/`is_describable_ty` 对齐，覆盖 `&Param`、`Dyn`/`OwnedDyn` 混凝土实现、`Opaque` 内部载荷、`Managed`/`Resource` 自动描述能力、`ManagedCreate` 协议句柄状态初始化、路径索引 `HandleCapSet` 嵌套资源与跨参数协议句柄身份关联、以及基于 `local_roots` 的调用点 `requires(apart(...))` 健全核验，保留单变体 ADT 精确投影路径）、Raw/Wire 有效证书独立 `zil-check` 正负例（含直接 `ManagedCreate` 证书）与双后端 O0/O2 原生全绿。
-  - **日常语言安全与表达力闭环**（[PR #129](https://github.com/zil-lang/zil/pull/129)、[PR #132](https://github.com/zil-lang/zil/pull/132)）：LLVM 数组/切片与子切片无符号越界检查（含负数索引/切片边界 trap 实测）、`Option<T>` `?` 与立即求值 `Option`/`ErrorUnion` 方法、`match` 守卫拥有资源借用求值与条件提交（守卫失败不消费 scrutinee、精确单次 Drop）、记录模式简写/省略与闭区间 `for i in a..=b`。
-  - **日常标准库闭环**（[PR #127](https://github.com/zil-lang/zil/pull/127)、[PR #130](https://github.com/zil-lang/zil/pull/130)）：`std.io`（`stderr`/`print`/`println`/`eprint`/`eprintln`/`print_i64`/`println_i64` + `EINTR` 重试与实测探针）、`std.fs`（含独立 `fs.RemoveError` 保持 `io.Error` 向后兼容）、`std.env`、`std.time` 全部接入内嵌信任根并双后端原生全绿。
-- **总体阻塞**：**无 P0 阻塞**。G6.2 既定 P0 门已于 [PR #137](https://github.com/zil-lang/zil/pull/137)（`main@08da36ff0`，合入后 3/3 CI 全绿）正式验收关闭（范围覆盖 `Replace`、CFG 别名合并、路径关联 `H`、Closure/DynSlot、`Desc`/`Managed` 能力传播、嵌套跨参数协议句柄关联与调用点 `apart` 核验；不等同于全语言形式化证明完成，现有 27 项合同语义测试作为强制回归门禁持续保留）。Fixed Projects 21/21（17 原项目 + 4 预期拒绝、60/60 原生构建、152/152 比较）全绿。
-- **下一发布门**：优先推进 **G6.3（状态协议与拥有存储、替换及异步责任联合场景）**；其余为 P1/P2 扩展项（Windows x64 原生支持、ZUI 窗口层、`match` 表达式/或模式/带标签 `break` 等进一步语法糖、以及独立编译性能专项）。
-- **状态与退出规则**：`进行中`｜`部分实现`｜`待执行`｜`待排期`。① 已证明完全实现即从主表移除；② 含远期扩展的父任务将已闭合部分固化到 `supported-language.md`，余项拆新任务；③ 无真实消费者或竞争收益则显式关闭；④ 安全边界缺陷永远 P0 阻断；⑤ 详细验收清单可随任务分支放在 `.task/<ID>.md`，合入 `main` 前移除，仅留正式合同与测试。
+- **主线基线**：[`main@08da36ff0`](https://github.com/zil-lang/zil/commit/08da36ff0)（开放 PR：0；G6.2 既定 P0 门 27/27 合同语义测试已随 [PR #137](https://github.com/zil-lang/zil/pull/137) 正式关闭；Fixed Projects 21/21、State/Store 16/128/56、Roam 42/42 + 24/24 全绿）。
+- **版本命名与完整度口径**：首个发布统一命名 **`Alpha`**，目标平台为 **Linux x86_64**；功能完整度直接对标 [`validation/language-release-gates.json`](https://github.com/zil-lang/zil/blob/main/validation/language-release-gates.json) 全部 **12/12 基础语言功能域** + **G6.3 状态协议联合语义** + **8/8 真实日常程序综合验收**（合同对齐见 [`validation/language-alpha-profile.json`](https://github.com/zil-lang/zil/blob/main/validation/language-alpha-profile.json)）。
+- **非 Alpha 阻断边界**：Windows x64 原生支持、ZUI（窗口/渲染/应用层）、编译与运行性能突破专项（独立分支推进）不阻断首个 Linux Alpha，但各自的独立门禁与 [`validation/product-gates.json`](https://github.com/zil-lang/zil/blob/main/validation/product-gates.json) 终态产品门仍持续有效。
+- **总体阻塞与优先推进**：**无 P0 阻塞**。当前第一优先推进 **G6.3 状态协议联合语义**（按 `Replace -> Store -> Task/Registration -> Cancel` 顺序小 PR 分阶段落地），同步补齐 8 类日常程序所需的标准库基础设施（`std.env.args`、目录遍历/路径、`std.net` TCP Socket 等）并落地 8/8 日常应用综合验收。
+- **强制回归门禁与统一计量**：全链路改动须保持 G6.2 原有 **27/27** 合同语义测试、Fixed Projects **21/21**、State/Store **16/128/56**、Roam **42/42 + 24/24** 零退化。全仓 `tests/**/*.zil` `zil check --json` `status == "Success"` 计数**不是正例通过率或功能完成率**；每批按精确文件路径、原始输入哈希与预期结果分开统计，保留 Clang/LLVM API × O0/O2、Raw/Wire 独立 `zil-check`、故障/清理与远端 CI 必需门，不以提高预算或 `Unsupported` 充当通过。
+- **状态口径**：`缺失`｜`部分实现`｜`已实现待联合验证`｜`已闭环`。子项通过不自动关闭父能力；安全边界缺陷永远 P0 阻断；详细清单可暂存任务分支 `.task/<ID>.md`，合入 `main` 前移除。
 
-## 下一阶段施工安排（以 main@08da36ff0 为基线）
+## 2. 基础语言功能域（12/12 对标 `language-release-gates.json`）
 
-G6.2 既定 P0 门（PR #128/#131/#133/#134/#135/#136/#137）已正式验收关闭。下一阶段转向真实消费者与联合能力集成，**优先推进 G6.3（状态协议 × `Store` 拥有存储 × `Replace` 替换 × 异步任务/取消责任联合运行）**，同时保留现有 G6.2 27 项回归套件作为强制门禁。后续并行语言 PR 必须在实际合并目标上执行 post-merge 编译与回归验证，不能只凭独立 PR 绿灯宣告集成成功。
+| 功能域（Gate ID） | 实现态 | 当前已落地能力 | Alpha 剩余差距 | 优先级 | Alpha 验收门 |
+| --- | --- | --- | --- | --- | --- |
+| **标量、聚合与模式** (`values-and-patterns`) | 已实现待联合验证 | 10 种整数 + `f32/f64` checked/wrapping 转换；数组/切片无符号越界检查；`Record`/`Package`/`Enum`/`Option`/`ErrorUnion`/匿名联合 `T \| U`；`?` 传播、`match` 守卫保留拥有 scrutinee、记录模式简写/省略、闭区间 `a..=b`、嵌套引用模式 `&pat`/`&mut pat`/`&&pat` 与条件部分移动/补齐 `drop_elab` | 更深多层地址/资源包嵌套模式；可选日常语法糖（`match` 表达式、或模式、带标签 `break`）及 8 类日常程序综合覆盖 | P1 | 双后端 O0/O2 正负例 + 8 类日常程序联合回归无退化 |
+| **泛型与 Trait API** (`generic-libraries`) | 部分实现 | 固有 `impl`、具体类型/枚举静态关联函数、supertrait 蕴含与循环拒绝、关联类型绑定与跨 trait 消歧、`T: Iter<Item = U>`、trait 泛型方法、blanket impl `where` 校验、整数 const 泛型 `<#N: usize>`、`std.iter` 拥有/借用迭代组合 | 依赖 `Self`/类型参数的 const 表达式、更广 supertrait 泛型实参、一般 blanket 约束方程与更广拥有 lending trait 方法、开放泛型方法槽 | P1 | 未用定义期义务与循环/重叠负例 + 泛型容器/迭代在日常程序中双后端原生全绿 |
+| **拥有与借用数据模型** (`ownership-composition`) | 部分实现 | `Struct`/`Package`/`Tuple` 逐字段借用跟踪 `Carries::set_field`、字段覆写释放旧 loan、嵌套 qualified 子 `Package`、固定共享地址数组（含 512 槽/动态索引/快照初始化）、路径敏感 `FnMut` 捕获与 `match`/`let`/`break` 补齐、64 态用户协议（G6.1）与投影失效/历史撤销 `H`/嵌套资源跨参数能力关联（G6.2 27/27 闭环） | **G6.3 核心联合语义（见第 3 节：`Replace`/`Store`/`Task-Registration`/`Cancel`）**；跨函数显式存储上界/更广 lending 持有者、多输入借用返回源、超 4 层嵌套投影路径 | **P0/P1** | G6.2 27/27 零退化 + G6.3 全 4 阶段双后端原生与 Raw/Wire 独立 `zil-check` 闭环 |
+| **动态抽象与异构派发** (`dynamic-abstraction`) | 部分实现 | 借入 `dyn`、参数化 `dyn Trait<T>` / `Assoc = T`、object-safety 校验、`OwnedDyn<dyn Trait, Context<'a>>`、共同借入 `Store<OwnedDyn<..., Context<'a>>>`、按值 `self: Self` 堆箱释放（`-Wl,--wrap=calloc/free` 零泄漏 + `double_free` 自检）、`OwnedDynCreate` 独占 Context 健全性、循环 `alloca` 提升 | `dyn Trait<'a>` trait 生命周期参数方法返回区域替换（`static-callback-getter-cycle-control.zil`）、有限泛型 method slot 派发、未选 owner 错误联合捕获与更广非接收者来源 provider | P1 | 16 份 `dyn-context` + 零泄漏探针 + 生命周期返回替换正负例双后端原生与 Raw/Wire 全绿 |
+| **稳定资源与图生命周期** (`resource-graphs`) | 已实现待联合验证 | `std.graph` runtime-sized 循环/共享边图、`ByteBuffer` payload 与分配失败返还、逻辑删除/回收、有界 ticket 复用与旧 ticket 失效、双图同号边界（双后端 O0/O2 原生通过） | 结合“图依赖分析”日常程序完成端到端拓扑排序/环检测/影响面与 OOM 清理综合验收（`NodeKey` 跨图校验保持显式运行时合同边界） | P1 | 既有 `std.graph` 门 + 图依赖分析日常程序双后端 O0/O2 与故障清理全绿 |
+| **异步任务与取消** (`async-ownership`) | 部分实现 | 单次 `calloc` `ucontext_t` 原生协程、4 KiB `PROT_NONE` 栈保护页与 `SEGV_ACCERR` 检查、`PendingExit` 取消回滚（拥有结果单次 Drop、枚举活跃变体 Drop、嵌套任务级联关闭）、`task_create`/`task_create_owned` OOM 清理、`std.task.*`、`task_await`、`EnumPartialDrop`、Roam `task-result-combinations` 24/24 与 `task-owner-transport` 24+9 | **G6.3-D/E**（`TaskCreate` 条件成功、`Valid == false` 不代表 `Closed`、`TaskStart` 定义补齐、取消边状态与副作用/所有权转移健全模型）；一般借入 frame port、`FnOnce` 挂起根精细协议区分、跨模块 `pub Suspend` 非标量 ABI、异步任务调度日常程序验收 | **P1** | G6.3-D/E 正负例 + Roam 24/24 零退化 + 异步任务调度日常程序双后端 O0/O2 全绿 |
+| **线程、互斥锁与原子** (`threads-and-synchronization`) | 已实现待联合验证 | 真实 `pthread_create`/`pthread_join` `ThreadScope`、真实 `pthread_mutex_t` `Mutex<T>`/affine `Guard`、`MemoryOrder` 5 序与 `Sync*Ordered` 原子家族（Wire 43–47）、`Transfer`/`Share` 保留 trait、`thread_scope` 裸 `c_handle` 与 `Mutex<Resource>` FFI Drop 拒绝、40 轮双线程 barrier + TLS 隔离 | 用户自定义泛型对 `Transfer`/`Share` 的自动派生与跨模块约束；更广跨线程捕获运输；与 HTTP/异步调度日常程序联合并发验证 | P1 | 真实竞争/有序原子与安全负例 + 并发日常程序双后端 O0/O2 全绿 |
+| **外部接口与已登记回调** (`foreign-lifecycle`) | 部分实现 | `c_register`/`c_register_async` 五态 CAS 门控（`OpenIdle`..`Closed`）、`driver_lock` 串行化、`RISKS.json` 14 项 1-to-1 绑定、`CCallback`（Wire 49）、`c_null()`（Wire 48）、`ForeignHandle ==/!=`、递归 POD C-ABI、glibc `errno` 桥接、8 份 C-host `async-registration` + `raw-holder.zil` pthread 实测 | **G6.3-D/E**（`AsyncRegistration` 与用户协议及取消边联合）；一般跨线程借入捕获环境（`Address<Closure>`/`&mut`）与外部 waker/晚通知 drain 扩展 | P1 | 14 项风险矩阵 + G6.3-D/E 正负例 + C-host 双后端原生与 Raw/Wire 全绿 |
+| **标准库：文本、集合、迭代与系统 I/O** (`standard-library`) | 部分实现 | 26 个内嵌信任根模块：`utf8`/`string`/`text_edit`/`int`/`float`/`store`/`collections`/`iter`/`pod_hash_*`/`i64_hash_*`/`string_map`/`owning_*`/`graph`/`io`（含 `stderr`/`print*`/`EINTR` 重试）/`buffered_io`/`fs`（`read_to_bytes`/`write_bytes`/`exists`/`remove_file`）/`env`（`get`/`current_dir`/`exit`）/`time` | **8 类日常程序前置缺口**：① `std.env` 命令行参数（`args`/`argc`/`argv`）；② `std.fs` 目录遍历/建目录/重命名/元数据（`read_dir`/`mkdir`/`rename`/`stat`）与 `std.path`；③ `std.net` POSIX TCP Socket（`TcpListener`/`TcpStream`）；④ `std.string` 日常切分/修剪/按行 helper 与常用数据格式支撑 | **P1** | 新增标准库接入内嵌信任根，含 OOM/短读写/错误清理双后端 O0/O2 与 Raw/Wire 验收，支撑 8/8 日常程序 |
+| **编译期编程与项目工作流** (`project-workflow`) | 已实现待联合验证 | `zil check`/`build`/`run`/`test`/`lock`、项目清单与路径依赖锁、CT `MetaBlock` + `yield`（经 verified `zil-interp` 执行与非法拥有载荷 `E-RESOURCE-TYPE` 拒绝）、Unit/Bool/I32 测试发现与失败反例 | 8 类多模块日常应用从全新 checkout 完整走通 `lock`/`check`/`build`/`run`/`test`；`#if`/`#for` 元语句与 ambient `Type` 导出按边界跟进 | P1 | 全新 checkout 下 8/8 日常应用工作流非零执行与失败诊断门全绿 |
+| **Linux x86_64 原生交付** (`native-delivery`) | 已实现待联合验证 | Clang 与 LLVM 23.1.4 C API（Stage 1 Builder 桥接）× O0/O2、1/4/8 单元并行链接、Fixed Projects 21/21（60/60 构建、152/152 比较）、State/Store 16/128/56、`alpha-acceptance.yml` fail-closed 汇总 | 8/8 日常程序纳入双后端 O0/O2 + OOM/清理 + 独立源码冷恢复验收；清理 `validation/alpha-coverage.json` 冲突残留标记（44 行缺失 stdin 行维持合同 archival 口径） | P1 | 双后端 × O0/O2 同源码执行一致、零泄漏与冷恢复收据完备 |
+| **发布综合验收** (`release-acceptance`) | 缺失 | `verify-main.yml` + `alpha-acceptance.yml` 自动化框架、既有回归门（G6.2 27/27、Fixed Projects 21/21、Roam 42+24、State/Store 16/128/56） | 升级 `validation/language-alpha-profile.json` 对齐 12/12 + 8/8；全部缺口闭合后，在单一冻结候选提交完成 12/12 + G6.3 + 8/8 + Raw/Wire 对照 + 非作者精确源码独审 + 冷恢复签发 | P1 | 单一冻结提交上 `language-alpha-profile.json` 全门非零通过并生成共同收据 |
 
-**统一计量及安全门**：全仓 `tests/**/*.zil` `zil check --json` `status == "Success"` 计数**不是正例通过率或功能完成率**。每批须以精确文件路径、原始输入哈希和预期结果分开统计新增合法通过、已有合法回归、错误准入、预期拒绝和 ResourceLimit，不得仅凭文件名判负例。保留当前 Alpha 收据、Clang/LLVM API × O0/O2、Raw/Wire、清理/故障与远端 CI 必需门；失败不以提高预算或 Unsupported 作为通过。
+## 3. 优先专项：状态协议联合语义（G6.3）
 
-## 2. L1 · 基础语言与类型组合
+**架构红线**：全链路 **`Typeck -> Body IR -> Analyze -> Verify -> Lower -> Native`** 定位并共享同一套公开语义事实，**不为 `zil-check`（Verify）另造独立语义系统**；每个小 PR 必须保持 **G6.2 原有 27/27 合同语义测试**与 **Fixed Projects 21/21** 零退化，并包含双后端（Clang / LLVM API × O0/O2）原生正例与 Source / Raw / Wire 有效证书负例。
 
-| ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
+| 顺序 / ID | 范围与修订语义规则 | 状态 | 依赖 | 验收门 |
 | --- | --- | --- | --- | --- |
-| G1.4 | 剩余：更深多层地址/资源包复杂组合；**核心闭环已合入**（PR #118：嵌套引用模式 `&pat`/`&mut pat`/`&&pat`、`Package`/`Record`/`Tuple`/`ErrorUnion` 条件部分移动与补齐 `drop_elab`、拥有 `Record` 字段 Drop 修复，6 份就绪 fixture 全过） | 部分实现 | P1 | 双后端 O0/O2 原生正例 + 部分移动/不可变 `ref mut` 负例全绿 |
-| G2.3 | 剩余：类型 / `Self` 依赖常量表达式；**核心闭环已合入**（PR #115/#117：固有 `impl` 块、具体类型/枚举静态关联函数派发、supertrait 蕴含与循环拒绝、关联类型绑定与跨 trait 消歧归一化） | 部分实现 | P1 | 覆盖未用定义期义务与循环负例；Verify 与双后端原生通过 |
-| G2.4 | 剩余：更广 supertrait 泛型实参；**核心闭环已合入**（PR #97/#98/#115/#117：内联方法、固有 `impl`（struct/package/enum/generic/primitive）、trait 泛型方法、关联类型约束 `T: Iter<Item = U>`、blanket impl 约束与 `where` 校验、管道/记录更新/字符字面量） | 部分实现 | P1 | 每子项含原生正例 + 冲突/越界负例；0 回归 |
-| G3.4 | 剩余：跨函数显式存储上界/复杂 lending 组合；**核心闭环已合入**（PR #99/#120：`Struct`/`Package`/`Tuple` 逐字段借用跟踪 `Carries::set_field`、字段覆写释放旧 loan、Raw/Wire 有效证书精确 `LoanConflict` 证明与双后端原生全绿） | 部分实现 | P1 | 覆盖悬垂/别名负例与双后端原生 |
-| G3.5 | 剩余：更一般跨线程捕获运输；**核心闭环与路径敏感 `FnMut` 补齐证明已合入**（PR #99/#120/#123/#124/#125：只读 `var` 共享捕获、非 `move` 按值 `FnOnce`、嵌套 `OuterCapture` 消费、`analyze_capture_moves` 覆盖 `give`/`match`/`let` 隐式移动与循环 `break` 后补齐，Typeck/MIR/Verify 三层交叉验证 + `let` 解构 3 项回归 + 四组合精确 `Drop` stdout 比对全绿） | 部分实现 | P1 | 仅余远期跨线程捕获运输扩展；底层 CFG 证明由 Solver/`zil-check` 担任最终权威 |
-| G4.5 | 剩余：rich callable、ambient `Type` 导出与 `#if`/`#for` 元语句；**CT 表达式与 `#{ ...; yield }` 块已合入**（PR #121：`MetaBlock` + `StmtKind::Yield` 经 verified `zil-interp` 求值及非法 `yield`/拥有载荷逃逸 `E-RESOURCE-TYPE` 拒绝） | 部分实现 | P1 | 经 verified `zil-interp` 执行；覆盖非法 CT 载荷负例与原生消费正例 |
+| **1. G6.3-B (`Replace`)** | 协议句柄或含协议句柄的聚合/拥有字段 `Replace`：旧值与新值**绝不共用历史 `H`**；旧资源的状态与未履行责任完整转入 `old` 返回值，新资源仅继承自身原有状态与责任，并清除旧槽上的 retired/departed 历史；覆盖同槽替换、跨字段替换、替换后对 `old` 履行收尾与对新值继续推进状态机 | 进行中 | G6.2（已闭环） | 全链路共享语义事实 + G6.2 27/27 零退化 + Replace 跨状态/历史串扰 Source 与 Raw/Wire 负例 + 双后端 O0/O2 原生 |
+| **2. G6.3-C (`Store`)** | `Store<Handle>` / 含协议字段元素的拥有容器：`Push`/`Pop` 必须**区分成功与失败路径**（`Push` OOM 时所有权与原状态返还给传入值，容器状态不变；`Pop` 空容器时不伪造协议句柄）；容器只读/可变借用（`StoreBorrow`/`at`）**不等于实际修改**，仅实际写入/取出/替换才触发协议状态转移与投影失效 | 待执行 | G6.3-B | `Push` OOM 恢复、`Pop` 空容器与取出后责任履行、借用非修改对照正负例（Source + Raw/Wire + 双后端 O0/O2） |
+| **3. G6.3-D (`Task` / `Registration`)** | 异步任务与外部登记与状态协议联合：`TaskCreate` 按**条件成功**建模（OOM 失败分支返还所有权与原协议状态，不污染成功态）；`TaskValid == false` / `RegistrationValid == false` **不代表 `Closed`**（不可凭 `Valid == false` 豁免关闭/回收责任）；补齐 **`TaskStart`** 的完整语义定义与状态迁移规则；联合 `AsyncRegistration` 五态与用户协议 | 待执行 | G6.3-C | `TaskCreate` OOM 返还、`Valid == false` 伪关闭拒绝、`TaskStart` 全链路定义与联合原生 + Raw/Wire 负例 |
+| **4. G6.3-E (`Cancel`)** | 异步取消边（`TrapKind::Cancel` / `PendingExit` / `TaskPollClose`）与状态协议联合：取消边**既不能直接套用调用前状态，也不能直接套用正常返回后置**；必须保守保留取消点前**所有可能已发生的副作用与所有权转移**，防止取消后把已转移/已修改/可能部分推进的协议句柄当成未变更旧态复用或漏清理 | 待执行 | G6.3-D | 取消前已修改/已转移协议句柄复用拒绝、嵌套取消清理正负例（Source + Raw/Wire + 双后端 O0/O2） |
 
-## 3. L2 · 动态抽象与状态协议
+## 4. 真实日常程序综合验收（8/8 Alpha 应用门）
 
-| ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
+全部 8 类程序须为真实普通多模块 ZIL 源码（非合成玩具/非单测拼接），通过标准项目工作流（`zil check`/`build`/`run`/`test`）在 **Linux x86_64 Clang & LLVM API × O0/O2** 执行，包含非零功能断言、错误/OOM/早退资源清理以及至少 1 组最近安全负例对照。
+
+| # | 应用类别（Gate ID） | 核心验证功能域 | 前置缺口 | 状态 |
 | --- | --- | --- | --- | --- |
-| G5.2 | 剩余：有限泛型 method slot 派发；**核心闭环与按值 `self: Self` 堆释放已合入**（PR #121/#123/#124：`check_dyn_object_safe`、参数化 `dyn Trait<T>` / `Assoc = T`、按值 thunk `load` 后 `free(%data)` 经 Clang/LLVM API × O0/O2 四组合单次 Drop + Clang `-O0`/`-O2` `-Wl,--wrap=calloc/free` 零泄漏与主动 `double_free` 探针自检 + Raw/Wire 有效证书 `UseOfUninit` 全绿） | 部分实现 | P1 | 仅余有限泛型 method slot 派发；按值/借用 `OwnedDyn` 既定门已闭环 |
-| G5.3 | 剩余：trait 生命周期参数化 `dyn Trait<'a>` 方法返回区域替换（`static-callback-getter-cycle-control.zil`）；**核心闭环已合入**（PR #100/#125：借入 provider `OwnedDyn<dyn Trait, Context<'a>>`、共同借入 `Store<OwnedDyn<..., Context<'a>>>` push/at/pop、`OwnedDynCreate` 独占/可写地址 Context 健全性、entry-block 循环 `alloca` 提升、16 份 `dyn-context` + 40 万次分配循环双后端原生 + Raw/Wire 有效证书 `zil-check` 全绿） | 部分实现 | P1 | 仅余 trait 生命周期参数方法返回区域替换；共同借入 Store 与 Context 健全性既定门已闭环 |
-| G6.1 | 剩余：超 64 态或泛型参数化状态域等远期扩展；**核心闭环已合入**（PR #102/#126：内建协议 `requires(state)`/`provides(retired|on_pending|on_ready)` 与用户定义有限状态协议 `enum`/含 `state` 字段句柄的 64 态 `ProtocolStateSet`、`requires(state/apart)`、`provides(state/on_ok/on_err)`、跨 `match` 分支精化、未标注调用方前置核验、共享参数 `apart` 健全性、未知可变调用保守宽化、Raw/Wire 有效证书独立 `zil-check` 证明与双后端 O0/O2 原生全绿） | 部分实现 | P1 | 既定门已闭环；下一阶段推进 G6.3 |
-| G6.2 | 剩余：超 4 层嵌套字段路径、跨模块导出上界扩展，及 P1 维护性整理（适时统一 `verify_fn_state_contracts` 中 `local_roots`/`param_alias`/`may_alias`/`mut_cap_params`/`mut_cap_handles` 路径与能力转换规则，不阻断当前施工）；**既定 P0 门已正式验收关闭**（PR #128/#131/#133/#134/#135/#136/#137：27/27 合同语义测试、双后端 O0/O2 与 Raw/Wire 有效证书全绿） | 部分实现 | P1 | **既定 P0 门已正式关闭**；现有 27 项回归套件作为强制门禁保留 |
-| G6.3 | **下一优先任务**：状态协议与拥有存储（`Store`）、替换（`Replace`）及异步责任（`Task`/`AsyncRegistration`/取消清理）联合运行 | 待执行 | P1 | 依赖 G6.2（已闭环）、G8.4、G8.6；联合双后端原生正例 + 跨状态替换/存储借用/取消违例 Source 与 Raw/Wire 负例 |
+| 1 | **文本统计与文件搜索** (`text-stats-and-file-search`) | `values-and-patterns`、`standard-library`（UTF-8/`String`/`io`/`buffered_io`/`fs`/`env.args`）、`project-workflow` | `std.env.args`、`std.fs.read_dir`、`std.string` 切分 helper | 待执行 |
+| 2 | **CSV 处理工具** (`csv-processor`) | `values-and-patterns`、`generic-libraries`、`standard-library`（`String`/`Store`/`OwningHashMap`/`int`/`float`/`buffered_io`） | `std.string` 行/分隔辅助（可先在库/应用层落地） | 待执行 |
+| 3 | **JSON 解析与序列化器** (`json-processor`) | `values-and-patterns`（递归 `Enum`/拥有聚合/模式）、`ownership-composition`、`standard-library`、`native-delivery` | 递归拥有树/容器组合实测与 OOM 清理验证 | 待执行 |
+| 4 | **CLI Todo 应用** (`cli-todo-app`) | `ownership-composition`（状态协议 + `Replace`/`Store`）、`standard-library`（`fs`/`env.args`/`time`）、`project-workflow` | `std.env.args`、G6.3-B/C | 待执行 |
+| 5 | **HTTP 小服务与客户端** (`http-mini-service-and-client`) | `threads-and-synchronization`、`foreign-lifecycle`、`standard-library`（TCP Socket + 缓冲 I/O）、`dynamic-abstraction` | `std.net` POSIX TCP Socket 基础库 | 待执行 |
+| 6 | **文件批处理工具** (`file-batch-processor`) | `standard-library`（目录遍历/路径/重命名/错误恢复）、`threads-and-synchronization`、`ownership-composition` | `std.env.args`、`std.fs` 目录/重命名/元数据、`std.path` | 待执行 |
+| 7 | **图依赖分析器** (`graph-dependency-analyzer`) | `resource-graphs`（`std.graph` 环检测/拓扑排序/影响面）、`generic-libraries`、`standard-library` | 基于现有 `std.graph` 组装端到端应用与故障清理门 | 待执行 |
+| 8 | **异步任务调度器** (`async-task-scheduler`) | `async-ownership`、`foreign-lifecycle`、`ownership-composition`（G6.3-D/E 任务与取消协议）、`dynamic-abstraction` | G6.3-D/E 落地 | 待执行 |
 
-## 4. L3 · 并发与外部生命周期
+## 5. 非 Alpha 阻断项与独立专项
 
-| ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
-| --- | --- | --- | --- | --- |
-| G7.2 | 剩余：一般跨线程借入环境（`Address<Closure>`/`&mut` 捕获 profile 扩展）；**核心闭环已合入**（PR #92/#105/#106/#107/#108：密封跨线程 `Registration`、作用域回调、逐路径 CFG provider 身份证明、有效证书同根别名 `LoanConflict` + 不相交对照、`RISKS.json` 14 项 1-to-1 绑定同步、`AsyncRegistrationStart` 角色门控） | 部分实现 | P1 | 仅余远期跨线程借入捕获扩展，现行规范与 14 项风险矩阵已全部双后端原生 + Raw/Wire 验收 |
-| G7.3 | 剩余：跨线程一般借入环境的外部 waker / 晚通知与 drain；**同线程/C-host 核心闭环已合入**（PR #108：8 份 `async-registration` queued/inline-tuple 原生 C-host + `calloc/realloc/free` 包装全绿、`raw-holder.zil` pthread 实测） | 部分实现 | P1 | 覆盖晚通知/重复关闭原生正例 + 未 drain 释放负例 |
-| G7.4 | 剩余：跨线程借入环境 `Registration` 与异步任务取消联合；**核心闭环已合入**（PR #108/#112：取消嵌套清理、OOM 回退与 `task_create_owned` 所有权恢复双后端原生全绿） | 部分实现 | P1 | 依赖 G7.2、G8.6；覆盖取消嵌套清理与分配失败原生执行 |
-| G8.4 | 剩余：`FnOnce` 挂起根下的精细协议区分（`once-pending-callable/owned-result-cleanup`）；**核心闭环已合入**（PR #112：`PendingExit` 取消后拥有结果单次 Drop、枚举活跃变体 Drop、`task_create`/`task_create_owned` OOM 清理与 Direct 默认 Drop 强制拒绝） | 部分实现 | P1 | 覆盖嵌套取消清理、分配失败与非法 Direct 默认 Drop 负例 |
-| G8.5 | 剩余：用户自定义泛型对 `Transfer`/`Share` 的自动派生与跨模块约束；**核心闭环已合入**（PR #104/#106/#110：`MemoryOrder` 5 序与 `Sync*Ordered` 原子家族（Wire 43–47）、保留 `Transfer`/`Share` trait、`c_null()`（Wire 48）、`ForeignHandle ==/!=`、`thread_scope` 裸 `c_handle` 拒绝、`Mutex<Resource>` FFI Drop 拒绝） | 部分实现 | P1 | 真实竞争、有序原子与安全负例双后端原生全绿 |
-| G8.6 | 剩余：一般借入 frame port 与 ticket/defer 复杂组合；**核心闭环已合入**（PR #103/#106/#112：`std.task.*`、逐路径 CFG worker `resume(transfer)` 格证明、`task_await`、`EnumPartialDrop` 选择性枚举字段 Drop、`inline-task-enum/package` 双后端原生全绿） | 部分实现 | P1 | 继续帧/借入 port/取消联合原生验收与 Raw/Wire 证明 |
+以下事项**不阻断首个 Linux Alpha 发布**，但保持各自独立追踪与验收标准，不得以 Alpha 通过代替其声明：
 
-## 5. L4 · 标准库与 ABI
-
-| ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
-| --- | --- | --- | --- | --- |
-| G9.3 | 剩余：跨过程 `apart` 精度与更一般高阶集合算法；**核心闭环与拥有集合原生套件已合入**（PR #109/#111/#114/#121：canonical `lib/std/*.zil` 内嵌信任根、`E-VISIBILITY` 私有字段强制、跨 `Desc`/多定义 `StoreBorrow` fail-closed `LoanConflict`、19 份标准库消费者 + `iterator`/`string_search` + `std.owning_map`/`owning_hash_map`/`owning_hash_set`/`graph`/`buffered_io` 双后端原生全绿） | 部分实现 | P1 | 保留两后端标准库/迭代原生门与 Raw/Wire 有效证书回归门 |
-| G10.3 | 剩余：非 Linux ABI；**核心闭环与匿名联合已合入**（PR #113/#116：`IntrinsicOp::CCallback`（Wire 49）、递归 POD Record C-ABI 引用、glibc `errno` 桥接、LLVM 浮点/有符号整数常量降级修复、**匿名联合 `T | U`（含拥有载荷 Drop、规范排序与重复/非穷尽/双消费拒绝）**、`main()` ErrorUnion 错误载荷清理修复与 `owned-sum-consumer` 全 32 组合 ORACLE 双后端原生全绿） | 部分实现 | P1 | 跨模块与 C ABI 原生正例 + 越界/非法 ABI 与 Raw/Wire `CCallback` 负例全绿 |
-
-## 6. 平台与 ZUI
-
-| ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
-| --- | --- | --- | --- | --- |
-| G10.4 | **Windows x64 原生支持**：原生 CLI、ABI、Runtime、文件 I/O、线程/Task 与实际 Windows CI | 待执行 | P1 | 先完成独立控制台原生执行，再补线程/Task；交叉构建或 Wine 不算验收 |
-| G9.4 | **ZUI 窗口层**：真实 OS 窗口、事件循环与 OS IME 服务 | 部分实现 | P2 | 真实窗口创建/输入/关闭原生验收，无资源泄漏 |
-| G9.5 | **ZUI 渲染层**：GPUI 式 GPU 场景 / 首帧呈现、字体塑形与字形图集 | 待执行 | P2 | 以首个真实 GPU 场景首帧呈现为第一阶段退出门 |
-| G9.6 | **ZUI 应用层**：实体 / 组件、输入调度与资源确定性关闭合流 | 待执行 | P2 | 依赖 G9.4、G9.5；真实交互应用端到端运行与确定性清理 |
-
-## 7. 独立专项与发布验收
-
-| ID | 任务与剩余边界 | 状态 | 优先级 | 依赖 / 验收门 |
-| --- | --- | --- | --- | --- |
-| G10.5 | **编译与性能专项**：与 Rust 同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破（含 **G10.5.1.16 Stage 2**：去除 `body_structured.rs` 文本桥接，直接 `VerifiedModule -> model::Module` 降级与同口径 O2 性能门） | 进行中 | P1 | 独立分支（`research/full-push-native`、`integrate/scalar-codegen`），不纳入普通语言线 |
-| G10.6 | **1.0 终态产品门**：B0、完整语言与 ZUI 终态联合验收（见主树 `validation/product-gates.json`） | 待执行 | P2 | 子项完成不自动关闭父门，须全门独立联合复验 |
+| 专项 | 范围与现状 | 状态 | 独立推进边界 / 退出门 |
+| --- | --- | --- | --- |
+| **编译与性能突破专项** (`G10.5`) | 与 Rust 同语义的运行/内存/编译/维护成本及至少一项可重复净突破（含 **G10.5.1.16 Stage 2**：去除 `body_structured.rs` 文本桥接，直接 `VerifiedModule -> model::Module` 降级与同口径 O2 性能门） | 进行中 | 独立分支（`research/full-push-native`、`integrate/scalar-codegen`）持续推进，不阻塞普通语言线与 Linux Alpha |
+| **Windows x64 原生支持** (`G10.4`) | 原生 CLI、ABI、Runtime、文件 I/O、线程/Task 与实际 Windows CI | 待执行 | 须真实 Windows x64 原生执行验收；交叉构建或 Wine 不算验收 |
+| **ZUI 窗口、渲染与应用层** (`G9.4`–`G9.6`) | 真实 OS 窗口/事件循环/OS IME（`G9.4` 部分实现）、GPUI 式 GPU 场景与字体塑形首帧（`G9.5`）、实体/组件与确定性关闭合流（`G9.6`） | 部分实现 / 待执行 | 首个真实窗口输入关闭与 GPU 首帧分别验收，不阻断基础语言 Alpha |
+| **终态产品门** (`G10.6`) | [`validation/product-gates.json`](https://github.com/zil-lang/zil/blob/main/validation/product-gates.json)（零 safe UB、Rust 相对性能/编译门、可重复净突破、B0 与 ZUI 终态联合验收） | 待执行 | 独立于 Alpha 功能门，须全门冻结独立联合复验 |
