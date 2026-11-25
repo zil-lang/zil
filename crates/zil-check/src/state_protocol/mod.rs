@@ -12,11 +12,14 @@ use zil_ir::body::{
     Mutability, Operand, Place, PlaceRoot, Projection, ProtocolStateSet, StateContractClause,
     Terminator, TyKind, TyTable,
 };
-use zil_semantics::{HandleProtocolSlot, ProtoHandleInfo, proto_handle_info};
+use zil_semantics::{
+    HandleProtocolSlot, ProtoHandleInfo, StoreProtocolSummary, proto_handle_info,
+    store_element_proto_info,
+};
 
 use self::env::{
     AliasEnv, CapabilityEnv, DiscrTarget, EntryCapScan, HandleCapSet, NestedCapSet,
-    NestedCapTarget, ParamAliasSet, ProtoState, RefinementEnv, is_describable_ty,
+    NestedCapTarget, ParamAliasSet, ProtoState, RefinementEnv, StoreOpOutcome, is_describable_ty,
     is_error_union_ty, is_mut_ref_or_desc_ty, is_poll_ty, strip_indirection,
 };
 use crate::{CheckBudget, CheckError, CheckErrorKind};
@@ -64,6 +67,7 @@ struct ProtocolVerifier<'a> {
     tys: &'a TyTable,
     param_count: usize,
     local_info: Vec<Option<ProtoHandleInfo>>,
+    local_store_info: Vec<Option<ProtoHandleInfo>>,
     has_invalidation_upper: bool,
     declared_invalidations: Vec<(usize, ContractFieldPath)>,
     allows_rollback: Vec<bool>,
@@ -89,6 +93,75 @@ impl<'a> ProtocolVerifier<'a> {
                         || (param_a as usize == pb && param_b as usize == pa)
             )
         })
+    }
+
+    /// Resolves `(must_store, may_stores)` root local indices for an `OwnedStore<E>`
+    /// operand where `E` is a tracked protocol handle type.
+    pub(super) fn resolve_store_targets(
+        &self,
+        st: &ProtoState,
+        op: &Operand,
+    ) -> (Option<usize>, BTreeSet<usize>) {
+        let mut may = BTreeSet::new();
+        let (Operand::Copy(p) | Operand::Move(p)) = op else {
+            return (None, may);
+        };
+        if !p.projections.is_empty() {
+            return (None, may);
+        }
+        let PlaceRoot::Local(al) = p.root else {
+            return (None, may);
+        };
+        let must = st
+            .aliases
+            .alias
+            .get(&al)
+            .copied()
+            .filter(|&i| self.local_store_info.get(i).is_some_and(Option::is_some));
+        if let Some(m) = must {
+            may.insert(m);
+        }
+        if let Some(roots) = st.aliases.local_roots.get(&al) {
+            for &r in roots {
+                if self.local_store_info.get(r).is_some_and(Option::is_some) {
+                    may.insert(r);
+                }
+            }
+        }
+        (must, may)
+    }
+
+    /// Applies `.err` failure recovery for `StorePush` (OOM) and `StorePop` (empty container).
+    fn apply_store_err_recovery(branch_st: &mut ProtoState, outcome: &StoreOpOutcome) {
+        match outcome {
+            StoreOpOutcome::Push {
+                pre_summaries,
+                newly_invalidated,
+            } => {
+                for &(s_idx, pre) in pre_summaries {
+                    if let Some(slot) = branch_st.store_slots.get_mut(s_idx) {
+                        *slot = pre;
+                    }
+                }
+                for item in newly_invalidated {
+                    branch_st.invalidated.remove(item);
+                }
+            }
+            StoreOpOutcome::Pop {
+                unique_store,
+                newly_invalidated,
+                ..
+            } => {
+                if let Some(s_idx) = *unique_store
+                    && let Some(slot) = branch_st.store_slots.get_mut(s_idx)
+                {
+                    *slot = StoreProtocolSummary::empty_store();
+                }
+                for item in newly_invalidated {
+                    branch_st.invalidated.remove(item);
+                }
+            }
+        }
     }
 
     fn place_targets_state_field(&self, place: &Place, st: &ProtoState) -> Option<usize> {
@@ -160,11 +233,25 @@ impl<'a> ProtocolVerifier<'a> {
             .iter()
             .map(|l| proto_handle_info(tys, l.ty))
             .collect();
+        let local_store_info: Vec<Option<ProtoHandleInfo>> = func
+            .body
+            .locals
+            .iter()
+            .map(|l| store_element_proto_info(tys, l.ty))
+            .collect();
         let mut init_slots: Vec<HandleProtocolSlot> = local_info
             .iter()
             .map(|info| {
                 info.map_or(HandleProtocolSlot::empty(), |i| {
                     HandleProtocolSlot::unknown(i.variant_count)
+                })
+            })
+            .collect();
+        let init_store_slots: Vec<StoreProtocolSummary> = local_store_info
+            .iter()
+            .map(|info| {
+                info.map_or(StoreProtocolSummary::empty_store(), |i| {
+                    StoreProtocolSummary::unknown_store(i.variant_count)
                 })
             })
             .collect();
@@ -481,12 +568,14 @@ impl<'a> ProtocolVerifier<'a> {
 
         let entry_state = ProtoState {
             slots: init_slots,
+            store_slots: init_store_slots,
             invalidated: ParamAliasSet::new(),
             aliases: AliasEnv {
                 param_alias: entry_param_alias,
                 alias: entry_alias,
                 may_alias: entry_may_alias,
                 local_roots: entry_local_roots,
+                store_borrow_parents: HashMap::new(),
             },
             caps: CapabilityEnv {
                 mut_cap_params: entry_mut_cap_params.clone(),
@@ -502,6 +591,7 @@ impl<'a> ProtocolVerifier<'a> {
             tys,
             param_count,
             local_info,
+            local_store_info,
             has_invalidation_upper,
             declared_invalidations,
             allows_rollback,
@@ -631,18 +721,24 @@ impl<'a> ProtocolVerifier<'a> {
                     }
                 }
                 Some(DiscrTarget::ErrorUnion(eu_l)) => {
+                    if val == 1 {
+                        covered_ok = true;
+                    } else if val == 0 {
+                        covered_err = true;
+                        if let Some(outcome) = st.refinements.store_op_of.get(&eu_l) {
+                            Self::apply_store_err_recovery(&mut branch_st, outcome);
+                        }
+                    }
                     if let Some(entries) = st.refinements.eu_of.get(&eu_l) {
                         for &(h_idx, ok_st, err_st) in entries {
                             if val == 1 {
-                                covered_ok = true;
                                 if let Some(s) = ok_st {
                                     branch_st.slots[h_idx].states = s;
                                 }
-                            } else if val == 0 {
-                                covered_err = true;
-                                if let Some(s) = err_st {
-                                    branch_st.slots[h_idx].states = s;
-                                }
+                            } else if val == 0
+                                && let Some(s) = err_st
+                            {
+                                branch_st.slots[h_idx].states = s;
                             }
                         }
                     }
@@ -678,6 +774,12 @@ impl<'a> ProtocolVerifier<'a> {
                 }
             }
             Some(DiscrTarget::ErrorUnion(eu_l)) => {
+                if covered_ok
+                    && !covered_err
+                    && let Some(outcome) = other_st.refinements.store_op_of.get(&eu_l).cloned()
+                {
+                    Self::apply_store_err_recovery(&mut other_st, &outcome);
+                }
                 if let Some(entries) = other_st.refinements.eu_of.get(&eu_l).cloned() {
                     for (h_idx, ok_st, err_st) in entries {
                         if covered_ok && !covered_err {

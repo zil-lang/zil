@@ -7,7 +7,7 @@ use zil_ir::body::{
     AdtKind, ContractFieldPath, DynImpl, FieldIdx, Local, Mutability, OpaqueTy, Operand, Place,
     PlaceRoot, Projection, ProtocolStateSet, TyId, TyKind, TyTable,
 };
-use zil_semantics::HandleProtocolSlot;
+use zil_semantics::{HandleProtocolSlot, StoreProtocolSummary};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum DiscrTarget {
@@ -15,6 +15,24 @@ pub(super) enum DiscrTarget {
     ErrorUnion(Local),
     HandleState(usize),
     ValidCheck { handle: usize, inverted: bool },
+}
+
+/// Branch-sensitive outcome of a `StorePush` or `StorePop` call returning an `ErrorUnion`.
+#[derive(Clone, PartialEq, Eq)]
+pub(super) enum StoreOpOutcome {
+    /// `StorePush(store, elem) -> ErrorUnion<(), elem>`:
+    /// On `.err(elem)` (OOM), restores `pre_summaries` and retracts `newly_invalidated`.
+    Push {
+        pre_summaries: Vec<(usize, StoreProtocolSummary)>,
+        newly_invalidated: Vec<(usize, Vec<FieldIdx>)>,
+    },
+    /// `StorePop(store) -> ErrorUnion<elem, ()>`:
+    /// On `.err(())` (empty store), retracts `newly_invalidated` and proves `unique_store` empty.
+    Pop {
+        unique_store: Option<usize>,
+        tracked_stores: Vec<usize>,
+        newly_invalidated: Vec<(usize, Vec<FieldIdx>)>,
+    },
 }
 
 pub(super) type EuTransitions = Vec<(usize, Option<ProtocolStateSet>, Option<ProtocolStateSet>)>;
@@ -42,6 +60,8 @@ pub(super) struct AliasEnv {
     pub(super) may_alias: HashMap<Local, BTreeSet<usize>>,
     /// May-map: local -> all root local indices whose storage/resources it may alias or borrow from (unioned on join).
     pub(super) local_roots: HashMap<Local, BTreeSet<usize>>,
+    /// May-map: borrowed element handle slot index -> parent `OwnedStore` root local indices.
+    pub(super) store_borrow_parents: HashMap<usize, BTreeSet<usize>>,
 }
 
 impl AliasEnv {
@@ -71,6 +91,14 @@ impl AliasEnv {
                 }
             }
         }
+        for (k, other_set) in &other.store_borrow_parents {
+            let entry = self.store_borrow_parents.entry(*k).or_default();
+            for &s in other_set {
+                if entry.insert(s) {
+                    changed = true;
+                }
+            }
+        }
         let prev_alias = self.alias.len();
         self.alias.retain(|k, v| other.alias.get(k) == Some(v));
         if self.alias.len() != prev_alias {
@@ -84,6 +112,7 @@ impl AliasEnv {
         self.may_alias.remove(&local);
         self.local_roots.remove(&local);
         self.param_alias.remove(&local);
+        self.store_borrow_parents.remove(&local.index());
     }
 }
 
@@ -137,6 +166,10 @@ pub(super) struct RefinementEnv {
     pub(super) poll_of: HashMap<Local, (usize, ProtocolStateSet, ProtocolStateSet)>,
     /// Must-map: ErrorUnion local -> `(handle_idx, ok_states, err_states)` transitions.
     pub(super) eu_of: HashMap<Local, EuTransitions>,
+    /// Must-map: `(eu_local, is_ok)` -> protocol handle slot of the payload carried in that arm.
+    pub(super) eu_payload_slot: HashMap<(Local, bool), HandleProtocolSlot>,
+    /// Must-map: `StorePush`/`StorePop` ErrorUnion local -> branch-sensitive store recovery facts.
+    pub(super) store_op_of: HashMap<Local, StoreOpOutcome>,
     /// Must-map: discriminant/tag local -> target.
     pub(super) discr_of: HashMap<Local, DiscrTarget>,
 }
@@ -172,6 +205,26 @@ impl RefinementEnv {
         if self.eu_of.len() != prev_eu {
             changed = true;
         }
+        let prev_eps = self.eu_payload_slot.len();
+        self.eu_payload_slot.retain(|k, v| {
+            if let Some(ov) = other.eu_payload_slot.get(k) {
+                if v.join(ov) {
+                    changed = true;
+                }
+                true
+            } else {
+                false
+            }
+        });
+        if self.eu_payload_slot.len() != prev_eps {
+            changed = true;
+        }
+        let prev_so = self.store_op_of.len();
+        self.store_op_of
+            .retain(|k, v| other.store_op_of.get(k) == Some(v));
+        if self.store_op_of.len() != prev_so {
+            changed = true;
+        }
         let prev_discr = self.discr_of.len();
         self.discr_of
             .retain(|k, v| other.discr_of.get(k) == Some(v));
@@ -187,6 +240,9 @@ impl RefinementEnv {
         self.error_arm_const.remove(&local);
         self.poll_of.remove(&local);
         self.eu_of.remove(&local);
+        self.eu_payload_slot.remove(&(local, true));
+        self.eu_payload_slot.remove(&(local, false));
+        self.store_op_of.remove(&local);
         self.discr_of.remove(&local);
     }
 
@@ -205,6 +261,34 @@ impl RefinementEnv {
             )
         });
     }
+
+    /// Invalidates any pending `StorePush`/`StorePop` branch recovery referencing `s_idx`
+    /// once `s_idx` is subsequently mutated before the branch is inspected.
+    pub(super) fn invalidate_store(&mut self, s_idx: usize) {
+        self.store_op_of.retain(|_, outcome| match outcome {
+            StoreOpOutcome::Push { pre_summaries, .. } => {
+                !pre_summaries.iter().any(|(s, _)| *s == s_idx)
+            }
+            StoreOpOutcome::Pop { tracked_stores, .. } => !tracked_stores.contains(&s_idx),
+        });
+    }
+
+    /// Ensures a later independent invalidation of `item` cannot be retracted by
+    /// an earlier pending `StorePush`/`StorePop` `.err` branch.
+    pub(super) fn on_param_invalidated(&mut self, item: &(usize, Vec<FieldIdx>)) {
+        for outcome in self.store_op_of.values_mut() {
+            match outcome {
+                StoreOpOutcome::Push {
+                    newly_invalidated, ..
+                }
+                | StoreOpOutcome::Pop {
+                    newly_invalidated, ..
+                } => {
+                    newly_invalidated.retain(|existing| existing != item);
+                }
+            }
+        }
+    }
 }
 
 /// Complete forward-CFG abstract state for protocol-state contract verification.
@@ -212,6 +296,8 @@ impl RefinementEnv {
 pub(super) struct ProtoState {
     /// Per-local protocol handle state, history `H`, rollback flag, and retired status.
     pub(super) slots: Vec<HandleProtocolSlot>,
+    /// Per-local `OwnedStore<E>` element protocol summary (indexed by local index).
+    pub(super) store_slots: Vec<StoreProtocolSummary>,
     /// Parameter projections `(param_idx, field_path)` invalidated on any path reaching here.
     pub(super) invalidated: ParamAliasSet,
     pub(super) aliases: AliasEnv,
@@ -224,6 +310,11 @@ impl ProtoState {
         let mut changed = false;
         for i in 0..self.slots.len() {
             if self.slots[i].join(&other.slots[i]) {
+                changed = true;
+            }
+        }
+        for i in 0..self.store_slots.len() {
+            if self.store_slots[i].join(&other.store_slots[i]) {
                 changed = true;
             }
         }
@@ -250,8 +341,28 @@ impl ProtoState {
         self.refinements.clear_local(local);
     }
 
+    pub(super) fn insert_invalidation(&mut self, item: (usize, Vec<FieldIdx>)) {
+        self.refinements.on_param_invalidated(&item);
+        self.invalidated.insert(item);
+    }
+
+    /// Propagates an actual mutation performed on borrowed handle slot `h_idx`
+    /// back into any parent `OwnedStore` summary it was borrowed from.
+    pub(super) fn sync_store_borrow_write(&mut self, h_idx: usize) {
+        if let Some(parents) = self.aliases.store_borrow_parents.get(&h_idx).cloned() {
+            let slot = self.slots[h_idx];
+            for s_idx in parents {
+                if let Some(summary) = self.store_slots.get_mut(s_idx) {
+                    summary.on_borrowed_mutation(slot);
+                }
+                self.refinements.invalidate_store(s_idx);
+            }
+        }
+    }
+
     pub(super) fn set_handle_state(&mut self, h_idx: usize, new_state: ProtocolStateSet) {
         self.slots[h_idx].transition(new_state);
+        self.sync_store_borrow_write(h_idx);
     }
 
     /// Conservative weak update for a handle that *may* alias the written handle.
@@ -259,6 +370,7 @@ impl ProtoState {
     /// (transition to `new_state`, recording departures and potential rollback).
     pub(super) fn weak_update_handle_state(&mut self, h_idx: usize, new_state: ProtocolStateSet) {
         self.slots[h_idx].weak_transition(new_state);
+        self.sync_store_borrow_write(h_idx);
     }
 
     pub(super) fn resolve_param_places(&self, place: &Place) -> ParamAliasSet {
@@ -292,7 +404,7 @@ impl ProtoState {
         };
         for (p_idx, path) in self.resolve_param_places(place) {
             if !place.projections.is_empty() || rl.index() != p_idx {
-                self.invalidated.insert((p_idx, path));
+                self.insert_invalidation((p_idx, path));
             }
         }
     }

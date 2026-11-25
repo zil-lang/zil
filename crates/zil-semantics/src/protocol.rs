@@ -239,6 +239,96 @@ impl HandleProtocolSlot {
     }
 }
 
+/// Classifies whether `ty` (through up to 4 layers of `&`, `&mut`, `Managed`,
+/// or `Desc`) is an `OwnedStore<E>` whose element type `E` is a finite-state
+/// protocol handle, returning `E`'s [`ProtoHandleInfo`].
+pub fn store_element_proto_info(tys: &TyTable, mut ty: TyId) -> Option<ProtoHandleInfo> {
+    for _ in 0..4 {
+        match tys.get(ty) {
+            Some(
+                TyKind::Ref { pointee, .. } | TyKind::Managed(pointee) | TyKind::Desc(pointee),
+            ) => ty = *pointee,
+            Some(TyKind::Opaque(OpaqueTy::OwnedStore { element })) => {
+                return proto_handle_info(tys, *element);
+            }
+            Some(_) | None => return None,
+        }
+    }
+    None
+}
+
+/// Abstract protocol-state summary for elements stored inside an `OwnedStore<E>`.
+///
+/// Distinguishes a statically empty store (`may_be_non_empty == false`, e.g. right
+/// after `StoreNew`) from a potentially populated store, and fails closed when
+/// popping from an empty store so an empty bitmask can never vacuously satisfy a
+/// protocol precondition or `Closed` check.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StoreProtocolSummary {
+    /// Joined protocol state, history `H`, and retirement status across stored elements.
+    pub elements: HandleProtocolSlot,
+    /// `false` iff the store is proved empty on all reaching paths.
+    pub may_be_non_empty: bool,
+}
+
+impl StoreProtocolSummary {
+    /// Freshly constructed empty store (`StoreNew`).
+    pub const fn empty_store() -> Self {
+        Self {
+            elements: HandleProtocolSlot::empty(),
+            may_be_non_empty: false,
+        }
+    }
+
+    /// Conservatively initialized store (e.g. entry parameter) whose elements may
+    /// be in any of `variant_count` protocol states.
+    pub const fn unknown_store(variant_count: usize) -> Self {
+        Self {
+            elements: HandleProtocolSlot::unknown(variant_count),
+            may_be_non_empty: true,
+        }
+    }
+
+    /// Lattice join across CFG merge edges.
+    pub fn join(&mut self, other: &Self) -> bool {
+        if !other.may_be_non_empty {
+            return false;
+        }
+        if !self.may_be_non_empty {
+            *self = *other;
+            return true;
+        }
+        self.elements.join(&other.elements)
+    }
+
+    /// Applies a successful `StorePush(store, incoming)` transition.
+    pub fn on_push_success(&mut self, incoming: HandleProtocolSlot) {
+        if !self.may_be_non_empty {
+            self.elements = incoming;
+            self.may_be_non_empty = true;
+        } else {
+            self.elements.join(&incoming);
+        }
+    }
+
+    /// Returns the protocol slot for an element extracted via `StorePop.ok` or
+    /// borrowed via `StoreBorrow`. Fails closed to `unknown(variant_count)` when
+    /// the store has no known non-empty state so `ProtocolStateSet(0)` can never
+    /// vacuously satisfy a precondition.
+    pub const fn element_slot(&self, variant_count: usize) -> HandleProtocolSlot {
+        if self.may_be_non_empty && !self.elements.states.is_empty() {
+            self.elements
+        } else {
+            HandleProtocolSlot::unknown(variant_count)
+        }
+    }
+
+    /// Incorporates an actual mutation performed through an exclusive `StoreBorrow`.
+    pub fn on_borrowed_mutation(&mut self, updated: HandleProtocolSlot) {
+        self.on_push_success(updated);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +413,42 @@ mod tests {
             !slot.rolled_back,
             "weak replace must not conflate old departures with incoming states as rollback"
         );
+    }
+
+    #[test]
+    fn store_summary_distinguishes_empty_from_populated_and_fails_closed() {
+        let mut s = StoreProtocolSummary::empty_store();
+        assert!(!s.may_be_non_empty);
+        // Popping from a proved-empty store must NEVER return ProtocolStateSet(0)
+        // which would vacuously satisfy `is_subset_of(CLOSED)`.
+        let empty_pop = s.element_slot(3);
+        assert_eq!(empty_pop.states, ProtocolStateSet::all_variants(3));
+        assert!(!empty_pop.retired);
+
+        // After a successful push of an Open handle, element_slot is exact Open.
+        s.on_push_success(HandleProtocolSlot::fresh(OPEN));
+        assert!(s.may_be_non_empty);
+        assert_eq!(s.element_slot(3).states, OPEN);
+
+        // Joining with an empty branch keeps Open; joining with a Closed push widens to Open|Closed.
+        let empty_branch = StoreProtocolSummary::empty_store();
+        assert!(!s.join(&empty_branch));
+        assert_eq!(s.element_slot(3).states, OPEN);
+
+        let mut other = StoreProtocolSummary::empty_store();
+        other.on_push_success(HandleProtocolSlot::fresh(CLOSED));
+        assert!(s.join(&other));
+        assert_eq!(s.element_slot(3).states, OPEN.union(CLOSED));
+    }
+
+    #[test]
+    fn store_summary_records_borrowed_mutation_without_spurious_rollback() {
+        let mut s = StoreProtocolSummary::empty_store();
+        s.on_push_success(HandleProtocolSlot::fresh(OPEN));
+        let mut borrowed = s.element_slot(3);
+        borrowed.transition(CLOSED);
+        s.on_borrowed_mutation(borrowed);
+        assert_eq!(s.element_slot(3).states, OPEN.union(CLOSED));
+        assert!(!s.element_slot(3).has_hidden_rollback());
     }
 }

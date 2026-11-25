@@ -150,6 +150,7 @@ impl ProtocolVerifier<'_> {
                 if other_h != primary_prev {
                     let snap = st.slots[other_h].replace_weak_target(incoming);
                     acc_old.join(&snap);
+                    st.sync_store_borrow_write(other_h);
                     st.invalidate_handle(other_h);
                 }
             }
@@ -177,6 +178,7 @@ impl ProtocolVerifier<'_> {
             {
                 let incoming = self.resolve_incoming_slot(st, value, info.variant_count);
                 let mut acc_old = st.slots[h_idx].replace_strong(incoming);
+                st.sync_store_borrow_write(h_idx);
                 st.invalidate_handle(h_idx);
                 if let Some(targets) = st.aliases.may_alias.get(&rl).cloned() {
                     for other_h in targets {
@@ -185,6 +187,7 @@ impl ProtocolVerifier<'_> {
                         {
                             let snap = st.slots[other_h].replace_weak_target(incoming);
                             acc_old.join(&snap);
+                            st.sync_store_borrow_write(other_h);
                             st.invalidate_handle(other_h);
                         }
                     }
@@ -198,6 +201,7 @@ impl ProtocolVerifier<'_> {
                     if let Some(Some(info)) = self.local_info.get(h_idx) {
                         let incoming = self.resolve_incoming_slot(st, value, info.variant_count);
                         let snap = st.slots[h_idx].replace_weak_target(incoming);
+                        st.sync_store_borrow_write(h_idx);
                         st.invalidate_handle(h_idx);
                         match &mut acc_old {
                             None => acc_old = Some(snap),
@@ -379,6 +383,7 @@ impl ProtocolVerifier<'_> {
                             HandleProtocolSlot::unknown(info.variant_count)
                         };
                         let _ = st.slots[h_idx].replace_weak_target(incoming);
+                        st.sync_store_borrow_write(h_idx);
                         st.invalidate_handle(h_idx);
                     } else {
                         let touches_state = match info.state_field {
@@ -445,6 +450,7 @@ impl ProtocolVerifier<'_> {
                     HandleProtocolSlot::unknown(info.variant_count)
                 };
                 let _ = st.slots[h_idx].replace_strong(incoming);
+                st.sync_store_borrow_write(h_idx);
                 st.invalidate_handle(h_idx);
                 if let Some(targets) = st.aliases.may_alias.get(&rl).cloned() {
                     for other_h in targets {
@@ -452,6 +458,7 @@ impl ProtocolVerifier<'_> {
                             && self.local_info.get(other_h).is_some_and(Option::is_some)
                         {
                             let _ = st.slots[other_h].replace_weak_target(incoming);
+                            st.sync_store_borrow_write(other_h);
                             st.invalidate_handle(other_h);
                         }
                     }
@@ -572,6 +579,23 @@ impl ProtocolVerifier<'_> {
                 }
                 if let Some(h_idx) = self.place_targets_state_field(src, st) {
                     st.refinements.state_field_of.insert(dl, h_idx);
+                } else if let PlaceRoot::Local(sl) = src.root
+                    && let Some((Projection::ErrorArm(is_ok), prefix)) =
+                        src.projections.split_last()
+                    && prefix.iter().all(|p| matches!(p, Projection::Deref))
+                    && self.local_info.get(di).is_some_and(Option::is_some)
+                {
+                    let slot = st
+                        .refinements
+                        .eu_payload_slot
+                        .get(&(sl, *is_ok))
+                        .copied()
+                        .unwrap_or_else(|| {
+                            HandleProtocolSlot::unknown(
+                                self.local_info[di].map_or(3, |i| i.variant_count),
+                            )
+                        });
+                    st.slots[di] = slot;
                 } else if src.projections.is_empty()
                     && let PlaceRoot::Local(sl) = src.root
                 {
@@ -606,6 +630,11 @@ impl ProtocolVerifier<'_> {
                             // Move of an owning handle or copy of &/&mut/Desc preserves handle identity.
                             st.aliases.alias.insert(dl, h);
                         }
+                        if self.local_store_info.get(di).is_some_and(Option::is_some)
+                            && self.local_store_info.get(h).is_some_and(Option::is_some)
+                        {
+                            st.store_slots[di] = st.store_slots[h];
+                        }
                     } else if matches!(
                         self.tys.get(dest_ty),
                         Some(TyKind::Ref { .. } | TyKind::Desc(_))
@@ -628,6 +657,15 @@ impl ProtocolVerifier<'_> {
                     if let Some(eu) = st.refinements.eu_of.get(&sl).cloned() {
                         st.refinements.eu_of.insert(dl, eu);
                     }
+                    if let Some(&slot) = st.refinements.eu_payload_slot.get(&(sl, true)) {
+                        st.refinements.eu_payload_slot.insert((dl, true), slot);
+                    }
+                    if let Some(&slot) = st.refinements.eu_payload_slot.get(&(sl, false)) {
+                        st.refinements.eu_payload_slot.insert((dl, false), slot);
+                    }
+                    if let Some(so) = st.refinements.store_op_of.get(&sl).cloned() {
+                        st.refinements.store_op_of.insert(dl, so);
+                    }
                 }
                 // Propagate nested resource handle identities into `may_alias` when
                 // projecting an indirect protocol handle field (e.g. `ctx_borrow.handle`).
@@ -648,7 +686,24 @@ impl ProtocolVerifier<'_> {
                 if !pa.is_empty() {
                     st.aliases.param_alias.insert(dl, pa);
                 }
-                if src
+                if let PlaceRoot::Local(sl) = src.root
+                    && let Some((Projection::ErrorArm(is_ok), prefix)) =
+                        src.projections.split_last()
+                    && prefix.iter().all(|p| matches!(p, Projection::Deref))
+                    && let Some(Some(info)) = self.local_info.get(di)
+                {
+                    let slot = st
+                        .refinements
+                        .eu_payload_slot
+                        .get(&(sl, *is_ok))
+                        .copied()
+                        .unwrap_or_else(|| HandleProtocolSlot::unknown(info.variant_count));
+                    st.slots[di] = slot;
+                    st.aliases.alias.insert(dl, di);
+                    let mut s = BTreeSet::new();
+                    s.insert(di);
+                    st.aliases.may_alias.insert(dl, s);
+                } else if src
                     .projections
                     .iter()
                     .all(|p| matches!(p, Projection::Deref))
@@ -744,6 +799,12 @@ impl ProtocolVerifier<'_> {
                 if let Operand::Copy(p) | Operand::Move(p) = operand
                     && let PlaceRoot::Local(sl) = p.root
                 {
+                    if p.projections.is_empty()
+                        && let Some(Some(info)) = self.local_info.get(sl.index())
+                    {
+                        let slot = self.resolve_incoming_slot(st, operand, info.variant_count);
+                        st.refinements.eu_payload_slot.insert((dl, *ok), slot);
+                    }
                     if let Some(mcp) = st.caps.mut_cap_params.get(&sl).cloned() {
                         st.caps.mut_cap_params.insert(dl, mcp);
                     }

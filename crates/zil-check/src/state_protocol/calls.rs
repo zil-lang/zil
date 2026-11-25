@@ -7,16 +7,29 @@ use zil_ir::body::{
     BlockId, Callee, ContractFieldPath, FieldIdx, FnId, IntrinsicOp, Local, Mutability, Operand,
     Place, PlaceRoot, ProtocolStateSet, StateContractClause, TyKind,
 };
-use zil_semantics::HandleProtocolSlot;
+use zil_semantics::{HandleProtocolSlot, StoreProtocolSummary};
 
 use super::env::{
-    DiscrTarget, HandleCapSet, ParamAliasSet, ProtoState, extract_field_proj, filter_handle_caps,
-    is_mut_ref_or_desc_ty, is_pure_scalar_ty,
+    DiscrTarget, HandleCapSet, ParamAliasSet, ProtoState, StoreOpOutcome, extract_field_proj,
+    filter_handle_caps, is_mut_ref_or_desc_ty, is_pure_scalar_ty,
 };
 use super::{ProtocolVerifier, enqueue};
 use crate::CheckError;
 
 impl ProtocolVerifier<'_> {
+    fn collect_store_invalidation_targets(&self, st: &ProtoState, op: &Operand) -> ParamAliasSet {
+        let mut out = ParamAliasSet::new();
+        if let Operand::Copy(p) | Operand::Move(p) = op {
+            out.extend(st.resolve_param_places(p));
+            if let PlaceRoot::Local(al) = p.root
+                && let Some(mcp) = st.caps.mut_cap_params.get(&al)
+            {
+                out.extend(mcp.iter().cloned());
+            }
+        }
+        out
+    }
+
     fn apply_local_effects(
         &self,
         st: &mut ProtoState,
@@ -26,7 +39,7 @@ impl ProtocolVerifier<'_> {
     ) {
         if let Some(mcp) = st.caps.mut_cap_params.get(&local).cloned() {
             for item in mcp {
-                st.invalidated.insert(item);
+                st.insert_invalidation(item);
             }
         }
         if let Some(mch) = st.caps.mut_cap_handles.get(&local).cloned() {
@@ -35,6 +48,7 @@ impl ProtocolVerifier<'_> {
                     && let Some(Some(info)) = self.local_info.get(h_idx)
                 {
                     st.slots[h_idx].widen_unknown_mutation(info.variant_count);
+                    st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                 }
             }
@@ -49,7 +63,7 @@ impl ProtocolVerifier<'_> {
         {
             if let Some(pa_set) = st.aliases.param_alias.get(&local).cloned() {
                 for item in pa_set {
-                    st.invalidated.insert(item);
+                    st.insert_invalidation(item);
                 }
             }
             if let Some(ma_set) = st.aliases.may_alias.get(&local).cloned() {
@@ -58,8 +72,32 @@ impl ProtocolVerifier<'_> {
                         && let Some(Some(info)) = self.local_info.get(h_idx)
                     {
                         st.slots[h_idx].widen_unknown_mutation(info.variant_count);
+                        st.sync_store_borrow_write(h_idx);
                         st.invalidate_handle(h_idx);
                     }
+                }
+            }
+            let mut store_targets = BTreeSet::new();
+            if let Some(&s_idx) = st.aliases.alias.get(&local)
+                && self
+                    .local_store_info
+                    .get(s_idx)
+                    .is_some_and(Option::is_some)
+            {
+                store_targets.insert(s_idx);
+            }
+            if let Some(roots) = st.aliases.local_roots.get(&local) {
+                for &r in roots {
+                    if self.local_store_info.get(r).is_some_and(Option::is_some) {
+                        store_targets.insert(r);
+                    }
+                }
+            }
+            for s_idx in store_targets {
+                if let Some(Some(elem_info)) = self.local_store_info.get(s_idx) {
+                    st.store_slots[s_idx] =
+                        StoreProtocolSummary::unknown_store(elem_info.variant_count);
+                    st.refinements.invalidate_store(s_idx);
                 }
             }
         }
@@ -131,6 +169,10 @@ impl ProtocolVerifier<'_> {
             let di = dl.index();
             st.caps.mut_cap_params.remove(&dl);
             st.caps.mut_cap_handles.remove(&dl);
+            st.aliases.store_borrow_parents.remove(&di);
+            st.refinements.eu_payload_slot.remove(&(dl, true));
+            st.refinements.eu_payload_slot.remove(&(dl, false));
+            st.refinements.store_op_of.remove(&dl);
             let mut dest_roots = BTreeSet::new();
             dest_roots.insert(di);
             if !is_pure_scalar_ty(self.tys, self.func.body.locals[di].ty) {
@@ -284,13 +326,199 @@ impl ProtocolVerifier<'_> {
                     }
                 }
             }
-            Callee::Intrinsic(
-                IntrinsicOp::StoreLen
-                | IntrinsicOp::StoreCapacity
-                | IntrinsicOp::StoreBorrow {
-                    mutability: Mutability::Shared,
-                },
-            ) => {}
+            Callee::Intrinsic(IntrinsicOp::StoreNew) => {
+                if let Some(dl) = dest_local {
+                    let di = dl.index();
+                    if self.local_store_info.get(di).is_some_and(Option::is_some) {
+                        st.store_slots[di] = StoreProtocolSummary::empty_store();
+                        st.aliases.alias.insert(dl, di);
+                        st.refinements.invalidate_store(di);
+                    }
+                }
+            }
+            Callee::Intrinsic(IntrinsicOp::StoreReserve) => {
+                if let Some(store_arg) = args.first() {
+                    for item in self.collect_store_invalidation_targets(&st, store_arg) {
+                        st.insert_invalidation(item);
+                    }
+                    let (_, may_stores) = self.resolve_store_targets(&st, store_arg);
+                    for s_idx in may_stores {
+                        st.refinements.invalidate_store(s_idx);
+                    }
+                }
+            }
+            Callee::Intrinsic(IntrinsicOp::StorePush) => {
+                if let Some(store_arg) = args.first() {
+                    let (_, may_stores) = self.resolve_store_targets(&st, store_arg);
+                    let inv_targets = self.collect_store_invalidation_targets(&st, store_arg);
+                    let newly_invalidated: Vec<(usize, Vec<FieldIdx>)> = inv_targets
+                        .iter()
+                        .filter(|item| !st.invalidated.contains(*item))
+                        .cloned()
+                        .collect();
+                    let pre_summaries: Vec<(usize, StoreProtocolSummary)> = may_stores
+                        .iter()
+                        .map(|&s_idx| (s_idx, st.store_slots[s_idx]))
+                        .collect();
+                    let elem_info = may_stores
+                        .iter()
+                        .next()
+                        .and_then(|&s| self.local_store_info[s])
+                        .or_else(|| {
+                            args.get(1).and_then(|ea| match ea {
+                                Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
+                                    match p.root {
+                                        PlaceRoot::Local(el) => {
+                                            self.local_info.get(el.index()).and_then(|o| *o)
+                                        }
+                                        PlaceRoot::Capture(_) => None,
+                                    }
+                                }
+                                Operand::Copy(_)
+                                | Operand::Move(_)
+                                | Operand::Const(_)
+                                | Operand::Pooled(_) => None,
+                            })
+                        });
+                    let incoming_slot = elem_info.zip(args.get(1)).map(|(info, elem_arg)| {
+                        self.resolve_incoming_slot(&st, elem_arg, info.variant_count)
+                    });
+
+                    // Conservative post-push state (applies on `.ok`; retracted on `.err`).
+                    for item in inv_targets {
+                        st.insert_invalidation(item);
+                    }
+                    for &s_idx in &may_stores {
+                        st.refinements.invalidate_store(s_idx);
+                        if let Some(slot) = incoming_slot {
+                            st.store_slots[s_idx].on_push_success(slot);
+                        }
+                    }
+
+                    if let Some(dl) = dest_local {
+                        if let Some(slot) = incoming_slot {
+                            st.refinements.eu_payload_slot.insert((dl, false), slot);
+                        }
+                        st.refinements.store_op_of.insert(
+                            dl,
+                            StoreOpOutcome::Push {
+                                pre_summaries,
+                                newly_invalidated,
+                            },
+                        );
+                    }
+                }
+            }
+            Callee::Intrinsic(IntrinsicOp::StorePop) => {
+                if let Some(store_arg) = args.first() {
+                    let (must_store, may_stores) = self.resolve_store_targets(&st, store_arg);
+                    let inv_targets = self.collect_store_invalidation_targets(&st, store_arg);
+                    let newly_invalidated: Vec<(usize, Vec<FieldIdx>)> = inv_targets
+                        .iter()
+                        .filter(|item| !st.invalidated.contains(*item))
+                        .cloned()
+                        .collect();
+                    let elem_info = may_stores
+                        .iter()
+                        .next()
+                        .and_then(|&s| self.local_store_info[s])
+                        .or_else(|| {
+                            dest_local.and_then(|dl| {
+                                let dty = self.func.body.locals[dl.index()].ty;
+                                match self.tys.get(dty) {
+                                    Some(TyKind::ErrorUnion { ok, .. }) => {
+                                        zil_semantics::proto_handle_info(self.tys, *ok)
+                                    }
+                                    _ => None,
+                                }
+                            })
+                        });
+                    let popped_slot = elem_info.map(|info| {
+                        let mut iter = may_stores.iter().copied();
+                        if let Some(first) = iter.next() {
+                            let mut acc = st.store_slots[first].element_slot(info.variant_count);
+                            for other in iter {
+                                acc.join(&st.store_slots[other].element_slot(info.variant_count));
+                            }
+                            acc
+                        } else {
+                            HandleProtocolSlot::unknown(info.variant_count)
+                        }
+                    });
+
+                    // Conservative post-pop state (applies on `.ok`; retracted on `.err`).
+                    for item in inv_targets {
+                        st.insert_invalidation(item);
+                    }
+                    for &s_idx in &may_stores {
+                        st.refinements.invalidate_store(s_idx);
+                    }
+
+                    if let Some(dl) = dest_local {
+                        if let Some(slot) = popped_slot {
+                            st.refinements.eu_payload_slot.insert((dl, true), slot);
+                        }
+                        let unique_store = if may_stores.len() == 1 {
+                            must_store
+                        } else {
+                            None
+                        };
+                        let tracked_stores: Vec<usize> = may_stores.iter().copied().collect();
+                        st.refinements.store_op_of.insert(
+                            dl,
+                            StoreOpOutcome::Pop {
+                                unique_store,
+                                tracked_stores,
+                                newly_invalidated,
+                            },
+                        );
+                    }
+                }
+            }
+            Callee::Intrinsic(IntrinsicOp::StoreLen | IntrinsicOp::StoreCapacity) => {}
+            Callee::Intrinsic(IntrinsicOp::StoreBorrow { .. }) => {
+                // Borrowing an element (`&E` or `&mut E`) is NOT an actual modification:
+                // do not invalidate the store at borrow creation. Propagate `param_alias`
+                // and `store_borrow_parents` so only actual writes through the borrow
+                // invalidate the store and update its element protocol summary.
+                if let Some(dl) = dest_local
+                    && let Some(store_arg) = args.first()
+                {
+                    let di = dl.index();
+                    let (_, may_stores) = self.resolve_store_targets(&st, store_arg);
+                    let store_params = self.collect_store_invalidation_targets(&st, store_arg);
+                    if !store_params.is_empty() {
+                        st.aliases.param_alias.insert(dl, store_params);
+                    }
+                    if let Some(Some(elem_info)) = self.local_info.get(di) {
+                        let borrowed_slot = {
+                            let mut iter = may_stores.iter().copied();
+                            if let Some(first) = iter.next() {
+                                let mut acc =
+                                    st.store_slots[first].element_slot(elem_info.variant_count);
+                                for other in iter {
+                                    acc.join(
+                                        &st.store_slots[other]
+                                            .element_slot(elem_info.variant_count),
+                                    );
+                                }
+                                acc
+                            } else {
+                                HandleProtocolSlot::unknown(elem_info.variant_count)
+                            }
+                        };
+                        st.slots[di] = borrowed_slot;
+                        st.aliases.alias.insert(dl, di);
+                        let mut s = BTreeSet::new();
+                        s.insert(di);
+                        st.aliases.may_alias.insert(dl, s);
+                        if !may_stores.is_empty() {
+                            st.aliases.store_borrow_parents.insert(di, may_stores);
+                        }
+                        st.invalidate_handle(di);
+                    }
+                }
+            }
             Callee::Intrinsic(IntrinsicOp::AsyncRegistrationValid) => {
                 if let Some(a0) = args.first()
                     && let Some(h_idx) = st.resolve_handle(a0)
@@ -322,6 +550,7 @@ impl ProtocolVerifier<'_> {
                         next = next.union(ProtocolStateSet(ProtocolStateSet::CLOSED));
                     }
                     st.slots[h_idx].states = next;
+                    st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                 }
             }
@@ -333,6 +562,7 @@ impl ProtocolVerifier<'_> {
                 {
                     st.slots[h_idx].states =
                         ProtocolStateSet(ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED);
+                    st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                     if let Some(dl) = dest_local {
                         st.refinements.poll_of.insert(
@@ -361,6 +591,7 @@ impl ProtocolVerifier<'_> {
                         );
                     }
                     st.slots[h_idx].retired = true;
+                    st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                 }
             }
@@ -369,6 +600,7 @@ impl ProtocolVerifier<'_> {
                     && let Some(h_idx) = st.resolve_handle(a0)
                 {
                     st.slots[h_idx].retired = true;
+                    st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                 }
             }
@@ -554,7 +786,7 @@ impl ProtocolVerifier<'_> {
                         {
                             for (caller_p, mut caller_path) in st.resolve_param_places(p) {
                                 caller_path.extend_from_slice(path.as_slice());
-                                st.invalidated.insert((caller_p, caller_path));
+                                st.insert_invalidation((caller_p, caller_path));
                             }
                         }
                     }
@@ -569,6 +801,7 @@ impl ProtocolVerifier<'_> {
                                     st.slots[h_idx].history =
                                         ProtocolStateSet::all_variants(info.variant_count);
                                     st.slots[h_idx].rolled_back = true;
+                                    st.sync_store_borrow_write(h_idx);
                                 }
                             }
                         }
@@ -578,6 +811,7 @@ impl ProtocolVerifier<'_> {
                             && let Some(h_idx) = st.resolve_handle(arg)
                         {
                             st.slots[h_idx].retired = true;
+                            st.sync_store_borrow_write(h_idx);
                             st.invalidate_handle(h_idx);
                             contracted_handles.push(h_idx);
                         }
@@ -641,6 +875,18 @@ impl ProtocolVerifier<'_> {
                 // Projection-scoped invalidation: widen protocol handles whose
                 // direct state field or nested capability path overlaps `path`.
                 for &(c_param, path) in &callee_invalidated_targets {
+                    if let Some(arg) = args.get(c_param)
+                        && path.len == 0
+                    {
+                        let (_, may_stores) = self.resolve_store_targets(st, arg);
+                        for s_idx in may_stores {
+                            if let Some(Some(elem_info)) = self.local_store_info.get(s_idx) {
+                                st.store_slots[s_idx] =
+                                    StoreProtocolSummary::unknown_store(elem_info.variant_count);
+                                st.refinements.invalidate_store(s_idx);
+                            }
+                        }
+                    }
                     if let Some(Operand::Copy(p) | Operand::Move(p)) = args.get(c_param)
                         && p.projections.is_empty()
                         && let PlaceRoot::Local(al) = p.root
@@ -655,6 +901,7 @@ impl ProtocolVerifier<'_> {
                                         && let Some(Some(info)) = self.local_info.get(h_idx)
                                     {
                                         st.slots[h_idx].widen_unknown_mutation(info.variant_count);
+                                        st.sync_store_borrow_write(h_idx);
                                         st.invalidate_handle(h_idx);
                                     }
                                 }
@@ -662,7 +909,7 @@ impl ProtocolVerifier<'_> {
                             if let Some(mcp) = st.caps.mut_cap_params.get(&al).cloned() {
                                 for (p_idx, cap_path) in mcp {
                                     if path.overlaps(&cap_path) {
-                                        st.invalidated.insert((p_idx, cap_path));
+                                        st.insert_invalidation((p_idx, cap_path));
                                     }
                                 }
                             }
