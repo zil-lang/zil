@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
-      CARGO_BUILD_JOBS: '2'
+      CARGO_BUILD_JOBS: '4'
       CARGO_PROFILE_DEV_DEBUG: '0'
       CARGO_PROFILE_DEV_STRIP: 'symbols'
       CARGO_INCREMENTAL: '0'
@@ -30,17 +30,40 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/acceptance-receipts"
           sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+      - name: Cache LLVM 23.1.4 runtime prefix
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/zil-llvm/23.1.4
+          key: zil-llvm-runtime-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json', 'tools/llvm/install.py') }}
       - name: Install the supported LLVM API toolchain
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
-          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm-23.1.4"
-          echo "ZIL_CLANG=$RUNNER_TEMP/llvm-23.1.4/bin/clang" >> "$GITHUB_ENV"
-          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
-          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/llvm-23.1.4/bin" >> "$GITHUB_PATH"
+          LLVM_PREFIX="$HOME/.cache/zil-llvm/23.1.4"
+          if [ ! -f "$LLVM_PREFIX/install-receipt.json" ]; then
+            sudo apt-get update
+            sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+            rm -rf "$LLVM_PREFIX"
+            mkdir -p "$(dirname "$LLVM_PREFIX")"
+            python3 tools/llvm/install.py --prefix "$LLVM_PREFIX"
+            rm -f "$LLVM_PREFIX"/lib/libLLVM*.a
+          fi
+          echo "ZIL_CLANG=$LLVM_PREFIX/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+      - name: Cache Cargo registry and acceptance build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ${{ runner.temp }}/target
+          key: zil-cargo-acceptance-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            zil-cargo-acceptance-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+            zil-cargo-acceptance-v1-
       - name: Record exact checkout, toolchain, and build ZIL + Roam binaries
         shell: bash
         run: |

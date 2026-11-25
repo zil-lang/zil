@@ -143,3 +143,16 @@ JSON 编译报告给出 `work_profile`、`work_profile_revision` 和 `effective_
 累计工作耗尽时，诊断给出阶段、已用步骤、剩余步骤、下一笔请求和已观测到的结构与求解计数。此时没有已验证模块。`work_steps` 的单位由当前实现定义。比较版本的性能还需要在同一输入上测实际运行时间与峰值内存。
 
 验收要求合法原程序在承诺的默认入口完成编译和所要求的原生运行，非法对照到达约定的语义规则。受限输入入口还要证明超额时安全停止。历史精确步数和显式压力档用于定位成本变化。两种配置下，每次完整编译都须通过当前独立 Verify。[Alpha 资源合同](../../validation/language-alpha-resource-profile.json)
+
+## 本地快速验证
+
+日常迭代可使用 [`tools/dev-check.py`](../../tools/dev-check.py) 缩短反馈环，同时保留完整发 PR 门禁：
+
+```sh
+# 1) 快速内循环（格式、增量布局、索引、一致性、crate 架构 + 指定 crate/测试）
+python3 tools/dev-check.py --fast -p zil-check -p zil-semantics
+
+# 2) 发 PR 前完整本地门（含 clippy -D warnings 与全量工作区测试；本地未配 libLLVM-23 时自动走 Clang 参考模式）
+python3 tools/dev-check.py --full
+```
+

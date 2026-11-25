@@ -5,15 +5,15 @@ on:
     paths-ignore:
       - 'README.md'
       - 'AGENTS.md'
-      - 'docs/README.md'
-      - 'docs/guide/**'
+      - 'docs/**'
+      - 'validation/README.md'
   pull_request:
     branches: [main]
     paths-ignore:
       - 'README.md'
       - 'AGENTS.md'
-      - 'docs/README.md'
-      - 'docs/guide/**'
+      - 'docs/**'
+      - 'validation/README.md'
 permissions:
   contents: read
 concurrency:
@@ -22,15 +22,17 @@ concurrency:
 jobs:
   workspace:
     runs-on: ubuntu-24.04
-    # Includes both complete workspace builds, native consumers and Clippy.
-    timeout-minutes: 90
+    # Fast-fail formatting + all-target Clippy + full workspace tests + text-reference & CI self-tests,
+    # sharing one cached Cargo target directory and one cached LLVM 23.1.4 prefix.
+    timeout-minutes: 60
     env:
-      CARGO_BUILD_JOBS: '2'
+      CARGO_BUILD_JOBS: '4'
       CARGO_PROFILE_TEST_DEBUG: '0'
       CARGO_PROFILE_DEV_DEBUG: '0'
       CARGO_PROFILE_TEST_STRIP: 'symbols'
       CARGO_PROFILE_DEV_STRIP: 'symbols'
       CARGO_INCREMENTAL: '0'
+      CARGO_TERM_COLOR: 'always'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -42,27 +44,44 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/receipts"
           sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
-      - name: Preserve pre-build disk recovery receipt
-        id: disk_checkpoint
-        continue-on-error: true
-        if: ${{ always() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - name: Cache LLVM 23.1.4 runtime prefix
+        id: llvm_cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-disk-recovery
-          path: ${{ runner.temp }}/receipts/disk-space-before-build.json
-          retention-days: 30
-          if-no-files-found: error
+          path: ~/.cache/zil-llvm/23.1.4
+          key: zil-llvm-runtime-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json', 'tools/llvm/install.py') }}
       - name: Install the supported LLVM API toolchain
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
-          python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm-23.1.4"
-          echo "ZIL_CLANG=$RUNNER_TEMP/llvm-23.1.4/bin/clang" >> "$GITHUB_ENV"
-          echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
-          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-23.1.4/lib" >> "$GITHUB_ENV"
-          echo "$RUNNER_TEMP/llvm-23.1.4/bin" >> "$GITHUB_PATH"
+          LLVM_PREFIX="$HOME/.cache/zil-llvm/23.1.4"
+          if ! command -v zstd >/dev/null 2>&1 || [ ! -f "$LLVM_PREFIX/install-receipt.json" ]; then
+            sudo apt-get update
+            sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          fi
+          if [ ! -f "$LLVM_PREFIX/install-receipt.json" ]; then
+            rm -rf "$LLVM_PREFIX"
+            mkdir -p "$(dirname "$LLVM_PREFIX")"
+            python3 tools/llvm/install.py --prefix "$LLVM_PREFIX"
+            # Remove static component archives once libLLVM-23.so is linked so the prefix cache stays compact.
+            rm -f "$LLVM_PREFIX"/lib/libLLVM*.a
+          fi
+          echo "ZIL_CLANG=$LLVM_PREFIX/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+      - name: Cache Cargo registry and workspace build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ${{ runner.temp }}/target
+          key: zil-cargo-workspace-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            zil-cargo-workspace-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+            zil-cargo-workspace-v1-
       - name: Record exact checkout and toolchain
         shell: bash
         run: |
@@ -77,108 +96,13 @@ jobs:
           rustc -vV > "$RUNNER_TEMP/receipts/toolchain.txt"
           "$ZIL_CLANG" --version >> "$RUNNER_TEMP/receipts/toolchain.txt"
           python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"
-          cp "$RUNNER_TEMP/llvm-23.1.4/install-receipt.json" "$RUNNER_TEMP/receipts/llvm-install.json"
+          cp "$HOME/.cache/zil-llvm/23.1.4/install-receipt.json" "$RUNNER_TEMP/receipts/llvm-install.json"
       - name: Formatting
         id: fmt
         shell: bash
         run: |
           set -euo pipefail
           cargo fmt --all -- --check 2>&1 | tee "$RUNNER_TEMP/receipts/fmt.log"
-      - name: Record workspace resources before tests
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            date -u '+%Y-%m-%dT%H:%M:%SZ'
-            df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
-              if [ -e "$path" ]; then du -sk -- "$path"; fi
-            done
-          } > "$RUNNER_TEMP/receipts/workspace-resources-before.log"
-      - name: Complete workspace tests
-        id: workspace_tests
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/workspace" cargo test --locked --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
-      - name: Record workspace resources after tests
-        id: workspace_resources_after
-        if: ${{ always() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure' || steps.workspace_tests.outcome == 'cancelled') }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            date -u '+%Y-%m-%dT%H:%M:%SZ'
-            df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
-              if [ -e "$path" ]; then du -sk -- "$path"; fi
-            done
-            sha256sum -- "$RUNNER_TEMP/receipts/workspace.log"
-          } > "$RUNNER_TEMP/receipts/workspace-resources-after.log"
-      - name: Release completed workspace outputs
-        if: ${{ !cancelled() && (steps.workspace_tests.outcome == 'success' || steps.workspace_tests.outcome == 'failure') }}
-        shell: bash
-        run: python3 tools/ci/compact_results.py cleanup "$RUNNER_TEMP" workspace
-      - name: Record reference resources before tests
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            date -u '+%Y-%m-%dT%H:%M:%SZ'
-            df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
-              if [ -e "$path" ]; then du -sk -- "$path"; fi
-            done
-          } > "$RUNNER_TEMP/receipts/reference-resources-before.log"
-      - name: Reference-only build and explicit unavailable control
-        id: reference_tests
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/reference" CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
-      - name: Record reference resources after tests
-        id: reference_resources_after
-        if: ${{ always() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure' || steps.reference_tests.outcome == 'cancelled') }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            date -u '+%Y-%m-%dT%H:%M:%SZ'
-            df -Pk -- "$RUNNER_TEMP"
-            for path in "$RUNNER_TEMP/target" "$RUNNER_TEMP/target-reference" "$RUNNER_TEMP/native-evidence" "$RUNNER_TEMP/native-consumer"; do
-              if [ -e "$path" ]; then du -sk -- "$path"; fi
-            done
-            sha256sum -- "$RUNNER_TEMP/receipts/reference.log"
-          } > "$RUNNER_TEMP/receipts/reference-resources-after.log"
-      - name: Release completed reference outputs
-        if: ${{ !cancelled() && (steps.reference_tests.outcome == 'success' || steps.reference_tests.outcome == 'failure') }}
-        shell: bash
-        run: python3 tools/ci/compact_results.py cleanup "$RUNNER_TEMP" reference
-      - name: Native API State and allocation-failure controls
-        id: consumer
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          preserve_consumer_summary() {
-            gate_exit=$?
-            trap - EXIT
-            if [ -f "$RUNNER_TEMP/native-consumer/summary.json" ]; then
-              if ! cp "$RUNNER_TEMP/native-consumer/summary.json" "$RUNNER_TEMP/receipts/native-consumer.json"; then
-                if [ "$gate_exit" -eq 0 ]; then gate_exit=1; fi
-              fi
-            elif [ "$gate_exit" -eq 0 ]; then
-              gate_exit=1
-            fi
-            exit "$gate_exit"
-          }
-          trap preserve_consumer_summary EXIT
-          cargo build --locked --release -p zil-cli
-          python3 tools/research/native-api-validation/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/native-consumer"
       - name: All-target Clippy
         id: clippy
         if: ${{ !cancelled() }}
@@ -186,6 +110,13 @@ jobs:
         run: |
           set -euo pipefail
           cargo clippy --locked --workspace --all-targets -- -D warnings 2>&1 | tee "$RUNNER_TEMP/receipts/clippy.log"
+      - name: Complete workspace tests
+        id: workspace_tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/workspace" cargo test --locked --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
       - name: Explicit LLVM text-reference boundary
         id: text
         if: ${{ !cancelled() }}
@@ -201,14 +132,13 @@ jobs:
           set -euo pipefail
           python3 tools/ci/test_evidence_transport.py
           python3 tools/ci/test_compact_results.py
+          python3 tools/ci/test_alpha_acceptance_summary.py
       - name: Summarize test results
         if: ${{ always() }}
         shell: bash
         env:
           OUTCOME_FMT: ${{ steps.fmt.outcome }}
           OUTCOME_WORKSPACE: ${{ steps.workspace_tests.outcome }}
-          OUTCOME_REFERENCE: ${{ steps.reference_tests.outcome }}
-          OUTCOME_CONSUMER: ${{ steps.consumer.outcome }}
           OUTCOME_CLIPPY: ${{ steps.clippy.outcome }}
           OUTCOME_TEXT: ${{ steps.text.outcome }}
           OUTCOME_CI_TEST: ${{ steps.ci_test.outcome }}
@@ -216,19 +146,136 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/receipts"
           python3 tools/ci/compact_results.py summary "$RUNNER_TEMP" "$(git rev-parse HEAD)"
-      - name: Upload compact receipts
+      - name: Upload failure or main-push receipts
         continue-on-error: true
-        if: ${{ always() }}
+        if: ${{ failure() || github.event_name == 'push' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-summary
+          name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-workspace-summary
           path: |
             ${{ runner.temp }}/receipts/compact-results.json
             ${{ runner.temp }}/receipts/commit.txt
             ${{ runner.temp }}/receipts/source-tree.txt
             ${{ runner.temp }}/receipts/toolchain.txt
             ${{ runner.temp }}/receipts/llvm-api-toolchain.json
-            ${{ runner.temp }}/receipts/llvm-research-identity.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  reference-and-consumer:
+    runs-on: ubuntu-24.04
+    # Runs concurrently with `workspace`: verifies the Clang-only reference build
+    # (`--no-default-features`) and the Native API State/Store + allocation-failure suite.
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '4'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_STRIP: 'symbols'
+      CARGO_PROFILE_DEV_STRIP: 'symbols'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TERM_COLOR: 'always'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reclaim unused hosted-runner toolchain space
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipts"
+          sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+      - name: Cache LLVM 23.1.4 runtime prefix
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/zil-llvm/23.1.4
+          key: zil-llvm-runtime-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json', 'tools/llvm/install.py') }}
+      - name: Install the supported LLVM API toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          LLVM_PREFIX="$HOME/.cache/zil-llvm/23.1.4"
+          if ! command -v zstd >/dev/null 2>&1 || [ ! -f "$LLVM_PREFIX/install-receipt.json" ]; then
+            sudo apt-get update
+            sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+          fi
+          if [ ! -f "$LLVM_PREFIX/install-receipt.json" ]; then
+            rm -rf "$LLVM_PREFIX"
+            mkdir -p "$(dirname "$LLVM_PREFIX")"
+            python3 tools/llvm/install.py --prefix "$LLVM_PREFIX"
+            rm -f "$LLVM_PREFIX"/lib/libLLVM*.a
+          fi
+          echo "ZIL_CLANG=$LLVM_PREFIX/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+      - name: Cache Cargo registry and reference/consumer build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ${{ runner.temp }}/target-reference
+            ${{ runner.temp }}/target-consumer
+          key: zil-cargo-refcons-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            zil-cargo-refcons-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+            zil-cargo-refcons-v1-
+      - name: Setup Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipts"
+          rustup toolchain install 1.100.0 --profile minimal
+          python3 tools/llvm/check_toolchain.py > "$RUNNER_TEMP/receipts/llvm-api-toolchain.json"
+      - name: Reference-only build and explicit unavailable control
+        id: reference_tests
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/reference" CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
+      - name: Native API State and allocation-failure controls
+        id: consumer
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/target-consumer"
+          preserve_consumer_summary() {
+            gate_exit=$?
+            trap - EXIT
+            if [ -f "$RUNNER_TEMP/native-consumer/summary.json" ]; then
+              if ! cp "$RUNNER_TEMP/native-consumer/summary.json" "$RUNNER_TEMP/receipts/native-consumer.json"; then
+                if [ "$gate_exit" -eq 0 ]; then gate_exit=1; fi
+              fi
+            elif [ "$gate_exit" -eq 0 ]; then
+              gate_exit=1
+            fi
+            exit "$gate_exit"
+          }
+          trap preserve_consumer_summary EXIT
+          cargo build --locked --release -p zil-cli
+          python3 tools/research/native-api-validation/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/native-consumer"
+      - name: Summarize reference and consumer results
+        if: ${{ always() }}
+        shell: bash
+        env:
+          OUTCOME_REFERENCE: ${{ steps.reference_tests.outcome }}
+          OUTCOME_CONSUMER: ${{ steps.consumer.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/receipts"
+          python3 tools/ci/compact_results.py summary "$RUNNER_TEMP" "$(git rev-parse HEAD)"
+      - name: Upload failure or main-push receipts
+        continue-on-error: true
+        if: ${{ failure() || github.event_name == 'push' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-main-${{ github.run_id }}-${{ github.run_attempt }}-refcons-summary
+          path: |
+            ${{ runner.temp }}/receipts/compact-results.json
             ${{ runner.temp }}/receipts/native-consumer.json
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: warn

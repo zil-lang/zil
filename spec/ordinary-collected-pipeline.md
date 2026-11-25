@@ -4,7 +4,7 @@
 
 ## 固定输入与责任路径
 
-项目由以下四个模块组成，共7547字节；模块顺序为 `main, protocol, library, model`。完整项目指纹为 `4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f`，逐文件身份及正式门见[验收记录](../validation/ordinary-collected-pipeline.json)。
+项目由以下四个模块组成，共7547字节；模块顺序为 `main, protocol, library, model`。完整项目指纹为 `4011cf8d1255cbf085e02cce4cd9d9fc54c28797bebf9e61cd06bbfbc855dd7f`，历史阶段限定验收快照固定于 `08da36ff0:validation/ordinary-collected-pipeline.json`。
 
 | 原始输入 | 字节数 | 作用 |
 |---|---:|---|
