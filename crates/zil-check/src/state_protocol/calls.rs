@@ -30,12 +30,37 @@ impl ProtocolVerifier<'_> {
         out
     }
 
+    fn widen_handle_slot(slot: &mut HandleProtocolSlot, variant_count: usize, is_cancel: bool) {
+        if is_cancel {
+            slot.on_cancel_possible_mutation(variant_count);
+        } else {
+            slot.widen_unknown_mutation(variant_count);
+        }
+    }
+
     fn apply_local_effects(
         &self,
         st: &mut ProtoState,
         local: Local,
         include_direct_mut_or_desc: bool,
         excluded_handles: &[usize],
+    ) {
+        self.apply_local_effects_inner(
+            st,
+            local,
+            include_direct_mut_or_desc,
+            excluded_handles,
+            false,
+        );
+    }
+
+    fn apply_local_effects_inner(
+        &self,
+        st: &mut ProtoState,
+        local: Local,
+        include_direct_mut_or_desc: bool,
+        excluded_handles: &[usize],
+        is_cancel: bool,
     ) {
         if let Some(mcp) = st.caps.mut_cap_params.get(&local).cloned() {
             for item in mcp {
@@ -47,7 +72,7 @@ impl ProtocolVerifier<'_> {
                 if !excluded_handles.contains(&h_idx)
                     && let Some(Some(info)) = self.local_info.get(h_idx)
                 {
-                    st.slots[h_idx].widen_unknown_mutation(info.variant_count);
+                    Self::widen_handle_slot(&mut st.slots[h_idx], info.variant_count, is_cancel);
                     st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                 }
@@ -71,7 +96,11 @@ impl ProtocolVerifier<'_> {
                     if !excluded_handles.contains(&h_idx)
                         && let Some(Some(info)) = self.local_info.get(h_idx)
                     {
-                        st.slots[h_idx].widen_unknown_mutation(info.variant_count);
+                        Self::widen_handle_slot(
+                            &mut st.slots[h_idx],
+                            info.variant_count,
+                            is_cancel,
+                        );
                         st.sync_store_borrow_write(h_idx);
                         st.invalidate_handle(h_idx);
                     }
@@ -110,11 +139,34 @@ impl ProtocolVerifier<'_> {
         include_direct_mut_or_desc: bool,
         excluded_handles: &[usize],
     ) {
+        self.apply_place_effects_inner(
+            st,
+            place,
+            include_direct_mut_or_desc,
+            excluded_handles,
+            false,
+        );
+    }
+
+    fn apply_place_effects_inner(
+        &self,
+        st: &mut ProtoState,
+        place: &Place,
+        include_direct_mut_or_desc: bool,
+        excluded_handles: &[usize],
+        is_cancel: bool,
+    ) {
         if let PlaceRoot::Local(al) = place.root {
             if place.projections.is_empty() {
-                self.apply_local_effects(st, al, include_direct_mut_or_desc, excluded_handles);
+                self.apply_local_effects_inner(
+                    st,
+                    al,
+                    include_direct_mut_or_desc,
+                    excluded_handles,
+                    is_cancel,
+                );
             } else {
-                self.apply_local_effects(st, al, true, excluded_handles);
+                self.apply_local_effects_inner(st, al, true, excluded_handles, is_cancel);
                 if include_direct_mut_or_desc {
                     st.record_place_invalidation(place);
                 }
@@ -129,8 +181,61 @@ impl ProtocolVerifier<'_> {
         include_direct_mut_or_desc: bool,
         excluded_handles: &[usize],
     ) {
+        self.apply_operand_effects_inner(
+            st,
+            op,
+            include_direct_mut_or_desc,
+            excluded_handles,
+            false,
+        );
+    }
+
+    fn apply_operand_effects_inner(
+        &self,
+        st: &mut ProtoState,
+        op: &Operand,
+        include_direct_mut_or_desc: bool,
+        excluded_handles: &[usize],
+        is_cancel: bool,
+    ) {
         if let Operand::Copy(p) | Operand::Move(p) = op {
-            self.apply_place_effects(st, p, include_direct_mut_or_desc, excluded_handles);
+            self.apply_place_effects_inner(
+                st,
+                p,
+                include_direct_mut_or_desc,
+                excluded_handles,
+                is_cancel,
+            );
+        }
+        if is_cancel && let Operand::Move(p) = op {
+            self.apply_moved_arg_on_cancel(st, p);
+        }
+    }
+
+    /// Preserves ownership transfer on `Operand::Move` arguments when a call
+    /// takes its `cancel` edge: ownership already moved into the callee before
+    /// suspension/cancellation, so moved protocol handles neither keep their
+    /// pre-call state nor inherit unreached normal-return `retired` status.
+    fn apply_moved_arg_on_cancel(&self, st: &mut ProtoState, place: &Place) {
+        st.record_place_invalidation(place);
+        if place.projections.is_empty()
+            && let PlaceRoot::Local(al) = place.root
+        {
+            if let Some(ma_set) = st.aliases.may_alias.get(&al).cloned() {
+                for h_idx in ma_set {
+                    if let Some(Some(info)) = self.local_info.get(h_idx) {
+                        st.slots[h_idx].on_cancel_possible_mutation(info.variant_count);
+                        st.sync_store_borrow_write(h_idx);
+                        st.invalidate_handle(h_idx);
+                    }
+                }
+            } else if let Some(&h_idx) = st.aliases.alias.get(&al)
+                && let Some(Some(info)) = self.local_info.get(h_idx)
+            {
+                st.slots[h_idx].on_cancel_possible_mutation(info.variant_count);
+                st.sync_store_borrow_write(h_idx);
+                st.invalidate_handle(h_idx);
+            }
         }
     }
 
@@ -138,6 +243,232 @@ impl ProtocolVerifier<'_> {
         for arg in args {
             self.apply_operand_effects(st, arg, true, excluded_handles);
         }
+    }
+
+    fn apply_all_args_on_cancel(&self, st: &mut ProtoState, args: &[Operand]) {
+        for arg in args {
+            self.apply_operand_effects_inner(st, arg, true, &[], true);
+        }
+    }
+
+    fn dyn_slot_is_mut(&self, object: &Operand, slot: u32) -> bool {
+        match object {
+            Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
+                if let PlaceRoot::Local(ol) = p.root
+                    && let Some(ld) = self.func.body.locals.get(ol.index())
+                    && let Some(TyKind::Ref { pointee, .. }) = self.tys.get(ld.ty)
+                    && let Some(
+                        TyKind::Dyn { def: dyn_id, .. } | TyKind::OwnedDyn { def: dyn_id, .. },
+                    ) = self.tys.get(*pointee)
+                    && let Some(def) = self.tys.get_dyn(*dyn_id)
+                    && let Some(sig) = def.slots.get(slot as usize)
+                {
+                    !matches!(sig.receiver, Some(Mutability::Shared))
+                } else {
+                    true
+                }
+            }
+            Operand::Copy(_) | Operand::Move(_) | Operand::Const(_) | Operand::Pooled(_) => true,
+        }
+    }
+
+    /// Computes the abstract protocol state on a `Terminator::Call { cancel: Some(_) }`
+    /// edge:
+    /// - Neither assumes the pre-call state survived untouched nor applies
+    ///   unreached normal-return `provides(...)` postconditions or `dest` initialization;
+    /// - Preserves every possible pre-cancel side effect, invalidation, rollback,
+    ///   and `Operand::Move` ownership transfer;
+    /// - Keeps pure `TaskYield` and read-only `effects(invalidates())` callees precise.
+    fn build_cancel_state(
+        &self,
+        pre: &ProtoState,
+        callee: &Callee,
+        args: &[Operand],
+        dest_local: Option<Local>,
+    ) -> ProtoState {
+        let mut cancel_st = pre.clone();
+        if let Some(dl) = dest_local {
+            cancel_st.refinements.clear_local(dl);
+        }
+        match callee {
+            Callee::Intrinsic(IntrinsicOp::TaskYield) => {}
+            Callee::Direct(cid) => {
+                if let Some(callee_fn) = self.module.functions.get(cid.index())
+                    && callee_fn
+                        .sig
+                        .state_contracts
+                        .contains(&StateContractClause::InvalidationUpperBound)
+                {
+                    let mut callee_invalidated_targets: Vec<(usize, ContractFieldPath)> =
+                        Vec::new();
+                    for c in &callee_fn.sig.state_contracts {
+                        match *c {
+                            StateContractClause::RequiresState { .. }
+                            | StateContractClause::RequiresApart { .. }
+                            | StateContractClause::InvalidationUpperBound => {}
+                            StateContractClause::Invalidates { param, path } => {
+                                callee_invalidated_targets.push((param as usize, path));
+                                if let Some(Operand::Copy(p) | Operand::Move(p)) =
+                                    args.get(param as usize)
+                                {
+                                    for (caller_p, mut caller_path) in
+                                        cancel_st.resolve_param_places(p)
+                                    {
+                                        caller_path.extend_from_slice(path.as_slice());
+                                        cancel_st.insert_invalidation((caller_p, caller_path));
+                                    }
+                                }
+                            }
+                            StateContractClause::AllowsRollback { param } => {
+                                if let Some(Operand::Copy(p) | Operand::Move(p)) =
+                                    args.get(param as usize)
+                                    && p.projections.is_empty()
+                                    && let PlaceRoot::Local(al) = p.root
+                                    && let Some(ma_set) = cancel_st.aliases.may_alias.get(&al).cloned()
+                                {
+                                    for h_idx in ma_set {
+                                        if let Some(Some(info)) = self.local_info.get(h_idx) {
+                                            cancel_st.slots[h_idx]
+                                                .on_cancel_possible_mutation(info.variant_count);
+                                            cancel_st.sync_store_borrow_write(h_idx);
+                                            cancel_st.invalidate_handle(h_idx);
+                                        }
+                                    }
+                                }
+                            }
+                            StateContractClause::ProvidesRetired { param }
+                            | StateContractClause::ProvidesState { param, .. }
+                            | StateContractClause::ProvidesOnPending { param, .. }
+                            | StateContractClause::ProvidesOnReady { param, .. }
+                            | StateContractClause::ProvidesOnOk { param, .. }
+                            | StateContractClause::ProvidesOnErr { param, .. } => {
+                                // Never apply unreached normal-return postconditions on cancel.
+                                // If the parameter is mutable or moved, widen conservatively
+                                // because the callee may have partially transitioned or replaced
+                                // it before cancelling.
+                                if let Some(arg) = args.get(param as usize) {
+                                    let mutable_or_moved = match arg {
+                                        Operand::Move(_) => true,
+                                        Operand::Copy(p) if p.projections.is_empty() => {
+                                            match p.root {
+                                                PlaceRoot::Local(al) => self
+                                                    .func
+                                                    .body
+                                                    .locals
+                                                    .get(al.index())
+                                                    .is_some_and(|ld| {
+                                                        !matches!(
+                                                            self.tys.get(ld.ty),
+                                                            Some(TyKind::Ref {
+                                                                mutability: Mutability::Shared,
+                                                                ..
+                                                            })
+                                                        ) && is_mut_ref_or_desc_ty(self.tys, ld.ty)
+                                                    }),
+                                                PlaceRoot::Capture(_) => true,
+                                            }
+                                        }
+                                        Operand::Copy(_) => true,
+                                        Operand::Const(_) | Operand::Pooled(_) => false,
+                                    };
+                                    if mutable_or_moved {
+                                        self.apply_operand_effects_inner(
+                                            &mut cancel_st,
+                                            arg,
+                                            true,
+                                            &[],
+                                            true,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    for &(c_param, path) in &callee_invalidated_targets {
+                        if let Some(arg) = args.get(c_param)
+                            && path.len == 0
+                        {
+                            let (_, may_stores) = self.resolve_store_targets(&cancel_st, arg);
+                            for s_idx in may_stores {
+                                if let Some(Some(elem_info)) = self.local_store_info.get(s_idx) {
+                                    cancel_st.store_slots[s_idx] =
+                                        StoreProtocolSummary::unknown_store(
+                                            elem_info.variant_count,
+                                        );
+                                    cancel_st.refinements.invalidate_store(s_idx);
+                                }
+                            }
+                        }
+                        if let Some(Operand::Copy(p) | Operand::Move(p)) = args.get(c_param)
+                            && p.projections.is_empty()
+                            && let PlaceRoot::Local(al) = p.root
+                        {
+                            if path.len == 0 {
+                                self.apply_local_effects_inner(&mut cancel_st, al, false, &[], true);
+                            } else {
+                                if let Some(mch) = cancel_st.caps.mut_cap_handles.get(&al).cloned()
+                                {
+                                    for (cap_path, h_idx) in mch {
+                                        if path.overlaps(&cap_path)
+                                            && let Some(Some(info)) = self.local_info.get(h_idx)
+                                        {
+                                            cancel_st.slots[h_idx]
+                                                .on_cancel_possible_mutation(info.variant_count);
+                                            cancel_st.sync_store_borrow_write(h_idx);
+                                            cancel_st.invalidate_handle(h_idx);
+                                        }
+                                    }
+                                }
+                                if let Some(mcp) = cancel_st.caps.mut_cap_params.get(&al).cloned() {
+                                    for (p_idx, cap_path) in mcp {
+                                        if path.overlaps(&cap_path) {
+                                            cancel_st.insert_invalidation((p_idx, cap_path));
+                                        }
+                                    }
+                                }
+                            }
+                            if let Some(ma_set) = cancel_st.aliases.may_alias.get(&al).cloned() {
+                                for h_idx in ma_set {
+                                    if let Some(Some(info)) = self.local_info.get(h_idx) {
+                                        let touches_state = match info.state_field {
+                                            None => true,
+                                            Some((_, sf)) => path.overlaps(&[sf]),
+                                        };
+                                        if touches_state {
+                                            cancel_st.slots[h_idx]
+                                                .on_cancel_possible_mutation(info.variant_count);
+                                            cancel_st.sync_store_borrow_write(h_idx);
+                                            cancel_st.invalidate_handle(h_idx);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Ownership transfer on moved args always took effect before cancel.
+                    for arg in args {
+                        if let Operand::Move(p) = arg {
+                            self.apply_moved_arg_on_cancel(&mut cancel_st, p);
+                        }
+                    }
+                } else {
+                    self.apply_all_args_on_cancel(&mut cancel_st, args);
+                }
+            }
+            Callee::Closure { closure, .. } => {
+                self.apply_place_effects_inner(&mut cancel_st, closure, true, &[], true);
+                self.apply_all_args_on_cancel(&mut cancel_st, args);
+            }
+            Callee::DynSlot { object, slot } => {
+                let slot_is_mut = self.dyn_slot_is_mut(object, *slot);
+                self.apply_operand_effects_inner(&mut cancel_st, object, slot_is_mut, &[], true);
+                self.apply_all_args_on_cancel(&mut cancel_st, args);
+            }
+            Callee::Intrinsic(_) | Callee::Indirect(_) | Callee::Foreign(_) => {
+                self.apply_all_args_on_cancel(&mut cancel_st, args);
+            }
+        }
+        cancel_st
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -152,10 +483,7 @@ impl ProtocolVerifier<'_> {
         in_states: &mut [Option<ProtoState>],
         queue: &mut VecDeque<usize>,
     ) -> Result<(), CheckError> {
-        let cancel = &cancel;
-        if let Some(cancel_target) = cancel {
-            enqueue(*cancel_target, st.clone(), in_states, queue);
-        }
+        let pre_call_st = cancel.map(|_| st.clone());
         st.record_place_invalidation(dest);
         let dest_local = if dest.projections.is_empty() {
             match dest.root {
@@ -613,28 +941,7 @@ impl ProtocolVerifier<'_> {
                 self.apply_all_args(&mut st, args, &[]);
             }
             Callee::DynSlot { object, slot } => {
-                let slot_is_mut = match object {
-                    Operand::Copy(p) | Operand::Move(p) if p.projections.is_empty() => {
-                        if let PlaceRoot::Local(ol) = p.root
-                            && let Some(ld) = self.func.body.locals.get(ol.index())
-                            && let Some(TyKind::Ref { pointee, .. }) = self.tys.get(ld.ty)
-                            && let Some(
-                                TyKind::Dyn { def: dyn_id, .. }
-                                | TyKind::OwnedDyn { def: dyn_id, .. },
-                            ) = self.tys.get(*pointee)
-                            && let Some(def) = self.tys.get_dyn(*dyn_id)
-                            && let Some(sig) = def.slots.get(*slot as usize)
-                        {
-                            !matches!(sig.receiver, Some(Mutability::Shared))
-                        } else {
-                            true
-                        }
-                    }
-                    Operand::Copy(_)
-                    | Operand::Move(_)
-                    | Operand::Const(_)
-                    | Operand::Pooled(_) => true,
-                };
+                let slot_is_mut = self.dyn_slot_is_mut(object, *slot);
                 self.apply_operand_effects(&mut st, object, slot_is_mut, &[]);
                 self.apply_all_args(&mut st, args, &[]);
             }
@@ -643,6 +950,10 @@ impl ProtocolVerifier<'_> {
             }
         }
 
+        if let (Some(cancel_target), Some(pre)) = (cancel, pre_call_st) {
+            let cancel_st = self.build_cancel_state(&pre, callee, args, dest_local);
+            enqueue(cancel_target, cancel_st, in_states, queue);
+        }
         enqueue(target, st, in_states, queue);
         Ok(())
     }

@@ -9,7 +9,7 @@
 //! exhaustive tag switches send the remaining edge to `Unreachable`; the
 //! kernel proves that edge infeasible.
 
-use crate::infer::POINTER_BITS;
+use crate::infer::{POINTER_BITS, compute_suspend_flags, resolve_closure_for_suspend};
 use crate::items::{FnRoleSpec, Items};
 use crate::literal;
 use crate::thir::*;
@@ -164,6 +164,8 @@ pub struct Mono<'c, 'a, 'e> {
     closure_fns: HashMap<(FnRef, Vec<Ty>, ClosureRef), FnId>,
     closure_fn_queue: VecDeque<(FnRef, Vec<Ty>, ClosureRef, FnId)>,
     ensured: HashSet<TyId>,
+    fn_susp: Vec<bool>,
+    cl_susp: Vec<Vec<bool>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -182,6 +184,11 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         limits: Limits,
         ct: Option<&'e mut dyn ConstEvaluator>,
     ) -> Self {
+        let (fn_susp, cl_susp) = if thir.is_empty() {
+            (Vec::new(), Vec::new())
+        } else {
+            compute_suspend_flags(items, types, thir)
+        };
         Mono {
             items,
             types,
@@ -202,6 +209,8 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             closure_fns: HashMap::new(),
             closure_fn_queue: VecDeque::new(),
             ensured: HashSet::new(),
+            fn_susp,
+            cl_susp,
         }
     }
 
@@ -1379,6 +1388,16 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
     /// Storage ends for every frame deeper than `depth`, without popping
     /// them (a jump out of nested scopes). When unwinding to depth 0 (function
     /// exit), owning parameters are also dropped in reverse order.
+    fn build_cancel_block(&mut self, span: Span) -> BlockId {
+        let cancel_blk = self.new_block(span);
+        let saved = self.cur;
+        self.cur = cancel_blk;
+        self.unwind_to(0, span);
+        self.terminate(Terminator::Trap(zil_ir::body::TrapKind::Cancel), span);
+        self.cur = saved;
+        cancel_blk
+    }
+
     fn unwind_to(&mut self, depth: usize, span: Span) {
         let frames: Vec<(Vec<Local>, Vec<FrameCleanup>)> = self.frames[depth..]
             .iter()
@@ -2085,13 +2104,24 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     return;
                 };
                 let target = self.new_block(span);
+                let callee_suspends = self
+                    .mono
+                    .fn_susp
+                    .get(callee.0 as usize)
+                    .copied()
+                    .unwrap_or(false);
+                let cancel = if callee_suspends && !self.in_defer_unwind {
+                    Some(self.build_cancel_block(span))
+                } else {
+                    None
+                };
                 self.terminate(
                     Terminator::Call {
                         callee: Callee::Direct(f),
                         args: operands,
                         dest,
                         target,
-                        cancel: None,
+                        cancel,
                     },
                     span,
                 );
@@ -2105,6 +2135,21 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 let place = self.place(closure);
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
                 let target = self.new_block(span);
+                let cl_ty = self.closed(closure.ty);
+                let closure_suspends = resolve_closure_for_suspend(self.mono.types, cl_ty)
+                    .is_some_and(|(o, i)| {
+                        self.mono
+                            .cl_susp
+                            .get(o)
+                            .and_then(|v| v.get(i))
+                            .copied()
+                            .unwrap_or(false)
+                    });
+                let cancel = if closure_suspends && !self.in_defer_unwind {
+                    Some(self.build_cancel_block(span))
+                } else {
+                    None
+                };
                 self.terminate(
                     Terminator::Call {
                         callee: Callee::Closure {
@@ -2114,7 +2159,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                         args: operands,
                         dest,
                         target,
-                        cancel: None,
+                        cancel,
                     },
                     span,
                 );
@@ -2172,13 +2217,24 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     return;
                 };
                 let target = self.new_block(span);
+                let callee_suspends = self
+                    .mono
+                    .fn_susp
+                    .get(fn_ref.0 as usize)
+                    .copied()
+                    .unwrap_or(false);
+                let cancel = if callee_suspends && !self.in_defer_unwind {
+                    Some(self.build_cancel_block(span))
+                } else {
+                    None
+                };
                 self.terminate(
                     Terminator::Call {
                         callee: Callee::Direct(f),
                         args: operands,
                         dest,
                         target,
-                        cancel: None,
+                        cancel,
                     },
                     span,
                 );
@@ -2274,14 +2330,8 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                 }
                 let operands: Vec<Operand> = args.iter().map(|a| self.operand(a)).collect();
                 let target = self.new_block(span);
-                let cancel = if *op == IntrinsicOp::TaskYield {
-                    let cancel_blk = self.new_block(span);
-                    let saved = self.cur;
-                    self.cur = cancel_blk;
-                    self.unwind_to(0, span);
-                    self.terminate(Terminator::Trap(zil_ir::body::TrapKind::Cancel), span);
-                    self.cur = saved;
-                    Some(cancel_blk)
+                let cancel = if *op == IntrinsicOp::TaskYield && !self.in_defer_unwind {
+                    Some(self.build_cancel_block(span))
                 } else {
                     None
                 };

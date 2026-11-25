@@ -9430,24 +9430,14 @@ fn value_is_consumed(e: &Expr, root_local: Option<LocalId>, root_cap: Option<u32
     walk(e, &mut aliases, root_cap)
 }
 
-/// Computes a transitive fixed-point `can_suspend` summary over all THIR
-/// functions and closures, then rejects any `defer` block that directly or
-/// transitively invokes a suspending function/closure or an unknown indirect
-/// callable.
-pub fn check_defer_suspend_effects(
-    items: &Items<'_>,
-    types: &Types,
-    thir: &[Option<ThirFn>],
-    diags: &mut Vec<Diagnostic>,
-) {
-    fn resolve_closure(types: &Types, mut ty: Ty) -> Option<(usize, usize)> {
-        for _ in 0..4 {
-            match types.data(ty) {
-                TyData::Ref { pointee, .. } => ty = *pointee,
-                TyData::Closure { owner, id, .. } => {
-                    return Some((owner.0 as usize, id.0 as usize));
-                }
-                TyData::Unit
+pub(crate) fn resolve_closure_for_suspend(types: &Types, mut ty: Ty) -> Option<(usize, usize)> {
+    for _ in 0..4 {
+        match types.data(ty) {
+            TyData::Ref { pointee, .. } => ty = *pointee,
+            TyData::Closure { owner, id, .. } => {
+                return Some((owner.0 as usize, id.0 as usize));
+            }
+            TyData::Unit
                 | TyData::Bool
                 | TyData::Never
                 | TyData::Int(_)
@@ -9518,7 +9508,7 @@ pub fn check_defer_suspend_effects(
                         .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
             }
             ExprKind::ClosureCall { closure, args, .. } => {
-                let target_susp = match resolve_closure(types, closure.ty) {
+                let target_susp = match resolve_closure_for_suspend(types, closure.ty) {
                     Some((o, i)) => cl_susp
                         .get(o)
                         .and_then(|v| v.get(i))
@@ -9628,6 +9618,51 @@ pub fn check_defer_suspend_effects(
         }
     }
 
+/// Computes a transitive fixed-point `can_suspend` summary over all THIR
+/// functions and closures. Shared by `check_defer_suspend_effects` and
+/// `build.rs` (for attaching `Terminator::Call { cancel: Some(...) }` edges
+/// on calls to suspending functions/closures).
+pub(crate) fn compute_suspend_flags(
+    items: &Items<'_>,
+    types: &Types,
+    thir: &[Option<ThirFn>],
+) -> (Vec<bool>, Vec<Vec<bool>>) {
+    let mut fn_susp = vec![false; thir.len()];
+    let mut cl_susp: Vec<Vec<bool>> = thir
+        .iter()
+        .map(|f| vec![false; f.as_ref().map_or(0, |t| t.closures.len())])
+        .collect();
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (i, tf_opt) in thir.iter().enumerate() {
+            let Some(tf) = tf_opt else { continue };
+            for (ci, cl) in tf.closures.iter().enumerate() {
+                if !cl_susp[i][ci] && expr_suspends(&cl.body, items, types, &fn_susp, &cl_susp) {
+                    cl_susp[i][ci] = true;
+                    changed = true;
+                }
+            }
+            if !fn_susp[i] && expr_suspends(&tf.body, items, types, &fn_susp, &cl_susp) {
+                fn_susp[i] = true;
+                changed = true;
+            }
+        }
+    }
+    (fn_susp, cl_susp)
+}
+
+/// Computes a transitive fixed-point `can_suspend` summary over all THIR
+/// functions and closures, then rejects any `defer` block that directly or
+/// transitively invokes a suspending function/closure or an unknown indirect
+/// callable.
+pub fn check_defer_suspend_effects(
+    items: &Items<'_>,
+    types: &Types,
+    thir: &[Option<ThirFn>],
+    diags: &mut Vec<Diagnostic>,
+) {
     fn check_defer_expr(
         e: &Expr,
         items: &Items<'_>,
@@ -9683,7 +9718,7 @@ pub fn check_defer_suspend_effects(
                 }
             }
             ExprKind::ClosureCall { closure, args, .. } => {
-                let unsafe_target = match resolve_closure(types, closure.ty) {
+                let unsafe_target = match resolve_closure_for_suspend(types, closure.ty) {
                     Some((o, i)) => cl_susp
                         .get(o)
                         .and_then(|v| v.get(i))
@@ -9922,29 +9957,7 @@ pub fn check_defer_suspend_effects(
         }
     }
 
-    let mut fn_susp = vec![false; thir.len()];
-    let mut cl_susp: Vec<Vec<bool>> = thir
-        .iter()
-        .map(|f| vec![false; f.as_ref().map_or(0, |t| t.closures.len())])
-        .collect();
-
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for (i, tf_opt) in thir.iter().enumerate() {
-            let Some(tf) = tf_opt else { continue };
-            for (ci, cl) in tf.closures.iter().enumerate() {
-                if !cl_susp[i][ci] && expr_suspends(&cl.body, items, types, &fn_susp, &cl_susp) {
-                    cl_susp[i][ci] = true;
-                    changed = true;
-                }
-            }
-            if !fn_susp[i] && expr_suspends(&tf.body, items, types, &fn_susp, &cl_susp) {
-                fn_susp[i] = true;
-                changed = true;
-            }
-        }
-    }
+    let (fn_susp, cl_susp) = compute_suspend_flags(items, types, thir);
 
     for tf in thir.iter().flatten() {
         walk_for_defers(&tf.body, items, types, &fn_susp, &cl_susp, diags);
