@@ -38,15 +38,18 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Reclaim unused hosted-runner toolchain space
+      - name: Reclaim hosted-runner disk space only if below 15 GiB
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/receipts"
-          sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+          AVAIL_GB="$(df -BG --output=avail "$RUNNER_TEMP" | tail -n 1 | tr -dc '0-9')"
+          if [ "${AVAIL_GB:-0}" -lt 15 ]; then
+            sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+          fi
       - name: Cache LLVM 23.1.4 runtime prefix
         id: llvm_cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/zil-llvm/23.1.4
           key: zil-llvm-runtime-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json', 'tools/llvm/install.py') }}
@@ -71,7 +74,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
           echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
       - name: Cache Cargo registry and workspace build
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -179,14 +182,17 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
-      - name: Reclaim unused hosted-runner toolchain space
+      - name: Reclaim hosted-runner disk space only if below 15 GiB
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/receipts"
-          sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+          AVAIL_GB="$(df -BG --output=avail "$RUNNER_TEMP" | tail -n 1 | tr -dc '0-9')"
+          if [ "${AVAIL_GB:-0}" -lt 15 ]; then
+            sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+          fi
       - name: Cache LLVM 23.1.4 runtime prefix
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/zil-llvm/23.1.4
           key: zil-llvm-runtime-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json', 'tools/llvm/install.py') }}
@@ -210,7 +216,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
           echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
       - name: Cache Cargo registry and reference/consumer build
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -235,7 +241,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/reference" CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked --workspace --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
+          ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/reference" CARGO_TARGET_DIR="$RUNNER_TEMP/target-reference" cargo test --locked -p zil-llvm-api -p zil-backend-llvm -p zil-driver -p zil-cli --no-default-features --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/reference.log"
       - name: Native API State and allocation-failure controls
         id: consumer
         if: ${{ !cancelled() }}

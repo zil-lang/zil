@@ -47,7 +47,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/receipts"
           sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
       - name: Cache research LLVM SDK archive
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/llvm-sdk-cache
           key: zil-llvm-sdk-archive-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json') }}
@@ -65,7 +65,7 @@ jobs:
           echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-research/candidate/lib" >> "$GITHUB_ENV"
           echo "$RUNNER_TEMP/llvm-23.1.4/bin" >> "$GITHUB_PATH"
       - name: Cache Cargo registry and research build
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
