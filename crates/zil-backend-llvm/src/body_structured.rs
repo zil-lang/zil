@@ -1403,4 +1403,84 @@ def:
             assert!(!obj.bytes.is_empty());
         }
     }
+
+    #[test]
+    fn converts_process_args_globals_shims_and_main_wrapper() {
+        let ir = r#"
+; ZIL Verified Body IR -> LLVM 23 IR
+target triple = "x86_64-unknown-linux-gnu"
+
+@zil_process_argc = linkonce_odr global i32 0
+@zil_process_argv = linkonce_odr global ptr null
+
+define internal i64 @zil_process_arg_count() {
+entry:
+  %argv = load ptr, ptr @zil_process_argv
+  %is_null = icmp eq ptr %argv, null
+  br i1 %is_null, label %zero, label %check_argc
+check_argc:
+  %c = load i32, ptr @zil_process_argc
+  %neg = icmp slt i32 %c, 0
+  br i1 %neg, label %zero, label %ok
+ok:
+  %ext = sext i32 %c to i64
+  ret i64 %ext
+zero:
+  ret i64 0
+}
+
+define internal ptr @zil_process_arg_ptr(i64 %idx) {
+entry:
+  %argv = load ptr, ptr @zil_process_argv
+  %is_null = icmp eq ptr %argv, null
+  br i1 %is_null, label %ret_null, label %check_bounds
+check_bounds:
+  %c = load i32, ptr @zil_process_argc
+  %c64 = sext i32 %c to i64
+  %neg = icmp slt i64 %idx, 0
+  br i1 %neg, label %ret_null, label %check_upper
+check_upper:
+  %in_range = icmp slt i64 %idx, %c64
+  br i1 %in_range, label %load_arg, label %ret_null
+load_arg:
+  %slot = getelementptr inbounds ptr, ptr %argv, i64 %idx
+  %arg = load ptr, ptr %slot
+  ret ptr %arg
+ret_null:
+  ret ptr null
+}
+
+define i32 @zil_entry() {
+entry:
+  %n = call i64 @zil_process_arg_count()
+  %p = call ptr @zil_process_arg_ptr(i64 0)
+  %ok = icmp ne ptr %p, null
+  %r = select i1 %ok, i32 0, i32 1
+  ret i32 %r
+}
+
+define i32 @main(i32 %argc, ptr %argv) {
+entry:
+  store i32 %argc, ptr @zil_process_argc
+  store ptr %argv, ptr @zil_process_argv
+  %r = call i32 @zil_entry()
+  ret i32 %r
+}
+"#;
+        let module = build_structured_module(ir, "x86_64-unknown-linux-gnu", "test-args-fp")
+            .expect("structured module build should succeed for process args IR");
+        zil_llvm_api::validate_module(&module)
+            .expect("process args structured module should pass zil-llvm-api preflight");
+
+        #[cfg(feature = "llvm-api")]
+        {
+            let config = zil_llvm_api::Config {
+                triple: "x86_64-unknown-linux-gnu",
+                optimization: zil_llvm_api::Optimization::O2,
+            };
+            let obj = zil_llvm_api::compile_module(&module, &config, &|| false)
+                .expect("structured compile_module should emit ELF object");
+            assert!(!obj.bytes.is_empty());
+        }
+    }
 }
