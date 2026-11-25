@@ -123,3 +123,210 @@ pub fn substring(value:&String, begin:i64, end:i64, byte_limit:i64)->Error!Strin
     let view=bytes_view(value.data)
     return from_utf8(&view[bounds.first..bounds.last],byte_limit)
 }
+
+fn is_ascii_whitespace(byte:u8)->bool {
+    return byte==32u8 || byte==9u8 || byte==13u8 || byte==10u8
+}
+
+fn bytes_match_at(haystack:&[u8], offset:i64, needle:&[u8])->bool {
+    if needle.len()>haystack.len()-offset { return false }
+    var at:i64=0
+    while at<needle.len() {
+        if haystack[offset+at]!=needle[at] { return false }
+        at+=1
+    }
+    return true
+}
+
+fn push_part(items:Store<String>, item:String)->Error!void {
+    let length=store_len(items)
+    let cap=store_capacity(items)
+    if length>=cap {
+        if length>=9223372036854775807 { return Error.Capacity }
+        var next:i64=4
+        if cap>=4 {
+            if cap>4611686018427387903 { next=9223372036854775807 }
+            else { next=cap*2 }
+        }
+        if !store_reserve(items,next) { return Error.Allocation }
+    }
+    match store_push(items,item) {
+        .ok(_)=>{ return () },
+        .err(_)=>{ return Error.Internal }
+    }
+}
+
+fn append_bytes_bounded(out:ByteBuffer, slice:&[u8], byte_limit:i64)->Error!void {
+    let cur=bytes_len(out)
+    if slice.len()>byte_limit-cur { return Error.Capacity }
+    let needed=cur+slice.len()
+    if needed>bytes_capacity(out) {
+        var next=bytes_capacity(out)
+        if next<16 { next=16 }
+        if next>byte_limit { next=byte_limit }
+        while next<needed {
+            if next>byte_limit/2 { next=byte_limit; break }
+            next*=2
+        }
+        if next<needed { next=needed }
+        if !bytes_reserve(out,next) { return Error.Allocation }
+    }
+    var at:i64=0
+    while at<slice.len() {
+        if !bytes_push(out,slice[at]) { return Error.Internal }
+        at+=1
+    }
+    return ()
+}
+
+// Prefix/suffix/substring predicates validate the pattern as UTF-8 even when
+// value is empty or shorter than the pattern.
+pub fn starts_with(value:&String, prefix:&[u8])->Error!bool {
+    if utf8.locate(prefix,0,0).error>=0 { return Error.InvalidUtf8 }
+    let view=bytes_view(value.data)
+    return bytes_match_at(view,0,prefix)
+}
+
+pub fn ends_with(value:&String, suffix:&[u8])->Error!bool {
+    if utf8.locate(suffix,0,0).error>=0 { return Error.InvalidUtf8 }
+    let view=bytes_view(value.data)
+    if suffix.len()>view.len() { return false }
+    return bytes_match_at(view,view.len()-suffix.len(),suffix)
+}
+
+pub fn contains(value:&String, needle:&[u8])->Error!bool {
+    let idx=find(value,needle)?
+    return idx>=0
+}
+
+// Trims leading/trailing ASCII whitespace (' ', '\t', '\r', '\n').
+pub fn trim_start(value:&String, byte_limit:i64)->Error!String {
+    let view=bytes_view(value.data)
+    var begin:i64=0
+    while begin<view.len() && is_ascii_whitespace(view[begin]) { begin+=1 }
+    return from_utf8(&view[begin..view.len()],byte_limit)
+}
+
+pub fn trim_end(value:&String, byte_limit:i64)->Error!String {
+    let view=bytes_view(value.data)
+    var end=view.len()
+    while end>0 && is_ascii_whitespace(view[end-1]) { end-=1 }
+    return from_utf8(&view[0..end],byte_limit)
+}
+
+pub fn trim(value:&String, byte_limit:i64)->Error!String {
+    let view=bytes_view(value.data)
+    var begin:i64=0
+    while begin<view.len() && is_ascii_whitespace(view[begin]) { begin+=1 }
+    var end=view.len()
+    while end>begin && is_ascii_whitespace(view[end-1]) { end-=1 }
+    return from_utf8(&view[begin..end],byte_limit)
+}
+
+// Splits value on non-overlapping occurrences of UTF-8 separator sep.
+// An empty separator splits around every Unicode scalar (including leading and
+// trailing empty parts). byte_limit bounds the total emitted payload bytes.
+pub fn split(value:&String, sep:&[u8], byte_limit:i64)->Error!Store<String> contract {result(create)} {
+    if utf8.locate(sep,0,0).error>=0 { return Error.InvalidUtf8 }
+    if byte_limit<0 { return Error.Capacity }
+    let out:Store<String>=store_new()
+    let view=bytes_view(value.data)
+    var remaining=byte_limit
+    if sep.len()==0 {
+        push_part(out,empty())?
+        var at:i64=0
+        while at<view.len() {
+            let decoded=utf8.decode(view,at)
+            if decoded.status!=1 { return Error.Internal }
+            let part=from_utf8(&view[at..decoded.next],remaining)?
+            remaining-=decoded.next-at
+            push_part(out,part)?
+            at=decoded.next
+        }
+        push_part(out,empty())?
+        return give out
+    }
+    var seg_start:i64=0
+    var at:i64=0
+    while at<=view.len()-sep.len() {
+        if bytes_match_at(view,at,sep) {
+            let part=from_utf8(&view[seg_start..at],remaining)?
+            remaining-=at-seg_start
+            push_part(out,part)?
+            at+=sep.len()
+            seg_start=at
+        } else {
+            at+=1
+        }
+    }
+    let tail=from_utf8(&view[seg_start..view.len()],remaining)?
+    push_part(out,tail)?
+    return give out
+}
+
+// Splits value into lines terminated by '\n' or "\r\n", omitting a trailing
+// empty line after a final line terminator (matching Rust str::lines).
+pub fn lines(value:&String, byte_limit:i64)->Error!Store<String> contract {result(create)} {
+    if byte_limit<0 { return Error.Capacity }
+    let out:Store<String>=store_new()
+    let view=bytes_view(value.data)
+    var remaining=byte_limit
+    var start:i64=0
+    while start<view.len() {
+        var at=start
+        while at<view.len() && view[at]!=10u8 { at+=1 }
+        var line_end=at
+        if at<view.len() && line_end>start && view[line_end-1]==13u8 {
+            line_end-=1
+        }
+        let part=from_utf8(&view[start..line_end],remaining)?
+        remaining-=line_end-start
+        push_part(out,part)?
+        if at<view.len() {
+            start=at+1
+        } else {
+            start=view.len()
+        }
+    }
+    return give out
+}
+
+// Replaces all non-overlapping occurrences of UTF-8 pattern `from` with `to`.
+// An empty `from` inserts `to` before each Unicode scalar and at the end.
+pub fn replace_all(value:&String, from:&[u8], to:&[u8], byte_limit:i64)->Error!String {
+    if utf8.locate(from,0,0).error>=0 { return Error.InvalidUtf8 }
+    if utf8.locate(to,0,0).error>=0 { return Error.InvalidUtf8 }
+    if byte_limit<0 { return Error.Capacity }
+    let view=bytes_view(value.data)
+    let out=bytes_new()
+    if from.len()==0 {
+        append_bytes_bounded(out,to,byte_limit)?
+        var at:i64=0
+        while at<view.len() {
+            let decoded=utf8.decode(view,at)
+            if decoded.status!=1 { return Error.Internal }
+            append_bytes_bounded(out,&view[at..decoded.next],byte_limit)?
+            append_bytes_bounded(out,to,byte_limit)?
+            at=decoded.next
+        }
+        return String{data:give out}
+    }
+    var seg_start:i64=0
+    var at:i64=0
+    while at<=view.len()-from.len() {
+        if bytes_match_at(view,at,from) {
+            if at>seg_start {
+                append_bytes_bounded(out,&view[seg_start..at],byte_limit)?
+            }
+            append_bytes_bounded(out,to,byte_limit)?
+            at+=from.len()
+            seg_start=at
+        } else {
+            at+=1
+        }
+    }
+    if seg_start<view.len() {
+        append_bytes_bounded(out,&view[seg_start..view.len()],byte_limit)?
+    }
+    return String{data:give out}
+}

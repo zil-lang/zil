@@ -87,6 +87,8 @@ pub fn emit_verified_body_units_with_entry(
     header.push_str("declare i32 @pthread_mutex_unlock(ptr)\n");
     header.push_str("@__zil_current_task = linkonce_odr thread_local global ptr null\n");
     header.push_str("@__zil_task_cancel_trap = linkonce_odr thread_local global i1 false\n");
+    header.push_str("@zil_process_argc = linkonce_odr global i32 0\n");
+    header.push_str("@zil_process_argv = linkonce_odr global ptr null\n");
     header.push_str(
         "%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [9216 x i64], ptr, ptr }\n",
     );
@@ -425,6 +427,59 @@ done:\n\
             let _ = writeln!(header, "}}");
             continue;
         }
+        if f.symbol == "zil_process_arg_count" {
+            let _ = writeln!(header, "define internal i64 @zil_process_arg_count() {{");
+            let _ = writeln!(header, "entry:");
+            let _ = writeln!(header, "  %argv = load ptr, ptr @zil_process_argv");
+            let _ = writeln!(header, "  %is_null = icmp eq ptr %argv, null");
+            let _ = writeln!(header, "  br i1 %is_null, label %zero, label %check_argc");
+            let _ = writeln!(header, "check_argc:");
+            let _ = writeln!(header, "  %c = load i32, ptr @zil_process_argc");
+            let _ = writeln!(header, "  %neg = icmp slt i32 %c, 0");
+            let _ = writeln!(header, "  br i1 %neg, label %zero, label %ok");
+            let _ = writeln!(header, "ok:");
+            let _ = writeln!(header, "  %ext = sext i32 %c to i64");
+            let _ = writeln!(header, "  ret i64 %ext");
+            let _ = writeln!(header, "zero:");
+            let _ = writeln!(header, "  ret i64 0");
+            let _ = writeln!(header, "}}");
+            continue;
+        }
+        if f.symbol == "zil_process_arg_ptr" {
+            let _ = writeln!(
+                header,
+                "define internal ptr @zil_process_arg_ptr(i64 %idx) {{"
+            );
+            let _ = writeln!(header, "entry:");
+            let _ = writeln!(header, "  %argv = load ptr, ptr @zil_process_argv");
+            let _ = writeln!(header, "  %is_null = icmp eq ptr %argv, null");
+            let _ = writeln!(
+                header,
+                "  br i1 %is_null, label %ret_null, label %check_bounds"
+            );
+            let _ = writeln!(header, "check_bounds:");
+            let _ = writeln!(header, "  %c = load i32, ptr @zil_process_argc");
+            let _ = writeln!(header, "  %c64 = sext i32 %c to i64");
+            let _ = writeln!(header, "  %neg = icmp slt i64 %idx, 0");
+            let _ = writeln!(header, "  br i1 %neg, label %ret_null, label %check_upper");
+            let _ = writeln!(header, "check_upper:");
+            let _ = writeln!(header, "  %in_range = icmp slt i64 %idx, %c64");
+            let _ = writeln!(
+                header,
+                "  br i1 %in_range, label %load_arg, label %ret_null"
+            );
+            let _ = writeln!(header, "load_arg:");
+            let _ = writeln!(
+                header,
+                "  %slot = getelementptr inbounds ptr, ptr %argv, i64 %idx"
+            );
+            let _ = writeln!(header, "  %arg = load ptr, ptr %slot");
+            let _ = writeln!(header, "  ret ptr %arg");
+            let _ = writeln!(header, "ret_null:");
+            let _ = writeln!(header, "  ret ptr null");
+            let _ = writeln!(header, "}}");
+            continue;
+        }
         let ret = llvm_ty(&module.tys, f.result)?;
         let mut params = Vec::with_capacity(f.params.len());
         for &p in &f.params {
@@ -501,7 +556,9 @@ done:\n\
         {
             let ret = llvm_ty(&module.tys, res_ty)?;
             let mut main_extra_defs = String::new();
-            out.push_str("define i32 @main() {\nentry:\n");
+            out.push_str(
+                "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n  store i32 %argc, ptr @zil_process_argc\n  store ptr %argv, ptr @zil_process_argv\n",
+            );
             if let Some(TyKind::ErrorUnion { ok, err }) = module.tys.get(res_ty) {
                 let ok_ty = *ok;
                 let err_ty = *err;

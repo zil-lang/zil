@@ -4413,9 +4413,36 @@ fn collect_inherent_impl<'a>(
                     ));
                     continue;
                 }
-                if !f.contract.is_empty() {
-                    let has_non_result = f.contract.iter().any(|c| c.name != "result");
-                    if has_non_result {
+                let mut result_mode = ResultMode::Default;
+                for c in &f.contract {
+                    if c.name == "result" {
+                        for term in &c.terms {
+                            let next = match term.path.as_slice() {
+                                [s] if s == "create" && term.arguments.is_empty() => {
+                                    Some(ResultMode::Create)
+                                }
+                                [s] if s == "give" && term.arguments.is_empty() => {
+                                    Some(ResultMode::Give)
+                                }
+                                _ => None,
+                            };
+                            match next {
+                                Some(m)
+                                    if result_mode == ResultMode::Default || result_mode == m =>
+                                {
+                                    result_mode = m;
+                                }
+                                Some(_) => diags.push(diag::error(
+                                    diag::RESOURCE_RESULT_MODE,
+                                    term.span,
+                                    "`result(create)` and `result(give)` are mutually exclusive",
+                                )),
+                                None => {
+                                    diags.push(diag::unsupported("function contracts", term.span));
+                                }
+                            }
+                        }
+                    } else {
                         diags.push(diag::unsupported("function contracts", f.span));
                     }
                 }
@@ -4484,7 +4511,7 @@ fn collect_inherent_impl<'a>(
                         span: p.span,
                     });
                 }
-                let result = match &f.return_type {
+                let raw_result = match &f.return_type {
                     Some(t) => resolve_type_with_lifetimes(
                         t,
                         mid,
@@ -4502,6 +4529,21 @@ fn collect_inherent_impl<'a>(
                         types.error()
                     }),
                     None => types.unit(),
+                };
+                let result = match result_mode {
+                    ResultMode::Default => raw_result,
+                    ResultMode::Create | ResultMode::Give => {
+                        if let Some(m) = promote_carrier_or_error_ok(raw_result, types) {
+                            m
+                        } else {
+                            diags.push(diag::error(
+                                diag::RESOURCE_RESULT_MODE,
+                                f.span,
+                                "`result(create)`/`result(give)` requires a managed resource or `E!Managed` return type",
+                            ));
+                            types.error()
+                        }
+                    }
                 };
                 let has_self = params.first().is_some_and(|p| p.name == "self");
                 items.fns.push(FnDecl {
