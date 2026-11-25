@@ -20,19 +20,19 @@
 
 | 能力簇 | 预览支持范围 | 验证范围 | 边界 |
 | --- | --- | --- | --- |
-| 拥有组合与动态派发 | 有限拥有父形状、捕获和递归 Package 模式；借入 dyn 的共享/独占值槽、Panic 合同及共享字段地址结果；闭合及借入 provider `OwnedDyn<dyn Trait, Context<'a>>`（含共同借入 `Store<OwnedDyn<..., Context<'a>>>`、`&self`/`&mut self`/`self: Self` 槽与 entry-block 循环分配）的 Heap 路线与 moved Fn/FnMut/FnOnce 捕获、实际拥有地址 helper 与重复调用 | 真实双 provider、跨模块调用、字段访问、分配失败/一次 cleanup、共同借入 Store push/at/pop、raw/Wire 有效证书 `zil-check` 与四机器配置 | 未选择的 owner 错误联合捕获、一般泛型方法槽与非接收者未知来源仍未开放，未知合同仍拒绝 |
-| 普通集合、文本与 I/O | 完整 POD Tuple/Array/Record/标量 Store；[可增长 POD HashMap 和 Copy Set](../../spec/pod-hash-collections.md)；[普通 owning K/V 哈希 Map 与 owning Set](../../spec/owning-hash-collections.md)、拥有 Entry 的整库转交；UTF8 String、排序、文件/流 I/O | 真实普通库、私有跨模块 Key、增长/rehash 准备失败保留、拥有键值返还、活动 get 窗口、逐分配点清理、Source/raw/Wire 与四机器配置 | owning 哈希容器要求实际 StoreElement 与稳定 KeyEq/KeyHash；get 保留真实 manager；删除保序且可分配 suffix；完整 Unicode 排版仍有缺口 |
+| 拥有组合与动态派发 | 有限拥有父形状、捕获和递归 Package 模式；借入 `dyn Trait<'a>`（含 trait 生命周期参数方法返回 region 替换与 `DynImpl` 独立区域合同核验）、共享/独占值槽、Panic 合同及共享字段地址结果；闭合及借入 provider `OwnedDyn<dyn Trait, Context<'a>>`（含共同借入 `Store<OwnedDyn<..., Context<'a>>>`、`&self`/`&mut self`/`self: Self` 槽与 entry-block 循环分配）的 Heap 路线与 moved Fn/FnMut/FnOnce 捕获、实际拥有地址 helper 与重复调用 | 真实双 provider、跨模块调用、字段访问、分配失败/一次 cleanup、共同借入 Store push/at/pop、raw/Wire 有效证书 `zil-check` 与双后端 O0/O2 | 未选择的 owner 错误联合捕获、一般泛型方法槽与非接收者未知来源仍未开放，未知合同仍拒绝 |
+| 普通集合、文本、系统与网络 I/O | 完整 POD Tuple/Array/Record/标量 Store；[可增长 POD HashMap 和 Copy Set](../../spec/pod-hash-collections.md)；[普通 owning K/V 哈希 Map 与 owning Set](../../spec/owning-hash-collections.md)、拥有 Entry 的整库转交；UTF8 `std.string`（含 `starts_with`/`ends_with`/`contains`/`trim*`/`split`/`lines`/`replace_all`）、排序、文件/目录/元数据/重命名 `std.fs` 与 `std.path`、CLI 参数 `std.env`（`arg_count`/`arg`/`args`）、POSIX TCP Socket `std.net`（`TcpListener`/`TcpStream`） | 真实普通库、私有跨模块 Key、增长/rehash 准备失败保留、拥有键值返还、活动 get 窗口、逐分配点清理、环回 TCP 与 fd 回收压力、Source/raw/Wire 与双后端 O0/O2 | owning 哈希容器要求实际 StoreElement 与稳定 KeyEq/KeyHash；完整 Unicode 排版、TLS/UDP/异步非阻塞网络仍有缺口 |
 | 数值文本与缓冲 I/O | [十种整数十进制、浮点解析格式化与固定容量 Reader/Writer](../../spec/numeric-text-and-buffered-io.md) | binary32/64 位模式 roundtrip、边界与舍入、locale 失败清理；短读写、EOF、失败后精确 suffix 重试与关闭一次；两核默认和 N/N−1 预算 | 浮点文本当前为 Linux/glibc 普通固定签名适配；roundtrip 使用 round-to-nearest，其他外部舍入模式仍生效；Writer 需显式 flush/finish 观察输出错误 |
-| 拥有资源图 | [runtime-sized 循环／共享边图、逻辑删除、回收与有界 ticket 复用](../../spec/checked-resource-graph.md) | 真实 ByteBuffer payload 与分配失败返还、循环遍历、重复删除／collect／take／clear、旧 ticket 失效、两图同号边界与四机器配置 | NodeKey 是接收 Graph 的相对 namespace 值；运行时检查实际节点，不提供跨图 generative 来源证明或稳定地址；历史 metadata 容量固定 |
+| 拥有资源图 | [runtime-sized 循环／共享边图、逻辑删除、回收与有界 ticket 复用](../../spec/checked-resource-graph.md) | 真实 ByteBuffer payload 与分配失败返还、循环遍历、重复删除／collect／take／clear、旧 ticket 失效、两图同号边界与图依赖分析器应用 | NodeKey 是接收 Graph 的相对 namespace 值；运行时检查实际节点，不提供跨图 generative 来源证明或稳定地址；历史 metadata 容量固定 |
 | trait 与泛型库 | Type/const/life、关联项与字段/别名投影、默认/泛型方法、静态关联函数；普通标量/Enum 与有限拥有 Package 的共享／独占 trait provider；`Store<Item>` manager 的普通拥有 Item lending；多 binder Entry/Map | 未用定义的义务、真实 nominal/provider 身份、完整实参、独立两核与原生；零资源 Package 仍执行 affine 消费检查 | 一般 blanket/约束方程、更广 owning lending 和开放泛型方法槽仍需完整证明，实例不能补上定义期缺失前提 |
-| 普通程序组合 | 真实跨模块程序中的集合更新、错误传播与明确资源责任；同一普通函数可组合借入结果Task、拥有Map的Option借出、结束借出后的插入与移动，支持直接匹配临时Task构造结果 | 固定Source、真实两来源分支、默认预算、完整stdout/退出值、calloc/realloc失败清理、独立raw/Wire与最近反例；各范围按精确源码验收 | 上述Task共享结果可来自多共享输入中声明结果类的真实外部来源；更广holder、捕获环境、借入结果及跨线程运输仍须逐一证明，有限同函数组合不关闭父能力 |
+| 普通程序与日常应用组合 | 真实跨模块程序中的集合更新、错误传播与明确资源责任；8 类日常多模块应用（[`examples/everyday-apps/`](../../examples/everyday-apps)）：文本统计与文件搜索、CSV 处理、JSON 解析序列化、CLI Todo、HTTP 小服务与客户端、文件批处理、图依赖分析、异步任务调度器 | 固定 Source、CLI/文件/目录/TCP/异步取消全路径执行、OOM 注入清理、配对安全反例、独立 raw/Wire 与双后端 O0/O2 | 上述组合在各自明确合同下验证；更广 holder、捕获环境、借入结果及跨线程运输仍须逐一证明，有限同函数组合不关闭父能力 |
 | 固定共享地址数组 | 非零 `[&'a T;N]`、qualified Record／拥有 Package 的直接字段、常量及十种整数动态索引、普通 helper 参数/结果及共享视图复制 | 每 ordinal 的真实来源、两 life 非恒等映射、父 loan、逐根初始化、不同 upper 的局部读、Source/raw/Wire、四机器配置与精确预算 | `Field(i)` 经实际 Array/length/element 核对才是物理 ordinal；`Element` 仅类型元数据。动态读取先快照且保全候选；空数组、独占复制和更一般 mixed-upper 身份消费者仍有边界；见 [固定合同](../../spec/fixed-shared-address-array.md)和[动态合同](../../spec/dynamic-shared-address-array.md) |
 | 可变借入存储 | 有限 Record/拥有 Package 的多个地址叶；嵌套 qualified 子 Package、槽替换与实际取走/补回 | 真实 Source、独立 raw/Wire、CFG hole/init、SSA 消费、构造 child loan、四机器配置与实际资源释放 | 多路径缺口不能靠复制或别名重载清除；可变捕获、任意嵌套载体及跨异步运输仍需各自证明 |
-| 借入 Task | 多个共享/独占输入、有限标量/Record/Tuple/Array/Slice referent、普通闭合结果；多个共享输入中声明结果类的实际共享地址结果；无显式 Task/Poll 类型头的创建、轮询和跨模块 Direct worker；直接临时表达式匹配保留真实owner；显式 Task<Result,Context> helper 转交 | PC0、挂起、取消/关闭、逐端口实际父贷款、未再使用 SSA 的持有、raw/Wire 与四机器配置 | Ready 保留真实外部父 loan，Task Destroy 不撤销已导出的结果；frame-local 结果、嵌套 owner/capture 运输、线程迁移与外部 ABI 仍未开放；pub Suspend 跨模块导出仍受标量 SABI1 限制 |
+| 借入 Task | 多个共享/独占输入、有限标量/Record/Tuple/Array/Slice referent、普通闭合结果；多个共享输入中声明结果类的实际共享地址结果；无显式 Task/Poll 类型头的创建、轮询和跨模块 Direct worker；直接临时表达式匹配保留真实 owner；显式 Task<Result,Context> helper 转交；嵌套可挂起调用确定性取消展开 | PC0、挂起、取消/关闭、逐端口实际父贷款、未再使用 SSA 的持有、嵌套可挂起取消清理、raw/Wire 与双后端 O0/O2 | Ready 保留真实外部父 loan，Task Destroy 不撤销已导出的结果；frame-local 结果、嵌套 owner/capture 运输、线程迁移与外部 ABI 仍未开放；pub Suspend 跨模块导出仍受标量 SABI1 限制 |
 | 线程与同步 | 结构化线程、实际 pthread Mutex<T>/affine Guard、拥有 Package/Tuple/Enum/Array payload、明确来源的多输入 helper；i64/u64/usize 原子及强 CAS | 实际共享线程、逐输入来源、顺序合法矩阵、双后端 O0/O2、malloc/init 失败与逐元素一次清理 | Guard 不自动获得线程迁移或跨挂起资格；资源结构须满足实际同步清理与 Transfer/Share 证明 |
-| 协议与登记状态合同 | `AsyncRegistration<F>` 逐结果三态合同、Pending 重试与 checked finish；用户自定义有限状态协议（`enum` 或含 `enum` 类型 `state` 字段的句柄，最多 64 态），支持 `requires(state/apart)`、`provides(state/on_ok/on_err)`、导出投影失效上界 `effects(invalidates(p.f))` / `effects(invalidates())`、历史撤销 `H`（`effects(rollback(p))`）、跨 `match` 分支精化、未标注调用方前置核验及未知可变调用保守宽化 | 真正 pre-trampoline raw holder、原子准入/发布、FnMut 串行执行、用户多角色状态机、投影失效与历史撤销正负例、Source/Raw/Wire 有效证书 `zil-check` 及双后端 O0/O2 | 跨线程 profile 只接已证明的 closed 环境与同步 cleanup；超 4 层嵌套字段路径或跨异步取消的状态协议组合仍在独立合同边界内 |
+| 协议与登记状态合同 | `AsyncRegistration<F>` 逐结果三态合同、Pending 重试与 checked finish；用户自定义有限状态协议（`enum` 或含 `enum` 类型 `state` 字段的句柄，最多 64 态），支持 `requires(state/apart)`、`provides(state/on_ok/on_err)`、导出投影失效上界 `effects(invalidates(p.f))` / `effects(invalidates())`、历史撤销 `H`（`effects(rollback(p))`）、跨 `match` 分支精化、未标注调用方前置核验；以及基于共享 `zil-semantics` 事实的联合语义：`Replace` 历史与责任隔离、`Store` Push/Pop 成败分支与非修改借用、`Task`/`Registration` 条件创建与 `Valid` 只读语义及 `TaskStart` 完整定义、取消边保守保留副作用与所有权转移 | 真正 pre-trampoline raw holder、原子准入/发布、FnMut 串行执行、用户多角色状态机、Replace/Store/Task/Registration/Cancel 正负例、Source/Raw/Wire 有效证书 `zil-check` 及双后端 O0/O2 | 跨线程 profile 只接已证明的 closed 环境与同步 cleanup；超 4 层嵌套字段路径或超 64 态协议域仍为后续扩展 |
 | 项目使用 | 项目清单、路径依赖与锁、check/build/run/test、真实测试发现和失败状态 | 可复现依赖解析、每 importer 同名 helper、CT/缓存、Unit/Bool/I32 测试与最近失败反例 | 无集中注册表；空选择、失败编译、超时和失败测试不报 Pass |
-| 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码和摘要绑定绑定源码的共同收据；默认整树、参考配置相关目标、两后端原生、失败清理及冷恢复分别记录，结果与冷恢复边界按精确源码记录 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
+| 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码与可执行验证绑定；常规 PR 由分层 CI 门控，冻结候选由 `alpha-acceptance.yml` 生成单份验收收据 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
 
 ## 快速开始
 
@@ -47,7 +47,7 @@ mkdir -p out
 printf '10 20 -3\n' | ./out/stream
 ```
 
-该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；冻结验收已在远端重新拉取的同一源码与所标环境执行。组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。开发运行命令如下（本次冷恢复使用从源码新构建的 dev CLI）：
+该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0。更多组合样例位于 `examples/mainline/draft_foundations/` 与 `examples/everyday-apps/`（涵盖文本统计与文件搜索、CSV、JSON、CLI Todo、HTTP 小服务/客户端、文件批处理、图依赖分析、异步任务调度器 8 类完整多模块应用）：
 
 ```sh
 ./target/debug/zil run examples/mainline/draft_foundations/main.zil --entry main
@@ -57,7 +57,7 @@ printf '10 20 -3\n' | ./out/stream
 ## 未支持及环境限制
 
 - 完整借入枚举/结果、长期借用与资源宿主 lending、开放泛型容器、一般 owned dyn provider、异步借入结果及跨线程登记的更广组合仍有未闭合范围。父能力不能因某个有限子项通过而视为完成。
-- GPU 首帧、字体、OS IME、完整 ZUI 与原生 Windows 执行不包含在本有限语言预览。目标/后端只按本次收据中真实执行的组合列出；Win64 交叉构建或 Wine 不等于原生 Windows 验证。
+- GPU 首帧、字体、OS IME、完整 ZUI 与原生 Windows 执行不包含在当前 Linux Alpha 范围。目标/后端只按本次收据中真实执行的组合列出；Win64 交叉构建或 Wine 不等于原生 Windows 验证。
 - `validation/product-gates.json` 中零 safe UB、同语义 Rust 运行/内存与编译/维护成本条件、至少一项可重复净突破及发布前提原样有效。目前不得宣称这些产品条件达成。B0、完整语言与 ZUI 终态验收继续独立进行。
 
-本预览依据 `_zil_design.md` §20、`validation/product-gates.json`、`goal:workflow.md` 与实时 `goal:goal.md`。源码、各门结果及恢复范围绑定共同收据；远端恢复复用已准备的固定工具链和 Cargo 缓存，不代表空机器安装或旧历史重新验收。
+本预览依据 `_zil_design.md` §20、`validation/language-alpha-profile.json`、`validation/product-gates.json`、`goal:workflow.md` 与实时 `goal:goal.md`。源码、各门结果及恢复范围绑定共同收据；远端恢复复用已准备的固定工具链和 Cargo 缓存，不代表空机器安装或旧历史重新验收。
