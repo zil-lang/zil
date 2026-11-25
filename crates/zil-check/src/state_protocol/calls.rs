@@ -369,7 +369,8 @@ impl ProtocolVerifier<'_> {
                                     args.get(param as usize)
                                     && p.projections.is_empty()
                                     && let PlaceRoot::Local(al) = p.root
-                                    && let Some(ma_set) = cancel_st.aliases.may_alias.get(&al).cloned()
+                                    && let Some(ma_set) =
+                                        cancel_st.aliases.may_alias.get(&al).cloned()
                                 {
                                     for h_idx in ma_set {
                                         if let Some(Some(info)) = self.local_info.get(h_idx) {
@@ -449,7 +450,13 @@ impl ProtocolVerifier<'_> {
                             && let PlaceRoot::Local(al) = p.root
                         {
                             if path.len == 0 {
-                                self.apply_local_effects_inner(&mut cancel_st, al, false, &[], true);
+                                self.apply_local_effects_inner(
+                                    &mut cancel_st,
+                                    al,
+                                    false,
+                                    &[],
+                                    true,
+                                );
                             } else {
                                 if let Some(mch) = cancel_st.caps.mut_cap_handles.get(&al).cloned()
                                 {

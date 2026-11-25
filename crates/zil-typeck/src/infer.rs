@@ -9438,185 +9438,184 @@ pub(crate) fn resolve_closure_for_suspend(types: &Types, mut ty: Ty) -> Option<(
                 return Some((owner.0 as usize, id.0 as usize));
             }
             TyData::Unit
-                | TyData::Bool
-                | TyData::Never
-                | TyData::Int(_)
-                | TyData::Float(_)
-                | TyData::Adt { .. }
-                | TyData::Tuple(_)
-                | TyData::Array { .. }
-                | TyData::Slice(_)
-                | TyData::Managed(_)
-                | TyData::Desc(_)
-                | TyData::Opaque(_)
-                | TyData::ErrorUnion { .. }
-                | TyData::Union(_)
-                | TyData::FnPtr { .. }
-                | TyData::ImplCallable { .. }
-                | TyData::Dyn { .. }
-                | TyData::OwnedDyn { .. }
-                | TyData::Param(_)
-                | TyData::SelfParam
-                | TyData::Assoc { .. }
-                | TyData::ArrayConst { .. }
-                | TyData::ConstParam(_)
-                | TyData::ConstU32(_)
-                | TyData::Type
-                | TyData::Var(_)
-                | TyData::Error => return None,
-            }
+            | TyData::Bool
+            | TyData::Never
+            | TyData::Int(_)
+            | TyData::Float(_)
+            | TyData::Adt { .. }
+            | TyData::Tuple(_)
+            | TyData::Array { .. }
+            | TyData::Slice(_)
+            | TyData::Managed(_)
+            | TyData::Desc(_)
+            | TyData::Opaque(_)
+            | TyData::ErrorUnion { .. }
+            | TyData::Union(_)
+            | TyData::FnPtr { .. }
+            | TyData::ImplCallable { .. }
+            | TyData::Dyn { .. }
+            | TyData::OwnedDyn { .. }
+            | TyData::Param(_)
+            | TyData::SelfParam
+            | TyData::Assoc { .. }
+            | TyData::ArrayConst { .. }
+            | TyData::ConstParam(_)
+            | TyData::ConstU32(_)
+            | TyData::Type
+            | TyData::Var(_)
+            | TyData::Error => return None,
         }
-        None
     }
+    None
+}
 
-    fn expr_suspends(
-        e: &Expr,
-        items: &Items<'_>,
-        types: &Types,
-        fn_susp: &[bool],
-        cl_susp: &[Vec<bool>],
-    ) -> bool {
-        match &e.kind {
-            ExprKind::Intrinsic { op, args } => {
-                *op == IntrinsicOp::TaskYield
-                    || args
-                        .iter()
-                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::Call { callee, args, .. } => {
-                fn_susp.get(callee.0 as usize).copied().unwrap_or(false)
-                    || args
-                        .iter()
-                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::TraitCall {
-                trait_ref,
-                method,
-                args,
-                ..
-            } => {
-                let trait_may_suspend = items.trait_impls.iter().any(|imp| {
-                    imp.trait_ref == *trait_ref
-                        && imp.methods.iter().any(|(name, fn_ref)| {
-                            name == method
-                                && fn_susp.get(fn_ref.0 as usize).copied().unwrap_or(false)
-                        })
-                });
-                trait_may_suspend
-                    || args
-                        .iter()
-                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::ClosureCall { closure, args, .. } => {
-                let target_susp = match resolve_closure_for_suspend(types, closure.ty) {
-                    Some((o, i)) => cl_susp
-                        .get(o)
-                        .and_then(|v| v.get(i))
-                        .copied()
-                        .unwrap_or(true),
-                    None => false,
-                };
-                target_susp
-                    || expr_suspends(closure, items, types, fn_susp, cl_susp)
-                    || args
-                        .iter()
-                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::IndirectCall { callee, args } => {
-                expr_suspends(callee, items, types, fn_susp, cl_susp)
-                    || args
-                        .iter()
-                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::DynCall { object, args, .. } => {
-                expr_suspends(object, items, types, fn_susp, cl_susp)
-                    || args
-                        .iter()
-                        .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::ForeignCall { args, .. }
-            | ExprKind::ManagedCreate { fields: args, .. }
-            | ExprKind::Adt { fields: args, .. }
-            | ExprKind::Tuple(args)
-            | ExprKind::Array(args)
-            | ExprKind::Closure { captures: args, .. } => args
-                .iter()
-                .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp)),
-            ExprKind::Field { base: x, .. }
-            | ExprKind::TupleField { base: x, .. }
-            | ExprKind::Deref(x)
-            | ExprKind::Borrow { place: x, .. }
-            | ExprKind::Len(x)
-            | ExprKind::Give(x)
-            | ExprKind::Describe(x)
-            | ExprKind::Unary { operand: x, .. }
-            | ExprKind::Convert { operand: x }
-            | ExprKind::ErrorInject { value: x, .. }
-            | ExprKind::UnionInject { value: x }
-            | ExprKind::Try(x)
-            | ExprKind::CtEval(x)
-            | ExprKind::Loop(x) => expr_suspends(x, items, types, fn_susp, cl_susp),
-            ExprKind::SliceBorrow {
-                place, start, end, ..
-            } => {
-                expr_suspends(place, items, types, fn_susp, cl_susp)
-                    || start
-                        .as_deref()
-                        .is_some_and(|s| expr_suspends(s, items, types, fn_susp, cl_susp))
-                    || end
-                        .as_deref()
-                        .is_some_and(|s| expr_suspends(s, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::Index { base: a, index: b }
-            | ExprKind::Binary { lhs: a, rhs: b, .. }
-            | ExprKind::Logical { lhs: a, rhs: b, .. }
-            | ExprKind::While { cond: a, body: b }
-            | ExprKind::Assign {
-                place: a, value: b, ..
-            } => {
-                expr_suspends(a, items, types, fn_susp, cl_susp)
-                    || expr_suspends(b, items, types, fn_susp, cl_susp)
-            }
-            ExprKind::If {
-                cond,
-                then,
-                otherwise,
-            } => {
-                expr_suspends(cond, items, types, fn_susp, cl_susp)
-                    || expr_suspends(then, items, types, fn_susp, cl_susp)
-                    || otherwise
-                        .as_deref()
-                        .is_some_and(|o| expr_suspends(o, items, types, fn_susp, cl_susp))
-            }
-            ExprKind::Match { scrutinee, arms } => {
-                expr_suspends(scrutinee, items, types, fn_susp, cl_susp)
-                    || arms.iter().any(|arm| {
-                        arm.guard
-                            .as_deref()
-                            .is_some_and(|g| expr_suspends(g, items, types, fn_susp, cl_susp))
-                            || expr_suspends(&arm.body, items, types, fn_susp, cl_susp)
-                    })
-            }
-            ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
-                Stmt::Let { init, .. } => expr_suspends(init, items, types, fn_susp, cl_susp),
-                Stmt::Expr(x) | Stmt::Defer(x) => expr_suspends(x, items, types, fn_susp, cl_susp),
-            }),
-            ExprKind::Return(opt) => opt
-                .as_deref()
-                .is_some_and(|x| expr_suspends(x, items, types, fn_susp, cl_susp)),
-            ExprKind::Lit(_)
-            | ExprKind::ConstGeneric(_)
-            | ExprKind::StaticUtf(_)
-            | ExprKind::Local(_)
-            | ExprKind::Capture(_)
-            | ExprKind::FnRef { .. }
-            | ExprKind::ForeignRef(_)
-            | ExprKind::ClosureFnRef(_)
-            | ExprKind::Break
-            | ExprKind::Continue
-            | ExprKind::Trap => false,
+fn expr_suspends(
+    e: &Expr,
+    items: &Items<'_>,
+    types: &Types,
+    fn_susp: &[bool],
+    cl_susp: &[Vec<bool>],
+) -> bool {
+    match &e.kind {
+        ExprKind::Intrinsic { op, args } => {
+            *op == IntrinsicOp::TaskYield
+                || args
+                    .iter()
+                    .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
         }
+        ExprKind::Call { callee, args, .. } => {
+            fn_susp.get(callee.0 as usize).copied().unwrap_or(false)
+                || args
+                    .iter()
+                    .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+        }
+        ExprKind::TraitCall {
+            trait_ref,
+            method,
+            args,
+            ..
+        } => {
+            let trait_may_suspend = items.trait_impls.iter().any(|imp| {
+                imp.trait_ref == *trait_ref
+                    && imp.methods.iter().any(|(name, fn_ref)| {
+                        name == method && fn_susp.get(fn_ref.0 as usize).copied().unwrap_or(false)
+                    })
+            });
+            trait_may_suspend
+                || args
+                    .iter()
+                    .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+        }
+        ExprKind::ClosureCall { closure, args, .. } => {
+            let target_susp = match resolve_closure_for_suspend(types, closure.ty) {
+                Some((o, i)) => cl_susp
+                    .get(o)
+                    .and_then(|v| v.get(i))
+                    .copied()
+                    .unwrap_or(true),
+                None => false,
+            };
+            target_susp
+                || expr_suspends(closure, items, types, fn_susp, cl_susp)
+                || args
+                    .iter()
+                    .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+        }
+        ExprKind::IndirectCall { callee, args } => {
+            expr_suspends(callee, items, types, fn_susp, cl_susp)
+                || args
+                    .iter()
+                    .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+        }
+        ExprKind::DynCall { object, args, .. } => {
+            expr_suspends(object, items, types, fn_susp, cl_susp)
+                || args
+                    .iter()
+                    .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp))
+        }
+        ExprKind::ForeignCall { args, .. }
+        | ExprKind::ManagedCreate { fields: args, .. }
+        | ExprKind::Adt { fields: args, .. }
+        | ExprKind::Tuple(args)
+        | ExprKind::Array(args)
+        | ExprKind::Closure { captures: args, .. } => args
+            .iter()
+            .any(|a| expr_suspends(a, items, types, fn_susp, cl_susp)),
+        ExprKind::Field { base: x, .. }
+        | ExprKind::TupleField { base: x, .. }
+        | ExprKind::Deref(x)
+        | ExprKind::Borrow { place: x, .. }
+        | ExprKind::Len(x)
+        | ExprKind::Give(x)
+        | ExprKind::Describe(x)
+        | ExprKind::Unary { operand: x, .. }
+        | ExprKind::Convert { operand: x }
+        | ExprKind::ErrorInject { value: x, .. }
+        | ExprKind::UnionInject { value: x }
+        | ExprKind::Try(x)
+        | ExprKind::CtEval(x)
+        | ExprKind::Loop(x) => expr_suspends(x, items, types, fn_susp, cl_susp),
+        ExprKind::SliceBorrow {
+            place, start, end, ..
+        } => {
+            expr_suspends(place, items, types, fn_susp, cl_susp)
+                || start
+                    .as_deref()
+                    .is_some_and(|s| expr_suspends(s, items, types, fn_susp, cl_susp))
+                || end
+                    .as_deref()
+                    .is_some_and(|s| expr_suspends(s, items, types, fn_susp, cl_susp))
+        }
+        ExprKind::Index { base: a, index: b }
+        | ExprKind::Binary { lhs: a, rhs: b, .. }
+        | ExprKind::Logical { lhs: a, rhs: b, .. }
+        | ExprKind::While { cond: a, body: b }
+        | ExprKind::Assign {
+            place: a, value: b, ..
+        } => {
+            expr_suspends(a, items, types, fn_susp, cl_susp)
+                || expr_suspends(b, items, types, fn_susp, cl_susp)
+        }
+        ExprKind::If {
+            cond,
+            then,
+            otherwise,
+        } => {
+            expr_suspends(cond, items, types, fn_susp, cl_susp)
+                || expr_suspends(then, items, types, fn_susp, cl_susp)
+                || otherwise
+                    .as_deref()
+                    .is_some_and(|o| expr_suspends(o, items, types, fn_susp, cl_susp))
+        }
+        ExprKind::Match { scrutinee, arms } => {
+            expr_suspends(scrutinee, items, types, fn_susp, cl_susp)
+                || arms.iter().any(|arm| {
+                    arm.guard
+                        .as_deref()
+                        .is_some_and(|g| expr_suspends(g, items, types, fn_susp, cl_susp))
+                        || expr_suspends(&arm.body, items, types, fn_susp, cl_susp)
+                })
+        }
+        ExprKind::Block(stmts) => stmts.iter().any(|s| match s {
+            Stmt::Let { init, .. } => expr_suspends(init, items, types, fn_susp, cl_susp),
+            Stmt::Expr(x) | Stmt::Defer(x) => expr_suspends(x, items, types, fn_susp, cl_susp),
+        }),
+        ExprKind::Return(opt) => opt
+            .as_deref()
+            .is_some_and(|x| expr_suspends(x, items, types, fn_susp, cl_susp)),
+        ExprKind::Lit(_)
+        | ExprKind::ConstGeneric(_)
+        | ExprKind::StaticUtf(_)
+        | ExprKind::Local(_)
+        | ExprKind::Capture(_)
+        | ExprKind::FnRef { .. }
+        | ExprKind::ForeignRef(_)
+        | ExprKind::ClosureFnRef(_)
+        | ExprKind::Break
+        | ExprKind::Continue
+        | ExprKind::Trap => false,
     }
+}
 
 /// Computes a transitive fixed-point `can_suspend` summary over all THIR
 /// functions and closures. Shared by `check_defer_suspend_effects` and
