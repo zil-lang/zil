@@ -1001,14 +1001,17 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
         }
         if let (
             TyData::Ref {
-                mutable: false,
+                mutable: want_mut,
                 pointee: want_pt,
                 ..
             },
             TyData::Ref {
-                pointee: got_pt, ..
+                mutable: got_mut,
+                pointee: got_pt,
+                ..
             },
         ) = (&ed, &vd)
+            && (!*want_mut || *got_mut)
         {
             let want_pt = self.types.shallow(*want_pt);
             let got_pt = self.types.shallow(*got_pt);
@@ -1034,7 +1037,7 @@ impl<'c, 'a, 'e> FnCx<'c, 'a, 'e> {
                 };
                 return Expr {
                     kind: ExprKind::Borrow {
-                        mutable: false,
+                        mutable: *want_mut,
                         place: Box::new(desc),
                     },
                     ty: expected,

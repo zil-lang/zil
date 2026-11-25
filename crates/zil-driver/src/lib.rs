@@ -901,6 +901,7 @@ const EMBEDDED_STD_MODULES: &[(&str, &str)] = &[
     ("int", include_str!("../../../lib/std/int.zil")),
     ("io", include_str!("../../../lib/std/io.zil")),
     ("iter", include_str!("../../../lib/std/iter.zil")),
+    ("net", include_str!("../../../lib/std/net.zil")),
     (
         "owning_entries",
         include_str!("../../../lib/std/owning_entries.zil"),
