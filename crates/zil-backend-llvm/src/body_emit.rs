@@ -3390,9 +3390,11 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "{l_ok}:");
                 Ok(())
             }
-            IntrinsicOp::TaskCreate => {
+            IntrinsicOp::TaskCreate | IntrinsicOp::TaskStart => {
                 if args.is_empty() {
-                    return Err(BodyEmitError::new("TaskCreate missing worker argument"));
+                    return Err(BodyEmitError::new(
+                        "TaskCreate/TaskStart missing worker argument",
+                    ));
                 }
                 let (wfn_v, _, _) = self.emit_operand(&args[0])?;
                 let mut arg_vals: Vec<(String, String, String, Option<TyId>)> =
@@ -3409,17 +3411,33 @@ impl<'a> FnEmitter<'a> {
                     arg_vals.push((v, lt, st, aty));
                 }
                 let d_llvm = llvm_storage_ty(self.tys(), d_ty)?;
-                let (task_res_ty, task_err_ty) = match self.tys().get(d_ty) {
-                    Some(TyKind::ErrorUnion { ok, err }) => match self.tys().get(*ok) {
+                let (task_res_ty, task_err_ty) = if matches!(op, IntrinsicOp::TaskStart) {
+                    match self.tys().get(d_ty) {
                         Some(TyKind::Managed(inner)) => match self.tys().get(*inner) {
-                            Some(TyKind::Opaque(OpaqueTy::Task { result, .. })) => (*result, *err),
+                            Some(TyKind::Opaque(OpaqueTy::Task { result, .. })) => (*result, None),
                             _ => {
-                                return Err(BodyEmitError::new("TaskCreate ok inner is not Task"));
+                                return Err(BodyEmitError::new("TaskStart inner is not Task"));
                             }
                         },
-                        _ => return Err(BodyEmitError::new("TaskCreate ok is not Managed")),
-                    },
-                    _ => return Err(BodyEmitError::new("TaskCreate dest is not ErrorUnion")),
+                        _ => return Err(BodyEmitError::new("TaskStart dest is not Managed")),
+                    }
+                } else {
+                    match self.tys().get(d_ty) {
+                        Some(TyKind::ErrorUnion { ok, err }) => match self.tys().get(*ok) {
+                            Some(TyKind::Managed(inner)) => match self.tys().get(*inner) {
+                                Some(TyKind::Opaque(OpaqueTy::Task { result, .. })) => {
+                                    (*result, Some(*err))
+                                }
+                                _ => {
+                                    return Err(BodyEmitError::new(
+                                        "TaskCreate ok inner is not Task",
+                                    ));
+                                }
+                            },
+                            _ => return Err(BodyEmitError::new("TaskCreate ok is not Managed")),
+                        },
+                        _ => return Err(BodyEmitError::new("TaskCreate dest is not ErrorUnion")),
+                    }
                 };
                 let res_llvm = llvm_ty(self.tys(), task_res_ty)?;
                 let res_stor = llvm_storage_ty(self.tys(), task_res_ty)?;
@@ -3603,65 +3621,85 @@ impl<'a> FnEmitter<'a> {
                 );
 
                 let _ = writeln!(self.out, "{fail_lbl}:");
-                let e_tag = self.fresh();
-                let e_slot = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {e_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
-                );
-                let _ = writeln!(self.out, "  store i1 0, ptr {e_tag}");
-                let _ = writeln!(
-                    self.out,
-                    "  {e_slot} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
-                );
-                let owned_failure_inputs = match self.tys().get(task_err_ty) {
-                    Some(TyKind::Adt { adt, args: eargs })
-                        if self
-                            .tys()
-                            .get_adt(*adt)
-                            .is_some_and(|def| def.name == "TaskCreateOwnedFailure") =>
-                    {
-                        self.tys().field_ty(
-                            *adt,
-                            zil_ir::body::VariantIdx(0),
-                            zil_ir::body::FieldIdx(1),
-                            *eargs,
-                        )
-                    }
-                    _ => None,
-                };
-                if let Some(inputs_ty) = owned_failure_inputs {
-                    let err_llvm = llvm_storage_ty(self.tys(), task_err_ty)?;
-                    let reason_p = self.fresh();
-                    let inputs_p = self.fresh();
+                if let Some(task_err_ty) = task_err_ty {
+                    let e_tag = self.fresh();
+                    let e_slot = self.fresh();
                     let _ = writeln!(
                         self.out,
-                        "  {reason_p} = getelementptr inbounds {err_llvm}, ptr {e_slot}, i32 0, i32 0"
+                        "  {e_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
                     );
-                    let _ = writeln!(self.out, "  store i32 0, ptr {reason_p}");
+                    let _ = writeln!(self.out, "  store i1 0, ptr {e_tag}");
                     let _ = writeln!(
                         self.out,
-                        "  {inputs_p} = getelementptr inbounds {err_llvm}, ptr {e_slot}, i32 0, i32 1"
+                        "  {e_slot} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 2"
                     );
-                    if arg_vals.is_empty() {
-                        let _ = writeln!(self.out, "  store i8 0, ptr {inputs_p}");
+                    let owned_failure_inputs = match self.tys().get(task_err_ty) {
+                        Some(TyKind::Adt { adt, args: eargs })
+                            if self
+                                .tys()
+                                .get_adt(*adt)
+                                .is_some_and(|def| def.name == "TaskCreateOwnedFailure") =>
+                        {
+                            self.tys().field_ty(
+                                *adt,
+                                zil_ir::body::VariantIdx(0),
+                                zil_ir::body::FieldIdx(1),
+                                *eargs,
+                            )
+                        }
+                        _ => None,
+                    };
+                    if let Some(inputs_ty) = owned_failure_inputs {
+                        let err_llvm = llvm_storage_ty(self.tys(), task_err_ty)?;
+                        let reason_p = self.fresh();
+                        let inputs_p = self.fresh();
+                        let _ = writeln!(
+                            self.out,
+                            "  {reason_p} = getelementptr inbounds {err_llvm}, ptr {e_slot}, i32 0, i32 0"
+                        );
+                        let _ = writeln!(self.out, "  store i32 0, ptr {reason_p}");
+                        let _ = writeln!(
+                            self.out,
+                            "  {inputs_p} = getelementptr inbounds {err_llvm}, ptr {e_slot}, i32 0, i32 1"
+                        );
+                        if arg_vals.is_empty() {
+                            let _ = writeln!(self.out, "  store i8 0, ptr {inputs_p}");
+                        } else {
+                            let inputs_llvm = llvm_storage_ty(self.tys(), inputs_ty)?;
+                            for (i, (v, lt, _, _)) in arg_vals.iter().enumerate() {
+                                let fp = self.fresh();
+                                let _ = writeln!(
+                                    self.out,
+                                    "  {fp} = getelementptr inbounds {inputs_llvm}, ptr {inputs_p}, i32 0, i32 {i}"
+                                );
+                                if lt == "void" {
+                                    let _ = writeln!(self.out, "  store i8 0, ptr {fp}");
+                                } else {
+                                    let _ = writeln!(self.out, "  store {lt} {v}, ptr {fp}");
+                                }
+                            }
+                        }
                     } else {
-                        let inputs_llvm = llvm_storage_ty(self.tys(), inputs_ty)?;
-                        for (i, (v, lt, _, _)) in arg_vals.iter().enumerate() {
-                            let fp = self.fresh();
-                            let _ = writeln!(
-                                self.out,
-                                "  {fp} = getelementptr inbounds {inputs_llvm}, ptr {inputs_p}, i32 0, i32 {i}"
-                            );
-                            if lt == "void" {
-                                let _ = writeln!(self.out, "  store i8 0, ptr {fp}");
-                            } else {
-                                let _ = writeln!(self.out, "  store {lt} {v}, ptr {fp}");
+                        let _ = writeln!(self.out, "  store i32 0, ptr {e_slot}");
+                        for (v, lt, _, aty) in arg_vals.iter().rev() {
+                            if lt != "void"
+                                && let Some(arg_ty) = *aty
+                            {
+                                let ap = self.fresh();
+                                let saved_len = self.out.len();
+                                let res = self.emit_drop_ptr(&ap, arg_ty);
+                                let one_drop = self.out.split_off(saved_len);
+                                res?;
+                                if !one_drop.is_empty() {
+                                    let _ = writeln!(self.out, "  {ap} = alloca {lt}");
+                                    let _ = writeln!(self.out, "  store {lt} {v}, ptr {ap}");
+                                    self.out.push_str(&one_drop);
+                                }
                             }
                         }
                     }
                 } else {
-                    let _ = writeln!(self.out, "  store i32 0, ptr {e_slot}");
+                    let _ = writeln!(self.out, "  store ptr null, ptr {d_ptr}");
                     for (v, lt, _, aty) in arg_vals.iter().rev() {
                         if lt != "void"
                             && let Some(arg_ty) = *aty
@@ -3721,28 +3759,40 @@ impl<'a> FnEmitter<'a> {
                         let _ = writeln!(self.out, "  store {lt} {v}, ptr {ap}");
                     }
                 }
-                let ok_tag = self.fresh();
-                let ok_slot = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {ok_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
-                );
-                let _ = writeln!(self.out, "  store i1 1, ptr {ok_tag}");
-                let _ = writeln!(
-                    self.out,
-                    "  {ok_slot} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
-                );
-                let _ = writeln!(self.out, "  store ptr {frame}, ptr {ok_slot}");
+                if task_err_ty.is_some() {
+                    let ok_tag = self.fresh();
+                    let ok_slot = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {ok_tag} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 0"
+                    );
+                    let _ = writeln!(self.out, "  store i1 1, ptr {ok_tag}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {ok_slot} = getelementptr inbounds {d_llvm}, ptr {d_ptr}, i32 0, i32 1"
+                    );
+                    let _ = writeln!(self.out, "  store ptr {frame}, ptr {ok_slot}");
+                } else {
+                    let _ = writeln!(self.out, "  store ptr {frame}, ptr {d_ptr}");
+                }
                 let _ = writeln!(self.out, "  br label %{done_lbl}");
 
                 let _ = writeln!(self.out, "{done_lbl}:");
                 Ok(())
             }
             IntrinsicOp::TaskValid => {
-                let (ref_v, _, _) = self.emit_operand(&args[0])?;
-                let frame = self.fresh();
+                let (arg_v, _, arg_ty) = self.emit_operand(&args[0])?;
+                let is_ref = arg_ty
+                    .and_then(|t| self.tys().get(t))
+                    .is_some_and(|k| matches!(k, TyKind::Ref { .. }));
+                let frame = if is_ref {
+                    let loaded = self.fresh();
+                    let _ = writeln!(self.out, "  {loaded} = load ptr, ptr {arg_v}");
+                    loaded
+                } else {
+                    arg_v
+                };
                 let ok = self.fresh();
-                let _ = writeln!(self.out, "  {frame} = load ptr, ptr {ref_v}");
                 let _ = writeln!(self.out, "  {ok} = icmp ne ptr {frame}, null");
                 let _ = writeln!(self.out, "  store i1 {ok}, ptr {d_ptr}");
                 Ok(())
@@ -5032,9 +5082,6 @@ reject:\n\
                 let _ = writeln!(self.out, "{l_done}:");
                 Ok(())
             }
-            IntrinsicOp::TaskStart => Err(BodyEmitError::new(format!(
-                "intrinsic {op:?} native emission not yet implemented"
-            ))),
         }
     }
 

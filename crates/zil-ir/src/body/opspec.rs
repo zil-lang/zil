@@ -2214,7 +2214,37 @@ fn intrinsic_sig(
             let out_ty = cx.lookup(TyKind::Tuple(vec![bool_ty()?, i32_ty]))?;
             Ok((vec![*reg_ty, *close_ty, *f_ref_ty, *body_ty], out_ty))
         }
-        IntrinsicOp::TaskStart => Err(ConstraintError::Unspecified(intrinsic_name(op))),
+        IntrinsicOp::TaskStart => {
+            let Some((&worker_ty, ctx_args)) = found.split_first() else {
+                return Err(bad("task.start requires a worker function"));
+            };
+            let Some(TyKind::FnPtr { params, result }) = tys.get(worker_ty) else {
+                return Err(bad("task.start worker must be a function pointer"));
+            };
+            if params.len() != ctx_args.len()
+                || !params
+                    .iter()
+                    .zip(ctx_args)
+                    .all(|(p, c)| tys.same_erased_region(*p, *c))
+            {
+                return Err(bad(
+                    "task.start worker parameters must match context arguments",
+                ));
+            }
+            let dest_matches = matches!(
+                tys.get(dest_ty),
+                Some(TyKind::Managed(inner))
+                    if matches!(
+                        tys.get(*inner),
+                        Some(TyKind::Opaque(OpaqueTy::Task { result: tr, .. }))
+                            if tys.same_erased_region(*tr, *result)
+                    )
+            );
+            if !dest_matches {
+                return Err(bad("task.start destination must be Managed<Task<T>>"));
+            }
+            Ok((found.to_vec(), dest_ty))
+        }
     }
 }
 
