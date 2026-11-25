@@ -10,6 +10,8 @@ extern "C" fn getcwd(buf:&mut u8,size:usize)->c_handle
 contract {provides(noescape(buf));effects(ffi);};
 extern "C" fn _exit(code:i32);
 extern "C" fn zil_glibc_errno_exchange(next:i32)->i32;
+extern "C" fn zil_process_arg_count()->i64;
+extern "C" fn zil_process_arg_ptr(index:i64)->c_handle;
 
 fn c_name(name:&[u8])->io.Error!ByteBuffer contract {result(create)} {
     if name.len()==0 || name.len()==9223372036854775807 {return io.Error.InvalidPath}
@@ -37,6 +39,25 @@ fn copy_from_c(dst:ByteBuffer,src:c_handle,n:usize) {
     copy_slice_from_c(bytes_view_mut(dst),src,n)
 }
 
+fn copy_c_str(ptr:c_handle)->io.Error!ByteBuffer contract {result(create)} {
+    if ptr==c_null() {return io.Error.InvalidResult}
+    var n:usize=0usize
+    unsafe{n=strlen(ptr)}
+    if u64(n)>9223372036854775807u64 {return io.Error.Capacity}
+    let length=i64(n)
+    let out=bytes_new()
+    if !bytes_reserve(out,length) {return io.Error.Allocation}
+    var at:i64=0
+    while at<length {
+        if !bytes_push(out,0u8) {return io.Error.InvalidResult}
+        at+=1
+    }
+    if length>0 {
+        copy_from_c(out,ptr,n)
+    }
+    return give out
+}
+
 fn getcwd_slice(dst:&mut [u8],size:usize)->bool {
     var ptr=c_null()
     unsafe{ptr=getcwd(&mut dst[0],size)}
@@ -56,23 +77,54 @@ pub fn get(name:&[u8])->Option<Managed<ByteBuffer>> {
             var ptr=c_null()
             unsafe{ptr=getenv(&bytes_view(encoded)[0])}
             if ptr==c_null() {return Option::<Managed<ByteBuffer>>.None()}
-            var n:usize=0usize
-            unsafe{n=strlen(ptr)}
-            if u64(n)>9223372036854775807u64 {return Option::<Managed<ByteBuffer>>.None()}
-            let length=i64(n)
-            let out=bytes_new()
-            if !bytes_reserve(out,length) {return Option::<Managed<ByteBuffer>>.None()}
-            var at:i64=0
-            while at<length {
-                if !bytes_push(out,0u8) {return Option::<Managed<ByteBuffer>>.None()}
-                at+=1
+            match copy_c_str(ptr) {
+                .err(_)=>{return Option::<Managed<ByteBuffer>>.None()},
+                .ok(out)=>{return Option::<Managed<ByteBuffer>>.Some(give out)}
             }
-            if length>0 {
-                copy_from_c(out,ptr,n)
-            }
-            return Option::<Managed<ByteBuffer>>.Some(give out)
         }
     }
+}
+
+// Returns the number of process command-line arguments (argc, including argv[0]).
+pub fn arg_count()->i64 {
+    var count:i64=0
+    unsafe{count=zil_process_arg_count()}
+    if count<0 {return 0}
+    return count
+}
+
+// Returns an owned ByteBuffer copy of argv[index] (without trailing NUL),
+// or Option.None() if index is out of range, argv[index] is null, or allocation fails.
+pub fn arg(index:i64)->Option<Managed<ByteBuffer>> {
+    var ptr=c_null()
+    unsafe{ptr=zil_process_arg_ptr(index)}
+    if ptr==c_null() {return Option::<Managed<ByteBuffer>>.None()}
+    match copy_c_str(ptr) {
+        .err(_)=>{return Option::<Managed<ByteBuffer>>.None()},
+        .ok(out)=>{return Option::<Managed<ByteBuffer>>.Some(give out)}
+    }
+}
+
+// Collects all process command-line arguments (argv[0..argc]) into an owned Store.
+pub fn args()->io.Error!Store<Managed<ByteBuffer>> contract {result(create)} {
+    let count=arg_count()
+    let items:Store<Managed<ByteBuffer>>=store_new()
+    if count>0 {
+        if !store_reserve(items,count) {return io.Error.Allocation}
+    }
+    var idx:i64=0
+    while idx<count {
+        var ptr=c_null()
+        unsafe{ptr=zil_process_arg_ptr(idx)}
+        if ptr==c_null() {return io.Error.InvalidResult}
+        let buf=copy_c_str(ptr)?
+        match store_push(items,give buf) {
+            .ok(_)=>{},
+            .err(_)=>{return io.Error.Allocation}
+        }
+        idx+=1
+    }
+    return give items
 }
 
 fn find_nul(view:&[u8])->i64 {
