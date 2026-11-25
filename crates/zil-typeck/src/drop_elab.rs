@@ -261,7 +261,7 @@ fn place_cleanup_uninit(
         | TyKind::Ref { .. }
         | TyKind::FnPtr { .. }
         | TyKind::Closure { .. }
-        | TyKind::Dyn(_)
+        | TyKind::Dyn { .. }
         | TyKind::OwnedDyn { .. }
         | TyKind::Managed(_)
         | TyKind::Desc(_)
@@ -366,7 +366,7 @@ fn collect_live_cleanup_places(
         | TyKind::Ref { .. }
         | TyKind::FnPtr { .. }
         | TyKind::Closure { .. }
-        | TyKind::Dyn(_)
+        | TyKind::Dyn { .. }
         | TyKind::OwnedDyn { .. }
         | TyKind::Managed(_)
         | TyKind::Desc(_)
@@ -519,7 +519,7 @@ fn collect_conditional_cleanup_places(
         | TyKind::Ref { .. }
         | TyKind::FnPtr { .. }
         | TyKind::Closure { .. }
-        | TyKind::Dyn(_)
+        | TyKind::Dyn { .. }
         | TyKind::OwnedDyn { .. }
         | TyKind::ErrorUnion { .. }
         | TyKind::Managed(_)

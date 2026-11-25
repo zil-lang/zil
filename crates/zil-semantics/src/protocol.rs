@@ -81,7 +81,7 @@ pub fn proto_handle_info(tys: &TyTable, mut ty: TyId) -> Option<ProtoHandleInfo>
                 | TyKind::ErrorUnion { .. }
                 | TyKind::FnPtr { .. }
                 | TyKind::Closure { .. }
-                | TyKind::Dyn(_)
+                | TyKind::Dyn { .. }
                 | TyKind::OwnedDyn { .. }
                 | TyKind::Opaque(_)
                 | TyKind::Param(_),

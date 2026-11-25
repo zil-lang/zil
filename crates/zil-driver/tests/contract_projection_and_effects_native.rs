@@ -1007,7 +1007,10 @@ fn raw_wire_unified_call_effects_closure_dynslot_and_desc_alias_checked() {
                 result: unit_ty,
             }],
         });
-        let dyn_ty = tys.intern(TyKind::Dyn(dyn_id));
+        let dyn_ty = tys.intern(TyKind::Dyn {
+            def: dyn_id,
+            regions: Vec::new(),
+        });
         let ref_dyn = tys.intern(TyKind::Ref {
             region: Region::Static,
             mutability: recv_mut,
@@ -1796,7 +1799,10 @@ fn raw_wire_complete_type_graph_param_dyn_and_opaque_checked() {
                     result: unit_ty,
                 }],
             });
-            let dyn_ty = tys.intern(TyKind::Dyn(dyn_id));
+            let dyn_ty = tys.intern(TyKind::Dyn {
+                def: dyn_id,
+                regions: Vec::new(),
+            });
             let ref_dyn = tys.intern(TyKind::Ref {
                 region: Region::Static,
                 mutability: Mutability::Shared,

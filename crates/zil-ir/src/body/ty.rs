@@ -130,10 +130,14 @@ pub enum TyKind {
         args: ArgsId,
     },
     /// Unsized dynamic pointee.
-    Dyn(DynId),
+    Dyn {
+        def: DynId,
+        regions: Vec<Region>,
+    },
     /// Affine owner of an erased concrete value.
     OwnedDyn {
         def: DynId,
+        regions: Vec<Region>,
         context: Option<TyId>,
     },
     /// The n-th type parameter of the enclosing generic scope.
@@ -355,12 +359,9 @@ impl TyTable {
         let a = self.args(args).clone();
         let kind = match kind {
             TyKind::Param(i) => return a.tys.get(i as usize).copied().unwrap_or(ty),
-            TyKind::Unit
-            | TyKind::Bool
-            | TyKind::Never
-            | TyKind::Int(_)
-            | TyKind::Float(_)
-            | TyKind::Dyn(_) => return ty,
+            TyKind::Unit | TyKind::Bool | TyKind::Never | TyKind::Int(_) | TyKind::Float(_) => {
+                return ty;
+            }
             TyKind::Adt { adt, args: inner } => {
                 let inner = self.subst_args(inner, args);
                 return self.intern(TyKind::Adt { adt, args: inner });
@@ -377,6 +378,7 @@ impl TyTable {
             | TyKind::Desc(_)
             | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Opaque(_)) => other,
         };
@@ -443,12 +445,9 @@ impl TyTable {
         let a = self.get_args(args)?;
         let kind = match self.get(ty)?.clone() {
             TyKind::Param(i) => return a.tys.get(i as usize).copied(),
-            TyKind::Unit
-            | TyKind::Bool
-            | TyKind::Never
-            | TyKind::Int(_)
-            | TyKind::Float(_)
-            | TyKind::Dyn(_) => return Some(ty),
+            TyKind::Unit | TyKind::Bool | TyKind::Never | TyKind::Int(_) | TyKind::Float(_) => {
+                return Some(ty);
+            }
             TyKind::Adt { adt, args: inner } => {
                 let inner = self.subst_args_lookup(inner, args)?;
                 return self.lookup(&TyKind::Adt { adt, args: inner });
@@ -463,6 +462,7 @@ impl TyTable {
             | TyKind::Ref { .. }
             | TyKind::Managed(_)
             | TyKind::Desc(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
@@ -545,7 +545,7 @@ impl TyTable {
                 ..
             } => ValueClass::Affine,
             TyKind::Managed(_) | TyKind::OwnedDyn { .. } => ValueClass::Affine,
-            TyKind::Slice(_) | TyKind::Dyn(_) => ValueClass::NotValue,
+            TyKind::Slice(_) | TyKind::Dyn { .. } => ValueClass::NotValue,
             TyKind::Param(i) => {
                 if env.copy_params.get(*i as usize).copied().unwrap_or(false) {
                     ValueClass::Copy
@@ -642,9 +642,10 @@ impl TyTable {
             | TyKind::FnPtr { .. }
             | TyKind::Desc(_)
             | TyKind::Ref { .. } => false,
-            TyKind::Managed(_) | TyKind::OwnedDyn { .. } | TyKind::Slice(_) | TyKind::Dyn(_) => {
-                true
-            }
+            TyKind::Managed(_)
+            | TyKind::OwnedDyn { .. }
+            | TyKind::Slice(_)
+            | TyKind::Dyn { .. } => true,
             TyKind::Tuple(items) => items
                 .iter()
                 .any(|t| self.needs_cleanup_in(*t, env, visiting)),
@@ -734,7 +735,7 @@ impl TyTable {
                         None => true,
                     }),
             },
-            TyKind::Dyn(_) | TyKind::Param(_) => true,
+            TyKind::Dyn { .. } | TyKind::Param(_) => true,
             TyKind::Tuple(items) => items.iter().any(|t| self.holds_address_in(*t, visiting)),
             TyKind::Array { element, .. } | TyKind::Slice(element) | TyKind::Managed(element) => {
                 self.holds_address_in(*element, visiting)
@@ -805,7 +806,7 @@ impl TyTable {
                         None => true,
                     }),
             },
-            TyKind::Dyn(_) | TyKind::Param(_) => true,
+            TyKind::Dyn { .. } | TyKind::Param(_) => true,
             TyKind::Ref {
                 mutability: Mutability::Exclusive,
                 pointee,
@@ -901,7 +902,7 @@ impl TyTable {
                         None => true,
                     }),
             },
-            TyKind::Dyn(_) | TyKind::Param(_) => true,
+            TyKind::Dyn { .. } | TyKind::Param(_) => true,
             TyKind::Tuple(items) => items
                 .iter()
                 .any(|t| self.holds_exclusive_ref_in(*t, visiting)),
@@ -1015,7 +1016,25 @@ impl TyTable {
                     }
                 }
             }
-            TyKind::OwnedDyn { context, .. } => {
+            TyKind::Dyn { regions, .. } => {
+                for r in regions {
+                    if let Region::Param(idx) = r
+                        && !out.contains(idx)
+                    {
+                        out.push(*idx);
+                    }
+                }
+            }
+            TyKind::OwnedDyn {
+                regions, context, ..
+            } => {
+                for r in regions {
+                    if let Region::Param(idx) = r
+                        && !out.contains(idx)
+                    {
+                        out.push(*idx);
+                    }
+                }
                 if let Some(c) = context {
                     self.collect_regions_in(*c, out, visiting);
                 }
@@ -1025,10 +1044,157 @@ impl TyTable {
             | TyKind::Never
             | TyKind::Int(_)
             | TyKind::Float(_)
-            | TyKind::Dyn(_)
             | TyKind::Param(_) => {}
         }
         visiting.pop();
+    }
+
+    /// True if `ty` contains any reference or guard carrying `Region::Static`
+    /// (unannotated / invocation-scoped lifetime rather than an explicit
+    /// `Region::Param`).
+    pub fn has_unannotated_ref(&self, ty: TyId) -> bool {
+        let mut visiting = Vec::new();
+        self.walk_has_unannotated_ref(ty, None, None, &mut visiting)
+    }
+
+    /// True if a `DynSlotSig::result` returns references exclusively bound to
+    /// explicit trait lifetime parameters (`Region::Param`), never to `&self`
+    /// (`Region::Static`).
+    pub fn dyn_slot_has_fixed_regions(&self, result: TyId) -> bool {
+        !self.regions_in(result).is_empty() && !self.has_unannotated_ref(result)
+    }
+
+    fn walk_has_unannotated_ref(
+        &self,
+        ty: TyId,
+        type_env: Option<&[TyId]>,
+        region_env: Option<&[Region]>,
+        visiting: &mut Vec<TyId>,
+    ) -> bool {
+        if visiting.contains(&ty) {
+            return false;
+        }
+        let Some(kind) = self.get(ty) else {
+            return true;
+        };
+        let resolve_region = |r: Region| -> Region {
+            match (r, region_env) {
+                (Region::Param(i), Some(env)) => {
+                    env.get(i as usize).copied().unwrap_or(Region::Static)
+                }
+                _ => r,
+            }
+        };
+        visiting.push(ty);
+        let found = match kind {
+            TyKind::Ref {
+                region, pointee, ..
+            } => {
+                resolve_region(*region) == Region::Static
+                    || self.walk_has_unannotated_ref(*pointee, type_env, region_env, visiting)
+            }
+            TyKind::Array {
+                element: pointee, ..
+            }
+            | TyKind::Slice(pointee)
+            | TyKind::Managed(pointee)
+            | TyKind::Desc(pointee) => {
+                self.walk_has_unannotated_ref(*pointee, type_env, region_env, visiting)
+            }
+            TyKind::Tuple(items) => items
+                .iter()
+                .any(|t| self.walk_has_unannotated_ref(*t, type_env, region_env, visiting)),
+            TyKind::ErrorUnion { ok, err } => {
+                self.walk_has_unannotated_ref(*ok, type_env, region_env, visiting)
+                    || self.walk_has_unannotated_ref(*err, type_env, region_env, visiting)
+            }
+            TyKind::Adt { adt, args } => {
+                let Some(def) = self.get_adt(*adt) else {
+                    visiting.pop();
+                    return true;
+                };
+                let Some(a) = self.get_args(*args) else {
+                    visiting.pop();
+                    return true;
+                };
+                let child_regions: Vec<Region> =
+                    a.regions.iter().map(|r| resolve_region(*r)).collect();
+                let child_tys: Vec<TyId> = a
+                    .tys
+                    .iter()
+                    .map(|t| match (self.get(*t), type_env) {
+                        (Some(TyKind::Param(i)), Some(tenv)) => {
+                            tenv.get(*i as usize).copied().unwrap_or(*t)
+                        }
+                        _ => *t,
+                    })
+                    .collect();
+                def.variants.iter().any(|v| {
+                    v.fields.iter().any(|f| {
+                        self.walk_has_unannotated_ref(
+                            f.ty,
+                            Some(&child_tys),
+                            Some(&child_regions),
+                            visiting,
+                        )
+                    })
+                })
+            }
+            TyKind::Closure { def, args } => {
+                let Some(c) = self.closure(*def) else {
+                    visiting.pop();
+                    return true;
+                };
+                let Some(a) = self.get_args(*args) else {
+                    visiting.pop();
+                    return true;
+                };
+                let child_regions: Vec<Region> =
+                    a.regions.iter().map(|r| resolve_region(*r)).collect();
+                c.captures.iter().any(|cap| {
+                    self.walk_has_unannotated_ref(
+                        *cap,
+                        Some(&a.tys),
+                        Some(&child_regions),
+                        visiting,
+                    )
+                })
+            }
+            TyKind::Opaque(o) => {
+                let guard_static = matches!(
+                    o,
+                    OpaqueTy::MutexGuard { region, .. } if resolve_region(*region) == Region::Static
+                );
+                guard_static
+                    || opaque_contents(o).is_some_and(|parts| {
+                        parts.iter().any(|p| {
+                            self.walk_has_unannotated_ref(*p, type_env, region_env, visiting)
+                        })
+                    })
+            }
+            TyKind::Dyn { regions, .. } => {
+                regions.iter().any(|r| resolve_region(*r) == Region::Static)
+            }
+            TyKind::OwnedDyn {
+                regions, context, ..
+            } => {
+                regions.iter().any(|r| resolve_region(*r) == Region::Static)
+                    || context.is_some_and(|c| {
+                        self.walk_has_unannotated_ref(c, type_env, region_env, visiting)
+                    })
+            }
+            TyKind::Param(i) => type_env
+                .and_then(|env| env.get(*i as usize).copied())
+                .is_some_and(|t| self.walk_has_unannotated_ref(t, None, region_env, visiting)),
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Never
+            | TyKind::Int(_)
+            | TyKind::Float(_)
+            | TyKind::FnPtr { .. } => false,
+        };
+        visiting.pop();
+        found
     }
 
     /// Structural type equality modulo `Region` annotations on references and guards.
@@ -1136,14 +1302,17 @@ impl TyTable {
                         (None, Some(_)) | (Some(_), None) => false,
                     }
             }
+            (TyKind::Dyn { def: da, .. }, TyKind::Dyn { def: db, .. }) => da == db,
             (
                 TyKind::OwnedDyn {
                     def: da,
                     context: ca,
+                    ..
                 },
                 TyKind::OwnedDyn {
                     def: db,
                     context: cb,
+                    ..
                 },
             ) => {
                 da == db
@@ -1230,7 +1399,7 @@ impl TyTable {
             | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => None,
@@ -1259,9 +1428,17 @@ pub fn map_kind(
         TyKind::Never => TyKind::Never,
         TyKind::Int(i) => TyKind::Int(i),
         TyKind::Float(f) => TyKind::Float(f),
-        TyKind::Dyn(d) => TyKind::Dyn(d),
-        TyKind::OwnedDyn { def, context } => TyKind::OwnedDyn {
+        TyKind::Dyn { def, regions } => TyKind::Dyn {
             def,
+            regions: regions.into_iter().map(&mut *region).collect(),
+        },
+        TyKind::OwnedDyn {
+            def,
+            regions,
+            context,
+        } => TyKind::OwnedDyn {
+            def,
+            regions: regions.into_iter().map(&mut *region).collect(),
             context: context.map(&mut *ty),
         },
         TyKind::Param(i) => TyKind::Param(i),

@@ -726,10 +726,10 @@ fn llvm_ty(tys: &TyTable, id: TyId) -> Result<String, BodyEmitError> {
             Some(TyKind::Opaque(OpaqueTy::ByteBuffer | OpaqueTy::OwnedStore { .. })) => {
                 "{ ptr, i64, i64 }".into()
             }
-            Some(TyKind::OwnedDyn { .. } | TyKind::Dyn(_)) => "{ ptr, ptr }".into(),
+            Some(TyKind::OwnedDyn { .. } | TyKind::Dyn { .. }) => "{ ptr, ptr }".into(),
             _ => "ptr".into(),
         },
-        TyKind::Dyn(_) | TyKind::OwnedDyn { .. } => "{ ptr, ptr }".into(),
+        TyKind::Dyn { .. } | TyKind::OwnedDyn { .. } => "{ ptr, ptr }".into(),
         TyKind::Opaque(OpaqueTy::SyncCell(_)) => "i64".into(),
         TyKind::Desc(_) | TyKind::FnPtr { .. } | TyKind::Opaque(_) => "ptr".into(),
         TyKind::Slice(_) => "{ ptr, i64 }".into(),
@@ -1342,7 +1342,7 @@ impl<'a> FnEmitter<'a> {
                         | TyKind::ErrorUnion { .. }
                         | TyKind::FnPtr { .. }
                         | TyKind::Closure { .. }
-                        | TyKind::Dyn(_)
+                        | TyKind::Dyn { .. }
                         | TyKind::Param(_)
                         | TyKind::Opaque(
                             OpaqueTy::SyncCell { .. }
@@ -1560,7 +1560,7 @@ impl<'a> FnEmitter<'a> {
             | TyKind::Ref { .. }
             | TyKind::Desc(_)
             | TyKind::FnPtr { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => Ok(()),
         }

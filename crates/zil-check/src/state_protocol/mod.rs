@@ -448,11 +448,11 @@ impl<'a> ProtocolVerifier<'a> {
                 let types_compatible = inner_i == inner_j
                     || matches!(
                         tys.get(inner_i),
-                        Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                        Some(TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                     )
                     || matches!(
                         tys.get(inner_j),
-                        Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                        Some(TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                     );
                 if types_compatible {
                     entry_param_alias
@@ -541,13 +541,17 @@ impl<'a> ProtocolVerifier<'a> {
                                 || matches!(
                                     tys.get(inner_i),
                                     Some(
-                                        TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. }
+                                        TyKind::Param(_)
+                                            | TyKind::Dyn { .. }
+                                            | TyKind::OwnedDyn { .. }
                                     )
                                 )
                                 || matches!(
                                     tys.get(inner_j),
                                     Some(
-                                        TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. }
+                                        TyKind::Param(_)
+                                            | TyKind::Dyn { .. }
+                                            | TyKind::OwnedDyn { .. }
                                     )
                                 )
                         }

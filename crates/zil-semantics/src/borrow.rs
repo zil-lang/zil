@@ -164,6 +164,11 @@ impl Kernel<'_> {
                 continue;
             };
             for more in self.direct(state, loan.place.root).iter() {
+                if let Some(dr) = loan.deref_region
+                    && (more == EXTERNAL || self.loans.loan_region(more).is_some_and(|r| r != dr))
+                {
+                    continue;
+                }
                 if !out.contains(more) {
                     out.insert(more);
                     work.push(more);
@@ -292,10 +297,14 @@ impl Kernel<'_> {
                     && let Ok(typing) = type_place(place, &cx)
                 {
                     let allowed = self.tys.regions_in(typing.ty());
+                    let no_unannotated = !self.tys.has_unannotated_ref(typing.ty());
                     if !allowed.is_empty() {
                         for id in r.clone().iter() {
-                            if let Some(reg) = self.loans.loan_region(id)
-                                && !allowed.contains(&reg)
+                            if (no_unannotated && id == EXTERNAL)
+                                || self
+                                    .loans
+                                    .loan_region(id)
+                                    .is_some_and(|reg| !allowed.contains(&reg))
                             {
                                 r.remove(id);
                             }
@@ -649,6 +658,19 @@ impl Kernel<'_> {
                                     if !matches!(region, zil_ir::body::Region::Param(r) if ret_regions.contains(r))
                             );
                             if outer_ref_unwrapped {
+                                let cx = self.body.cx(self.tys);
+                                let pointee_named_only = type_place(&a.place, &cx)
+                                    .ok()
+                                    .and_then(|t| match self.tys.get(t.ty()) {
+                                        Some(zil_ir::body::TyKind::Ref { pointee, .. }) => {
+                                            Some(*pointee)
+                                        }
+                                        _ => None,
+                                    })
+                                    .is_some_and(|p| {
+                                        !self.tys.regions_in(p).is_empty()
+                                            && !self.tys.has_unannotated_ref(p)
+                                    });
                                 if let PlaceRoot::Local(rl) = a.place.root {
                                     for id in state.carries.of(rl).iter() {
                                         if let Some(loan) = self.loans.get(id) {
@@ -657,6 +679,9 @@ impl Kernel<'_> {
                                             } else {
                                                 out.insert(EXTERNAL);
                                             }
+                                        } else if id == EXTERNAL && pointee_named_only {
+                                            // Outer `&` invocation borrow does not flow into
+                                            // a named-region return.
                                         } else {
                                             out.insert(id);
                                         }
@@ -774,7 +799,7 @@ impl Kernel<'_> {
                 (rl, None)
             }
             Terminator::Call {
-                callee: zil_ir::body::Callee::DynSlot { .. },
+                callee: zil_ir::body::Callee::DynSlot { slot, .. },
                 dest,
                 ..
             } => {
@@ -782,26 +807,50 @@ impl Kernel<'_> {
                 let dest_ty = type_place(dest, &cx).ok().map(|t| t.ty());
                 if dest_ty.is_some_and(|t| !self.tys.holds_address(t)) {
                     (self.empty_loans(), None)
-                } else if let Some(dty) = dest_ty
-                    && !self.tys.regions_in(dty).is_empty()
-                    && let Some(recv_access) =
-                        accesses.iter().find(|a| a.role == OperandRole::Callee)
+                } else if let Some(recv_access) =
+                    accesses.iter().find(|a| a.role == OperandRole::Callee)
                     && let Ok(recv_t) = type_place(&recv_access.place, &cx)
                     && let Some(zil_ir::body::TyKind::Ref { pointee, .. }) =
                         self.tys.get(recv_t.ty())
-                    && let Some(zil_ir::body::TyKind::OwnedDyn {
-                        context: Some(ctx), ..
-                    }) = self.tys.get(*pointee)
-                    && self
-                        .tys
-                        .regions_in(dty)
-                        .iter()
-                        .all(|r| self.tys.regions_in(*ctx).contains(r))
+                    && let Some((dyn_id, pointee_named_only)) = match self.tys.get(*pointee) {
+                        Some(zil_ir::body::TyKind::OwnedDyn {
+                            def,
+                            regions,
+                            context,
+                        }) => {
+                            let named_only = match context {
+                                Some(ctx) => {
+                                    !self.tys.regions_in(*ctx).is_empty()
+                                        && !self.tys.has_unannotated_ref(*ctx)
+                                        && !regions
+                                            .iter()
+                                            .any(|r| matches!(r, zil_ir::body::Region::Static))
+                                }
+                                None => !regions
+                                    .iter()
+                                    .any(|r| matches!(r, zil_ir::body::Region::Static)),
+                            };
+                            Some((*def, named_only))
+                        }
+                        Some(zil_ir::body::TyKind::Dyn { def, regions }) => {
+                            let named_only = !regions.is_empty()
+                                && !regions
+                                    .iter()
+                                    .any(|r| matches!(r, zil_ir::body::Region::Static));
+                            Some((*def, named_only))
+                        }
+                        _ => None,
+                    }
+                    && let Some(def) = self.tys.get_dyn(dyn_id)
+                    && let Some(sig) = def.slots.get(*slot as usize)
+                    && self.tys.dyn_slot_has_fixed_regions(sig.result)
                 {
                     let mut out = self.empty_loans();
-                    // Add loans carried by the OwnedDyn value itself (through its
-                    // direct receiver borrow) without keeping the borrow of the
-                    // OwnedDyn handle local itself.
+                    // The slot returns borrows tied strictly to trait lifetime
+                    // parameters (independently verified against every DynImpl),
+                    // never to `&self`. Unwrap the direct receiver borrow so the
+                    // `OwnedDyn` / `&dyn` handle's own local borrow is released
+                    // while all external/context loans remain tracked.
                     if let PlaceRoot::Local(rl) = recv_access.place.root {
                         for id in state.carries.of(rl).iter() {
                             if let Some(loan) = self.loans.get(id) {
@@ -810,6 +859,10 @@ impl Kernel<'_> {
                                 } else {
                                     out.insert(EXTERNAL);
                                 }
+                            } else if id == EXTERNAL && pointee_named_only {
+                                // Outer `&` invocation borrow on a parameter
+                                // `&OwnedDyn<..., Context<'a>>` / `&dyn Trait<'a>`
+                                // does not flow into a Fixed trait-lifetime return.
                             } else {
                                 out.insert(id);
                             }
@@ -957,11 +1010,17 @@ impl Kernel<'_> {
                     return Err(ViolationKind::ReturnsLocalBorrow { loan });
                 }
                 let allowed = self.tys.regions_in(self.body.result);
+                let require_named = self.body.closure.is_none()
+                    && !allowed.is_empty()
+                    && !self.tys.has_unannotated_ref(self.body.result);
                 for id in self.close(state, &flows.loans).iter() {
                     if let Some(region) = self.loans.loan_region(id)
                         && !allowed.contains(&region)
                     {
                         return Err(ViolationKind::RegionEscape { region });
+                    }
+                    if id == EXTERNAL && require_named {
+                        return Err(ViolationKind::RegionEscape { region: u32::MAX });
                     }
                 }
                 Ok(())
@@ -1248,7 +1307,7 @@ impl Kernel<'_> {
                 | zil_ir::body::TyKind::Slice(_)
                 | zil_ir::body::TyKind::FnPtr { .. }
                 | zil_ir::body::TyKind::Closure { .. }
-                | zil_ir::body::TyKind::Dyn(_)
+                | zil_ir::body::TyKind::Dyn { .. }
                 | zil_ir::body::TyKind::OwnedDyn { .. }
                 | zil_ir::body::TyKind::Param(_)
                 | zil_ir::body::TyKind::Opaque(_) => return None,

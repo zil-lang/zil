@@ -1516,6 +1516,7 @@ fn raw_wire_owned_dyn_erased_mutex_guard_cannot_cross_thread_scope() {
     });
     let owned_dyn_ty = tys.intern(TyKind::OwnedDyn {
         def: dyn_id,
+        regions: Vec::new(),
         context: None,
     });
     let worker_fn_ty = tys.intern(TyKind::FnPtr {

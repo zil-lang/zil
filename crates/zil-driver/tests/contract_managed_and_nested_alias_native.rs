@@ -545,7 +545,10 @@ fn raw_wire_managed_describe_protocol_dyn_and_projection_checked() {
                 result: unit_ty,
             }],
         });
-        let dyn_ty = tys.intern(TyKind::Dyn(dyn_id));
+        let dyn_ty = tys.intern(TyKind::Dyn {
+            def: dyn_id,
+            regions: Vec::new(),
+        });
         let ref_dyn = tys.intern(TyKind::Ref {
             region: Region::Static,
             mutability: Mutability::Shared,

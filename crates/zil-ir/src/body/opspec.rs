@@ -1173,7 +1173,7 @@ fn callee_sig(
                     pointee,
                     ..
                 } => {
-                    if let TyKind::Dyn(d) | TyKind::OwnedDyn { def: d, .. } =
+                    if let TyKind::Dyn { def: d, .. } | TyKind::OwnedDyn { def: d, .. } =
                         *tys.get(*pointee).ok_or(ConstraintError::MissingType)?
                     {
                         (d, Some(*mutability))
@@ -1198,7 +1198,7 @@ fn callee_sig(
                 | TyKind::ErrorUnion { .. }
                 | TyKind::FnPtr { .. }
                 | TyKind::Closure { .. }
-                | TyKind::Dyn(_)
+                | TyKind::Dyn { .. }
                 | TyKind::Param(_)
                 | TyKind::Opaque(_) => {
                     return Err(ConstraintError::Operator {
@@ -1331,7 +1331,10 @@ fn intrinsic_sig(
             let Some(TyKind::ErrorUnion { ok, err }) = tys.get(dest_ty) else {
                 return Err(bad("owned_dyn.create requires an error union destination"));
             };
-            let Some(TyKind::OwnedDyn { context, .. }) = tys.get(*ok) else {
+            let Some(TyKind::OwnedDyn {
+                regions, context, ..
+            }) = tys.get(*ok)
+            else {
                 return Err(bad("owned_dyn.create ok arm must be OwnedDyn"));
             };
             match context {
@@ -1341,6 +1344,14 @@ fn intrinsic_sig(
                             "owned_dyn.create cannot erase an address-holding value without a Context bound",
                         ));
                     }
+                    if regions
+                        .iter()
+                        .any(|r| matches!(r, super::ty::Region::Param(_)))
+                    {
+                        return Err(bad(
+                            "owned_dyn.create cannot erase a trait lifetime parameter without a Context bound",
+                        ));
+                    }
                 }
                 Some(ctx_ty) => {
                     let val_regions = tys.regions_in(*val_ty);
@@ -1348,6 +1359,13 @@ fn intrinsic_sig(
                     if val_regions.iter().any(|r| !ctx_regions.contains(r)) {
                         return Err(bad(
                             "owned_dyn.create provider region escapes OwnedDyn Context bound",
+                        ));
+                    }
+                    if regions.iter().any(|r| {
+                        matches!(r, super::ty::Region::Param(idx) if !ctx_regions.contains(idx))
+                    }) {
+                        return Err(bad(
+                            "owned_dyn.create trait region escapes OwnedDyn Context bound",
                         ));
                     }
                     if (tys.holds_address(*val_ty) || tys.may_store_address(*val_ty))
@@ -2332,7 +2350,7 @@ fn ty_is_transfer_safe(tys: &super::ty::TyTable, ty: TyId) -> bool {
             | TyKind::Int(_)
             | TyKind::Float(_)
             | TyKind::FnPtr { .. } => true,
-            TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. } => {
+            TyKind::Ref { .. } | TyKind::Desc(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. } => {
                 false
             }
             TyKind::Param(_) => false,

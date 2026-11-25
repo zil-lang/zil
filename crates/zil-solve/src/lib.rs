@@ -30,6 +30,20 @@ pub enum SolveError {
 
 /// Solves every function; the first failure of each function is reported.
 pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<SolveError>> {
+    if let Err((function, reason)) = zil_semantics::check_dyn_impl_region_contract(module) {
+        return Err(vec![SolveError::Violation {
+            function,
+            violation: Violation {
+                at: OpLocation {
+                    block: BlockId(0),
+                    instruction: None,
+                },
+                kind: zil_semantics::ViolationKind::Constraint(
+                    zil_ir::body::ConstraintError::Operator { reason },
+                ),
+            },
+        }]);
+    }
     let fn_sigs = module.fn_sigs();
     let return_summaries = zil_semantics::compute_return_summaries(module);
     let sigs = Sigs {

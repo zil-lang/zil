@@ -1085,6 +1085,69 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
     summaries
 }
 
+/// Verifies that every `DynImpl` method implementing a `DynSlotSig` whose
+/// result borrows strictly from trait lifetime parameters (`Region::Param`,
+/// no unannotated `Region::Static` references) preserves that fixed-region
+/// contract in its own signature and does not bind its receiver `&self` to
+/// a returned region parameter.
+///
+/// Called independently by both `zil-solve` and `zil-check` so forged Raw/Wire
+/// modules cannot pair a `&self`-borrowing implementation with a trait-lifetime
+/// slot or forge `self: &'a Self` to smuggle `&self.local` past `OwnedDyn` drop.
+pub fn check_dyn_impl_region_contract(
+    module: &zil_ir::body::Module,
+) -> Result<(), (zil_ir::body::FnId, &'static str)> {
+    use zil_ir::body::{FnId, Region, TyKind};
+    let tys = &module.tys;
+    for dimpl in &module.dyn_impls {
+        let Some(def) = tys.get_dyn(dimpl.dyn_id) else {
+            return Err((FnId(0), "dyn impl references unknown DynId"));
+        };
+        for (slot, &fn_id) in def.slots.iter().zip(&dimpl.methods) {
+            if !tys.dyn_slot_has_fixed_regions(slot.result) {
+                continue;
+            }
+            let Some(func) = module.functions.get(fn_id.index()) else {
+                return Err((fn_id, "dyn impl method FnId out of bounds"));
+            };
+            if func.body.closure.is_some() || !func.body.captures.is_empty() {
+                return Err((
+                    fn_id,
+                    "dyn impl method cannot be a closure or carry captures",
+                ));
+            }
+            if !tys.dyn_slot_has_fixed_regions(func.sig.result) {
+                return Err((
+                    fn_id,
+                    "dyn impl method erases fixed trait-lifetime return contract",
+                ));
+            }
+            if slot.receiver.is_some() {
+                let res_regions = tys.regions_in(func.sig.result);
+                let Some(&recv_ty) = func.sig.params.first() else {
+                    return Err((fn_id, "dyn impl method missing receiver parameter"));
+                };
+                match tys.get(recv_ty) {
+                    Some(TyKind::Ref {
+                        region: Region::Param(r),
+                        ..
+                    }) if res_regions.contains(r) => {
+                        return Err((
+                            fn_id,
+                            "dyn impl method receiver region cannot alias fixed trait-lifetime return",
+                        ));
+                    }
+                    Some(TyKind::Ref { .. }) => {}
+                    _ => {
+                        return Err((fn_id, "dyn impl method receiver type mismatch"));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

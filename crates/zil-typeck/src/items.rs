@@ -83,6 +83,7 @@ pub struct TraitDecl<'a> {
     pub module: ModIdx,
     pub name: String,
     pub generics: Vec<GenericInfo>,
+    pub region_params: Vec<String>,
     pub supertraits: Vec<TraitBound>,
     pub assoc_types: Vec<String>,
     pub methods: Vec<TraitMethodDecl<'a>>,
@@ -2531,6 +2532,7 @@ fn collect_trait<'a>(
         module: mid,
         name: qualify(&modules[mid.0 as usize].path, &tr.name),
         generics,
+        region_params: tr_lifetimes,
         supertraits,
         assoc_types,
         methods,
@@ -5240,6 +5242,7 @@ fn resolve_type_with_lifetimes(
                     let TyData::Dyn {
                         trait_ref: tr,
                         trait_args,
+                        trait_regions,
                         assoc_bindings,
                     } = types.data(inner).clone()
                     else {
@@ -5267,6 +5270,7 @@ fn resolve_type_with_lifetimes(
                     return Ok(types.intern(TyData::OwnedDyn {
                         trait_ref: tr,
                         trait_args,
+                        trait_regions,
                         assoc_bindings,
                         context,
                     }));
@@ -5778,6 +5782,7 @@ fn resolve_type_with_lifetimes(
         } => {
             if let Some(ItemRef::Trait(tr)) = lookup_item_in(modules, mod_by_path, from, path) {
                 let mut trait_args = Vec::new();
+                let mut trait_regions = Vec::new();
                 let mut assoc_bindings = Vec::new();
                 for a in args {
                     match a {
@@ -5820,7 +5825,10 @@ fn resolve_type_with_lifetimes(
                                 ));
                             }
                         },
-                        ast::GenericArg::Lifetime(_) => {}
+                        ast::GenericArg::Lifetime(lt) => {
+                            let r = lifetimes.iter().rposition(|l| l == lt).map(|i| i as u32);
+                            trait_regions.push(r);
+                        }
                         ast::GenericArg::Const(_) => {
                             return Err(diag::unsupported(
                                 "const generic argument in `dyn` type",
@@ -5860,6 +5868,7 @@ fn resolve_type_with_lifetimes(
                 Ok(types.intern(TyData::Dyn {
                     trait_ref: tr,
                     trait_args,
+                    trait_regions,
                     assoc_bindings,
                 }))
             } else {

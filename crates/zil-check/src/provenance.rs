@@ -130,7 +130,7 @@ fn verify_sealed_thread_callable(
                 | TyKind::Desc(_)
                 | TyKind::ErrorUnion { .. }
                 | TyKind::FnPtr { .. }
-                | TyKind::Dyn(_)
+                | TyKind::Dyn { .. }
                 | TyKind::OwnedDyn { .. }
                 | TyKind::Param(_)
                 | TyKind::Opaque(_) => return None,
@@ -320,7 +320,7 @@ pub(crate) fn ty_contains_mutex_guard(
                 ty_contains_mutex_guard(tys, dyn_impls, cty, seen)
             })
         }),
-        Some(TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
+        Some(TyKind::Dyn { def: dyn_id, .. } | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
             .iter()
             .filter(|di| di.dyn_id == *dyn_id)
             .any(|di| ty_contains_mutex_guard(tys, dyn_impls, di.concrete_ty, seen)),
@@ -382,7 +382,7 @@ pub(crate) fn ty_contains_raw_foreign_handle(
                 ty_contains_raw_foreign_handle(tys, dyn_impls, cty, seen)
             })
         }),
-        Some(TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
+        Some(TyKind::Dyn { def: dyn_id, .. } | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
             .iter()
             .filter(|di| di.dyn_id == *dyn_id)
             .any(|di| ty_contains_raw_foreign_handle(tys, dyn_impls, di.concrete_ty, seen)),
@@ -1172,7 +1172,7 @@ fn collect_drop_fns_recursive(
             | TyKind::Ref { .. }
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_),
@@ -1229,7 +1229,7 @@ pub(crate) fn collect_mutex_payload_drop_fns(
             | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_),

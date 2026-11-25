@@ -133,7 +133,7 @@ impl<'a> Kernel<'a> {
             | TyKind::Desc(_)
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => None,
@@ -238,16 +238,16 @@ impl<'a> Kernel<'a> {
         let mut carries = Carries::empty(self.body.locals.len(), self.loans.len());
         for p in self.body.params() {
             if self.local_holds_address(p) {
-                let regions = self
-                    .body
-                    .locals
-                    .get(p.index())
-                    .map(|d| self.tys.regions_in(d.ty))
-                    .unwrap_or_default();
+                let ty = self.body.locals.get(p.index()).map(|d| d.ty);
+                let regions = ty.map(|t| self.tys.regions_in(t)).unwrap_or_default();
+                let has_unannotated = ty.is_none_or(|t| self.tys.has_unannotated_ref(t));
                 if regions.is_empty() {
                     carries.set(p, self.external());
                 } else {
                     let mut set = crate::state::BitSet::new(self.loans.len());
+                    if has_unannotated {
+                        set.insert(crate::loans::EXTERNAL);
+                    }
                     for r in regions {
                         if let Some(id) = self.loans.region_loan(r) {
                             set.insert(id);
@@ -863,7 +863,7 @@ impl<'a> Kernel<'a> {
             | TyKind::Desc(_)
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => return Err(leak()),

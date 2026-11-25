@@ -54,6 +54,11 @@ pub struct Loan {
     /// Distinct-root `StoreBorrow` loans are proven apart only when both loans
     /// have `proven_unique_owner == true`.
     pub proven_unique_owner: bool,
+    /// When `place` traverses one or more `Deref` projections, the explicit
+    /// `Region::Param(r)` of the reference dereferenced by the last `Deref`,
+    /// if any. `None` for anchored local loans or derefs through an unannotated
+    /// (`Region::Static`) reference.
+    pub deref_region: Option<u32>,
 }
 
 #[derive(Clone, Debug)]
@@ -197,6 +202,24 @@ impl LoanTable {
                 let proven_unique_owner = !is_desc
                     && place.first_deref().is_none()
                     && matches!(place.root, PlaceRoot::Local(_));
+                let deref_region = place
+                    .projections
+                    .iter()
+                    .rposition(|p| matches!(p, zil_ir::body::Projection::Deref))
+                    .and_then(|idx| {
+                        let prefix = Place {
+                            root: place.root,
+                            projections: place.projections[..idx].to_vec(),
+                        };
+                        let t = type_place(&prefix, &cx).ok()?.ty();
+                        match tys.get(t) {
+                            Some(zil_ir::body::TyKind::Ref {
+                                region: zil_ir::body::Region::Param(r),
+                                ..
+                            }) => Some(*r),
+                            _ => None,
+                        }
+                    });
                 loans.push(Some(Loan {
                     origin: OpLocation {
                         block: zil_ir::body::BlockId::from_index(b),
@@ -208,6 +231,7 @@ impl LoanTable {
                     stores_addresses,
                     is_store_borrow: false,
                     proven_unique_owner,
+                    deref_region,
                 }));
             }
             if let Terminator::Call {
@@ -257,6 +281,7 @@ impl LoanTable {
                     stores_addresses,
                     is_store_borrow: true,
                     proven_unique_owner,
+                    deref_region: None,
                 }));
             }
         }

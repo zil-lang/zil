@@ -1265,6 +1265,7 @@ fn raw_wire_valid_cert_owned_dyn_double_byval_consume_rejected() {
     });
     let owned_dyn_ty = tys.intern(TyKind::OwnedDyn {
         def: dyn_id,
+        regions: Vec::new(),
         context: None,
     });
 
