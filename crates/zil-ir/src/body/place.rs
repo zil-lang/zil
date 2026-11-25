@@ -379,10 +379,18 @@ pub fn type_place(place: &Place, cx: &dyn PlaceTypes) -> Result<PlaceTyping, Pla
                 derefs.push(DerefBase::Desc);
                 *payload
             }
-            (Projection::Deref, TyKind::OwnedDyn { def: d, .. }) => {
+            (
+                Projection::Deref,
+                TyKind::OwnedDyn {
+                    def: d, regions, ..
+                },
+            ) => {
                 derefs.push(DerefBase::OwnedDyn);
-                tys.lookup(&TyKind::Dyn(*d))
-                    .ok_or(PlaceTyError::MissingInstance { step })?
+                tys.lookup(&TyKind::Dyn {
+                    def: *d,
+                    regions: regions.clone(),
+                })
+                .ok_or(PlaceTyError::MissingInstance { step })?
             }
             (
                 Projection::Field(_)

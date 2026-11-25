@@ -219,6 +219,8 @@ fn check_dyn_impls(module: &Module) -> Result<(), CheckError> {
             }
         }
     }
+    zil_semantics::check_dyn_impl_region_contract(module)
+        .map_err(|(fid, reason)| fail(fid, reason))?;
     Ok(())
 }
 
@@ -1036,11 +1038,11 @@ fn verify_fn_state_contracts(
             let types_compatible = inner_i == inner_j
                 || matches!(
                     tys.get(inner_i),
-                    Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                    Some(TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                 )
                 || matches!(
                     tys.get(inner_j),
-                    Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                    Some(TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                 );
             if types_compatible {
                 entry_param_alias
@@ -1094,7 +1096,7 @@ fn verify_fn_state_contracts(
                 }
             }
             match self.tys.get(ty) {
-                Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. }) | None => {
+                Some(TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. }) | None => {
                     NestedCapTarget::Wildcard
                 }
                 Some(_) => NestedCapTarget::Exact(ty),
@@ -1421,7 +1423,7 @@ fn verify_fn_state_contracts(
                         );
                     }
                 }
-                TyKind::Dyn(dyn_id) => {
+                TyKind::Dyn { def: dyn_id, .. } => {
                     self.scan_dyn_impls(
                         *dyn_id,
                         prefix,
@@ -1436,6 +1438,7 @@ fn verify_fn_state_contracts(
                 TyKind::OwnedDyn {
                     def: dyn_id,
                     context,
+                    ..
                 } => {
                     if let Some(ctx_ty) = context {
                         self.scan_container_member(
@@ -1590,11 +1593,15 @@ fn verify_fn_state_contracts(
                         inner_i == inner_j
                             || matches!(
                                 tys.get(inner_i),
-                                Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                                Some(
+                                    TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. }
+                                )
                             )
                             || matches!(
                                 tys.get(inner_j),
-                                Some(TyKind::Param(_) | TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                                Some(
+                                    TyKind::Param(_) | TyKind::Dyn { .. } | TyKind::OwnedDyn { .. }
+                                )
                             )
                     }
                 };
@@ -2355,13 +2362,13 @@ fn verify_fn_state_contracts(
                                     }
                                     let target_is_dyn = matches!(
                                         tys.get(*to),
-                                        Some(TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                                        Some(TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                                     ) || matches!(
                                         tys.get(*to),
                                         Some(TyKind::Ref { pointee, .. })
                                             if matches!(
                                                 tys.get(*pointee),
-                                                Some(TyKind::Dyn(_) | TyKind::OwnedDyn { .. })
+                                                Some(TyKind::Dyn { .. } | TyKind::OwnedDyn { .. })
                                             )
                                     );
                                     if p.projections.is_empty() {
@@ -3316,7 +3323,8 @@ fn verify_fn_state_contracts(
                                     && let Some(ld) = func.body.locals.get(ol.index())
                                     && let Some(TyKind::Ref { pointee, .. }) = tys.get(ld.ty)
                                     && let Some(
-                                        TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. },
+                                        TyKind::Dyn { def: dyn_id, .. }
+                                        | TyKind::OwnedDyn { def: dyn_id, .. },
                                     ) = tys.get(*pointee)
                                     && let Some(def) = tys.get_dyn(*dyn_id)
                                     && let Some(sig) = def.slots.get(*slot as usize)
@@ -4112,7 +4120,7 @@ fn verify_sealed_thread_callable(
                 | TyKind::Desc(_)
                 | TyKind::ErrorUnion { .. }
                 | TyKind::FnPtr { .. }
-                | TyKind::Dyn(_)
+                | TyKind::Dyn { .. }
                 | TyKind::OwnedDyn { .. }
                 | TyKind::Param(_)
                 | TyKind::Opaque(_) => return None,
@@ -4302,7 +4310,7 @@ fn ty_contains_mutex_guard(
                 ty_contains_mutex_guard(tys, dyn_impls, cty, seen)
             })
         }),
-        Some(TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
+        Some(TyKind::Dyn { def: dyn_id, .. } | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
             .iter()
             .filter(|di| di.dyn_id == *dyn_id)
             .any(|di| ty_contains_mutex_guard(tys, dyn_impls, di.concrete_ty, seen)),
@@ -4364,7 +4372,7 @@ fn ty_contains_raw_foreign_handle(
                 ty_contains_raw_foreign_handle(tys, dyn_impls, cty, seen)
             })
         }),
-        Some(TyKind::Dyn(dyn_id) | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
+        Some(TyKind::Dyn { def: dyn_id, .. } | TyKind::OwnedDyn { def: dyn_id, .. }) => dyn_impls
             .iter()
             .filter(|di| di.dyn_id == *dyn_id)
             .any(|di| ty_contains_raw_foreign_handle(tys, dyn_impls, di.concrete_ty, seen)),
@@ -5154,7 +5162,7 @@ fn collect_drop_fns_recursive(
             | TyKind::Ref { .. }
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_),
@@ -5211,7 +5219,7 @@ fn collect_mutex_payload_drop_fns(
             | TyKind::ErrorUnion { .. }
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_),

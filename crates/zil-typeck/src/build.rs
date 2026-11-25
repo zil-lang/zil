@@ -107,7 +107,21 @@ fn max_region_param_count(tys: &zil_ir::body::TyTable, params: &[TyId], result: 
             TyKind::Managed(inner) | TyKind::Desc(inner) => {
                 walk_ty(tys, *inner, visited, out);
             }
-            TyKind::OwnedDyn { context, .. } => {
+            TyKind::Dyn { regions, .. } => {
+                for r in regions {
+                    if let Region::Param(i) = r {
+                        *out = (*out).max(*i + 1);
+                    }
+                }
+            }
+            TyKind::OwnedDyn {
+                regions, context, ..
+            } => {
+                for r in regions {
+                    if let Region::Param(i) = r {
+                        *out = (*out).max(*i + 1);
+                    }
+                }
                 if let Some(c) = context {
                     walk_ty(tys, *c, visited, out);
                 }
@@ -118,7 +132,6 @@ fn max_region_param_count(tys: &zil_ir::body::TyTable, params: &[TyId], result: 
             | TyKind::Float(_)
             | TyKind::Never
             | TyKind::Param(_)
-            | TyKind::Dyn(_)
             | TyKind::Opaque(_) => {}
         }
     }
@@ -723,6 +736,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         }
         let decl = self.items.trait_decl(tr);
         let name = decl.name.clone();
+        let tr_region_count = decl.region_params.len();
         let methods = decl.methods.clone();
         let self_param = self.types.intern(TyData::SelfParam);
         let mut slots = Vec::with_capacity(methods.len());
@@ -738,14 +752,32 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
                     None
                 }
             });
+            let recv_region = m.params.first().and_then(|p| {
+                if let TyData::Ref { region, .. } = *self.types.data(*p) {
+                    region
+                } else {
+                    None
+                }
+            });
+            let slot_region_map: Vec<Option<u32>> = (0..tr_region_count)
+                .map(|i| {
+                    if recv_region == Some(i as u32) {
+                        None
+                    } else {
+                        Some(i as u32)
+                    }
+                })
+                .collect();
             let mut params = Vec::new();
             for p in m.params.iter().skip(1) {
                 let pt = self.types.subst(*p, &norm_args);
                 let pt = self.types.subst_self_assoc(pt, self_param, tr, &norm_assoc);
+                let pt = self.types.subst_regions(pt, &slot_region_map);
                 params.push(self.lower_ty(pt, span)?);
             }
             let rt = self.types.subst(m.result, &norm_args);
             let rt = self.types.subst_self_assoc(rt, self_param, tr, &norm_assoc);
+            let rt = self.types.subst_regions(rt, &slot_region_map);
             let result = self.lower_ty(rt, span)?;
             slots.push(DynSlotSig {
                 name: m.name,
@@ -998,20 +1030,37 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             TyData::Dyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
-            } => TyKind::Dyn(self.dyn_id(trait_ref, &trait_args, &assoc_bindings, span)?),
+            } => {
+                let def = self.dyn_id(trait_ref, &trait_args, &assoc_bindings, span)?;
+                let regions = trait_regions
+                    .into_iter()
+                    .map(|r| r.map_or(Region::Static, Region::Param))
+                    .collect();
+                TyKind::Dyn { def, regions }
+            }
             TyData::OwnedDyn {
                 trait_ref,
                 trait_args,
+                trait_regions,
                 assoc_bindings,
                 context,
             } => {
                 let def = self.dyn_id(trait_ref, &trait_args, &assoc_bindings, span)?;
+                let regions = trait_regions
+                    .into_iter()
+                    .map(|r| r.map_or(Region::Static, Region::Param))
+                    .collect();
                 let context = match context {
                     Some(c) => Some(self.lower_ty(c, span)?),
                     None => None,
                 };
-                TyKind::OwnedDyn { def, context }
+                TyKind::OwnedDyn {
+                    def,
+                    regions,
+                    context,
+                }
             }
             TyData::ConstU32(_) => TyKind::Unit,
             TyData::ArrayConst { .. }
@@ -1074,7 +1123,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
             | TyKind::Float(_)
             | TyKind::FnPtr { .. }
             | TyKind::Closure { .. }
-            | TyKind::Dyn(_)
+            | TyKind::Dyn { .. }
             | TyKind::OwnedDyn { .. }
             | TyKind::Param(_)
             | TyKind::Opaque(_) => {}
@@ -2735,7 +2784,7 @@ impl<'m, 'c, 'a, 'e> Builder<'m, 'c, 'a, 'e> {
                     | TyKind::ErrorUnion { .. }
                     | TyKind::FnPtr { .. }
                     | TyKind::Closure { .. }
-                    | TyKind::Dyn(_)
+                    | TyKind::Dyn { .. }
                     | TyKind::OwnedDyn { .. }
                     | TyKind::Param(_)
                     | TyKind::Opaque(_) => {
