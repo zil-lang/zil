@@ -1,8 +1,6 @@
 # ZIL 语言初稿开发预览
 
-状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.100.0、LLVM 23.1.4、Linux x86_64。精确受测源码、独审、实际执行计数及恢复范围见[联合验收记录](../../validation/native-language-composition.json)。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
-
-数值文本、拥有哈希集合、缓冲 I/O 与资源图的冻结源码、独立复核和完整 CI 范围见[标准库验收](../../validation/library-foundations.json)。
+状态：**有限 profile，实验性开发预览**。受支持环境为 Rust 1.100.0、LLVM 23.1.4、Linux x86_64。历史阶段联合验收快照固定于 `08da36ff0:validation/native-language-composition.json`，标准库阶段快照固定于 `08da36ff0:validation/library-foundations.json`（当前活合同见 [validation/README.md](../../validation/README.md)）。本页列出有限能力与边界；完整语言、B0、ZUI 和 Rust 产品目标分别验收。
 
 当前有限拥有组合包括普通 POD、十三种标量和完整 Copy Tuple/Array 的 Store、普通拥有父形状与自包含捕获。借入 dyn 支持固定标量/Unit 槽和共享/独占接收者。具体范围与限制如下。
 
@@ -12,7 +10,7 @@
 
 普通拥有 Item 的 lending 窗口可与独立拥有结果的纯 Copy 字段观察及共享 Copy 错误臂共存；实际父对象、字段、tag、初始化和活动 loan 仍逐项检查。无输入标量入口与循环中的 Byte 查询必须使用实际 callee 效应和当前委派证明，见[普通拥有观察合同](../../spec/stored-owned-observations.md)及其原四模块程序。 同一存储借入程序还可经 trait 与泛型 helper 调用借入输入、拥有输出的同步闭包，并同步读取普通本地 ByteBuffer 字段视图；完整程序及边界见[拥有回调组合合同](../../spec/stored-owned-callback-pipeline.md)。该拥有结果可继续经泛型 helper 收集到可增长的 Store，扩容失败返还传入 owner；完整程序和逐分配点清理见[拥有结果收集合同](../../spec/ordinary-collected-pipeline.md)。
 
-拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量或动态下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。原[512槽拥有程序](../../tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil)和[完整数组字段 snapshot](../../tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil)保留全部实际来源，覆盖普通参数/结果及拥有容器释放后的末项读取；字段快照不复制 Package 的 Managed 责任。 整个共享地址数组的读取按每个实际来源逐槽核初始化，不能由另一完整来源掩盖未补回槽；见[初始化验收](../../validation/shared-array-snapshot-initialization.json)。
+拥有 Package 现在可直接保存固定共享地址数组，并通过实际字段、常量或动态下标和普通 helper 取得借入元素；拥有责任与借入来源分别验证。见[普通程序](../../tests/fixtures/resource-packages/owned-package-shared-address-array.zil)和[限定合同](../../spec/qualified-package-shared-array.md)。原[512槽拥有程序](../../tests/fixtures/resource-packages/owned-package-wide-shared-address-array.zil)和[完整数组字段 snapshot](../../tests/fixtures/resource-packages/owned-package-shared-address-array-snapshot.zil)保留全部实际来源，覆盖普通参数/结果及拥有容器释放后的末项读取；字段快照不复制 Package 的 Managed 责任。 整个共享地址数组的读取按每个实际来源逐槽核初始化，不能由另一完整来源掩盖未补回槽（历史初始化验收快照固定于 `08da36ff0:validation/shared-array-snapshot-initialization.json`）。
 
 普通整数包括 `u8/u16/u32/u64/usize/i8/i16/i32/i64/isize`；同型运算、checked 转换、显式 wrapping、目标位宽 CT、泛型 const 和聚合保留精确类型；完整整数和f32/f64进入已核 C参数/结果、地址Record与静态回调ABI。`isize` 与 `i64`、`usize` 与 `u64` 在 x64 上各同宽而类型不同。真实输入见[整数消费者](../../tests/integers/complete-domains.zil)及[C ABI消费者](../../tests/integers/ffi.zil)。
 
