@@ -18,9 +18,11 @@
 | 顺序 | 事项 | 分支 / PR | 当前态 | 说明 |
 | --- | --- | --- | --- | --- |
 | 在途 | **Alpha 合同对齐**（12 基础能力 + G6.3 + 8 日常应用门） | `chore/alpha-profile-12-plus-8` · [PR #138](https://github.com/zil-lang/zil/pull/138) | 待合入（CI 3/3 绿） | 升级主树 `validation/language-alpha-profile.json` |
-| 在途 | **G6.3-B `Replace` 状态协议联合语义** | `feat/g63-replace-state-protocol` · [PR #139](https://github.com/zil-lang/zil/pull/139) | 待 CI 与审阅 | 共享 `zil-semantics::protocol`、历史 `H` 隔离与 `old` 责任转移；本地 `30/30` 全绿 |
-| 下一 | **G6.3-C `Store`** → **G6.3-D `Task/Registration`** → **G6.3-E `Cancel`** | 待切分小 PR | 待执行 | 延续 `zil-semantics` 单一事实源，严禁为 Verify 另造语义系统 |
-| 并行 | **8 类日常程序标准库前置**（`std.env.args` / `std.fs` 目录与 `std.path` / `std.net` TCP / `std.string` helper） | 待切分小 PR | 待执行 | 补齐后直接驱动 8/8 日常应用端到端双后端验收 |
+| 在途 | **G6.3-B `Replace` 状态协议联合语义** | `feat/g63-replace-state-protocol` · [PR #139](https://github.com/zil-lang/zil/pull/139) | 待审阅与 CI | 共享 `zil-semantics::protocol`、历史 `H` 隔离与 `old` 责任转移；本地 `30/30` 全绿 |
+| 在途 | **工程减负：留证瘦身 + 分层缓存 CI + `dev-check`** | `chore/evidence-cleanup-and-ci-speedup` · [PR #140](https://github.com/zil-lang/zil/pull/140) | 待审阅与 CI | 清理 20 份历史阶段 JSON（含 `alpha-coverage.json` 冲突残留）、并行业务 CI + LLVM/Cargo 缓存、`research-llvm` 按路径/nightly 触发、新增 `tools/dev-check.py` |
+| 在途 | **验证器终态模块化 + 合同测试拆分** | `refactor/zil-check-modular-architecture` · [PR #141](https://github.com/zil-lang/zil/pull/141) | 待审阅（叠于 PR #139） | `zil-check/src/lib.rs`（5,451 → 91 行）拆为职责模块与 `state_protocol/{env,mod,transfer,calls}`；7,351 行测试拆为 4 组并行语义二进制，本地全绿 `30/30` |
+| 下一 | **G6.3-C `Store`** → **G6.3-D `Task/Registration`** → **G6.3-E `Cancel`** | 待切分小 PR | 待执行 | 基于模块化 `state_protocol/{calls,mod}` 延续 `zil-semantics` 单一事实源 |
+| 后续 | **8 类日常程序标准库前置与综合验收**（`std.env.args` / `std.fs` & `std.path` / `std.net` / `std.string`） | 待切分小 PR | 待执行 | 工程机制减负与 G6.3 收口后启动功能冲刺 |
 
 ---
 
