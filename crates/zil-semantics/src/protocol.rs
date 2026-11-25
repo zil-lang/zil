@@ -237,6 +237,19 @@ impl HandleProtocolSlot {
         self.transition(all);
         self.rolled_back = true;
     }
+
+    /// Conservatively updates a handle that may have been mutated or replaced
+    /// before a call took its `cancel` edge:
+    /// - Neither assumes the pre-call state survived intact nor applies the
+    ///   unreached normal-return postcondition;
+    /// - Widens `states` and `history` to all variants, marks `rolled_back = true`,
+    ///   and clears `retired = false`.
+    pub fn on_cancel_possible_mutation(&mut self, variant_count: usize) {
+        let all = ProtocolStateSet::all_variants(variant_count);
+        self.transition(all);
+        self.rolled_back = true;
+        self.retired = false;
+    }
 }
 
 /// Classifies whether `ty` (through up to 4 layers of `&`, `&mut`, `Managed`,
@@ -478,6 +491,19 @@ mod tests {
         s.on_borrowed_mutation(borrowed);
         assert_eq!(s.element_slot(3).states, OPEN.union(CLOSED));
         assert!(!s.element_slot(3).has_hidden_rollback());
+    }
+
+    #[test]
+    fn cancel_possible_mutation_widens_marks_rollback_and_clears_retired() {
+        let mut slot = HandleProtocolSlot::fresh(CLOSED);
+        slot.retired = true;
+        slot.on_cancel_possible_mutation(3);
+        assert_eq!(slot.states, ProtocolStateSet::all_variants(3));
+        assert!(slot.has_hidden_rollback());
+        assert!(
+            !slot.retired,
+            "cancel edge must clear retired because callee may have replaced or left handle unretired before cancelling"
+        );
     }
 
     #[test]
