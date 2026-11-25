@@ -7,7 +7,10 @@ use zil_ir::body::{
     BlockId, Callee, ContractFieldPath, FieldIdx, FnId, IntrinsicOp, Local, Mutability, Operand,
     Place, PlaceRoot, ProtocolStateSet, StateContractClause, TyKind,
 };
-use zil_semantics::{HandleProtocolSlot, StoreProtocolSummary};
+use zil_semantics::{
+    HandleProtocolSlot, StoreProtocolSummary, TASK_OR_ASYNC_REG_POLL_CLOSE_STATES,
+    task_or_async_reg_request_close_next, task_poll_next,
+};
 
 use super::env::{
     DiscrTarget, HandleCapSet, ParamAliasSet, ProtoState, StoreOpOutcome, extract_field_proj,
@@ -17,6 +20,48 @@ use super::{ProtocolVerifier, enqueue};
 use crate::CheckError;
 
 impl ProtocolVerifier<'_> {
+    fn collect_captured_caps(
+        &self,
+        st: &ProtoState,
+        args: &[Operand],
+    ) -> (ParamAliasSet, HandleCapSet) {
+        let mut cap_params = ParamAliasSet::new();
+        let mut cap_handles = HandleCapSet::new();
+        for arg in args {
+            if let Operand::Copy(p) | Operand::Move(p) = arg
+                && let PlaceRoot::Local(al) = p.root
+            {
+                let field_proj = extract_field_proj(p);
+                if let Some(mcp) = st.caps.mut_cap_params.get(&al) {
+                    cap_params.extend(mcp.iter().cloned());
+                }
+                if let Some(mch) = st.caps.mut_cap_handles.get(&al) {
+                    for (_, h_idx) in filter_handle_caps(mch, &field_proj) {
+                        cap_handles.insert((Vec::new(), h_idx));
+                    }
+                }
+                if p.projections.is_empty()
+                    && self
+                        .func
+                        .body
+                        .locals
+                        .get(al.index())
+                        .is_some_and(|ld| is_mut_ref_or_desc_ty(self.tys, ld.ty))
+                {
+                    if let Some(pa) = st.aliases.param_alias.get(&al) {
+                        cap_params.extend(pa.iter().cloned());
+                    }
+                    if let Some(ma) = st.aliases.may_alias.get(&al) {
+                        for &h_idx in ma {
+                            cap_handles.insert((Vec::new(), h_idx));
+                        }
+                    }
+                }
+            }
+        }
+        (cap_params, cap_handles)
+    }
+
     fn collect_store_invalidation_targets(&self, st: &ProtoState, op: &Operand) -> ParamAliasSet {
         let mut out = ParamAliasSet::new();
         if let Operand::Copy(p) | Operand::Move(p) = op {
@@ -497,10 +542,13 @@ impl ProtocolVerifier<'_> {
             let di = dl.index();
             st.caps.mut_cap_params.remove(&dl);
             st.caps.mut_cap_handles.remove(&dl);
+            st.caps.eu_payload_caps.remove(&(dl, true));
+            st.caps.eu_payload_caps.remove(&(dl, false));
             st.aliases.store_borrow_parents.remove(&di);
             st.refinements.eu_payload_slot.remove(&(dl, true));
             st.refinements.eu_payload_slot.remove(&(dl, false));
             st.refinements.store_op_of.remove(&dl);
+            st.refinements.nullable_fresh_handles.remove(&di);
             let mut dest_roots = BTreeSet::new();
             dest_roots.insert(di);
             if !is_pure_scalar_ty(self.tys, self.func.body.locals[di].ty) {
@@ -847,18 +895,137 @@ impl ProtocolVerifier<'_> {
                     }
                 }
             }
-            Callee::Intrinsic(IntrinsicOp::AsyncRegistrationValid) => {
+            Callee::Intrinsic(IntrinsicOp::TaskCreate) => {
+                // `TaskCreate` is conditional (returns `Error!Managed<Task<T>>`):
+                // - Does NOT execute the worker or mutate context args on `.err` (OOM);
+                // - On `.ok(task)`, yields a freshly initialized `Open` task carrying
+                //   any captured mutable context capabilities to be enforced on `TaskPoll`.
+                if let Some(dl) = dest_local {
+                    st.refinements.eu_payload_slot.insert(
+                        (dl, true),
+                        HandleProtocolSlot::fresh(ProtocolStateSet(ProtocolStateSet::OPEN)),
+                    );
+                    let (cap_params, cap_handles) = self.collect_captured_caps(&st, &args[1..]);
+                    if !cap_params.is_empty() || !cap_handles.is_empty() {
+                        st.caps
+                            .eu_payload_caps
+                            .insert((dl, true), (cap_params, cap_handles));
+                    }
+                }
+            }
+            Callee::Intrinsic(IntrinsicOp::TaskStart) => {
+                // `TaskStart` returns a nullable `Managed<Task<T>>` (null on OOM):
+                // starts unknown across all states (cannot falsely satisfy `Open` or
+                // `Closed`/`finish_destroy` without checking); `task_valid == true`
+                // refines to `Open`, while `task_valid == false` NEVER proves `Closed`.
+                if let Some(dl) = dest_local {
+                    let di = dl.index();
+                    let (cap_params, cap_handles) = self.collect_captured_caps(&st, &args[1..]);
+                    if !cap_params.is_empty() {
+                        st.caps.mut_cap_params.insert(dl, cap_params);
+                    }
+                    if !cap_handles.is_empty() {
+                        st.caps.mut_cap_handles.insert(dl, cap_handles);
+                    }
+                    if self.local_info.get(di).is_some_and(Option::is_some) {
+                        st.slots[di] = HandleProtocolSlot::unknown(3);
+                        st.aliases.alias.insert(dl, di);
+                        let mut s = BTreeSet::new();
+                        s.insert(di);
+                        st.aliases.may_alias.insert(dl, s);
+                        st.invalidate_handle(di);
+                        st.refinements
+                            .nullable_fresh_handles
+                            .insert(di, super::env::NullableStartKind::Task);
+                    }
+                }
+            }
+            Callee::Intrinsic(
+                op @ (IntrinsicOp::AsyncRegistrationStart | IntrinsicOp::RegistrationStart),
+            ) => {
+                // Nullable registration creation (null on OOM or C register failure):
+                // starts unknown; `valid == true` refines to `Open`, while `valid == false`
+                // NEVER proves `Closed`.
+                if let Some(dl) = dest_local {
+                    let di = dl.index();
+                    let (cap_params, cap_handles) = self.collect_captured_caps(&st, args);
+                    if !cap_params.is_empty() {
+                        st.caps.mut_cap_params.insert(dl, cap_params);
+                    }
+                    if !cap_handles.is_empty() {
+                        st.caps.mut_cap_handles.insert(dl, cap_handles);
+                    }
+                    if self.local_info.get(di).is_some_and(Option::is_some) {
+                        st.slots[di] = HandleProtocolSlot::unknown(3);
+                        st.aliases.alias.insert(dl, di);
+                        let mut s = BTreeSet::new();
+                        s.insert(di);
+                        st.aliases.may_alias.insert(dl, s);
+                        st.invalidate_handle(di);
+                        let kind = if matches!(op, IntrinsicOp::AsyncRegistrationStart) {
+                            super::env::NullableStartKind::AsyncRegistration
+                        } else {
+                            super::env::NullableStartKind::Registration
+                        };
+                        st.refinements.nullable_fresh_handles.insert(di, kind);
+                    }
+                }
+            }
+            Callee::Intrinsic(
+                op @ (IntrinsicOp::TaskValid
+                | IntrinsicOp::AsyncRegistrationValid
+                | IntrinsicOp::RegistrationValid),
+            ) => {
+                // Read-only validity query: does NOT invalidate the handle, and
+                // `valid == false` NEVER proves protocol state `Closed`.
+                // - Freshly nullable-created handles (`nullable_fresh_handles`) refine
+                //   `valid == true` -> `Open`.
+                // - For `AsyncRegistrationValid`, `valid == false` proves the frame pointer
+                //   is null (`null_uninstalled_async_reg`), permitting ONLY the null-guarded
+                //   no-op `AsyncRegistrationFinishDestroy` (including handles returned by
+                //   `result(create)` wrapper functions).
                 if let Some(a0) = args.first()
                     && let Some(h_idx) = st.resolve_handle(a0)
                     && let Some(dl) = dest_local
                 {
-                    st.refinements.discr_of.insert(
-                        dl,
-                        DiscrTarget::ValidCheck {
-                            handle: h_idx,
-                            inverted: false,
-                        },
-                    );
+                    let kind_opt = st
+                        .refinements
+                        .nullable_fresh_handles
+                        .get(&h_idx)
+                        .copied()
+                        .or_else(|| {
+                            matches!(op, IntrinsicOp::AsyncRegistrationValid)
+                                .then_some(super::env::NullableStartKind::AsyncRegistration)
+                        });
+                    if let Some(kind) = kind_opt {
+                        st.refinements.discr_of.insert(
+                            dl,
+                            DiscrTarget::NullableCreateValidCheck {
+                                handle: h_idx,
+                                kind,
+                                inverted: false,
+                            },
+                        );
+                    }
+                }
+            }
+            Callee::Intrinsic(IntrinsicOp::TaskYield) => {}
+            Callee::Intrinsic(IntrinsicOp::TaskPoll) => {
+                if let Some(a0) = args.first() {
+                    if let Some(h_idx) = st.resolve_handle(a0) {
+                        self.apply_operand_effects(&mut st, a0, false, &[h_idx]);
+                        if let Operand::Copy(p) | Operand::Move(p) = a0 {
+                            for item in st.resolve_param_places(p) {
+                                st.insert_invalidation(item);
+                            }
+                        }
+                        let cur = st.slots[h_idx].states;
+                        st.slots[h_idx].states = task_poll_next(cur);
+                        st.sync_store_borrow_write(h_idx);
+                        st.invalidate_handle(h_idx);
+                    } else {
+                        self.apply_operand_effects(&mut st, a0, true, &[]);
+                    }
                 }
             }
             Callee::Intrinsic(
@@ -868,16 +1035,7 @@ impl ProtocolVerifier<'_> {
                     && let Some(h_idx) = st.resolve_handle(a0)
                 {
                     let cur = st.slots[h_idx].states;
-                    let mut next = ProtocolStateSet(0);
-                    if (cur.0 & (ProtocolStateSet::OPEN | ProtocolStateSet::CLOSING)) != 0 {
-                        next = next.union(ProtocolStateSet(
-                            ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED,
-                        ));
-                    }
-                    if (cur.0 & ProtocolStateSet::CLOSED) != 0 {
-                        next = next.union(ProtocolStateSet(ProtocolStateSet::CLOSED));
-                    }
-                    st.slots[h_idx].states = next;
+                    st.slots[h_idx].states = task_or_async_reg_request_close_next(cur);
                     st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                 }
@@ -888,8 +1046,7 @@ impl ProtocolVerifier<'_> {
                 if let Some(a0) = args.first()
                     && let Some(h_idx) = st.resolve_handle(a0)
                 {
-                    st.slots[h_idx].states =
-                        ProtocolStateSet(ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED);
+                    st.slots[h_idx].states = TASK_OR_ASYNC_REG_POLL_CLOSE_STATES;
                     st.sync_store_borrow_write(h_idx);
                     st.invalidate_handle(h_idx);
                     if let Some(dl) = dest_local {
@@ -905,15 +1062,18 @@ impl ProtocolVerifier<'_> {
                 }
             }
             Callee::Intrinsic(
-                IntrinsicOp::TaskFinishDestroy | IntrinsicOp::AsyncRegistrationFinishDestroy,
+                op @ (IntrinsicOp::TaskFinishDestroy | IntrinsicOp::AsyncRegistrationFinishDestroy),
             ) => {
                 if let Some(a0) = args.first()
                     && let Some(h_idx) = st.resolve_handle(a0)
                 {
-                    if !st.slots[h_idx]
+                    let is_closed = st.slots[h_idx]
                         .states
-                        .is_subset_of(ProtocolStateSet(ProtocolStateSet::CLOSED))
-                    {
+                        .is_subset_of(ProtocolStateSet(ProtocolStateSet::CLOSED));
+                    let is_null_uninstalled_areg =
+                        matches!(op, IntrinsicOp::AsyncRegistrationFinishDestroy)
+                            && st.refinements.null_uninstalled_async_reg.contains(&h_idx);
+                    if !is_closed && !is_null_uninstalled_areg {
                         return Err(
                             self.fail("finish_destroy called on protocol handle not proved Closed")
                         );

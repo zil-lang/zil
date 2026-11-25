@@ -342,6 +342,34 @@ impl StoreProtocolSummary {
     }
 }
 
+/// Shared protocol-state transition for `TaskRequestCancel` and
+/// `AsyncRegistrationRequestClose`:
+/// - `Open | Closing` advances to `Closing | Closed`;
+/// - `Closed` stays `Closed`.
+pub const fn task_or_async_reg_request_close_next(cur: ProtocolStateSet) -> ProtocolStateSet {
+    let mut next = 0u64;
+    if (cur.0 & (ProtocolStateSet::OPEN | ProtocolStateSet::CLOSING)) != 0 {
+        next |= ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED;
+    }
+    if (cur.0 & ProtocolStateSet::CLOSED) != 0 {
+        next |= ProtocolStateSet::CLOSED;
+    }
+    ProtocolStateSet(next)
+}
+
+/// Shared protocol-state transition for `TaskPoll`:
+/// polling a task executes the worker body without rolling a `Closing`/`Closed`
+/// task back to `Open` and without proving `Closed` (explicit close/drain is
+/// still required before `TaskFinishDestroy`).
+pub const fn task_poll_next(cur: ProtocolStateSet) -> ProtocolStateSet {
+    cur
+}
+
+/// Shared protocol states after `TaskPollClose` / `AsyncRegistrationPollClose`
+/// prior to inspecting the returned `Poll` arm.
+pub const TASK_OR_ASYNC_REG_POLL_CLOSE_STATES: ProtocolStateSet =
+    ProtocolStateSet(ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -476,5 +504,24 @@ mod tests {
             !slot.retired,
             "cancel edge must clear retired because callee may have replaced or left handle unretired before cancelling"
         );
+    }
+
+    #[test]
+    fn task_and_async_reg_transitions_are_monotonic_and_never_promote_poll_to_closed() {
+        let open = ProtocolStateSet(ProtocolStateSet::OPEN);
+        let closing = ProtocolStateSet(ProtocolStateSet::CLOSING);
+        let closed = ProtocolStateSet(ProtocolStateSet::CLOSED);
+
+        assert_eq!(task_poll_next(open), open);
+        assert!(!task_poll_next(open).is_subset_of(closed));
+        assert_eq!(
+            task_or_async_reg_request_close_next(open),
+            closing.union(closed)
+        );
+        assert_eq!(
+            task_or_async_reg_request_close_next(closing),
+            closing.union(closed)
+        );
+        assert_eq!(task_or_async_reg_request_close_next(closed), closed);
     }
 }

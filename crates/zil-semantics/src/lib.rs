@@ -18,8 +18,9 @@ mod transfer;
 pub use loans::{EXTERNAL, Liveness, Loan, LoanKind, LoanTable};
 pub use paths::{MovePaths, PathId, tracked_len};
 pub use protocol::{
-    HandleProtocolSlot, ProtoHandleInfo, StoreProtocolSummary, proto_handle_info,
-    store_element_proto_info,
+    HandleProtocolSlot, ProtoHandleInfo, StoreProtocolSummary, TASK_OR_ASYNC_REG_POLL_CLOSE_STATES,
+    proto_handle_info, store_element_proto_info, task_or_async_reg_request_close_next,
+    task_poll_next,
 };
 pub use state::{BitSet, Carries, InitState, MustFacts, State};
 pub use transfer::{Kernel, Successor, Violation, ViolationKind};
