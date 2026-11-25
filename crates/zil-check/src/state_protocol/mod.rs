@@ -580,6 +580,7 @@ impl<'a> ProtocolVerifier<'a> {
             caps: CapabilityEnv {
                 mut_cap_params: entry_mut_cap_params.clone(),
                 mut_cap_handles: entry_mut_cap_handles.clone(),
+                eu_payload_caps: HashMap::new(),
             },
             refinements: RefinementEnv::default(),
         };
@@ -706,6 +707,7 @@ impl<'a> ProtocolVerifier<'a> {
         let mut covered_ok = false;
         let mut covered_err = false;
         let mut covered_valid_true = false;
+        let mut covered_valid_false = false;
         for &(val, target) in arms {
             let mut branch_st = st.clone();
             match target_info {
@@ -752,12 +754,36 @@ impl<'a> ProtocolVerifier<'a> {
                     }
                     branch_st.slots[h_idx].states = refined;
                 }
-                Some(DiscrTarget::ValidCheck { handle, inverted }) => {
-                    let is_invalid = (val == 0) != inverted;
-                    if is_invalid {
-                        branch_st.slots[handle].states = ProtocolStateSet(ProtocolStateSet::CLOSED);
-                    } else {
+                Some(DiscrTarget::NullableCreateValidCheck {
+                    handle,
+                    kind,
+                    inverted,
+                }) => {
+                    let is_valid_true = (val != 0) != inverted;
+                    if is_valid_true {
                         covered_valid_true = true;
+                        if branch_st
+                            .refinements
+                            .nullable_fresh_handles
+                            .remove(&handle)
+                            .is_some()
+                        {
+                            branch_st.slots[handle] =
+                                HandleProtocolSlot::fresh(ProtocolStateSet(ProtocolStateSet::OPEN));
+                        }
+                    } else {
+                        // `valid == false` NEVER proves protocol state `Closed`.
+                        // For `AsyncRegistration`, `valid == false` proves the frame
+                        // pointer is null, permitting ONLY its null-guarded no-op
+                        // `AsyncRegistrationFinishDestroy`.
+                        covered_valid_false = true;
+                        branch_st.refinements.nullable_fresh_handles.remove(&handle);
+                        if kind == self::env::NullableStartKind::AsyncRegistration {
+                            branch_st
+                                .refinements
+                                .null_uninstalled_async_reg
+                                .insert(handle);
+                        }
                     }
                 }
                 None => {}
@@ -796,9 +822,25 @@ impl<'a> ProtocolVerifier<'a> {
                 }
                 enqueue(otherwise, other_st, in_states, queue);
             }
-            Some(DiscrTarget::ValidCheck { handle, .. }) => {
-                if covered_valid_true {
-                    other_st.slots[handle].states = ProtocolStateSet(ProtocolStateSet::CLOSED);
+            Some(DiscrTarget::NullableCreateValidCheck { handle, kind, .. }) => {
+                if covered_valid_false
+                    && !covered_valid_true
+                    && other_st
+                        .refinements
+                        .nullable_fresh_handles
+                        .remove(&handle)
+                        .is_some()
+                {
+                    other_st.slots[handle] =
+                        HandleProtocolSlot::fresh(ProtocolStateSet(ProtocolStateSet::OPEN));
+                } else if covered_valid_true && !covered_valid_false {
+                    other_st.refinements.nullable_fresh_handles.remove(&handle);
+                    if kind == self::env::NullableStartKind::AsyncRegistration {
+                        other_st
+                            .refinements
+                            .null_uninstalled_async_reg
+                            .insert(handle);
+                    }
                 }
                 enqueue(otherwise, other_st, in_states, queue);
             }

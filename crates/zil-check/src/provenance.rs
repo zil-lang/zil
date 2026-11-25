@@ -889,7 +889,10 @@ pub(crate) fn verify_fn_provenance(
                 let mut normal_out = state.clone();
                 if let PlaceRoot::Local(dl) = dest.root {
                     if dest.projections.is_empty()
-                        && matches!(callee, Callee::Intrinsic(IntrinsicOp::TaskCreate))
+                        && matches!(
+                            callee,
+                            Callee::Intrinsic(IntrinsicOp::TaskCreate | IntrinsicOp::TaskStart)
+                        )
                     {
                         let transfer_ok = args
                             .first()

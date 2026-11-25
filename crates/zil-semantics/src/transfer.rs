@@ -951,6 +951,7 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::CCallback
         | I::ThreadScope
         | I::ScopedCallback
+        | I::TaskStart
         | I::TaskCreate
         | I::TaskValid
         | I::TaskYield
@@ -966,7 +967,6 @@ fn intrinsic_rule(op: zil_ir::body::IntrinsicOp) -> Result<(), &'static str> {
         | I::AsyncRegistrationRequestClose
         | I::AsyncRegistrationPollClose
         | I::AsyncRegistrationFinishDestroy => Ok(()),
-        I::TaskStart => Err(zil_ir::body::intrinsic_name(op)),
     }
 }
 

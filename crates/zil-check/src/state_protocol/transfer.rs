@@ -583,19 +583,28 @@ impl ProtocolVerifier<'_> {
                     && let Some((Projection::ErrorArm(is_ok), prefix)) =
                         src.projections.split_last()
                     && prefix.iter().all(|p| matches!(p, Projection::Deref))
-                    && self.local_info.get(di).is_some_and(Option::is_some)
                 {
-                    let slot = st
-                        .refinements
-                        .eu_payload_slot
-                        .get(&(sl, *is_ok))
-                        .copied()
-                        .unwrap_or_else(|| {
-                            HandleProtocolSlot::unknown(
-                                self.local_info[di].map_or(3, |i| i.variant_count),
-                            )
-                        });
-                    st.slots[di] = slot;
+                    if let Some((cp, ch)) = st.caps.eu_payload_caps.get(&(sl, *is_ok)).cloned() {
+                        if !cp.is_empty() {
+                            st.caps.mut_cap_params.entry(dl).or_default().extend(cp);
+                        }
+                        if !ch.is_empty() {
+                            st.caps.mut_cap_handles.entry(dl).or_default().extend(ch);
+                        }
+                    }
+                    if self.local_info.get(di).is_some_and(Option::is_some) {
+                        let slot = st
+                            .refinements
+                            .eu_payload_slot
+                            .get(&(sl, *is_ok))
+                            .copied()
+                            .unwrap_or_else(|| {
+                                HandleProtocolSlot::unknown(
+                                    self.local_info[di].map_or(3, |i| i.variant_count),
+                                )
+                            });
+                        st.slots[di] = slot;
+                    }
                 } else if src.projections.is_empty()
                     && let PlaceRoot::Local(sl) = src.root
                 {
@@ -663,6 +672,12 @@ impl ProtocolVerifier<'_> {
                     if let Some(&slot) = st.refinements.eu_payload_slot.get(&(sl, false)) {
                         st.refinements.eu_payload_slot.insert((dl, false), slot);
                     }
+                    if let Some(caps) = st.caps.eu_payload_caps.get(&(sl, true)).cloned() {
+                        st.caps.eu_payload_caps.insert((dl, true), caps);
+                    }
+                    if let Some(caps) = st.caps.eu_payload_caps.get(&(sl, false)).cloned() {
+                        st.caps.eu_payload_caps.insert((dl, false), caps);
+                    }
                     if let Some(so) = st.refinements.store_op_of.get(&sl).cloned() {
                         st.refinements.store_op_of.insert(dl, so);
                     }
@@ -690,19 +705,28 @@ impl ProtocolVerifier<'_> {
                     && let Some((Projection::ErrorArm(is_ok), prefix)) =
                         src.projections.split_last()
                     && prefix.iter().all(|p| matches!(p, Projection::Deref))
-                    && let Some(Some(info)) = self.local_info.get(di)
                 {
-                    let slot = st
-                        .refinements
-                        .eu_payload_slot
-                        .get(&(sl, *is_ok))
-                        .copied()
-                        .unwrap_or_else(|| HandleProtocolSlot::unknown(info.variant_count));
-                    st.slots[di] = slot;
-                    st.aliases.alias.insert(dl, di);
-                    let mut s = BTreeSet::new();
-                    s.insert(di);
-                    st.aliases.may_alias.insert(dl, s);
+                    if let Some((cp, ch)) = st.caps.eu_payload_caps.get(&(sl, *is_ok)).cloned() {
+                        if !cp.is_empty() {
+                            st.caps.mut_cap_params.entry(dl).or_default().extend(cp);
+                        }
+                        if !ch.is_empty() {
+                            st.caps.mut_cap_handles.entry(dl).or_default().extend(ch);
+                        }
+                    }
+                    if let Some(Some(info)) = self.local_info.get(di) {
+                        let slot = st
+                            .refinements
+                            .eu_payload_slot
+                            .get(&(sl, *is_ok))
+                            .copied()
+                            .unwrap_or_else(|| HandleProtocolSlot::unknown(info.variant_count));
+                        st.slots[di] = slot;
+                        st.aliases.alias.insert(dl, di);
+                        let mut s = BTreeSet::new();
+                        s.insert(di);
+                        st.aliases.may_alias.insert(dl, s);
+                    }
                 } else if src
                     .projections
                     .iter()
@@ -1050,13 +1074,17 @@ impl ProtocolVerifier<'_> {
                 if let Operand::Copy(p) | Operand::Move(p) = operand
                     && p.projections.is_empty()
                     && let PlaceRoot::Local(sl) = p.root
-                    && let Some(DiscrTarget::ValidCheck { handle, inverted }) =
-                        st.refinements.discr_of.get(&sl).copied()
+                    && let Some(DiscrTarget::NullableCreateValidCheck {
+                        handle,
+                        kind,
+                        inverted,
+                    }) = st.refinements.discr_of.get(&sl).copied()
                 {
                     st.refinements.discr_of.insert(
                         dl,
-                        DiscrTarget::ValidCheck {
+                        DiscrTarget::NullableCreateValidCheck {
                             handle,
+                            kind,
                             inverted: !inverted,
                         },
                     );

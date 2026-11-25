@@ -10,11 +10,27 @@ use zil_ir::body::{
 use zil_semantics::{HandleProtocolSlot, StoreProtocolSummary};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum NullableStartKind {
+    Task,
+    AsyncRegistration,
+    Registration,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum DiscrTarget {
     Poll(Local),
     ErrorUnion(Local),
     HandleState(usize),
-    ValidCheck { handle: usize, inverted: bool },
+    /// Validity check on a freshly nullable-created handle (`TaskStart`,
+    /// `AsyncRegistrationStart`, `RegistrationStart`): `valid == true` refines
+    /// to `Open`; `valid == false` NEVER implies `Closed` (though for
+    /// `AsyncRegistration`, it records `null_uninstalled_async_reg` so the
+    /// null-guarded no-op `AsyncRegistrationFinishDestroy` remains callable).
+    NullableCreateValidCheck {
+        handle: usize,
+        kind: NullableStartKind,
+        inverted: bool,
+    },
 }
 
 /// Branch-sensitive outcome of a `StorePush` or `StorePop` call returning an `ErrorUnion`.
@@ -116,13 +132,16 @@ impl AliasEnv {
     }
 }
 
-/// Reachable mutable capabilities carried inside closures, `dyn`/`OwnedDyn`, or aggregates.
+/// Reachable mutable capabilities carried inside closures, `dyn`/`OwnedDyn`, tasks, or aggregates.
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct CapabilityEnv {
     /// May-map: local -> parameter projections reachable via captured `&mut`/`Desc`/`Managed`.
     pub(super) mut_cap_params: HashMap<Local, ParamAliasSet>,
     /// May-map: local -> `(field_path, handle_idx)` protocol handles reachable via nested `&mut`/`Desc`/`Managed`/`Resource`.
     pub(super) mut_cap_handles: HashMap<Local, HandleCapSet>,
+    /// May-map: `(eu_local, is_ok)` -> captured mutable capabilities carried in that ErrorUnion arm
+    /// (e.g. `TaskCreate` `.ok(task)` carries context `&mut` captures without polluting `.err`).
+    pub(super) eu_payload_caps: HashMap<(Local, bool), (ParamAliasSet, HandleCapSet)>,
 }
 
 impl CapabilityEnv {
@@ -144,12 +163,27 @@ impl CapabilityEnv {
                 }
             }
         }
+        for (k, (other_p, other_h)) in &other.eu_payload_caps {
+            let (entry_p, entry_h) = self.eu_payload_caps.entry(*k).or_default();
+            for item in other_p {
+                if entry_p.insert(item.clone()) {
+                    changed = true;
+                }
+            }
+            for item in other_h {
+                if entry_h.insert(item.clone()) {
+                    changed = true;
+                }
+            }
+        }
         changed
     }
 
     pub(super) fn clear_local(&mut self, local: Local) {
         self.mut_cap_params.remove(&local);
         self.mut_cap_handles.remove(&local);
+        self.eu_payload_caps.remove(&(local, true));
+        self.eu_payload_caps.remove(&(local, false));
     }
 }
 
@@ -170,6 +204,14 @@ pub(super) struct RefinementEnv {
     pub(super) eu_payload_slot: HashMap<(Local, bool), HandleProtocolSlot>,
     /// Must-map: `StorePush`/`StorePop` ErrorUnion local -> branch-sensitive store recovery facts.
     pub(super) store_op_of: HashMap<Local, StoreOpOutcome>,
+    /// Must-map: handle indices freshly created by nullable start ops (`TaskStart`,
+    /// `AsyncRegistrationStart`, `RegistrationStart`) prior to any state transition.
+    pub(super) nullable_fresh_handles: HashMap<usize, NullableStartKind>,
+    /// Must-set: freshly failed `AsyncRegistrationStart` handles whose `valid == false`
+    /// branch proved the handle is null/uninstalled. This NEVER implies protocol state
+    /// `Closed`; it solely permits invoking the null-guarded no-op
+    /// `AsyncRegistrationFinishDestroy`.
+    pub(super) null_uninstalled_async_reg: BTreeSet<usize>,
     /// Must-map: discriminant/tag local -> target.
     pub(super) discr_of: HashMap<Local, DiscrTarget>,
 }
@@ -225,6 +267,18 @@ impl RefinementEnv {
         if self.store_op_of.len() != prev_so {
             changed = true;
         }
+        let prev_nf = self.nullable_fresh_handles.len();
+        self.nullable_fresh_handles
+            .retain(|h, k| other.nullable_fresh_handles.get(h) == Some(k));
+        if self.nullable_fresh_handles.len() != prev_nf {
+            changed = true;
+        }
+        let prev_nu = self.null_uninstalled_async_reg.len();
+        self.null_uninstalled_async_reg
+            .retain(|h| other.null_uninstalled_async_reg.contains(h));
+        if self.null_uninstalled_async_reg.len() != prev_nu {
+            changed = true;
+        }
         let prev_discr = self.discr_of.len();
         self.discr_of
             .retain(|k, v| other.discr_of.get(k) == Some(v));
@@ -243,6 +297,8 @@ impl RefinementEnv {
         self.eu_payload_slot.remove(&(local, true));
         self.eu_payload_slot.remove(&(local, false));
         self.store_op_of.remove(&local);
+        self.nullable_fresh_handles.remove(&local.index());
+        self.null_uninstalled_async_reg.remove(&local.index());
         self.discr_of.remove(&local);
     }
 
@@ -253,10 +309,13 @@ impl RefinementEnv {
             !entries.is_empty()
         });
         self.state_field_of.retain(|_, h| *h != h_idx);
+        self.nullable_fresh_handles.remove(&h_idx);
+        self.null_uninstalled_async_reg.remove(&h_idx);
         self.discr_of.retain(|_, t| {
             !matches!(
                 t,
-                DiscrTarget::HandleState(h) | DiscrTarget::ValidCheck { handle: h, .. }
+                DiscrTarget::HandleState(h)
+                    | DiscrTarget::NullableCreateValidCheck { handle: h, .. }
                     if *h == h_idx
             )
         });
