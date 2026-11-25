@@ -59,7 +59,7 @@ jobs:
           sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
           python3 tools/research/incremental-compilation/jump_threading_plugin/prepare_headers.py --release tools/llvm/release-linux-x86_64.json --cache "$RUNNER_TEMP/llvm-sdk-cache" --output "$RUNNER_TEMP/llvm-headers" 2>&1 | tee "$RUNNER_TEMP/receipts/research-headers.log"
           python3 tools/llvm/install.py --prefix "$RUNNER_TEMP/llvm-23.1.4" --archive "$RUNNER_TEMP/llvm-sdk-cache/LLVM-23.1.4-Linux-X64.tar.zst" 2>&1 | tee "$RUNNER_TEMP/receipts/research-official-install.log"
-          python3 tools/research/incremental-compilation/toolchain_combination/rebuild.py --repo "$PWD" --llvm-prefix "$RUNNER_TEMP/llvm-23.1.4" --headers-prefix "$RUNNER_TEMP/llvm-headers" --out "$RUNNER_TEMP/llvm-research" --jobs 4 2>&1 | tee "$RUNNER_TEMP/receipts/research-rebuild.log"
+          python3 tools/research/incremental-compilation/toolchain_combination/rebuild.py --repo "$PWD" --llvm-prefix "$RUNNER_TEMP/llvm-23.1.4" --headers-prefix "$RUNNER_TEMP/llvm-headers" --out "$RUNNER_TEMP/llvm-research" --jobs 2 2>&1 | tee "$RUNNER_TEMP/receipts/research-rebuild.log"
           echo "ZIL_CLANG=$RUNNER_TEMP/llvm-23.1.4/bin/clang" >> "$GITHUB_ENV"
           echo "ZIL_LLVM_LIB_DIR=$RUNNER_TEMP/llvm-research/candidate/lib" >> "$GITHUB_ENV"
           echo "LD_LIBRARY_PATH=$RUNNER_TEMP/llvm-research/candidate/lib" >> "$GITHUB_ENV"
