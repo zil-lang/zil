@@ -17,7 +17,10 @@ mod transfer;
 
 pub use loans::{EXTERNAL, Liveness, Loan, LoanKind, LoanTable};
 pub use paths::{MovePaths, PathId, tracked_len};
-pub use protocol::{HandleProtocolSlot, ProtoHandleInfo, proto_handle_info};
+pub use protocol::{
+    HandleProtocolSlot, ProtoHandleInfo, StoreProtocolSummary, proto_handle_info,
+    store_element_proto_info,
+};
 pub use state::{BitSet, Carries, InitState, MustFacts, State};
 pub use transfer::{Kernel, Successor, Violation, ViolationKind};
 
