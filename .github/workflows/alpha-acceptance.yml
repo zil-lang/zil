@@ -118,6 +118,29 @@ jobs:
         run: |
           set -euo pipefail
           RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          FIXED_COMMITS="$(python3 - <<'PY'
+          import json
+          m = json.load(open("validation/inputs/fixed-projects/manifest.json", encoding="utf-8"))
+          commits = set()
+          if isinstance(m.get("frozen_source_commit"), str):
+              commits.add(m["frozen_source_commit"])
+          def walk(node):
+              if isinstance(node, dict):
+                  sc = node.get("source_commit")
+                  if isinstance(sc, str) and len(sc) == 40:
+                      commits.add(sc)
+                  for v in node.values():
+                      walk(v)
+              elif isinstance(node, list):
+                  for item in node:
+                      walk(item)
+          walk(m)
+          print(" ".join(sorted(commits)))
+          PY
+          )"
+          if [ -n "$FIXED_COMMITS" ]; then
+            git fetch --no-tags --depth=1 "https://github.com/${GITHUB_REPOSITORY}.git" $FIXED_COMMITS
+          fi
           python3 tools/language/check-fixed-projects.py \
             --repo . \
             --cli "$CARGO_TARGET_DIR/debug/zil" \
