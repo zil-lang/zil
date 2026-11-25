@@ -9,8 +9,8 @@
 
 ## 0. 执行摘要与已完成合入总表
 
-- **当前主干候选基线**：`main@1f67627`（Linux x86_64 全基础功能日常可用 **`Alpha`** 候选已全部实现并合入 `main`，全部 12 类基础语言功能门 + **G6.3 状态协议全套 4/4** + **G5.3 `dyn Trait<'a>` 生命周期返回** + **G9.3b 日常标准库 4 件套** + **G10.7 8/8 真实日常多模块应用** 均已绿灯落地）。
-- **冻结全门验收**：已在 `main@1f67627` 触发 [`alpha-acceptance.yml` run #45681699559](https://github.com/zil-lang/zil/actions/runs/45681699559)（State/Store `16/128/56`、Fixed Projects `21/21` / `152/152`、Roam `42/42` + `24/24`），等待最终冻结收据签发与非作者源码复核。
+- **当前主干候选基线**：`main@2100daa`（Linux x86_64 全基础功能日常可用 **`Alpha`** 候选已全部实现并合入 `main`，全部 12 类基础语言功能门 + **G6.3 状态协议全套 4/4** + **G5.3 `dyn Trait<'a>` 生命周期返回** + **G9.3b 日常标准库 4 件套** + **G10.7 8/8 真实日常多模块应用** 均已绿灯落地）。
+- **冻结全门验收已绿灯**：已在 `main@2100daa` 完成 [`alpha-acceptance.yml` run #45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436)（4m5s 全绿：State/Store `16/128/56` ✅、Fixed Projects `21/21` / `152/152` ✅、Roam `42/42` ✅、Roam `24/24` ✅、Fail-Closed 汇总核验与收据产物上传 ✅），等待用户最终检视与签发。
 - **非 Alpha 阻断项**：Windows x64（`G10.4`）、ZUI 窗口/渲染/应用层（`G9.4–G9.6`）、编译与运行性能净突破专项（`G10.5`）及终态产品门（`G10.6`）保持独立推进，不阻断首个 Linux Alpha。
 
 ### 本轮已完成并合入 `main` 的全部 PR（按合入顺序）
@@ -32,6 +32,7 @@
 | 13 | G6.3-E `Cancel` 边状态协议联合语义与嵌套可挂起调用确定性取消展开 | `G6.3-E` | [PR #151](https://github.com/zil-lang/zil/pull/151) (`04225ae`) | ✅ 已合入 `main` |
 | 14 | 8 类日常应用 8（异步任务调度器 `async-task-scheduler`）+ 40 轮取消压力与配对安全反例 | `G10.7` | [PR #152](https://github.com/zil-lang/zil/pull/152) (`7236b35`) | ✅ 已合入 `main` |
 | 15 | 同步 `docs/guide/supported-language.md` 反映全部已合入 Alpha 能力与 8 类日常应用 | `G10.1` | [PR #153](https://github.com/zil-lang/zil/pull/153) (`1f67627`) | ✅ 已合入 `main` |
+| 16 | 修复 `alpha-acceptance.yml` 浅克隆按需拉取 Fixed Projects 历史提交并跑通冻结全门验收 | `G10.7` | [PR #154](https://github.com/zil-lang/zil/pull/154) (`2100daa`) | ✅ 已合入 `main` + [#45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436) 全绿 |
 
 ---
 
@@ -50,7 +51,7 @@
 | [G7](#g7--外部接口c-abi-与已登记回调) | 外部接口、C ABI 与已登记回调 | `foreign-lifecycle` | ✅ 已闭环（Alpha） | 完整 POD C-ABI/`CCallback`/`errno`、五态 CAS `c_register`/`c_register_async`、`RISKS.json` 14 项、与 G6.3-D/E 协议及取消边完整联合 | Alpha 无缺口；非 Linux ABI 见 `G10.4` |
 | [G8](#g8--异步任务与多线程并发) | 异步任务与多线程并发 | `async-ownership` + `threads-and-synchronization` | ✅ 已闭环（Alpha） | `ucontext_t` 协程、嵌套可挂起调用确定性取消展开（PR #151）、`TaskStart`/`TaskValid`（PR #150）、Roam `24/24`、`pthread` `ThreadScope`/`Mutex<T>`/5 序原子与强 CAS，经 HTTP/批处理/异步调度器三应用联验 | Alpha 无缺口；用户泛型自动派生 `Transfer`/`Share` 与跨模块非标量 `pub Suspend` 属 Post-Alpha |
 | [G9](#g9--标准库资源图与-zui) | 标准库、资源图与 ZUI | `standard-library` + `resource-graphs` | ✅ 已闭环（Alpha 标准库） | 28 个内嵌信任根模块（UTF-8/`std.string` 高频辅助/数值/POD&Owning 哈希集合/`iter`/`graph`/`io`/`buffered_io`/`std.fs` 全套目录元数据/`std.path`/`std.env.args`/`std.net` POSIX TCP/`time`）+ `G9.2` 软件 UI 核心 | Alpha 标准库 4/4 已闭环；`G9.4–G9.6` ZUI（窗口/GPU/IME）不阻断 Alpha |
-| [G10](#g10--工程工作流原生交付与发布验收) | 工程工作流、原生交付与发布验收 | `project-workflow` + `native-delivery` + `release-acceptance` | 🟡 待冻结签发 | `zil check/build/run/test/lock`、双后端 O0/O2、分层缓存 CI（PR #140）、`tools/dev-check.py`、**8/8 日常应用全绿合入**（PR #148/#149/#152） | 正在 `main@1f67627` 运行 `alpha-acceptance.yml` 冻结收据，待最终复核签发；`G10.4` Windows / `G10.5` 性能 / `G10.6` 终态产品门不阻断 Alpha |
+| [G10](#g10--工程工作流原生交付与发布验收) | 工程工作流、原生交付与发布验收 | `project-workflow` + `native-delivery` + `release-acceptance` | ✅ 候选已全绿（待签发） | `zil check/build/run/test/lock`、双后端 O0/O2、分层缓存 CI（PR #140）、`tools/dev-check.py`、**8/8 日常应用全绿合入**（PR #148/#149/#152）与 `main@2100daa` 冻结全门验收全绿（[#45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436)） | 待用户检视并正式发布首个 Linux Alpha；`G10.4` Windows / `G10.5` 性能 / `G10.6` 终态产品门不阻断 Alpha |
 
 ---
 
@@ -158,13 +159,13 @@
 
 ### G10 · 工程工作流、原生交付与发布验收
 
-- **发布门**：`project-workflow` + `native-delivery` + `release-acceptance` · **规范**：`docs/guide/build.md`、`validation/language-alpha-profile.json`、`validation/product-gates.json` · **总态**：🟡 待冻结签发
+- **发布门**：`project-workflow` + `native-delivery` + `release-acceptance` · **规范**：`docs/guide/build.md`、`validation/language-alpha-profile.json`、`validation/product-gates.json` · **总态**：✅ 候选已全绿（待签发）
 
 | ID | 子功能 | 状态 | 里程碑 | 已完成（当前可用能力） | 待完成（剩余差距与边界） |
 | --- | --- | --- | --- | --- | --- |
-| G10.0 & G10.2–G10.3 | Linux x86_64 双后端、大值 ABI 与栈可靠 | ✅ 已闭环 | Alpha 必选 | Clang + LLVM 23.1.4 C API × O0/O2、1/4/8 并行链接、Fixed Projects `21/21`、State/Store `16/128/56`、大数组 O0/2 MiB 深栈修复、逐分配点 OOM 零泄漏自检 | 随 `alpha-acceptance.yml` 复验单一冻结提交 |
-| G10.1 | 项目工作流、分层 CI 与留证治理 | ✅ 已闭环（PR #140/#142/#153） | Alpha 必选 | `zil check/build/run/test/lock`、常驻模式；清理 20 份过程 JSON、CI 提速至 `documentation` ~11s / `workspace` ~3–4m、新增 `tools/dev-check.py` 与更新 `docs/guide/supported-language.md` | 无 |
-| **G10.7** | **8 类真实日常程序综合验收与 Alpha 冻结签发** | 🟡 8/8 已合入，冻结收据运行中 | **Alpha 必选** | `validation/language-alpha-profile.json` 已对齐 12+8 合同（PR #138）；全部 8 类多模块 ZIL 应用及双后端原生/OOM/安全反例已合入 `main`（PR #148/#149/#152）；已在 `main@1f67627` 触发 [`alpha-acceptance.yml` #45681699559](https://github.com/zil-lang/zil/actions/runs/45681699559) | 待 `alpha-acceptance.yml` 绿灯产出冻结收据并由用户/非作者最终验收签发 |
+| G10.0 & G10.2–G10.3 | Linux x86_64 双后端、大值 ABI 与栈可靠 | ✅ 已闭环 | Alpha 必选 | Clang + LLVM 23.1.4 C API × O0/O2、1/4/8 并行链接、Fixed Projects `21/21`、State/Store `16/128/56`、大数组 O0/2 MiB 深栈修复、逐分配点 OOM 零泄漏自检 | 无（已在 `main@2100daa` 全门复验通过） |
+| G10.1 | 项目工作流、分层 CI 与留证治理 | ✅ 已闭环（PR #140/#142/#153/#154） | Alpha 必选 | `zil check/build/run/test/lock`、常驻模式；清理 20 份过程 JSON、CI 提速至 `documentation` ~11s / `workspace` ~3–4m、新增 `tools/dev-check.py`、更新 `docs/guide/supported-language.md` 与 `alpha-acceptance.yml` | 无 |
+| **G10.7** | **8 类真实日常程序综合验收与 Alpha 冻结签发** | ✅ 8/8 + 冻结收据全绿（待签发） | **Alpha 必选** | `validation/language-alpha-profile.json` 已对齐 12+8 合同（PR #138）；全部 8 类多模块 ZIL 应用及双后端原生/OOM/安全反例已合入 `main`（PR #148/#149/#152）；`main@2100daa` 冻结全门验收 [`alpha-acceptance.yml` #45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436) 4m5s 全绿（State/Store `16/128/56`、Fixed Projects `21/21` / `152/152`、Roam `42/42` + `24/24`） | 待用户/非作者检视收据并签发首个 Linux Alpha |
 | G10.4 | Windows x64 原生支持 | ⚪ 未开始 | **非 Alpha 阻断** | 无原生 Windows 执行收据 | 原生 Windows x64 CLI、ABI、Runtime、I/O、线程/Task 与真实 Windows CI（交叉构建/Wine 不算通过） |
 | G10.5 | 编译与运行性能突破专项 | 🟠 进行中 | **非 Alpha 阻断** | LLVM 23.1.4 Stage 1 桥接已合入；独立研究分支 `research/full-push-native`、`integrate/scalar-codegen` 推进中 | Stage 2（去除 `body_structured.rs` 文本桥接直接降级）及同语义 Rust 相对性能/编译净突破 |
 | G10.6 | 终态产品门（`product-gates.json`） | ⚪ 未开始 | **非 Alpha 阻断** | `validation/product-gates.json` 合同已固定 | 零 safe UB、Rust 相对性能/编译门、可重复净突破、B0 与 ZUI 终态冻结独立复验 |
