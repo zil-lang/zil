@@ -11,11 +11,13 @@
 mod borrow;
 mod loans;
 mod paths;
+pub mod protocol;
 mod state;
 mod transfer;
 
 pub use loans::{EXTERNAL, Liveness, Loan, LoanKind, LoanTable};
 pub use paths::{MovePaths, PathId, tracked_len};
+pub use protocol::{HandleProtocolSlot, ProtoHandleInfo, proto_handle_info};
 pub use state::{BitSet, Carries, InitState, MustFacts, State};
 pub use transfer::{Kernel, Successor, Violation, ViolationKind};
 
@@ -488,25 +490,47 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                                         PlaceRoot::Local(_) => {}
                                     }
                                 }
-                                let mut rhs_p = 0u64;
-                                let mut rhs_c = 0u64;
+                                let mut val_p = 0u64;
+                                let mut val_c = 0u64;
+                                let mut old_p = 0u64;
+                                let mut old_c = 0u64;
                                 for a in &accesses {
-                                    match a.place.root {
+                                    let (p_bits, c_bits) = match a.place.root {
                                         PlaceRoot::Local(l) if l.index() < deps.len() => {
-                                            rhs_p |= deps[l.index()];
-                                            rhs_c |= cap_deps[l.index()];
+                                            (deps[l.index()], cap_deps[l.index()])
                                         }
                                         PlaceRoot::Capture(ci) => {
-                                            rhs_c |= if ci < 64 { 1u64 << ci } else { u64::MAX };
+                                            (0u64, if ci < 64 { 1u64 << ci } else { u64::MAX })
                                         }
-                                        PlaceRoot::Local(_) => {}
+                                        PlaceRoot::Local(_) => (0u64, 0u64),
+                                    };
+                                    match a.role {
+                                        zil_ir::body::OperandRole::Value => {
+                                            val_p |= p_bits;
+                                            val_c |= c_bits;
+                                        }
+                                        zil_ir::body::OperandRole::Target => {
+                                            old_p |= p_bits;
+                                            old_c |= c_bits;
+                                        }
+                                        zil_ir::body::OperandRole::ReplacedOld
+                                        | zil_ir::body::OperandRole::Index
+                                        | zil_ir::body::OperandRole::Component(_)
+                                        | zil_ir::body::OperandRole::Lhs
+                                        | zil_ir::body::OperandRole::Rhs
+                                        | zil_ir::body::OperandRole::Arg(_)
+                                        | zil_ir::body::OperandRole::Callee
+                                        | zil_ir::body::OperandRole::Discriminant
+                                        | zil_ir::body::OperandRole::Condition
+                                        | zil_ir::body::OperandRole::ReturnValue
+                                        | zil_ir::body::OperandRole::DeferClosure => {}
                                     }
                                 }
                                 if let PlaceRoot::Local(l) = place.root
                                     && l.index() < deps.len()
                                 {
-                                    let np = deps[l.index()] | rhs_p;
-                                    let nc = cap_deps[l.index()] | rhs_c;
+                                    let np = deps[l.index()] | val_p;
+                                    let nc = cap_deps[l.index()] | val_c;
                                     if np != deps[l.index()] || nc != cap_deps[l.index()] {
                                         deps[l.index()] = np;
                                         cap_deps[l.index()] = nc;
@@ -517,8 +541,8 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                                     }
                                 }
                                 if old.index() < deps.len() {
-                                    let np = deps[old.index()] | rhs_p;
-                                    let nc = cap_deps[old.index()] | rhs_c;
+                                    let np = deps[old.index()] | old_p;
+                                    let nc = cap_deps[old.index()] | old_c;
                                     if np != deps[old.index()] || nc != cap_deps[old.index()] {
                                         deps[old.index()] = np;
                                         cap_deps[old.index()] = nc;
@@ -1056,4 +1080,96 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
         }
     }
     summaries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_ir::body::{
+        Block, Body, FnRole, FnSig, Function, Instruction, InstructionKind, IntTy, Local,
+        LocalDecl, Module, Mutability, Operand, ParamEnv, Place, PlaceRoot, Projection, Region,
+        ResumeMode, Terminator, TyKind, TyTable,
+    };
+
+    #[test]
+    fn compute_return_summaries_separates_replace_old_and_incoming_provenance() {
+        let mut tys = TyTable::new();
+        let i32_ty = tys.intern(TyKind::Int(IntTy::I32));
+        let ref_i32 = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Shared,
+            pointee: i32_ty,
+        });
+        let mut_slot = tys.intern(TyKind::Ref {
+            region: Region::Static,
+            mutability: Mutability::Exclusive,
+            pointee: ref_i32,
+        });
+        // Closure capturing `slot: &mut &i32` (Capture(0)), taking `incoming: &i32` (Local(0)):
+        //   Replace { place: *Capture(0), value: Move(Local(0)), old: Local(1) }
+        //   Return Move(Local(1))
+        let func = Function {
+            name: "swap_capture_return_old".into(),
+            sig: FnSig {
+                params: vec![ref_i32],
+                result: ref_i32,
+                type_params: 0,
+                region_params: 0,
+                role: FnRole::Normal,
+                resume_mode: ResumeMode::Local,
+                state_contracts: vec![],
+            },
+            body: Body {
+                param_count: 1,
+                locals: vec![
+                    LocalDecl {
+                        ty: ref_i32,
+                        name: Some("incoming".into()),
+                    },
+                    LocalDecl {
+                        ty: ref_i32,
+                        name: Some("old".into()),
+                    },
+                ],
+                captures: vec![mut_slot],
+                closure: None,
+                result: ref_i32,
+                param_env: ParamEnv::default(),
+                drop_flags: vec![],
+                blocks: vec![Block {
+                    instructions: vec![Instruction {
+                        kind: InstructionKind::Replace {
+                            place: Place {
+                                root: PlaceRoot::Capture(0),
+                                projections: vec![Projection::Deref],
+                            },
+                            value: Operand::Move(Place::local(Local(0))),
+                            old: Local(1),
+                        },
+                        span: Span::default(),
+                    }],
+                    terminator: Terminator::Return {
+                        value: Operand::Move(Place::local(Local(1))),
+                    },
+                    terminator_span: Span::default(),
+                }],
+            },
+        };
+        let module = Module {
+            tys,
+            functions: vec![func],
+            foreigns: vec![],
+            statics: vec![],
+            dyn_impls: vec![],
+        };
+        let summaries = compute_return_summaries(&module);
+        assert_eq!(
+            summaries[0].capture_mask, 0b1,
+            "old returned from Replace must carry Capture(0) provenance"
+        );
+        assert_eq!(
+            summaries[0].param_mask, 0,
+            "old returned from Replace must not inherit OperandRole::Value (param 0) provenance"
+        );
+    }
 }

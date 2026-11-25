@@ -420,73 +420,16 @@ fn verify_fn_state_contracts(
 ) -> Result<(), CheckError> {
     use std::collections::{BTreeSet, HashMap, VecDeque};
     use zil_ir::body::{
-        AdtId, AggregateKind, BlockId, Callee, ContractFieldPath, FieldIdx, InstructionKind,
-        IntrinsicOp, Local, Mutability, OpaqueTy, Operand, Place, PlaceRoot, Projection,
-        ProtocolStateSet, Rvalue, StateContractClause, Terminator,
+        AggregateKind, BlockId, Callee, ContractFieldPath, FieldIdx, InstructionKind, IntrinsicOp,
+        Local, Mutability, OpaqueTy, Operand, Place, PlaceRoot, Projection, ProtocolStateSet,
+        Rvalue, StateContractClause, Terminator,
     };
+    use zil_semantics::{HandleProtocolSlot, ProtoHandleInfo, proto_handle_info};
 
     let tys = &module.tys;
     let fail = |reason: &'static str| CheckError {
         function: fn_id,
         kind: CheckErrorKind::CertificateShape(reason),
-    };
-
-    #[derive(Clone, Copy, Debug)]
-    struct ProtoHandleInfo {
-        variant_count: usize,
-        state_field: Option<(AdtId, FieldIdx)>,
-    }
-
-    let proto_handle_info = |mut ty: zil_ir::body::TyId| -> Option<ProtoHandleInfo> {
-        for _ in 0..4 {
-            match tys.get(ty) {
-                Some(
-                    TyKind::Ref { pointee, .. } | TyKind::Managed(pointee) | TyKind::Desc(pointee),
-                ) => ty = *pointee,
-                Some(TyKind::Opaque(
-                    OpaqueTy::Task { .. }
-                    | OpaqueTy::Registration { .. }
-                    | OpaqueTy::AsyncRegistration { .. },
-                )) => {
-                    return Some(ProtoHandleInfo {
-                        variant_count: 3,
-                        state_field: None,
-                    });
-                }
-                Some(TyKind::Adt { adt, .. }) => {
-                    let def = tys.get_adt(*adt)?;
-                    if def.kind == AdtKind::Enum
-                        && !def.variants.is_empty()
-                        && def.variants.len() <= 64
-                    {
-                        return Some(ProtoHandleInfo {
-                            variant_count: def.variants.len(),
-                            state_field: None,
-                        });
-                    }
-                    if def.variants.len() == 1
-                        && let Some((fi, f)) = def.variants[0]
-                            .fields
-                            .iter()
-                            .enumerate()
-                            .find(|(_, f)| f.name == "state")
-                        && let Some(TyKind::Adt { adt: state_adt, .. }) = tys.get(f.ty)
-                        && let Some(state_def) = tys.get_adt(*state_adt)
-                        && state_def.kind == AdtKind::Enum
-                        && !state_def.variants.is_empty()
-                        && state_def.variants.len() <= 64
-                    {
-                        return Some(ProtoHandleInfo {
-                            variant_count: state_def.variants.len(),
-                            state_field: Some((*adt, FieldIdx(fi as u32))),
-                        });
-                    }
-                    return None;
-                }
-                _ => return None,
-            }
-        }
-        None
     };
 
     let is_poll_ty = |ty: zil_ir::body::TyId| -> bool {
@@ -538,13 +481,13 @@ fn verify_fn_state_contracts(
         .body
         .locals
         .iter()
-        .map(|l| proto_handle_info(l.ty))
+        .map(|l| proto_handle_info(tys, l.ty))
         .collect();
-    let mut init_states: Vec<ProtocolStateSet> = local_info
+    let mut init_slots: Vec<HandleProtocolSlot> = local_info
         .iter()
         .map(|info| {
-            info.map_or(ProtocolStateSet(0), |i| {
-                ProtocolStateSet::all_variants(i.variant_count)
+            info.map_or(HandleProtocolSlot::empty(), |i| {
+                HandleProtocolSlot::unknown(i.variant_count)
             })
         })
         .collect();
@@ -604,7 +547,7 @@ fn verify_fn_state_contracts(
                 if p_idx >= param_count || p_idx >= func.sig.params.len() {
                     return Err(fail("rollback contract references out-of-range parameter"));
                 }
-                if proto_handle_info(func.sig.params[p_idx]).is_none() {
+                if proto_handle_info(tys, func.sig.params[p_idx]).is_none() {
                     return Err(fail(
                         "rollback contract parameter is not a protocol handle type",
                     ));
@@ -649,7 +592,7 @@ fn verify_fn_state_contracts(
                 if p_idx >= param_count || p_idx >= func.sig.params.len() {
                     return Err(fail("state contract references out-of-range parameter"));
                 }
-                let Some(info) = proto_handle_info(func.sig.params[p_idx]) else {
+                let Some(info) = proto_handle_info(tys, func.sig.params[p_idx]) else {
                     return Err(fail(
                         "state contract parameter is not a protocol handle type",
                     ));
@@ -658,7 +601,7 @@ fn verify_fn_state_contracts(
                     return Err(fail("state contract has invalid ProtocolStateSet bitmask"));
                 }
                 if matches!(clause, StateContractClause::RequiresState { .. }) {
-                    init_states[p_idx] = states;
+                    init_slots[p_idx] = HandleProtocolSlot::fresh(states);
                     declared_requires_state[p_idx] = Some(states);
                 }
             }
@@ -667,7 +610,7 @@ fn verify_fn_state_contracts(
                 if p_idx >= param_count || p_idx >= func.sig.params.len() {
                     return Err(fail("state contract references out-of-range parameter"));
                 }
-                if proto_handle_info(func.sig.params[p_idx]).is_none() {
+                if proto_handle_info(tys, func.sig.params[p_idx]).is_none() {
                     return Err(fail(
                         "state contract parameter is not a protocol handle type",
                     ));
@@ -700,14 +643,8 @@ fn verify_fn_state_contracts(
 
     #[derive(Clone, PartialEq, Eq)]
     struct ProtoState {
-        states: Vec<ProtocolStateSet>,
-        /// History `H`: union of all protocol states visited by each handle on paths reaching here.
-        history: Vec<ProtocolStateSet>,
-        /// States that each handle has departed from on some path reaching here.
-        departed_from: Vec<ProtocolStateSet>,
-        /// True if any path reaching here re-entered a state it had already departed from (path-correlated rollback `H`).
-        rolled_back: Vec<bool>,
-        retired: Vec<bool>,
+        /// Per-local protocol handle state, history `H`, rollback flag, and retired status.
+        slots: Vec<HandleProtocolSlot>,
         /// Parameter projections `(param_idx, field_path)` invalidated on any path reaching here.
         invalidated: ParamAliasSet,
         /// May-alias map: local -> all `(param_idx, field_prefix)` it may alias on any reaching path (unioned on join).
@@ -739,30 +676,8 @@ fn verify_fn_state_contracts(
     impl ProtoState {
         fn join(&mut self, other: &Self) -> bool {
             let mut changed = false;
-            for i in 0..self.states.len() {
-                let merged = self.states[i].union(other.states[i]);
-                if merged != self.states[i] {
-                    self.states[i] = merged;
-                    changed = true;
-                }
-                let merged_h = self.history[i].union(other.history[i]);
-                if merged_h != self.history[i] {
-                    self.history[i] = merged_h;
-                    changed = true;
-                }
-                let merged_dep = self.departed_from[i].union(other.departed_from[i]);
-                if merged_dep != self.departed_from[i] {
-                    self.departed_from[i] = merged_dep;
-                    changed = true;
-                }
-                let rb = self.rolled_back[i] || other.rolled_back[i];
-                if rb != self.rolled_back[i] {
-                    self.rolled_back[i] = rb;
-                    changed = true;
-                }
-                let ret = self.retired[i] && other.retired[i];
-                if ret != self.retired[i] {
-                    self.retired[i] = ret;
+            for i in 0..self.slots.len() {
+                if self.slots[i].join(&other.slots[i]) {
                     changed = true;
                 }
             }
@@ -856,27 +771,14 @@ fn verify_fn_state_contracts(
         }
 
         fn set_handle_state(&mut self, h_idx: usize, new_state: ProtocolStateSet) {
-            let old_state = self.states[h_idx];
-            let departed = old_state.subtract(new_state);
-            self.departed_from[h_idx] = self.departed_from[h_idx].union(departed);
-            if !new_state.intersect(self.departed_from[h_idx]).is_empty() {
-                self.rolled_back[h_idx] = true;
-            }
-            self.states[h_idx] = new_state;
-            self.history[h_idx] = self.history[h_idx].union(new_state);
+            self.slots[h_idx].transition(new_state);
         }
 
         /// Conservative weak update for a handle that *may* alias the written handle.
         /// Accounts for both the non-aliasing branch (state unchanged) and the aliasing branch
         /// (transition to `new_state`, recording departures and potential rollback).
         fn weak_update_handle_state(&mut self, h_idx: usize, new_state: ProtocolStateSet) {
-            let aliased_departed = self.states[h_idx].subtract(new_state);
-            self.departed_from[h_idx] = self.departed_from[h_idx].union(aliased_departed);
-            if !new_state.intersect(self.departed_from[h_idx]).is_empty() {
-                self.rolled_back[h_idx] = true;
-            }
-            self.states[h_idx] = self.states[h_idx].union(new_state);
-            self.history[h_idx] = self.history[h_idx].union(new_state);
+            self.slots[h_idx].weak_transition(new_state);
         }
 
         fn resolve_param_places(&self, place: &Place) -> ParamAliasSet {
@@ -1612,13 +1514,8 @@ fn verify_fn_state_contracts(
         }
     }
 
-    let entry_init_states = init_states.clone();
     let entry_state = ProtoState {
-        states: init_states.clone(),
-        history: init_states,
-        departed_from: vec![ProtocolStateSet(0); nlocals],
-        rolled_back: vec![false; nlocals],
-        retired: vec![false; nlocals],
+        slots: init_slots,
         invalidated: ParamAliasSet::new(),
         param_alias: entry_param_alias,
         alias: entry_alias,
@@ -1704,6 +1601,35 @@ fn verify_fn_state_contracts(
             )
         )
     };
+    let resolve_incoming_slot =
+        |st: &ProtoState, op: &Operand, variant_count: usize| -> HandleProtocolSlot {
+            if let Operand::Copy(src) | Operand::Move(src) = op
+                && src.projections.is_empty()
+                && let PlaceRoot::Local(sl) = src.root
+            {
+                if let Some(ma) = st.may_alias.get(&sl)
+                    && !ma.is_empty()
+                {
+                    let mut iter = ma.iter().copied();
+                    if let Some(first) = iter.next() {
+                        let mut acc = st.slots[first];
+                        for other in iter {
+                            acc.join(&st.slots[other]);
+                        }
+                        return acc;
+                    }
+                }
+                if let Some(&src_h) = st.alias.get(&sl)
+                    && local_info.get(src_h).is_some_and(Option::is_some)
+                {
+                    return st.slots[src_h];
+                }
+                if let Some(&v) = st.enum_variant.get(&sl) {
+                    return HandleProtocolSlot::fresh(ProtocolStateSet::single(v));
+                }
+            }
+            HandleProtocolSlot::unknown(variant_count)
+        };
 
     let mut steps: u64 = 0;
     while let Some(bi) = queue.pop_front() {
@@ -1724,23 +1650,75 @@ fn verify_fn_state_contracts(
                     continue;
                 }
                 InstructionKind::Replace { place, value, old } => {
-                    // `Replace` mutates `place` (e.g. assigning to an owning/Drop field)
-                    // and moves the previous instance into `old`.
+                    // `Replace` moves the previous instance at `place` into `old` and
+                    // installs the incoming instance `value` at `place`:
+                    // - Old and new instances never share history `H`;
+                    // - Old state, history `H`, and retirement obligation move completely to `old`;
+                    // - `place` inherits `value`'s own state/history/obligation and clears old `retired`.
                     st.record_place_invalidation(place);
-                    // Clear stale alias/value facts on `old`.
-                    st.alias.remove(old);
-                    st.may_alias.remove(old);
-                    st.local_roots.remove(old);
-                    st.param_alias.remove(old);
-                    st.mut_cap_params.remove(old);
-                    st.mut_cap_handles.remove(old);
-                    st.state_field_of.remove(old);
-                    st.enum_variant.remove(old);
-                    st.error_arm_const.remove(old);
-                    st.poll_of.remove(old);
-                    st.eu_of.remove(old);
-                    st.discr_of.remove(old);
+
+                    // Capture genuinely nested mutable capabilities carried by `value`,
+                    // plus direct ref/desc capabilities when `value` is stored into an aggregate field.
+                    let (
+                        nested_cap_params,
+                        nested_cap_handles,
+                        direct_cap_params,
+                        direct_cap_handles,
+                        src_self_handles,
+                    ) = if let Operand::Copy(src) | Operand::Move(src) = value
+                        && let PlaceRoot::Local(sl) = src.root
+                    {
+                        let fp = extract_field_proj(src);
+                        let nested_p = st.mut_cap_params.get(&sl).cloned().unwrap_or_default();
+                        let nested_h = st
+                            .mut_cap_handles
+                            .get(&sl)
+                            .map(|m| filter_handle_caps(m, &fp))
+                            .unwrap_or_default();
+                        let mut direct_p = ParamAliasSet::new();
+                        let mut direct_h = HandleCapSet::new();
+                        let mut self_h = BTreeSet::new();
+                        if src.projections.is_empty() {
+                            if let Some(&h) = st.alias.get(&sl) {
+                                self_h.insert(h);
+                            }
+                            if let Some(ma) = st.may_alias.get(&sl) {
+                                self_h.extend(ma.iter().copied());
+                            }
+                            if func
+                                .body
+                                .locals
+                                .get(sl.index())
+                                .is_some_and(|ld| is_mut_ref_or_desc_ty(ld.ty))
+                            {
+                                if let Some(pa) = st.param_alias.get(&sl) {
+                                    direct_p.extend(pa.iter().cloned());
+                                }
+                                if let Some(ma) = st.may_alias.get(&sl) {
+                                    for &h in ma {
+                                        direct_h.insert((Vec::new(), h));
+                                    }
+                                }
+                            }
+                        }
+                        (nested_p, nested_h, direct_p, direct_h, self_h)
+                    } else {
+                        (
+                            ParamAliasSet::new(),
+                            HandleCapSet::new(),
+                            ParamAliasSet::new(),
+                            HandleCapSet::new(),
+                            BTreeSet::new(),
+                        )
+                    };
+
+                    let mut transferred_old_slot: Option<HandleProtocolSlot> = None;
+                    let mut is_field_replace = false;
+
                     if let Some(h_idx) = place_targets_state_field(place, &st) {
+                        // Replacing only the `.state` enum field is an in-place state transition
+                        // on the same handle instance; `old` receives the previous state value.
+                        let prev_state = st.slots[h_idx].states;
                         let vc = local_info[h_idx].map_or(3, |i| i.variant_count);
                         let new_state = match value {
                             Operand::Copy(src) | Operand::Move(src)
@@ -1771,14 +1749,92 @@ fn verify_fn_state_contracts(
                                 }
                             }
                         }
+                        if local_info.get(old.index()).is_some_and(Option::is_some) {
+                            transferred_old_slot = Some(HandleProtocolSlot::fresh(prev_state));
+                        }
+                    } else if place.projections.is_empty()
+                        && let PlaceRoot::Local(rl) = place.root
+                        && let Some(Some(info)) = local_info.get(rl.index())
+                    {
+                        // Direct whole-local protocol handle replacement (`replace(rl, value) -> old`).
+                        let ri = rl.index();
+                        let incoming = resolve_incoming_slot(&st, value, info.variant_count);
+                        let prev_targets: Vec<usize> = st
+                            .may_alias
+                            .get(&rl)
+                            .map(|s| s.iter().copied().collect::<Vec<usize>>())
+                            .filter(|v| !v.is_empty())
+                            .unwrap_or_else(|| vec![st.alias.get(&rl).copied().unwrap_or(ri)]);
+                        let primary_prev = st.alias.get(&rl).copied().unwrap_or(ri);
+                        let mut acc_old = st.slots[primary_prev];
+                        for &other_h in &prev_targets {
+                            if other_h != primary_prev {
+                                let snap = st.slots[other_h].replace_weak_target(incoming);
+                                acc_old.join(&snap);
+                                st.invalidate_handle(other_h);
+                            }
+                        }
+                        st.slots[ri] = incoming;
+                        st.alias.insert(rl, ri);
+                        let mut single = BTreeSet::new();
+                        single.insert(ri);
+                        st.may_alias.insert(rl, single.clone());
+                        st.local_roots.insert(rl, single);
+                        st.invalidate_handle(ri);
+                        if primary_prev != ri {
+                            st.invalidate_handle(primary_prev);
+                        }
+                        transferred_old_slot = Some(acc_old);
+                    } else if !place.projections.is_empty()
+                        && place
+                            .projections
+                            .iter()
+                            .all(|p| matches!(p, Projection::Deref))
+                        && let PlaceRoot::Local(rl) = place.root
+                    {
+                        // Indirect whole-handle replacement (`*rl = value`, moving previous into `old`).
+                        if let Some(&h_idx) = st.alias.get(&rl)
+                            && let Some(Some(info)) = local_info.get(h_idx)
+                        {
+                            let incoming = resolve_incoming_slot(&st, value, info.variant_count);
+                            let mut acc_old = st.slots[h_idx].replace_strong(incoming);
+                            st.invalidate_handle(h_idx);
+                            if let Some(targets) = st.may_alias.get(&rl).cloned() {
+                                for other_h in targets {
+                                    if other_h != h_idx
+                                        && local_info.get(other_h).is_some_and(Option::is_some)
+                                    {
+                                        let snap = st.slots[other_h].replace_weak_target(incoming);
+                                        acc_old.join(&snap);
+                                        st.invalidate_handle(other_h);
+                                    }
+                                }
+                            }
+                            transferred_old_slot = Some(acc_old);
+                        } else if let Some(targets) = st.may_alias.get(&rl).cloned() {
+                            // Ambiguous merged reference: weak-replace every candidate target
+                            // and join all candidate previous slots into `old`.
+                            let mut acc_old: Option<HandleProtocolSlot> = None;
+                            for h_idx in targets {
+                                if let Some(Some(info)) = local_info.get(h_idx) {
+                                    let incoming =
+                                        resolve_incoming_slot(&st, value, info.variant_count);
+                                    let snap = st.slots[h_idx].replace_weak_target(incoming);
+                                    st.invalidate_handle(h_idx);
+                                    match &mut acc_old {
+                                        None => acc_old = Some(snap),
+                                        Some(acc) => {
+                                            acc.join(&snap);
+                                        }
+                                    }
+                                }
+                            }
+                            transferred_old_slot = acc_old;
+                        }
                     } else if let PlaceRoot::Local(rl) = place.root {
-                        let may_targets = st.may_alias.get(&rl).cloned();
-                        if let Some(targets) = may_targets {
-                            let is_deref_only = !place.projections.is_empty()
-                                && place
-                                    .projections
-                                    .iter()
-                                    .all(|p| matches!(p, Projection::Deref));
+                        // Replacing a field inside a parent aggregate (e.g. `holder.payload = ...`).
+                        is_field_replace = true;
+                        if let Some(targets) = st.may_alias.get(&rl).cloned() {
                             let last_field = place.projections.last().and_then(|p| match p {
                                 Projection::Field(f) => Some(f.field),
                                 Projection::Deref
@@ -1789,12 +1845,11 @@ fn verify_fn_state_contracts(
                             });
                             for h_idx in targets {
                                 if let Some(Some(info)) = local_info.get(h_idx) {
-                                    let touches_state = is_deref_only
-                                        || match (info.state_field, last_field) {
-                                            (None, _) => true,
-                                            (Some((_, sf)), Some(lf)) => sf == lf,
-                                            (Some(_), None) => true,
-                                        };
+                                    let touches_state = match (info.state_field, last_field) {
+                                        (None, _) => true,
+                                        (Some((_, sf)), Some(lf)) => sf == lf,
+                                        (Some(_), None) => true,
+                                    };
                                     if touches_state {
                                         let all =
                                             ProtocolStateSet::all_variants(info.variant_count);
@@ -1804,6 +1859,72 @@ fn verify_fn_state_contracts(
                                 }
                             }
                         }
+                    }
+
+                    if let PlaceRoot::Local(rl) = place.root {
+                        let mut add_params = nested_cap_params;
+                        let mut add_handles = if is_field_replace {
+                            nested_cap_handles
+                        } else {
+                            // On whole-handle Replace, the incoming handle's own identity is
+                            // already transferred into `st.slots[h_idx]`; keep only genuinely
+                            // nested capabilities (non-empty path or distinct handle).
+                            nested_cap_handles
+                                .into_iter()
+                                .filter(|(sub_path, h)| {
+                                    !(sub_path.is_empty() && src_self_handles.contains(h))
+                                })
+                                .collect()
+                        };
+                        if is_field_replace {
+                            add_params.extend(direct_cap_params);
+                            add_handles.extend(direct_cap_handles);
+                        }
+                        if !add_params.is_empty() {
+                            st.mut_cap_params.entry(rl).or_default().extend(add_params);
+                        }
+                        if !add_handles.is_empty() {
+                            let dest_proj = extract_field_proj(place);
+                            let entry = st.mut_cap_handles.entry(rl).or_default();
+                            for (sub_path, h_idx) in add_handles {
+                                let mut full_path = Vec::with_capacity(
+                                    (dest_proj.len() + sub_path.len())
+                                        .min(ContractFieldPath::MAX_DEPTH),
+                                );
+                                for &f in dest_proj.iter().chain(sub_path.iter()) {
+                                    if full_path.len() < ContractFieldPath::MAX_DEPTH {
+                                        full_path.push(f);
+                                    }
+                                }
+                                entry.insert((full_path, h_idx));
+                            }
+                        }
+                    }
+
+                    // Clear stale alias/value facts on `old`, then bind `old` to its own
+                    // independent local slot holding the transferred previous resource.
+                    st.alias.remove(old);
+                    st.may_alias.remove(old);
+                    st.local_roots.remove(old);
+                    st.param_alias.remove(old);
+                    st.mut_cap_params.remove(old);
+                    st.mut_cap_handles.remove(old);
+                    st.state_field_of.remove(old);
+                    st.enum_variant.remove(old);
+                    st.error_arm_const.remove(old);
+                    st.poll_of.remove(old);
+                    st.eu_of.remove(old);
+                    st.discr_of.remove(old);
+                    let oi = old.index();
+                    let mut own_root = BTreeSet::new();
+                    own_root.insert(oi);
+                    st.local_roots.insert(*old, own_root.clone());
+                    if let Some(Some(old_info)) = local_info.get(oi) {
+                        st.slots[oi] = transferred_old_slot
+                            .unwrap_or_else(|| HandleProtocolSlot::unknown(old_info.variant_count));
+                        st.alias.insert(*old, oi);
+                        st.may_alias.insert(*old, own_root);
+                        st.invalidate_handle(oi);
                     }
                     continue;
                 }
@@ -1871,22 +1992,62 @@ fn verify_fn_state_contracts(
                         && !st.alias.contains_key(&rl)
                         && let Some(targets) = st.may_alias.get(&rl).cloned()
                     {
+                        let is_deref_only = dest
+                            .projections
+                            .iter()
+                            .all(|p| matches!(p, Projection::Deref));
                         for h_idx in targets {
                             if let Some(Some(info)) = local_info.get(h_idx) {
-                                let touches_state = match info.state_field {
-                                    None => true,
-                                    Some((_, sf)) => dest
-                                        .projections
-                                        .iter()
-                                        .all(|p| matches!(p, Projection::Deref))
-                                        || dest.projections.iter().any(
-                                            |p| matches!(p, Projection::Field(f) if f.field == sf),
-                                        ),
-                                };
-                                if touches_state {
-                                    let all = ProtocolStateSet::all_variants(info.variant_count);
-                                    st.set_handle_state(h_idx, all);
+                                if is_deref_only && !info.is_direct_enum {
+                                    let incoming = if let Some((_, sf)) = info.state_field
+                                        && let Rvalue::Aggregate { operands, .. } = value
+                                    {
+                                        let field_state = operands
+                                            .get(sf.0 as usize)
+                                            .and_then(|op| match op {
+                                                Operand::Copy(p) | Operand::Move(p)
+                                                    if p.projections.is_empty() =>
+                                                {
+                                                    if let PlaceRoot::Local(sl) = p.root {
+                                                        st.enum_variant
+                                                            .get(&sl)
+                                                            .map(|&v| ProtocolStateSet::single(v))
+                                                    } else {
+                                                        None
+                                                    }
+                                                }
+                                                Operand::Copy(_)
+                                                | Operand::Move(_)
+                                                | Operand::Const(_)
+                                                | Operand::Pooled(_) => None,
+                                            })
+                                            .unwrap_or_else(|| {
+                                                ProtocolStateSet::all_variants(info.variant_count)
+                                            });
+                                        HandleProtocolSlot::fresh(field_state)
+                                    } else if let Rvalue::Use(op) = value {
+                                        resolve_incoming_slot(&st, op, info.variant_count)
+                                    } else {
+                                        HandleProtocolSlot::unknown(info.variant_count)
+                                    };
+                                    let _ = st.slots[h_idx].replace_weak_target(incoming);
                                     st.invalidate_handle(h_idx);
+                                } else {
+                                    let touches_state = match info.state_field {
+                                        None => true,
+                                        Some((_, sf)) => {
+                                            is_deref_only
+                                                || dest.projections.iter().any(|p| {
+                                                    matches!(p, Projection::Field(f) if f.field == sf)
+                                                })
+                                        }
+                                    };
+                                    if touches_state {
+                                        let all =
+                                            ProtocolStateSet::all_variants(info.variant_count);
+                                        st.set_handle_state(h_idx, all);
+                                        st.invalidate_handle(h_idx);
+                                    }
                                 }
                             }
                         }
@@ -1903,13 +2064,14 @@ fn verify_fn_state_contracts(
                         && let Some(&h_idx) = st.alias.get(&rl)
                         && let Some(Some(info)) = local_info.get(h_idx)
                     {
-                        let new_state = if let Rvalue::Aggregate {
-                            kind: AggregateKind::Adt { variant, .. },
-                            operands,
-                        } = value
-                        {
-                            if let Some((_, sf)) = info.state_field {
-                                operands
+                        if !info.is_direct_enum {
+                            // Whole struct/package/resource/built-in-opaque handle overwrite
+                            // through `&mut`: treat as instance replacement (isolated history,
+                            // transferred obligations, cleared stale retired).
+                            let incoming = if let Some((_, sf)) = info.state_field
+                                && let Rvalue::Aggregate { operands, .. } = value
+                            {
+                                let field_state = operands
                                     .get(sf.0 as usize)
                                     .and_then(|op| match op {
                                         Operand::Copy(p) | Operand::Move(p)
@@ -1930,25 +2092,49 @@ fn verify_fn_state_contracts(
                                     })
                                     .unwrap_or_else(|| {
                                         ProtocolStateSet::all_variants(info.variant_count)
-                                    })
+                                    });
+                                HandleProtocolSlot::fresh(field_state)
+                            } else if let Rvalue::Use(op) = value {
+                                resolve_incoming_slot(&st, op, info.variant_count)
                             } else {
-                                ProtocolStateSet::single(variant.0)
+                                HandleProtocolSlot::unknown(info.variant_count)
+                            };
+                            let _ = st.slots[h_idx].replace_strong(incoming);
+                            st.invalidate_handle(h_idx);
+                            if let Some(targets) = st.may_alias.get(&rl).cloned() {
+                                for other_h in targets {
+                                    if other_h != h_idx
+                                        && local_info.get(other_h).is_some_and(Option::is_some)
+                                    {
+                                        let _ = st.slots[other_h].replace_weak_target(incoming);
+                                        st.invalidate_handle(other_h);
+                                    }
+                                }
                             }
-                        } else if let Rvalue::Use(op) = value {
-                            st.resolve_handle(op).map_or_else(
-                                || ProtocolStateSet::all_variants(info.variant_count),
-                                |src_h| st.states[src_h],
-                            )
                         } else {
-                            ProtocolStateSet::all_variants(info.variant_count)
-                        };
-                        st.set_handle_state(h_idx, new_state);
-                        st.invalidate_handle(h_idx);
-                        if let Some(targets) = st.may_alias.get(&rl).cloned() {
-                            for other_h in targets {
-                                if other_h != h_idx {
-                                    st.weak_update_handle_state(other_h, new_state);
-                                    st.invalidate_handle(other_h);
+                            // Direct enum state handle (`*e = Variant`): in-place state transition.
+                            let new_state = if let Rvalue::Aggregate {
+                                kind: AggregateKind::Adt { variant, .. },
+                                ..
+                            } = value
+                            {
+                                ProtocolStateSet::single(variant.0)
+                            } else if let Rvalue::Use(op) = value {
+                                st.resolve_handle(op).map_or_else(
+                                    || ProtocolStateSet::all_variants(info.variant_count),
+                                    |src_h| st.slots[src_h].states,
+                                )
+                            } else {
+                                ProtocolStateSet::all_variants(info.variant_count)
+                            };
+                            st.set_handle_state(h_idx, new_state);
+                            st.invalidate_handle(h_idx);
+                            if let Some(targets) = st.may_alias.get(&rl).cloned() {
+                                for other_h in targets {
+                                    if other_h != h_idx {
+                                        st.weak_update_handle_state(other_h, new_state);
+                                        st.invalidate_handle(other_h);
+                                    }
                                 }
                             }
                         }
@@ -1991,7 +2177,9 @@ fn verify_fn_state_contracts(
                         st.eu_of.remove(&dl);
                         st.discr_of.remove(&dl);
                         match value {
-                            Rvalue::Use(Operand::Copy(src) | Operand::Move(src)) => {
+                            Rvalue::Use(
+                                incoming_op @ (Operand::Copy(src) | Operand::Move(src)),
+                            ) => {
                                 let dest_is_pure_scalar = is_pure_scalar_ty(dest_ty);
                                 let dest_is_indirect = matches!(
                                     tys.get(dest_ty),
@@ -2051,12 +2239,28 @@ fn verify_fn_state_contracts(
                                         st.may_alias.insert(dl, ma);
                                     }
                                     if let Some(&h) = st.alias.get(&sl) {
-                                        if is_copy_value
+                                        let reassign_owning_param = di < param_count
+                                            && local_info.get(di).is_some_and(Option::is_some)
+                                            && !matches!(
+                                                tys.get(dest_ty),
+                                                Some(TyKind::Ref { .. } | TyKind::Desc(_))
+                                            );
+                                        if (is_copy_value || reassign_owning_param)
                                             && local_info.get(di).is_some_and(Option::is_some)
                                         {
-                                            // By-value Copy of a value-type protocol handle creates an independent copy.
-                                            st.states[di] = st.states[h];
-                                            st.retired[di] = st.retired[h];
+                                            // By-value Copy or reassignment of an owning parameter slot
+                                            // installs the incoming handle's own state/history and clears stale retired.
+                                            let incoming =
+                                                if let Some(Some(info)) = local_info.get(di) {
+                                                    resolve_incoming_slot(
+                                                        &st,
+                                                        incoming_op,
+                                                        info.variant_count,
+                                                    )
+                                                } else {
+                                                    st.slots[h]
+                                                };
+                                            st.slots[di] = incoming;
                                             st.alias.insert(dl, di);
                                             let mut s = BTreeSet::new();
                                             s.insert(di);
@@ -2329,9 +2533,11 @@ fn verify_fn_state_contracts(
                                                         info.variant_count,
                                                     )
                                                 });
-                                            st.states[di] = field_state;
+                                            st.slots[di] = HandleProtocolSlot::fresh(field_state);
                                         } else {
-                                            st.states[di] = ProtocolStateSet::single(variant.0);
+                                            st.slots[di] = HandleProtocolSlot::fresh(
+                                                ProtocolStateSet::single(variant.0),
+                                            );
                                         }
                                     }
                                 }
@@ -2502,9 +2708,9 @@ fn verify_fn_state_contracts(
                         Some(DiscrTarget::Poll(pl)) => {
                             if let Some((h_idx, pend_st, ready_st)) = st.poll_of.get(&pl).copied() {
                                 if val == 0 {
-                                    branch_st.states[h_idx] = pend_st;
+                                    branch_st.slots[h_idx].states = pend_st;
                                 } else if val == 1 {
-                                    branch_st.states[h_idx] = ready_st;
+                                    branch_st.slots[h_idx].states = ready_st;
                                 }
                             }
                         }
@@ -2514,12 +2720,12 @@ fn verify_fn_state_contracts(
                                     if val == 1 {
                                         covered_ok = true;
                                         if let Some(s) = ok_st {
-                                            branch_st.states[h_idx] = s;
+                                            branch_st.slots[h_idx].states = s;
                                         }
                                     } else if val == 0 {
                                         covered_err = true;
                                         if let Some(s) = err_st {
-                                            branch_st.states[h_idx] = s;
+                                            branch_st.slots[h_idx].states = s;
                                         }
                                     }
                                 }
@@ -2528,16 +2734,16 @@ fn verify_fn_state_contracts(
                         Some(DiscrTarget::HandleState(h_idx)) => {
                             let single = ProtocolStateSet::single(val as u32);
                             covered_mask = covered_mask.union(single);
-                            let refined = branch_st.states[h_idx].intersect(single);
+                            let refined = branch_st.slots[h_idx].states.intersect(single);
                             if refined.is_empty() {
                                 continue;
                             }
-                            branch_st.states[h_idx] = refined;
+                            branch_st.slots[h_idx].states = refined;
                         }
                         Some(DiscrTarget::ValidCheck { handle, inverted }) => {
                             let is_invalid = (val == 0) != inverted;
                             if is_invalid {
-                                branch_st.states[handle] =
+                                branch_st.slots[handle].states =
                                     ProtocolStateSet(ProtocolStateSet::CLOSED);
                             } else {
                                 covered_valid_true = true;
@@ -2550,9 +2756,9 @@ fn verify_fn_state_contracts(
                 let mut other_st = st;
                 match target_info {
                     Some(DiscrTarget::HandleState(h_idx)) => {
-                        let rem = other_st.states[h_idx].subtract(covered_mask);
+                        let rem = other_st.slots[h_idx].states.subtract(covered_mask);
                         if !rem.is_empty() {
-                            other_st.states[h_idx] = rem;
+                            other_st.slots[h_idx].states = rem;
                             enqueue(*otherwise, other_st, &mut in_states, &mut queue);
                         }
                     }
@@ -2561,13 +2767,13 @@ fn verify_fn_state_contracts(
                             for (h_idx, ok_st, err_st) in entries {
                                 if covered_ok && !covered_err {
                                     if let Some(s) = err_st {
-                                        other_st.states[h_idx] = s;
+                                        other_st.slots[h_idx].states = s;
                                     }
                                 } else if covered_err
                                     && !covered_ok
                                     && let Some(s) = ok_st
                                 {
-                                    other_st.states[h_idx] = s;
+                                    other_st.slots[h_idx].states = s;
                                 }
                             }
                         }
@@ -2575,7 +2781,8 @@ fn verify_fn_state_contracts(
                     }
                     Some(DiscrTarget::ValidCheck { handle, .. }) => {
                         if covered_valid_true {
-                            other_st.states[handle] = ProtocolStateSet(ProtocolStateSet::CLOSED);
+                            other_st.slots[handle].states =
+                                ProtocolStateSet(ProtocolStateSet::CLOSED);
                         }
                         enqueue(*otherwise, other_st, &mut in_states, &mut queue);
                     }
@@ -2641,11 +2848,7 @@ fn verify_fn_state_contracts(
                                 if !excluded_handles.contains(&h_idx)
                                     && let Some(Some(info)) = local_info.get(h_idx)
                                 {
-                                    st.set_handle_state(
-                                        h_idx,
-                                        ProtocolStateSet::all_variants(info.variant_count),
-                                    );
-                                    st.rolled_back[h_idx] = true;
+                                    st.slots[h_idx].widen_unknown_mutation(info.variant_count);
                                     st.invalidate_handle(h_idx);
                                 }
                             }
@@ -2667,11 +2870,7 @@ fn verify_fn_state_contracts(
                                     if !excluded_handles.contains(&h_idx)
                                         && let Some(Some(info)) = local_info.get(h_idx)
                                     {
-                                        st.set_handle_state(
-                                            h_idx,
-                                            ProtocolStateSet::all_variants(info.variant_count),
-                                        );
-                                        st.rolled_back[h_idx] = true;
+                                        st.slots[h_idx].widen_unknown_mutation(info.variant_count);
                                         st.invalidate_handle(h_idx);
                                     }
                                 }
@@ -2803,10 +3002,7 @@ fn verify_fn_state_contracts(
                                         .unwrap_or_else(|| {
                                             ProtocolStateSet::all_variants(info.variant_count)
                                         });
-                                    st.states[di] = field_state;
-                                    st.history[di] = field_state;
-                                    st.departed_from[di] = ProtocolStateSet(0);
-                                    st.rolled_back[di] = false;
+                                    st.slots[di] = HandleProtocolSlot::fresh(field_state);
                                 }
                             }
                         }
@@ -2881,7 +3077,7 @@ fn verify_fn_state_contracts(
                         if let Some(a0) = args.first()
                             && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            let cur = st.states[h_idx];
+                            let cur = st.slots[h_idx].states;
                             let mut next = ProtocolStateSet(0);
                             if (cur.0 & (ProtocolStateSet::OPEN | ProtocolStateSet::CLOSING)) != 0 {
                                 next = next.union(ProtocolStateSet(
@@ -2891,7 +3087,7 @@ fn verify_fn_state_contracts(
                             if (cur.0 & ProtocolStateSet::CLOSED) != 0 {
                                 next = next.union(ProtocolStateSet(ProtocolStateSet::CLOSED));
                             }
-                            st.states[h_idx] = next;
+                            st.slots[h_idx].states = next;
                             st.invalidate_handle(h_idx);
                         }
                     }
@@ -2901,7 +3097,7 @@ fn verify_fn_state_contracts(
                         if let Some(a0) = args.first()
                             && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            st.states[h_idx] = ProtocolStateSet(
+                            st.slots[h_idx].states = ProtocolStateSet(
                                 ProtocolStateSet::CLOSING | ProtocolStateSet::CLOSED,
                             );
                             st.invalidate_handle(h_idx);
@@ -2924,14 +3120,15 @@ fn verify_fn_state_contracts(
                         if let Some(a0) = args.first()
                             && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            if !st.states[h_idx]
+                            if !st.slots[h_idx]
+                                .states
                                 .is_subset_of(ProtocolStateSet(ProtocolStateSet::CLOSED))
                             {
                                 return Err(fail(
                                     "finish_destroy called on protocol handle not proved Closed",
                                 ));
                             }
-                            st.retired[h_idx] = true;
+                            st.slots[h_idx].retired = true;
                             st.invalidate_handle(h_idx);
                         }
                     }
@@ -2939,7 +3136,7 @@ fn verify_fn_state_contracts(
                         if let Some(a0) = args.first()
                             && let Some(h_idx) = st.resolve_handle(a0)
                         {
-                            st.retired[h_idx] = true;
+                            st.slots[h_idx].retired = true;
                             st.invalidate_handle(h_idx);
                         }
                     }
@@ -2968,7 +3165,7 @@ fn verify_fn_state_contracts(
                                                 "callee requires(state(...)) argument has unknown protocol handle state",
                                             ));
                                         };
-                                        if !st.states[h_idx].is_subset_of(states) {
+                                        if !st.slots[h_idx].states.is_subset_of(states) {
                                             return Err(fail(
                                                 "callee requires(state(...)) precondition not satisfied",
                                             ));
@@ -3115,11 +3312,11 @@ fn verify_fn_state_contracts(
                                         {
                                             for h_idx in ma_set {
                                                 if let Some(Some(info)) = local_info.get(h_idx) {
-                                                    st.history[h_idx] =
+                                                    st.slots[h_idx].history =
                                                         ProtocolStateSet::all_variants(
                                                             info.variant_count,
                                                         );
-                                                    st.rolled_back[h_idx] = true;
+                                                    st.slots[h_idx].rolled_back = true;
                                                 }
                                             }
                                         }
@@ -3128,7 +3325,7 @@ fn verify_fn_state_contracts(
                                         if let Some(arg) = args.get(param as usize)
                                             && let Some(h_idx) = st.resolve_handle(arg)
                                         {
-                                            st.retired[h_idx] = true;
+                                            st.slots[h_idx].retired = true;
                                             st.invalidate_handle(h_idx);
                                             contracted_handles.push(h_idx);
                                         }
@@ -3215,13 +3412,9 @@ fn verify_fn_state_contracts(
                                                         && let Some(Some(info)) =
                                                             local_info.get(h_idx)
                                                     {
-                                                        st.set_handle_state(
-                                                            h_idx,
-                                                            ProtocolStateSet::all_variants(
-                                                                info.variant_count,
-                                                            ),
+                                                        st.slots[h_idx].widen_unknown_mutation(
+                                                            info.variant_count,
                                                         );
-                                                        st.rolled_back[h_idx] = true;
                                                         st.invalidate_handle(h_idx);
                                                     }
                                                 }
@@ -3268,12 +3461,13 @@ fn verify_fn_state_contracts(
                                     let ready = ready_by_handle
                                         .get(&h_idx)
                                         .copied()
-                                        .unwrap_or(st.states[h_idx]);
+                                        .unwrap_or(st.slots[h_idx].states);
                                     st.poll_of.insert(dl, (h_idx, pend, ready));
                                 }
                                 for (&h_idx, &ready) in &ready_by_handle {
                                     if !pend_by_handle.contains_key(&h_idx) {
-                                        st.poll_of.insert(dl, (h_idx, st.states[h_idx], ready));
+                                        st.poll_of
+                                            .insert(dl, (h_idx, st.slots[h_idx].states, ready));
                                     }
                                 }
                                 if !ok_by_handle.is_empty() || !err_by_handle.is_empty() {
@@ -3282,7 +3476,7 @@ fn verify_fn_state_contracts(
                                     for (&h_idx, &ok_st) in &ok_by_handle {
                                         let err_st = err_by_handle.get(&h_idx).copied();
                                         let joined = err_st
-                                            .map_or(st.states[h_idx].union(ok_st), |e| {
+                                            .map_or(st.slots[h_idx].states.union(ok_st), |e| {
                                                 ok_st.union(e)
                                             });
                                         st.set_handle_state(h_idx, joined);
@@ -3292,7 +3486,7 @@ fn verify_fn_state_contracts(
                                     }
                                     for (&h_idx, &err_st) in &err_by_handle {
                                         if !seen.contains(&h_idx) {
-                                            let joined = st.states[h_idx].union(err_st);
+                                            let joined = st.slots[h_idx].states.union(err_st);
                                             st.set_handle_state(h_idx, joined);
                                             st.invalidate_handle(h_idx);
                                             entries.push((h_idx, None, Some(err_st)));
@@ -3361,14 +3555,14 @@ fn verify_fn_state_contracts(
                         | StateContractClause::Invalidates { .. }
                         | StateContractClause::AllowsRollback { .. } => {}
                         StateContractClause::ProvidesRetired { param } => {
-                            if !st.retired[param as usize] {
+                            if !st.slots[param as usize].retired {
                                 return Err(fail(
                                     "function fails to satisfy provides(retired(...)) on all return paths",
                                 ));
                             }
                         }
                         StateContractClause::ProvidesState { param, states } => {
-                            if !st.states[param as usize].is_subset_of(states) {
+                            if !st.slots[param as usize].states.is_subset_of(states) {
                                 return Err(fail(
                                     "function fails to satisfy provides(state(...)) on all return paths",
                                 ));
@@ -3387,7 +3581,7 @@ fn verify_fn_state_contracts(
                                 // Returning Poll.Ready directly; on_pending vacuously holds.
                                 true
                             } else {
-                                st.states[p_idx].is_subset_of(states)
+                                st.slots[p_idx].states.is_subset_of(states)
                             };
                             if !ok {
                                 return Err(fail(
@@ -3408,7 +3602,7 @@ fn verify_fn_state_contracts(
                                 // Returning Poll.Pending directly; on_ready vacuously holds.
                                 true
                             } else {
-                                st.states[p_idx].is_subset_of(states)
+                                st.slots[p_idx].states.is_subset_of(states)
                             };
                             if !ok {
                                 return Err(fail(
@@ -3430,7 +3624,7 @@ fn verify_fn_state_contracts(
                                 // Returning .err(...) directly; on_ok vacuously holds.
                                 true
                             } else {
-                                st.states[p_idx].is_subset_of(states)
+                                st.slots[p_idx].states.is_subset_of(states)
                             };
                             if !ok {
                                 return Err(fail(
@@ -3452,7 +3646,7 @@ fn verify_fn_state_contracts(
                                 // Returning .ok(...) directly; on_err vacuously holds.
                                 true
                             } else {
-                                st.states[p_idx].is_subset_of(states)
+                                st.slots[p_idx].states.is_subset_of(states)
                             };
                             if !ok {
                                 return Err(fail(
@@ -3483,9 +3677,7 @@ fn verify_fn_state_contracts(
                     if allows_rollback[p_idx] {
                         continue;
                     }
-                    let allowed_history = entry_init_states[p_idx].union(st.states[p_idx]);
-                    let has_hidden_rollback =
-                        st.rolled_back[p_idx] || !st.history[p_idx].is_subset_of(allowed_history);
+                    let has_hidden_rollback = st.slots[p_idx].has_hidden_rollback();
                     if has_hidden_rollback
                         && (declared_requires_state[p_idx].is_some() || has_invalidation_upper)
                     {
