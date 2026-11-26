@@ -396,16 +396,12 @@ pub fn build_verified_body(
                     "ir".into(),
                     opt_flag.into(),
                     ir_path.display().to_string(),
-                    "-x".into(),
-                    "none".into(),
                 ];
                 cmd.arg(&target_flag)
                     .arg("-x")
                     .arg("ir")
                     .arg(opt_flag)
-                    .arg(&ir_path)
-                    .arg("-x")
-                    .arg("none");
+                    .arg(&ir_path);
                 for c_src in &options.extra_c_sources {
                     cmd.arg("-x").arg("c").arg(c_src);
                     argv.push("-x".into());
@@ -416,7 +412,12 @@ pub fn build_verified_body(
                 argv.push("-o".into());
                 argv.push(options.output.display().to_string());
                 if is_windows {
-                    cmd.arg("-llegacy_stdio_definitions").arg("-lws2_32");
+                    cmd.arg("-x")
+                        .arg("none")
+                        .arg("-llegacy_stdio_definitions")
+                        .arg("-lws2_32");
+                    argv.push("-x".into());
+                    argv.push("none".into());
                     argv.push("-llegacy_stdio_definitions".into());
                     argv.push("-lws2_32".into());
                 }
