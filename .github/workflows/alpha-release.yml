@@ -1,0 +1,167 @@
+name: Linux x86_64 Alpha release packaging and clean-env verification
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: Release bundle identifier (default alpha)
+        required: false
+        default: alpha
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: read
+concurrency:
+  group: zil-alpha-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  package-linux-x86_64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: '4'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Reclaim unused hosted-runner toolchain space
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS,RUNNER_TEMP,GITHUB_WORKSPACE python3 tools/ci/research_disk_space.py --apply
+      - name: Cache LLVM 23.1.4 runtime prefix
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/zil-llvm/23.1.4
+          key: zil-llvm-runtime-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json', 'tools/llvm/install.py') }}
+      - name: Install pinned LLVM 23.1.4 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          LLVM_PREFIX="$HOME/.cache/zil-llvm/23.1.4"
+          if [ ! -f "$LLVM_PREFIX/install-receipt.json" ]; then
+            sudo apt-get update
+            sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+            rm -rf "$LLVM_PREFIX"
+            mkdir -p "$(dirname "$LLVM_PREFIX")"
+            python3 tools/llvm/install.py --prefix "$LLVM_PREFIX"
+            rm -f "$LLVM_PREFIX"/lib/libLLVM*.a
+          fi
+          echo "ZIL_CLANG=$LLVM_PREFIX/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+      - name: Cache Cargo registry and release target
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ${{ runner.temp }}/release-target
+          key: zil-cargo-release-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            zil-cargo-release-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+            zil-cargo-release-v1-
+      - name: Build release zil binary and package deterministic Linux x86_64 tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/release-target"
+          test -z "$(git status --porcelain)"
+          COMMIT="$(git rev-parse HEAD)"
+          TREE="$(git rev-parse 'HEAD^{tree}')"
+          RELEASE_NAME="${{ github.event.inputs.release_name || 'alpha' }}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            RELEASE_NAME="${{ github.ref_name }}"
+          fi
+          rustup toolchain install 1.100.0 --profile minimal
+          python3 tools/llvm/check_toolchain.py
+          python3 -m unittest discover -s tools/release -p 'test_*.py' -v
+          cargo build --release --locked -p zil-cli
+          OUT_DIR="$RUNNER_TEMP/release-dist"
+          python3 tools/release/package_linux_alpha.py \
+            --repo . \
+            --zil-bin "$CARGO_TARGET_DIR/release/zil" \
+            --llvm-lib-dir "$ZIL_LLVM_LIB_DIR" \
+            --out-dir "$OUT_DIR" \
+            --version "$RELEASE_NAME" \
+            --source-commit "$COMMIT" \
+            --source-tree "$TREE" \
+            --clang-bin "$ZIL_CLANG"
+          cp tools/release/verify_clean_install.py "$OUT_DIR/verify_clean_install.py"
+          echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
+      - name: Upload packaged release artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-linux-x86_64-release-bundle
+          path: ${{ runner.temp }}/release-dist
+          retention-days: 30
+          if-no-files-found: error
+
+  verify-clean-environment:
+    needs: package-linux-x86_64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # Intentionally NO actions/checkout, NO Rust toolchain, NO Cargo cache.
+      - name: Install minimal runtime linker prerequisites only
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang libzstd1 libxml2 zlib1g
+      - name: Download packaged release bundle only
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: zil-linux-x86_64-release-bundle
+          path: ${{ runner.temp }}/bundle
+      - name: Verify checksums, manifest, standalone multi-module builds, and SafeReject in clean environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/bundle"
+          ARCHIVE="$(ls "$BUNDLE"/zil-*-linux-x86_64.tar.gz)"
+          python3 "$BUNDLE/verify_clean_install.py" \
+            --archive "$ARCHIVE" \
+            --sha256sums "$BUNDLE/SHA256SUMS.txt" \
+            --manifest "$BUNDLE/RELEASE-MANIFEST.json" \
+            --out-json "$BUNDLE/clean-env-verify-receipt.json"
+      - name: Upload clean-environment verification receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-linux-x86_64-clean-env-receipt
+          path: ${{ runner.temp }}/bundle/clean-env-verify-receipt.json
+          retention-days: 30
+          if-no-files-found: error
+
+  publish-github-release:
+    needs: [package-linux-x86_64, verify-clean-environment]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified release bundle and clean-env receipt
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/release-assets
+      - name: Publish GitHub Release for tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/release-assets/zil-linux-x86_64-release-bundle"
+          RECEIPT="$RUNNER_TEMP/release-assets/zil-linux-x86_64-clean-env-receipt/clean-env-verify-receipt.json"
+          ARCHIVE="$(ls "$BUNDLE"/zil-*-linux-x86_64.tar.gz)"
+          gh release create "${GITHUB_REF_NAME}" \
+            "$ARCHIVE" \
+            "$BUNDLE/SHA256SUMS.txt" \
+            "$BUNDLE/RELEASE-MANIFEST.json" \
+            "$RECEIPT" \
+            --title "ZIL ${GITHUB_REF_NAME} (Linux x86_64)" \
+            --notes "Verified Linux x86_64 release bundle with deterministic archive, SHA256SUMS, RELEASE-MANIFEST.json, and clean-environment verification receipt."
