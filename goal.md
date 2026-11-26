@@ -9,12 +9,11 @@
 
 ## 0. 执行摘要与已完成合入总表
 
-- **当前最终冻结候选基线**：`main@99058c1`（`99058c19fe26c19e0ab6e425a70652ba1af0105f`），Linux x86_64 全基础功能日常可用 **`Alpha`** 候选与四项外部验收整改已全部闭环并合入 `main`。
-- **同一冻结提交双工作流全绿**：
-  - **12+8 全门冻结验收**（[`alpha-acceptance.yml` #45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096)，6m32s 全绿）：Native API State/Store `16/128/56` ✅、Fixed Projects `21/21`（`152/152 required`，`196 historical`，`44 archival due to lost stdin`）✅、Roam `42/42` ✅、Roam `24/24` ✅、**Everyday Apps `8/8`（16 项双后端测试）** ✅、**Basic-Language Capabilities `12/12`（217 项双后端测试）** ✅、全部覆盖 `clang-o0`/`clang-o2`/`llvmapi-o0`/`llvmapi-o2` 四配置与 fail-closed 汇总核验 ✅。
-  - **Linux x86_64 打包 + 空环境独立验证**（[`alpha-release.yml` #45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740)，打包 2m46s + 空环境验证 36s 全绿）：产出确定性归档 `zil-alpha-linux-x86_64.tar.gz`（SHA-256 `82288024b9bb396c51c81b5ae5b19f5dee838c3b3cfaa83444f420a505dbe08f`）+ `RELEASE-MANIFEST.json` + `SHA256SUMS.txt`；全新 `ubuntu-24.04`  runner（**无 `actions/checkout`、无 Rust、无 Cargo 缓存**）独立验证校验和、46 文件 + 1 软链清单、`zil version`（`default backend: llvm-api`）、`json-processor` O0/O2（含 UTF-16 代理对 `\uD83D\uDE00 -> "😀"`）、`zil lock`、`async-task-scheduler` O2 与 `SafeReject` 负控全部通过 ✅。
-- **发布就绪态**：未擅自创建 GitHub Release 标签；用户签发后直接推送 `v*` 标签即可触发 `alpha-release.yml` 的 `publish-github-release` 作业自动附带已验证归档、校验和、清单与空环境收据发布。
-- **非 Alpha 阻断项**：Windows x64（`G10.4`）、ZUI 窗口/渲染/应用层（`G9.4–G9.6`）、编译与运行性能净突破专项（`G10.5`）及终态产品门（`G10.6`）保持独立推进，不阻断首个 Linux Alpha。
+- **首个正式发布的 Linux x86_64 Pre-release**：[**`v1.0.0-alpha.1`**](https://github.com/zil-lang/zil/releases/tag/v1.0.0-alpha.1)（绑定提交 `main@719ea01` / `719ea01d979f1f34e9fee0f72bb8c1481c594835`，标记 `--prerelease --latest=false`）：
+  - **同提交 12+8 全门冻结验收**（[`alpha-acceptance.yml` #45754945988](https://github.com/zil-lang/zil/actions/runs/45754945988)，6m11s 全绿）：Native API State/Store `16/128/56` ✅、Fixed Projects `21/21`（`152/152 required`，`196 historical`，`44 archival due to lost stdin`）✅、Roam `42/42` ✅、Roam `24/24` ✅、**Everyday Apps `8/8`（16 项双后端测试）** ✅、**Basic-Language Capabilities `12/12`（217 项双后端测试）** ✅。
+  - **同提交自动打包 + 空环境独立验证 + 门禁发布**（[`alpha-release.yml` #45755676030](https://github.com/zil-lang/zil/actions/runs/45755676030)，打包 3m02s + 空环境验证 40s + 门禁发布 20s 全绿）：已自动验证同提交验收绿灯并上传 4 份发行资产（`zil-v1.0.0-alpha.1-linux-x86_64.tar.gz`、`RELEASE-MANIFEST.json`、`SHA256SUMS.txt`、`clean-env-verify-receipt.json`），全新无源码/无 Rust `ubuntu-24.04` 空环境验证 `zil 1.0.0-alpha.1 (ZIL-LANG-1.4; Rust 2024; ZIL 1.0 Alpha; default backend: llvm-api)` 全部通过 ✅。
+- **当前主线 HEAD & 下一 P0 平台里程碑**：`main@fa0a904`（`fa0a9041a42db33a91f9a6a77f1e78c6ae900540`），已将 **`G10.4`（Windows x64 原生支持，W1–W5）** 提升为下一 **P0 平台里程碑**，且 **W1 目标管线打通 + 真实 `windows-latest` 原生 CI 已合入并全绿**（[PR #163](https://github.com/zil-lang/zil/pull/163)、[`windows-native.yml` #45756737871](https://github.com/zil-lang/zil/actions/runs/45756737871) 1m33s 全绿）。
+- **持续推进边界**：Linux Alpha 保持强制零退化回归基线；Win64 按 W1→W2→W3→W4→W5 分阶段诚实声明（W1 仅声明 Win64 编译/链接打通，W1–W3 达成核心语言与运行时，W1–W5 达成完整 Win64 Alpha），不与 ZUI（`G9.4–G9.6`）或编译性能专项（`G10.5`）混改。
 
 ### 本轮已完成并合入 `main` 的全部 PR（按合入顺序）
 
@@ -41,7 +40,10 @@
 | 19 | 新增 Linux x86_64 确定性发布打包、`alpha-release.yml` 无源码/无 Rust 空环境验证与 `supported-language.md` 三分类核对表 | `G10.0` / `G10.7` | [PR #157](https://github.com/zil-lang/zil/pull/157) (`bc4fd51`) | ✅ 已合入 `main` |
 | 20 | 升级 `alpha-acceptance.yml` 与 `alpha_acceptance_summary.py` 强制 fail-closed 核验 12/12 能力族 + 8/8 日常应用 + 诚实 Fixed Projects 分母 | `G10.7` | [PR #158](https://github.com/zil-lang/zil/pull/158) (`c48fae4`) | ✅ 已合入 `main` |
 | 21 | 修复发布归档 `libLLVM.so.23.1` ELF SONAME + `libLLVM-23.so` 软链与 `Zil.toml` 项目目录验证 | `G10.0` | [PR #159](https://github.com/zil-lang/zil/pull/159) (`c63b3df`) | ✅ 已合入 `main` |
-| 22 | 发布打包自动为 8 个日常样例生成 `Zil.lock`，空环境验证覆盖 `zil lock` + `zil build` 全链路 | `G10.0` | [PR #160](https://github.com/zil-lang/zil/pull/160) (`99058c1`) | ✅ 已合入 `main` + [#45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096) & [#45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740) 双全绿 |
+| 22 | 发布打包自动为 8 个日常样例生成 `Zil.lock`，空环境验证覆盖 `zil lock` + `zil build` 全链路 | `G10.0` | [PR #160](https://github.com/zil-lang/zil/pull/160) (`99058c1`) | ✅ 已合入 `main` |
+| 23 | 统一版本号为 `1.0.0-alpha.1`、标记 `--prerelease --latest=false`、增加同提交 `alpha-acceptance.yml` 强制门禁 | `G10.0` / `G10.7` | [PR #161](https://github.com/zil-lang/zil/pull/161) (`b71938f`) | ✅ 已合入 `main` |
+| 24 | 为无 checkout 发布作业补齐 `gh release create --repo`，自动签发 [`v1.0.0-alpha.1`](https://github.com/zil-lang/zil/releases/tag/v1.0.0-alpha.1) | `G10.0` | [PR #162](https://github.com/zil-lang/zil/pull/162) (`719ea01`) | ✅ 已合入 `main` + 正式 Pre-release 上线（[#45754945988](https://github.com/zil-lang/zil/actions/runs/45754945988) & [#45755676030](https://github.com/zil-lang/zil/actions/runs/45755676030)） |
+| 25 | **Win64 W1**：全链路接通 `TargetProfile`/`WindowsLinkOptions`、MSVC COFF/PE 构建链接、W3 未实现并发显式 `Unsupported` 与真实 `windows-latest` 原生 CI | `G10.4`（W1） | [PR #163](https://github.com/zil-lang/zil/pull/163) (`fa0a904`) | ✅ 已合入 `main` + 真实 `windows-latest` 全绿（[#45756737871](https://github.com/zil-lang/zil/actions/runs/45756737871)） |
 
 ---
 
@@ -60,7 +62,7 @@
 | [G7](#g7--外部接口c-abi-与已登记回调) | 外部接口、C ABI 与已登记回调 | `foreign-lifecycle` | ✅ 已闭环（Alpha） | 完整 POD C-ABI/`CCallback`/`errno`、五态 CAS `c_register`/`c_register_async`、`RISKS.json` 14 项、与 G6.3-D/E 协议及取消边完整联合 | Alpha 无缺口；非 Linux ABI 见 `G10.4` |
 | [G8](#g8--异步任务与多线程并发) | 异步任务与多线程并发 | `async-ownership` + `threads-and-synchronization` | ✅ 已闭环（Alpha） | `ucontext_t` 协程、嵌套可挂起调用确定性取消展开（PR #151）、`TaskStart`/`TaskValid`（PR #150）、Roam `24/24`、`pthread` `ThreadScope`/`Mutex<T>`/5 序原子与强 CAS，经 HTTP/批处理/异步调度器三应用联验 | Alpha 无缺口；跨线程任务迁移与跨模块非标量 `pub Suspend` 属 Post-Alpha |
 | [G9](#g9--标准库资源图与-zui) | 标准库、资源图与 ZUI | `standard-library` + `resource-graphs` | ✅ 已闭环（Alpha 标准库） | 28 个内嵌信任根模块（UTF-8/`std.string` 高频辅助/数值/POD&Owning 哈希集合/`iter`/`graph`/`io`/`buffered_io`/`std.fs` 全套目录元数据/`std.path`/`std.env.args`/`std.net` POSIX TCP/`time`）+ `G9.2` 软件 UI 核心 | Alpha 标准库 4/4 已闭环；`G9.4–G9.6` ZUI（窗口/GPU/IME）不阻断 Alpha |
-| [G10](#g10--工程工作流原生交付与发布验收) | 工程工作流、原生交付与发布验收 | `project-workflow` + `native-delivery` + `release-acceptance` | ✅ 双冻结全绿（待签发标签） | `zil check/build/run/test/lock`、双后端 O0/O2、分层缓存 CI、**12+8 全门冻结收据**（[#45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096)）与 **Linux x86_64 确定性发布包 + 无源码/无 Rust 空环境安装验证**（[#45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740)）同提交全绿 | 待用户签发并推送 `v*` 标签发布首个 Linux Alpha；`G10.4` Windows / `G10.5` 性能 / `G10.6` 终态产品门不阻断 Alpha |
+| [G10](#g10--工程工作流原生交付与发布验收) | 工程工作流、原生交付与发布验收 | `project-workflow` + `native-delivery` + `release-acceptance` | ✅ Linux `v1.0.0-alpha.1` 已发布；Win64 P0 推进中 | Linux x86_64 [`v1.0.0-alpha.1`](https://github.com/zil-lang/zil/releases/tag/v1.0.0-alpha.1) Pre-release 已正式发布（同提交 12+8 验收 [#45754945988](https://github.com/zil-lang/zil/actions/runs/45754945988) + 空环境与自动发布 [#45755676030](https://github.com/zil-lang/zil/actions/runs/45755676030)）；**Win64 W1 已合入且真实 `windows-latest` 全绿**（PR #163 / [#45756737871](https://github.com/zil-lang/zil/actions/runs/45756737871)） | **下一 P0**：`G10.4` Win64 W2–W5（MSVC ABI、Fiber/SRWLOCK/ThreadScope 运行时、`std.sys` Windows I/O & Winsock2、Win64 12+8 发行与空环境验证）；`G10.5` 性能 / `G10.6` 终态产品门独立推进 |
 
 ---
 
@@ -168,16 +170,28 @@
 
 ### G10 · 工程工作流、原生交付与发布验收
 
-- **发布门**：`project-workflow` + `native-delivery` + `release-acceptance` · **规范**：`docs/guide/build.md`、`validation/language-alpha-profile.json`、`validation/product-gates.json` · **总态**：✅ 候选已全绿（待签发）
+- **发布门**：`project-workflow` + `native-delivery` + `release-acceptance` · **规范**：`docs/guide/build.md`、`validation/language-alpha-profile.json`、`validation/product-gates.json` · **总态**：✅ Linux `v1.0.0-alpha.1` 已发布；`G10.4` Win64 P0 进行中（W1 已合入）
 
 | ID | 子功能 | 状态 | 里程碑 | 已完成（当前可用能力） | 待完成（剩余差距与边界） |
 | --- | --- | --- | --- | --- | --- |
-| G10.0 & G10.2–G10.3 | Linux x86_64 双后端、发布打包与空环境验证 | ✅ 已闭环（PR #157/#159/#160） | Alpha 必选 | Clang + LLVM 23.1.4 C API × O0/O2、1/4/8 并行链接、Fixed Projects `21/21`（`152/152 required` / `196 historical`, `44 archival`）、State/Store `16/128/56`、确定性 Linux x86_64 归档包（含 `bin/zil`、`lib/libLLVM.so.23.1` + `libLLVM-23.so`、`RELEASE-MANIFEST.json`、`SHA256SUMS.txt`、预锁 `Zil.lock` 样例）与全新无源码/无 Rust `ubuntu-24.04` 空环境验证（[`alpha-release.yml` #45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740) 全绿） | 无（待用户签发 `v*` 标签自动发布 GitHub Release） |
-| G10.1 | 项目工作流、分层 CI 与留证治理 | ✅ 已闭环（PR #140/#142/#153/#154/#157/#158） | Alpha 必选 | `zil check/build/run/test/lock`、常驻模式；清理 20 份过程 JSON、CI 提速至 `documentation` ~11s / `workspace` ~3–4m、新增 `tools/dev-check.py`、`docs/guide/supported-language.md` 12 项能力三分类核对表与 fail-closed `alpha-acceptance.yml` | 无 |
-| **G10.7** | **12+8 全门冻结验收与 Alpha 签发就绪** | ✅ 双冻结全绿（待签发标签） | **Alpha 必选** | `validation/language-alpha-profile.json` 12+8 合同对齐（PR #138）；8 类日常应用全部合入并在 PR #155 补齐 JSON UTF-16 代理对/控制字符与 CSV/HTTP 规范边界；`main@99058c1` 冻结验收 [`alpha-acceptance.yml` #45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096)（6m32s 全绿：State/Store `16/128/56`、Fixed Projects `21/21` [`152/152 required`, `196 historical`, `44 archival`]、Roam `42/42` + `24/24`、**Everyday Apps `8/8` [16/16]**、**Capabilities `12/12` [217/217]**，全部覆盖 Clang+LLVM API O0/O2）与 [`alpha-release.yml` #45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740) 双全绿 | 待用户签发并推送 `v*` 标签触发 `publish-github-release` |
-| G10.4 | Windows x64 原生支持 | ⚪ 未开始 | **非 Alpha 阻断** | 无原生 Windows 执行收据 | 原生 Windows x64 CLI、ABI、Runtime、I/O、线程/Task 与真实 Windows CI（交叉构建/Wine 不算通过） |
-| G10.5 | 编译与运行性能突破专项 | 🟠 进行中 | **非 Alpha 阻断** | LLVM 23.1.4 Stage 1 桥接已合入；独立研究分支 `research/full-push-native`、`integrate/scalar-codegen` 推进中 | Stage 2（去除 `body_structured.rs` 文本桥接直接降级）及同语义 Rust 相对性能/编译净突破 |
-| G10.6 | 终态产品门（`product-gates.json`） | ⚪ 未开始 | **非 Alpha 阻断** | `validation/product-gates.json` 合同已固定 | 零 safe UB、Rust 相对性能/编译门、可重复净突破、B0 与 ZUI 终态冻结独立复验 |
+| G10.0 & G10.2–G10.3 | Linux x86_64 双后端、发布打包与空环境验证 | ✅ 已发布（[`v1.0.0-alpha.1`](https://github.com/zil-lang/zil/releases/tag/v1.0.0-alpha.1)） | Linux Alpha 必选 | Clang + LLVM 23.1.4 C API × O0/O2、1/4/8 并行链接、Fixed Projects `21/21`（`152/152 required` / `196 historical`, `44 archival`）、State/Store `16/128/56`、版本号统一 `1.0.0-alpha.1`（PR #161/#162）、同提交门禁自动发布 GitHub Pre-release [`v1.0.0-alpha.1`](https://github.com/zil-lang/zil/releases/tag/v1.0.0-alpha.1)（[`#45755676030`](https://github.com/zil-lang/zil/actions/runs/45755676030) 全绿，4 份已校验资产） | 无（保持 Linux Alpha 回归零退化） |
+| G10.1 | 项目工作流、分层 CI 与留证治理 | ✅ 已闭环 | Alpha 必选 | `zil check/build/run/test/lock`、常驻模式；清理 20 份过程 JSON、CI 提速至 `documentation` ~11s / `workspace` ~3–4m、新增 `tools/dev-check.py`、`docs/guide/supported-language.md` 12 项能力三分类核对表与 fail-closed `alpha-acceptance.yml` | 无 |
+| G10.7 | 12+8 全门冻结验收与 Alpha 签发 | ✅ 已签发（`v1.0.0-alpha.1`） | Linux Alpha 必选 | `validation/language-alpha-profile.json` 12+8 合同对齐（PR #138）；8 类日常应用全部合入并补齐 JSON UTF-16 代理对/CSV/HTTP 规范边界（PR #155）；`main@719ea01` 冻结验收 [`#45754945988`](https://github.com/zil-lang/zil/actions/runs/45754945988)（6m11s 全绿）与正式 Pre-release 发布 [`#45755676030`](https://github.com/zil-lang/zil/actions/runs/45755676030) 同提交全绿 | 无（Win64 对应验收见 `G10.4-W5`） |
+| **G10.4** | **Windows x64 原生支持（W1–W5）** | 🟠 **P0 进行中（W1 ✅ 已合入）** | **下一 P0 平台里程碑** | **W1 已合入**（[PR #163](https://github.com/zil-lang/zil/pull/163) `fa0a904`）：全链路接通 `TargetProfile`/`WindowsLinkOptions`、`x86_64-pc-windows-msvc` COFF/PE 构建链接、剔除 POSIX 声明、UCRT `_errno`/`printf` 桥接、W3 未实现并发显式 `Unsupported`、真实 `windows-latest` 原生 CI（[`#45756737871`](https://github.com/zil-lang/zil/actions/runs/45756737871) 1m33s 全绿） | 见下方 **W1–W5 分阶段路线图与诚实声明口径**（保持语言语义统一、`zil-check` 零绕过、Linux 零退化，不与 ZUI/性能分支混改） |
+| G10.5 | 编译与运行性能突破专项 | 🟠 进行中 | Post-Alpha 专项 | LLVM 23.1.4 Stage 1 桥接已合入；独立研究分支 `research/full-push-native`、`integrate/scalar-codegen` 推进中 | Stage 2（去除 `body_structured.rs` 文本桥接直接降级）及同语义 Rust 相对性能/编译净突破 |
+| G10.6 | 终态产品门（`product-gates.json`） | ⚪ 未开始 | 终态发布 | `validation/product-gates.json` 合同已固定 | 零 safe UB、Rust 相对性能/编译门、可重复净突破、B0 与 ZUI 终态冻结独立复验 |
+
+#### G10.4 明细：Windows x64 原生支持分阶段路线图（W1–W5，P0）
+
+> **诚实声明口径**：完成 **W1** = Windows x64 编译/链接初步打通（当前态）；完成 **W1–W3** = Windows 核心语言与并发/异步运行时支持；完成 **W1–W5** = Windows x64 完整 Alpha 支持。任何阶段均不得绕过独立 `zil-check` 或破坏 Linux Alpha 回归基线。
+
+| 阶段 | 范围与核心交付 | 验收门槛（必须跑在真实 `windows-latest`） | 当前态 |
+| --- | --- | --- | --- |
+| **W1** | 目标管线与构建打通：`TargetProfile`/`WindowsLinkOptions` 全链路接入 `BodyBuildOptions`/`body_emit`/`body_build`；`x86_64-pc-windows-msvc` COFF/PE 发射与链接；剔除 Linux POSIX 声明；未实现并发返回 `Unsupported`；原生 `windows-latest` CI | `zil.exe` 原生构建 + `win64_pipeline_native`（O0/O2 执行、`OwnedDyn`、C 观察器 `Drop`、`ByteBuffer`/`Store`、`ErrorUnion`、`_errno`/UCRT `printf`、`SafeReject` 预代码生成拦截）+ `zil check/build/run/lock/test` 全绿 | ✅ **已合入**（[PR #163](https://github.com/zil-lang/zil/pull/163) / [#45756737871](https://github.com/zil-lang/zil/actions/runs/45756737871)） |
+| **W2** | Windows x64 MSVC ABI 与核心运行时：4 寄存器 + 32 字节 shadow space、聚合体按值/隐藏指针传返、`CCallback`、大栈帧 `__chkstk` 探测、堆分配/OOM 清理与 TLS 边界实测 | 真实 C 宿主机（MSVC/Clang-cl）跨语言 ABI 互调矩阵 + OOM 注入零泄漏 + `SafeReject` 配对负例全绿 | ⚪ 下一步 P0 |
+| **W3** | Windows 并发与异步运行时：Windows Fiber（`ConvertThreadToFiber`/`CreateFiberEx`/`SwitchToFiber`）承载 `Task`（保留 `Pending`/`Ready`/`Cancel`/`PendingExit`/单次 `Drop` 精确语义）；`_beginthreadex` `ThreadScope`；`SRWLOCK`/`CRITICAL_SECTION` `Mutex<T>` 与仿射 `Guard`；LLVM 原子与 `AsyncRegistration` 五态门控 | `Task`/`Cancel`/40 轮取消压力 + `ThreadScope`/`Mutex`/5 序原子 + `AsyncRegistration` 跨线程晚通知测试在真实 Windows 全绿 | ⚪ 待启动 |
+| **W4** | 标准库平台抽象层（`std.sys`）：保持 `std.io`/`std.fs`/`std.path`/`std.env`/`std.time`/`std.net` 公共 API 不变，按目标拆分 Linux POSIX 与 Windows Win32/UCRT 实现（`HANDLE`/UTF-16 路径、盘符/UNC 规范化、Winsock2 `WSAStartup`/`SOCKET` 与 `WSAGetLastError`） | `std` 全套件 + 8 类日常应用全部在真实 Windows 原生编译执行并通过边界测试（含 TCP HTTP 回环、文件批处理与异步调度器） | ⚪ 待启动 |
+| **W5** | Windows x64 双后端与正式发行闭环：LLVM 23.1.4 Windows DLL/import lib 双后端（Clang + LLVM API × O0/O2）、12/12 基础能力 + 8/8 日常应用全门验收、`zil-v*-windows-x86_64.zip` 确定性打包与无源码/无 Rust 干净 `windows-latest` 安装验证 | 同提交 `windows-native-acceptance` + 空环境安装收据双全绿，具备发布 Windows x64 Alpha 条件 | ⚪ 待启动 |
 
 #### G10.7 明细：8 类真实日常程序综合验收矩阵（`8/8` 已合入 `main`）
 
