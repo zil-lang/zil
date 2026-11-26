@@ -1,6 +1,9 @@
-// Windows x64 UCRT binary byte I/O. Every opened descriptor uses _O_BINARY
-// (0x8000) and standard streams switch to _O_BINARY so LF bytes are preserved
-// verbatim without CRLF text-mode translation. A File owns exactly one fd.
+// Windows x64 UCRT binary byte I/O with strict UTF-8 -> UTF-16LE path conversion.
+// Every opened descriptor uses _wsopen_s(..., _O_BINARY, _SH_DENYNO, ...) and
+// standard streams switch to _O_BINARY so LF bytes are preserved verbatim without
+// CRLF text-mode translation. A File owns exactly one fd.
+import std.utf8
+
 extern "C" fn _read(fd: i32, buffer: &mut [u8; 64], count: u32) -> i32
 contract { provides(noescape(buffer)); effects(ffi); };
 extern "C" fn _write(fd: i32, buffer: &[u8; 64], count: u32) -> i32
@@ -8,7 +11,7 @@ contract { provides(noescape(buffer)); effects(ffi); };
 extern "C" fn _dup(fd: i32) -> i32;
 extern "C" fn _close(fd: i32) -> i32;
 extern "C" fn _setmode(fd: i32, mode: i32) -> i32;
-extern "C" fn _sopen_s(pfd: &mut i32, path: &u8, oflag: i32, shflag: i32, pmode: i32) -> i32
+extern "C" fn _wsopen_s(pfd: &mut i32, path: &u8, oflag: i32, shflag: i32, pmode: i32) -> i32
 contract { provides(noescape(pfd), noescape(path)); effects(ffi); };
 extern "C" fn zil_glibc_errno_exchange(next: i32) -> i32;
 
@@ -31,45 +34,54 @@ pub fn stdin() -> Error!File contract { result(create) } { return duplicate(0) }
 pub fn stdout() -> Error!File contract { result(create) } { return duplicate(1) }
 pub fn stderr() -> Error!File contract { result(create) } { return duplicate(2) }
 
-// Path bytes must be nonempty and contain no NUL. The private owned buffer
-// supplies exactly one terminator and stays live throughout the C call.
-fn c_path(path: &[u8]) -> Error!ByteBuffer contract { result(create) } {
-    if path.len() == 0 || path.len() == 9223372036854775807 { return Error.InvalidPath }
+fn push_u16_le(buf: ByteBuffer, unit: i32) -> Error!void {
+    if !bytes_push(buf, u8(unit % 256)) { return Error.InvalidResult }
+    if !bytes_push(buf, u8(unit / 256)) { return Error.InvalidResult }
+    return ()
+}
+
+// Encodes a non-empty NUL-free UTF-8 path to NUL-terminated UTF-16LE bytes.
+// ByteBuffer allocates via Win32 HeapAlloc (16-byte aligned >= alignof(wchar_t)).
+fn utf8_path_to_utf16(path: &[u8]) -> Error!ByteBuffer contract { result(create) } {
+    if path.len() == 0 || path.len() > 4611686018427387900 { return Error.InvalidPath }
+    let encoded = bytes_new()
+    if !bytes_reserve(encoded, (path.len() + 1) * 2) { return Error.Allocation }
     var at: i64 = 0
     while at < path.len() {
-        if path[at] == 0u8 { return Error.InvalidPath }
-        at += 1
+        let s = utf8.decode(path, at)
+        if s.status != 1 || s.value == 0 { return Error.InvalidPath }
+        if s.value < 65536 {
+            push_u16_le(encoded, s.value)?
+        } else {
+            let adj = s.value - 65536
+            push_u16_le(encoded, 55296 + (adj / 1024))?
+            push_u16_le(encoded, 56320 + (adj % 1024))?
+        }
+        at = s.next
     }
-    let encoded = bytes_new()
-    if !bytes_reserve(encoded, path.len() + 1) { return Error.Allocation }
-    at = 0
-    while at < path.len() {
-        if !bytes_push(encoded, path[at]) { return Error.InvalidResult }
-        at += 1
-    }
-    if !bytes_push(encoded, 0u8) { return Error.InvalidResult }
+    push_u16_le(encoded, 0)?
     return give encoded
 }
 
-// Opens path read-only in binary mode via UCRT _sopen_s(_O_RDONLY|_O_BINARY, _SH_DENYNO).
+// Opens a UTF-8 path read-only in binary mode via UCRT _wsopen_s(_O_RDONLY|_O_BINARY, _SH_DENYNO).
 pub fn open_read(path: &[u8]) -> Error!File contract { result(create) } {
-    let name = c_path(path)?
+    let wpath = utf8_path_to_utf16(path)?
     var fd: i32 = -1
     var rc: i32 = -1
     // _O_RDONLY (0) | _O_BINARY (0x8000 = 32768), _SH_DENYNO = 0x40 (64)
-    unsafe { rc = _sopen_s(&mut fd, &bytes_view(name)[0], 32768, 64, 0) }
+    unsafe { rc = _wsopen_s(&mut fd, &bytes_view(wpath)[0], 32768, 64, 0) }
     if rc != 0 || fd < 0 { return Error.Open }
     return File { fd: fd }
 }
 
-// Creates or truncates path write-only in binary mode via UCRT _sopen_s.
+// Creates or truncates a UTF-8 path write-only in binary mode via UCRT _wsopen_s.
 pub fn create_write(path: &[u8], _mode: i32) -> Error!File contract { result(create) } {
-    let name = c_path(path)?
+    let wpath = utf8_path_to_utf16(path)?
     var fd: i32 = -1
     var rc: i32 = -1
     // _O_WRONLY (1) | _O_CREAT (0x0100) | _O_TRUNC (0x0200) | _O_BINARY (0x8000) = 33537
     // _SH_DENYNO = 0x40 (64), _S_IREAD (0x0100) | _S_IWRITE (0x0080) = 384
-    unsafe { rc = _sopen_s(&mut fd, &bytes_view(name)[0], 33537, 64, 384) }
+    unsafe { rc = _wsopen_s(&mut fd, &bytes_view(wpath)[0], 33537, 64, 384) }
     if rc != 0 || fd < 0 { return Error.Open }
     return File { fd: fd }
 }

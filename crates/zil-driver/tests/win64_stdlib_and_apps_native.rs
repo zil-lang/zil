@@ -239,13 +239,18 @@ fn win64_std_modules_and_all_8_everyday_apps_verify_for_windows_target() {
             .unwrap_or_else(|e| panic!("failed to read emitted {}: {e}", ir_path.display()));
         assert!(ir.contains("target triple = \"x86_64-pc-windows-msvc\""));
         for expected in [
-            "@_sopen_s",
+            "@_wsopen_s",
             "@_read",
             "@_write",
             "@_setmode",
-            "@GetFileAttributesExA",
-            "@MoveFileExA",
-            "@FindFirstFileA",
+            "@GetFileAttributesW",
+            "@GetFileAttributesExW",
+            "@CreateDirectoryW",
+            "@DeleteFileW",
+            "@RemoveDirectoryW",
+            "@MoveFileExW",
+            "@FindFirstFileW",
+            "@FindNextFileW",
             "@QueryPerformanceCounter",
             "@Sleep",
             "@WSAStartup",
@@ -253,14 +258,27 @@ fn win64_std_modules_and_all_8_everyday_apps_verify_for_windows_target() {
             "@_create_locale",
             "@_strtod_l",
             "@_snprintf_l",
-            "@_getcwd",
+            "@GetEnvironmentVariableW",
+            "@GetCurrentDirectoryW",
+            "@GetCommandLineW",
         ] {
             assert!(
                 ir.contains(expected),
-                "Win64 std IR must reference Windows/UCRT/Winsock2 symbol {expected}"
+                "Win64 std IR must reference Windows Unicode/UCRT/Winsock2 symbol {expected}"
             );
         }
         for forbidden in [
+            "@_sopen_s",
+            "@GetFileAttributesExA",
+            "@MoveFileExA",
+            "@FindFirstFileA",
+            "@FindNextFileA",
+            "@_access",
+            "@_unlink",
+            "@_mkdir",
+            "@_rmdir",
+            "@_getcwd",
+            "@getenv",
             "@mkdirat",
             "@renameat",
             "@opendir",
@@ -423,6 +441,276 @@ fn win64_native_std_time_env_float_binary_io_and_windows_paths() {
             "expected verbatim LF stdout ({label})"
         );
         assert!(!bin_file.exists(), "binary test file should be removed");
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+const WIN64_UNICODE_BOUNDARY_PROGRAM: &str = r#"
+import std.env
+import std.fs
+import std.io
+import std.path
+
+fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() { return false }
+    var i: i64 = 0
+    while i < a.len() {
+        if a[i] != b[i] { return false }
+        i += 1
+    }
+    return true
+}
+
+fn ends_with(hay: &[u8], needle: &[u8]) -> bool {
+    if needle.len() > hay.len() { return false }
+    let off = hay.len() - needle.len()
+    var i: i64 = 0
+    while i < needle.len() {
+        if hay[off + i] != needle[i] { return false }
+        i += 1
+    }
+    return true
+}
+
+fn run_unicode_checks() -> io.Error!i32 {
+    // 1. Lossless UTF-8 CLI args from Win32 GetCommandLineW() (incl. CJK, emoji, quotes, backslashes, empty arg).
+    if env.arg_count() != 7 { return 10 }
+    let all_args = env.args()?
+    if store_len(all_args) != 7 { return 11 }
+    let root = bytes_view(*store_at(all_args, 1))
+    if !bytes_eq(bytes_view(*store_at(all_args, 2)), "中文参数") { return 12 }
+    if !bytes_eq(bytes_view(*store_at(all_args, 3)), "emoji 🚀 test") { return 13 }
+    if !bytes_eq(bytes_view(*store_at(all_args, 4)), "a\"b\\c") { return 14 }
+    if !bytes_eq(bytes_view(*store_at(all_args, 5)), "") { return 15 }
+    if !bytes_eq(bytes_view(*store_at(all_args, 6)), "café") { return 16 }
+
+    match env.arg(2) {
+        Option.None() => { return 17 },
+        Option.Some(v) => {
+            if !bytes_eq(bytes_view(v), "中文参数") { return 18 }
+        }
+    }
+    match env.arg(99) {
+        Option.Some(_) => { return 19 },
+        Option.None() => {}
+    }
+
+    // 2. Unicode environment variables via Win32 GetEnvironmentVariableW().
+    match env.get("ZIL_UNICODE_VAR") {
+        Option.None() => { return 20 },
+        Option.Some(v) => {
+            if !bytes_eq(bytes_view(v), "你好世界🚀") { return 21 }
+        }
+    }
+    match env.get("ZIL_UNICODE_UNSET_KEY") {
+        Option.Some(_) => { return 22 },
+        Option.None() => {}
+    }
+    let bad_utf8: [u8; 2] = [255u8, 254u8]
+    match env.get(&bad_utf8[0..2]) {
+        Option.Some(_) => { return 23 },
+        Option.None() => {}
+    }
+
+    // 3. Unicode current working directory via Win32 GetCurrentDirectoryW().
+    let cwd = env.current_dir()?
+    if !ends_with(bytes_view(cwd), "中文工作_cwd_🚀") { return 24 }
+
+    // 4. Unicode filesystem operations via Win32 *W + UCRT _wsopen_s.
+    let sub = path.join(root, "中文目录/子目录_αβγ")?
+    fs.mkdir_all(bytes_view(sub))?
+    if !fs.exists(bytes_view(sub)) || !fs.is_dir(bytes_view(sub)) { return 30 }
+
+    let file1 = path.join(bytes_view(sub), "日本語_🎉.txt")?
+    let payload = "你好，世界！🚀\nsecond-line\0end"
+    fs.write_bytes(bytes_view(file1), payload)?
+    if !fs.exists(bytes_view(file1)) || !fs.is_file(bytes_view(file1)) { return 31 }
+    let meta1 = fs.metadata(bytes_view(file1))?
+    if !meta1.is_file || meta1.is_dir || meta1.size != payload.len() { return 32 }
+    if fs.file_size(bytes_view(file1))? != payload.len() { return 33 }
+    let read1 = fs.read_to_bytes(bytes_view(file1))?
+    if !bytes_eq(bytes_view(read1), payload) { return 34 }
+
+    let file2 = path.join(bytes_view(sub), "café.dat")?
+    fs.write_bytes(bytes_view(file2), "coffee")?
+
+    // Directory traversal must return exact valid UTF-8 filenames via FindFirstFileW/FindNextFileW.
+    let entries = fs.read_dir(bytes_view(sub))?
+    if store_len(entries) != 2 { return 35 }
+    var seen_jp: i32 = 0
+    var seen_cafe: i32 = 0
+    while store_len(entries) > 0 {
+        match store_pop(entries) {
+            .err(_) => { return 36 },
+            .ok(item) => {
+                let name = bytes_view(item)
+                if bytes_eq(name, "日本語_🎉.txt") { seen_jp += 1 }
+                else if bytes_eq(name, "café.dat") { seen_cafe += 1 }
+                else { return 37 }
+            }
+        }
+    }
+    if seen_jp != 1 || seen_cafe != 1 { return 38 }
+
+    // Unicode rename via MoveFileExW.
+    let renamed = path.join(bytes_view(sub), "改名_αβγ.txt")?
+    fs.rename(bytes_view(file1), bytes_view(renamed))?
+    if fs.exists(bytes_view(file1)) || !fs.is_file(bytes_view(renamed)) { return 39 }
+    let read_ren = fs.read_to_bytes(bytes_view(renamed))?
+    if !bytes_eq(bytes_view(read_ren), payload) { return 40 }
+
+    // 5. Invalid UTF-8 paths must be rejected cleanly without UB.
+    if fs.exists(&bad_utf8[0..2]) { return 41 }
+    match io.open_read(&bad_utf8[0..2]) {
+        .ok(_) => { return 42 },
+        .err(e) => {
+            match e {
+                io.Error.InvalidPath() => {},
+                _ => { return 43 }
+            }
+        }
+    }
+    let overlong: [u8; 2] = [192u8, 175u8]
+    match fs.metadata(&overlong[0..2]) {
+        .ok(_) => { return 44 },
+        .err(e) => {
+            match e {
+                io.Error.InvalidPath() => {},
+                _ => { return 45 }
+            }
+        }
+    }
+
+    // Cleanup via DeleteFileW + RemoveDirectoryW.
+    match fs.remove_file(bytes_view(renamed)) {
+        .ok(_) => {},
+        .err(_) => { return 46 }
+    }
+    match fs.remove_file(bytes_view(file2)) {
+        .ok(_) => {},
+        .err(_) => { return 47 }
+    }
+    fs.remove_dir(bytes_view(sub))?
+    let parent_sub = path.parent(bytes_view(sub))
+    fs.remove_dir(parent_sub)?
+    if fs.exists(parent_sub) { return 48 }
+
+    io.println("win64-unicode-ok")?
+    return 0
+}
+
+fn main() -> i32 {
+    match run_unicode_checks() {
+        .ok(code) => { return code },
+        .err(_) => { return 99 }
+    }
+}
+"#;
+
+#[test]
+fn win64_unicode_boundary_program_verifies_for_windows_target() {
+    let report = compile_source(
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "win64_unicode.zil",
+            WIN64_UNICODE_BOUNDARY_PROGRAM,
+        ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            backend: NativeBackend::Clang,
+            target: TargetProfile::windows_x64_llvm(),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "Win64 Unicode boundary program must verify for Windows target: {:?}",
+        report.diagnostics
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn win64_native_unicode_paths_env_and_args_roundtrip() {
+    let dir = std::env::temp_dir().join(format!("zil-win64-unicode-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+
+    let unicode_cwd = dir.join("中文工作_cwd_🚀");
+    std::fs::create_dir_all(&unicode_cwd).expect("create unicode cwd");
+
+    let entry = dir.join("unicode_boundary.zil");
+    std::fs::write(&entry, WIN64_UNICODE_BOUNDARY_PROGRAM).expect("write unicode_boundary.zil");
+
+    let mut configs = vec![
+        ("clang-o0", NativeBackend::Clang, Optimization::O0),
+        ("clang-o2", NativeBackend::Clang, Optimization::O2),
+    ];
+    if cfg!(feature = "llvm-api") {
+        configs.push(("llvmapi-o0", NativeBackend::LlvmApi, Optimization::O0));
+        configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
+    }
+
+    for (label, backend, opt) in configs {
+        let exe = dir.join(format!("unicode_boundary_{label}.exe"));
+        let mut session = CompilationSession::new();
+        let report = session.compile_path(
+            &entry,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization: opt,
+                backend,
+                output: Some(exe.clone()),
+                codegen: CodegenOptions { units: 1, jobs: 1 },
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "Win64 Unicode boundary build failed ({label}): {:?}",
+            report.diagnostics
+        );
+        assert_eq!(report.verification_runs, 1);
+
+        let root_dir = dir.join(format!("fs_root_{label}"));
+        std::fs::create_dir_all(&root_dir).expect("create root_dir");
+
+        let out = Command::new(&exe)
+            .current_dir(&unicode_cwd)
+            .arg(&root_dir)
+            .arg("中文参数")
+            .arg("emoji 🚀 test")
+            .arg("a\"b\\c")
+            .arg("")
+            .arg("café")
+            .env("ZIL_UNICODE_VAR", "你好世界🚀")
+            .env_remove("ZIL_UNICODE_UNSET_KEY")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap_or_else(|e| panic!("failed to run {}: {e}", exe.display()));
+        assert!(
+            out.stderr.is_empty(),
+            "unexpected stderr ({label}): {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "Win64 Unicode boundary exited with {:?} ({label}), stdout={}",
+            out.status.code(),
+            String::from_utf8_lossy(&out.stdout)
+        );
+        assert_eq!(
+            out.stdout.as_slice(),
+            b"win64-unicode-ok\n",
+            "expected verbatim LF stdout ({label})"
+        );
     }
 
     let _ = std::fs::remove_dir_all(&dir);
