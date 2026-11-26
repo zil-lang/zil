@@ -46,7 +46,10 @@ fn build_and_run_dual_units(
     let mut expected: Option<(i32, Vec<u8>, Vec<u8>)> = None;
     let jobs = if units > 1 { 2 } else { 1 };
     for (label, backend, opt) in dual_configs() {
-        let exe = dir.join(format!("bin-{tag}-u{units}-{label}"));
+        let exe = dir.join(format!(
+            "bin-{tag}-u{units}-{label}{}",
+            std::env::consts::EXE_SUFFIX
+        ));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,
