@@ -55,7 +55,7 @@ fn build_project_dual(app_dir: &Path, out_dir: &Path, tag: &str) -> Vec<(&'stati
     let manifest = Arc::new(manifest);
     let mut built = Vec::new();
     for (label, backend, opt) in dual_configs() {
-        let exe = out_dir.join(format!("bin-{tag}-{label}"));
+        let exe = out_dir.join(format!("bin-{tag}-{label}{}", std::env::consts::EXE_SUFFIX));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,

@@ -41,7 +41,7 @@ fn dual_configs() -> Vec<(&'static str, NativeBackend, Optimization)> {
 fn build_and_run_dual(dir: &Path, tag: &str, entry: &Path) -> (i32, Vec<u8>, Vec<u8>) {
     let mut expected: Option<(i32, Vec<u8>, Vec<u8>)> = None;
     for (label, backend, opt) in dual_configs() {
-        let exe = dir.join(format!("bin-{tag}-{label}"));
+        let exe = dir.join(format!("bin-{tag}-{label}{}", std::env::consts::EXE_SUFFIX));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,
@@ -99,7 +99,7 @@ fn build_and_run_dual(dir: &Path, tag: &str, entry: &Path) -> (i32, Vec<u8>, Vec
 fn std_fs_dir_metadata_rename_and_read_dir_execute_natively() {
     let dir = temp_dir("fs-dir-meta");
     let work_root = dir.join("work");
-    let work_root_str = work_root.to_str().expect("utf8 path");
+    let work_root_str = work_root.to_str().expect("utf8 path").replace('\\', "/");
 
     let src = format!(
         r#"
@@ -287,9 +287,9 @@ fn main() -> io.Error!i32 {{
 fn std_fs_error_paths_execute_natively() {
     let dir = temp_dir("fs-errors");
     let missing = dir.join("missing_dir");
-    let missing_str = missing.to_str().expect("utf8 path");
+    let missing_str = missing.to_str().expect("utf8 path").replace('\\', "/");
     let regular = dir.join("regular_file.txt");
-    let regular_str = regular.to_str().expect("utf8 path");
+    let regular_str = regular.to_str().expect("utf8 path").replace('\\', "/");
 
     let src = format!(
         r#"

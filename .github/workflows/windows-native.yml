@@ -9,6 +9,8 @@ on:
       - 'crates/zil-driver/**'
       - 'crates/zil-cli/**'
       - 'crates/zil-llvm-api/**'
+      - 'lib/std/**'
+      - 'examples/everyday-apps/**'
       - '.github/workflows/windows-native.yml'
   pull_request:
     branches: [main]
@@ -18,6 +20,8 @@ on:
       - 'crates/zil-driver/**'
       - 'crates/zil-cli/**'
       - 'crates/zil-llvm-api/**'
+      - 'lib/std/**'
+      - 'examples/everyday-apps/**'
       - '.github/workflows/windows-native.yml'
 permissions:
   contents: read
@@ -73,7 +77,7 @@ jobs:
           cargo build --locked -p zil-cli --no-default-features
           $zil = "$env:CARGO_TARGET_DIR\debug\zil.exe"
           & $zil version
-      - name: Run Windows x64 backend, driver, ABI, and concurrency/async tests
+      - name: Run Windows x64 backend, driver, ABI, concurrency/async, stdlib, and 8 everyday apps
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -82,6 +86,12 @@ jobs:
           cargo test --locked -p zil-driver --no-default-features --test win64_pipeline_native
           cargo test --locked -p zil-driver --no-default-features --test win64_abi_and_runtime_native
           cargo test --locked -p zil-driver --no-default-features --test win64_concurrency_and_async_native
+          cargo test --locked -p zil-driver --no-default-features --test win64_stdlib_and_apps_native
+          cargo test --locked -p zil-driver --no-default-features --test stdlib_fs_and_path_native
+          cargo test --locked -p zil-driver --no-default-features --test stdlib_net_tcp_native
+          cargo test --locked -p zil-driver --no-default-features --test everyday_apps_core_native
+          cargo test --locked -p zil-driver --no-default-features --test everyday_apps_systems_native
+          cargo test --locked -p zil-driver --no-default-features --test everyday_app_async_scheduler_native
       - name: End-to-end native zil.exe check/build/run/test smoke on Windows x64
         shell: pwsh
         run: |

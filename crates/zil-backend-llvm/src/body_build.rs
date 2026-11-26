@@ -328,8 +328,9 @@ pub fn build_verified_body(
                     argv.push("-o".into());
                     argv.push(options.output.display().to_string());
                     if is_windows {
-                        cmd.arg("-llegacy_stdio_definitions");
+                        cmd.arg("-llegacy_stdio_definitions").arg("-lws2_32");
                         argv.push("-llegacy_stdio_definitions".into());
+                        argv.push("-lws2_32".into());
                     }
                     run_checked_command(cmd, "linker", &clang)?;
                     commands.push(argv);
@@ -415,8 +416,9 @@ pub fn build_verified_body(
                 argv.push("-o".into());
                 argv.push(options.output.display().to_string());
                 if is_windows {
-                    cmd.arg("-llegacy_stdio_definitions");
+                    cmd.arg("-llegacy_stdio_definitions").arg("-lws2_32");
                     argv.push("-llegacy_stdio_definitions".into());
+                    argv.push("-lws2_32".into());
                 }
                 run_checked_command(cmd, "clang", &clang)?;
                 commands.push(argv);

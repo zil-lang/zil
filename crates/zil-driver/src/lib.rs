@@ -591,7 +591,9 @@ impl CompilationSession {
                 }
                 let next_id = loaded.len() as u32;
                 let mod_unit = if imp_path.first().map(String::as_str) == Some("std") {
-                    if let Some((virtual_path, text)) = embedded_std_source(&imp_path[1..]) {
+                    if let Some((virtual_path, text)) =
+                        embedded_std_source(&imp_path[1..], &options.target)
+                    {
                         if text.len() > options.limits.max_source_bytes {
                             report.phase = Phase::Parse;
                             report.status = ResultCategory::ResourceLimit;
@@ -957,24 +959,47 @@ const EMBEDDED_STD_MODULES: &[(&str, &str)] = &[
     ("utf8", include_str!("../../../lib/std/utf8.zil")),
 ];
 
-fn embedded_std_source(subpath: &[String]) -> Option<(String, &'static str)> {
+const EMBEDDED_WINDOWS_STD_MODULES: &[(&str, &str)] = &[
+    ("env", include_str!("../../../lib/std/windows/env.zil")),
+    ("float", include_str!("../../../lib/std/windows/float.zil")),
+    ("fs", include_str!("../../../lib/std/windows/fs.zil")),
+    ("io", include_str!("../../../lib/std/windows/io.zil")),
+    ("net", include_str!("../../../lib/std/windows/net.zil")),
+    ("path", include_str!("../../../lib/std/windows/path.zil")),
+    ("time", include_str!("../../../lib/std/windows/time.zil")),
+];
+
+fn embedded_std_source(
+    subpath: &[String],
+    target: &TargetProfile,
+) -> Option<(String, &'static str)> {
     if subpath.len() != 1 {
         return None;
     }
     let name = subpath[0].as_str();
+    if target.triple.contains("windows")
+        && let Some((mod_name, text)) = EMBEDDED_WINDOWS_STD_MODULES
+            .iter()
+            .find(|(mod_name, _)| *mod_name == name)
+    {
+        return Some((format!("lib/std/{mod_name}.zil"), *text));
+    }
     EMBEDDED_STD_MODULES
         .iter()
         .find(|(mod_name, _)| *mod_name == name)
         .map(|(mod_name, text)| (format!("lib/std/{mod_name}.zil"), *text))
 }
 
-fn validate_project_std_modules(project: &ProjectSources) -> Result<(), Diagnostic> {
+fn validate_project_std_modules(
+    project: &ProjectSources,
+    target: &TargetProfile,
+) -> Result<(), Diagnostic> {
     for (segments, mid) in &project.paths {
         if segments.first().map(String::as_str) != Some("std") {
             continue;
         }
         let unit = project.sources.iter().find(|s| s.module_id == *mid);
-        let canonical = embedded_std_source(&segments[1..]).map(|(_, text)| text);
+        let canonical = embedded_std_source(&segments[1..], target).map(|(_, text)| text);
         let matches = match (unit, canonical) {
             (Some(u), Some(c)) => u.text == c,
             _ => false,
@@ -1003,7 +1028,7 @@ fn validate_project_std_modules(project: &ProjectSources) -> Result<(), Diagnost
         };
         if let Some(sub) = sub {
             let segs: Vec<String> = sub.split(['.', '/']).map(str::to_string).collect();
-            let canonical = embedded_std_source(&segs).map(|(_, text)| text);
+            let canonical = embedded_std_source(&segs, target).map(|(_, text)| text);
             if canonical != Some(unit.text.as_str()) {
                 return Err(Diagnostic::error(
                     Phase::Driver,
@@ -1131,7 +1156,7 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
     for s in &project.sources {
         report.source_files.insert(s.file_id, s.path.clone());
     }
-    if let Err(diag) = validate_project_std_modules(project) {
+    if let Err(diag) = validate_project_std_modules(project, &options.target) {
         report.status = diag.category;
         report.phase = diag.phase;
         report.diagnostics = vec![diag];

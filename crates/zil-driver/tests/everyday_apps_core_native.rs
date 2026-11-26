@@ -68,7 +68,7 @@ fn build_project_all_backends_with_c(
 
     let mut binaries = Vec::new();
     for (label, backend, opt) in dual_configs() {
-        let exe = out_dir.join(format!("{tag}-{label}"));
+        let exe = out_dir.join(format!("{tag}-{label}{}", std::env::consts::EXE_SUFFIX));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,
