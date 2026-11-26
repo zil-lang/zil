@@ -125,12 +125,12 @@ def stage_public_assets(
         shutil.copy2(src, dest)
         staged_files.append(dest.name)
 
-    # Write public SHA256SUMS referencing the EXACT final public asset filenames.
+    # Write public SHA256SUMS with LF line endings referencing the EXACT final public asset filenames.
     public_sums_text = (
         f"{actual_archive_sha}  {staged_archive.name}\n"
         f"{actual_manifest_sha}  {staged_manifest.name}\n"
     )
-    staged_sums.write_text(public_sums_text, encoding="utf-8")
+    staged_sums.write_text(public_sums_text, encoding="utf-8", newline="\n")
 
     return {
         "platform": platform,
