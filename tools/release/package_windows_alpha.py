@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--zil-exe", type=Path, required=True)
     parser.add_argument("--llvm-dll", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
-    parser.add_argument("--version", default="v1.0.0-alpha.1")
+    parser.add_argument("--version", default="v1.0.0-alpha.2")
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--source-tree", required=True)
     parser.add_argument("--clang-bin", default=os.environ.get("ZIL_CLANG", "clang"))

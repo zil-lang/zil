@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       release_name:
-        description: Release bundle identifier (default v1.0.0-alpha.1)
+        description: Release bundle identifier (default v1.0.0-alpha.2)
         required: false
-        default: v1.0.0-alpha.1
+        default: v1.0.0-alpha.2
   push:
     tags:
       - 'v*'
@@ -92,7 +92,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-          $releaseName = "${{ github.event.inputs.release_name || 'v1.0.0-alpha.1' }}"
+          $releaseName = "${{ github.event.inputs.release_name || 'v1.0.0-alpha.2' }}"
           if ("${{ github.ref }}".StartsWith("refs/tags/")) {
             $releaseName = "${{ github.ref_name }}"
           }
@@ -152,3 +152,67 @@ jobs:
           path: ${{ runner.temp }}/bundle/clean-env-verify-receipt.json
           retention-days: 30
           if-no-files-found: error
+
+  publish-windows-release-assets:
+    needs: [package-windows-x86_64, verify-clean-env-windows]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Require passing Linux Alpha acceptance evidence on the exact same commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCEPTANCE_URL="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/alpha-acceptance.yml/runs?head_sha=${GITHUB_SHA}&status=completed&per_page=20" \
+            --jq '.workflow_runs[] | select(.conclusion == "success") | .html_url' | head -n 1)"
+          if [ -z "$ACCEPTANCE_URL" ]; then
+            echo "ERROR: refusing to publish Windows assets for ${GITHUB_REF_NAME}: no passing alpha-acceptance.yml run found for commit ${GITHUB_SHA}" >&2
+            exit 1
+          fi
+          echo "Verified same-commit Alpha acceptance run: $ACCEPTANCE_URL"
+          echo "ACCEPTANCE_URL=$ACCEPTANCE_URL" >> "$GITHUB_ENV"
+      - name: Download verified Windows release bundle and clean-env receipt
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/release-assets
+      - name: Publish verified Windows x86_64 assets to same-commit GitHub Pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/release-assets/zil-windows-x86_64-release-bundle"
+          RECEIPT="$RUNNER_TEMP/release-assets/zil-windows-x86_64-clean-env-receipt/clean-env-verify-receipt.json"
+          STAGE="$RUNNER_TEMP/publish-win64"
+          mkdir -p "$STAGE"
+          ARCHIVE="$(ls "$BUNDLE"/zil-*-windows-x86_64.zip)"
+          cp "$ARCHIVE" "$STAGE/$(basename "$ARCHIVE")"
+          cp "$BUNDLE/SHA256SUMS.txt" "$STAGE/SHA256SUMS-windows-x86_64.txt"
+          cp "$BUNDLE/RELEASE-MANIFEST.json" "$STAGE/RELEASE-MANIFEST-windows-x86_64.json"
+          cp "$RECEIPT" "$STAGE/clean-env-verify-receipt-windows-x86_64.json"
+          cp "$BUNDLE/everyday-apps-receipt.json" "$STAGE/windows-everyday-apps-receipt.json"
+          cp "$BUNDLE/capabilities-receipt.json" "$STAGE/windows-capabilities-receipt.json"
+
+          if ! gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag \
+              --prerelease \
+              --latest=false \
+              --title "ZIL ${GITHUB_REF_NAME} (Linux x86_64 & Windows x64)" \
+              --notes "ZIL 1.0 Alpha preview for Linux x86_64 & Windows x64 bound to the exact same commit (${GITHUB_SHA}). Verified by same-commit 12+8 Linux acceptance (${ACCEPTANCE_URL}), 12+8 Windows dual-backend acceptance, and isolated clean-environment installation receipts (no Rust/Cargo required; system C linker required for final native linking)." \
+              || true
+          fi
+          gh release upload "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --clobber \
+            "$STAGE/$(basename "$ARCHIVE")" \
+            "$STAGE/SHA256SUMS-windows-x86_64.txt" \
+            "$STAGE/RELEASE-MANIFEST-windows-x86_64.json" \
+            "$STAGE/clean-env-verify-receipt-windows-x86_64.json" \
+            "$STAGE/windows-everyday-apps-receipt.json" \
+            "$STAGE/windows-capabilities-receipt.json"

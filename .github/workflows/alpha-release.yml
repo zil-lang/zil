@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
     inputs:
       release_name:
-        description: Release bundle identifier (default v1.0.0-alpha.1)
+        description: Release bundle identifier (default v1.0.0-alpha.2)
         required: false
-        default: v1.0.0-alpha.1
+        default: v1.0.0-alpha.2
   push:
     tags:
       - 'v*'
@@ -73,7 +73,7 @@ jobs:
           test -z "$(git status --porcelain)"
           COMMIT="$(git rev-parse HEAD)"
           TREE="$(git rev-parse 'HEAD^{tree}')"
-          RELEASE_NAME="${{ github.event.inputs.release_name || 'v1.0.0-alpha.1' }}"
+          RELEASE_NAME="${{ github.event.inputs.release_name || 'v1.0.0-alpha.2' }}"
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             RELEASE_NAME="${{ github.ref_name }}"
           fi
@@ -165,7 +165,7 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: ${{ runner.temp }}/release-assets
-      - name: Publish GitHub Pre-release for tag
+      - name: Publish verified Linux x86_64 assets to same-commit GitHub Pre-release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -173,15 +173,28 @@ jobs:
           set -euo pipefail
           BUNDLE="$RUNNER_TEMP/release-assets/zil-linux-x86_64-release-bundle"
           RECEIPT="$RUNNER_TEMP/release-assets/zil-linux-x86_64-clean-env-receipt/clean-env-verify-receipt.json"
+          STAGE="$RUNNER_TEMP/publish-linux"
+          mkdir -p "$STAGE"
           ARCHIVE="$(ls "$BUNDLE"/zil-*-linux-x86_64.tar.gz)"
-          gh release create "${GITHUB_REF_NAME}" \
+          cp "$ARCHIVE" "$STAGE/$(basename "$ARCHIVE")"
+          cp "$BUNDLE/SHA256SUMS.txt" "$STAGE/SHA256SUMS-linux-x86_64.txt"
+          cp "$BUNDLE/RELEASE-MANIFEST.json" "$STAGE/RELEASE-MANIFEST-linux-x86_64.json"
+          cp "$RECEIPT" "$STAGE/clean-env-verify-receipt-linux-x86_64.json"
+
+          if ! gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --verify-tag \
+              --prerelease \
+              --latest=false \
+              --title "ZIL ${GITHUB_REF_NAME} (Linux x86_64 & Windows x64)" \
+              --notes "ZIL 1.0 Alpha preview for Linux x86_64 & Windows x64 bound to the exact same commit (${GITHUB_SHA}). Verified by same-commit 12+8 Linux acceptance (${ACCEPTANCE_URL}), 12+8 Windows dual-backend acceptance, and isolated clean-environment installation receipts (no Rust/Cargo required; system C linker required for final native linking)." \
+              || true
+          fi
+          gh release upload "${GITHUB_REF_NAME}" \
             --repo "${GITHUB_REPOSITORY}" \
-            "$ARCHIVE" \
-            "$BUNDLE/SHA256SUMS.txt" \
-            "$BUNDLE/RELEASE-MANIFEST.json" \
-            "$RECEIPT" \
-            --verify-tag \
-            --prerelease \
-            --latest=false \
-            --title "ZIL ${GITHUB_REF_NAME} (Linux x86_64)" \
-            --notes "ZIL 1.0 Alpha preview for Linux x86_64 (${GITHUB_SHA}). Verified by same-commit 12+8 Alpha acceptance (${ACCEPTANCE_URL}) and clean-environment installation/execution receipt."
+            --clobber \
+            "$STAGE/$(basename "$ARCHIVE")" \
+            "$STAGE/SHA256SUMS-linux-x86_64.txt" \
+            "$STAGE/RELEASE-MANIFEST-linux-x86_64.json" \
+            "$STAGE/clean-env-verify-receipt-linux-x86_64.json"
