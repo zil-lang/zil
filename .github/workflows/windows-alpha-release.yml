@@ -110,6 +110,7 @@ jobs:
             --clang-bin $env:ZIL_CLANG `
             --lock-examples
           Copy-Item "tools/release/verify_clean_windows_install.py" (Join-Path $outDir "verify_clean_windows_install.py")
+          Copy-Item "tools/release/verify_published_assets.py" (Join-Path $outDir "verify_published_assets.py")
           Copy-Item (Join-Path $env:RUNNER_TEMP "win64-acceptance\everyday-apps-receipt.json") (Join-Path $outDir "everyday-apps-receipt.json")
           Copy-Item (Join-Path $env:RUNNER_TEMP "win64-acceptance\capabilities-receipt.json") (Join-Path $outDir "capabilities-receipt.json")
       - name: Upload Windows release bundle and 12+8 acceptance receipts
@@ -188,14 +189,15 @@ jobs:
           BUNDLE="$RUNNER_TEMP/release-assets/zil-windows-x86_64-release-bundle"
           RECEIPT="$RUNNER_TEMP/release-assets/zil-windows-x86_64-clean-env-receipt/clean-env-verify-receipt.json"
           STAGE="$RUNNER_TEMP/publish-win64"
-          mkdir -p "$STAGE"
-          ARCHIVE="$(ls "$BUNDLE"/zil-*-windows-x86_64.zip)"
-          cp "$ARCHIVE" "$STAGE/$(basename "$ARCHIVE")"
-          cp "$BUNDLE/SHA256SUMS.txt" "$STAGE/SHA256SUMS-windows-x86_64.txt"
-          cp "$BUNDLE/RELEASE-MANIFEST.json" "$STAGE/RELEASE-MANIFEST-windows-x86_64.json"
-          cp "$RECEIPT" "$STAGE/clean-env-verify-receipt-windows-x86_64.json"
-          cp "$BUNDLE/everyday-apps-receipt.json" "$STAGE/windows-everyday-apps-receipt.json"
-          cp "$BUNDLE/capabilities-receipt.json" "$STAGE/windows-capabilities-receipt.json"
+          rm -rf "$STAGE"
+          python3 "$BUNDLE/verify_published_assets.py" stage \
+            --platform windows-x86_64 \
+            --bundle-dir "$BUNDLE" \
+            --receipt "$RECEIPT" \
+            --stage-dir "$STAGE" \
+            --extra-file "$BUNDLE/everyday-apps-receipt.json=windows-everyday-apps-receipt.json" \
+            --extra-file "$BUNDLE/capabilities-receipt.json=windows-capabilities-receipt.json"
+          ARCHIVE="$(ls "$STAGE"/zil-*-windows-x86_64.zip)"
 
           if ! gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release create "${GITHUB_REF_NAME}" \
@@ -210,9 +212,30 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber \
-            "$STAGE/$(basename "$ARCHIVE")" \
+            "$ARCHIVE" \
             "$STAGE/SHA256SUMS-windows-x86_64.txt" \
             "$STAGE/RELEASE-MANIFEST-windows-x86_64.json" \
             "$STAGE/clean-env-verify-receipt-windows-x86_64.json" \
             "$STAGE/windows-everyday-apps-receipt.json" \
             "$STAGE/windows-capabilities-receipt.json"
+      - name: Verify downloaded public GitHub Release assets in clean directory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/release-assets/zil-windows-x86_64-release-bundle"
+          VERIFY_DIR="$RUNNER_TEMP/verify-public-win64"
+          rm -rf "$VERIFY_DIR"
+          mkdir -p "$VERIFY_DIR"
+          gh release download "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir "$VERIFY_DIR" \
+            --pattern "zil-*-windows-x86_64.zip" \
+            --pattern "RELEASE-MANIFEST-windows-x86_64.json" \
+            --pattern "SHA256SUMS-windows-x86_64.txt"
+          python3 "$BUNDLE/verify_published_assets.py" verify-dir \
+            --platform windows-x86_64 \
+            --dir "$VERIFY_DIR" \
+            --expected-commit "${GITHUB_SHA}" \
+            --require-sha256sum-cli
