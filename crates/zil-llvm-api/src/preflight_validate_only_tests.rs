@@ -879,7 +879,13 @@ fn native_atomics_synchronize_real_threads_at_o0_and_o2() {
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
     fs::create_dir_all(&scratch).unwrap();
-    let source = atomic_module();
+    let mut source = atomic_module();
+    let host_triple = if cfg!(target_os = "windows") {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "x86_64-unknown-linux-gnu"
+    };
+    source.triple = host_triple.into();
     accepted(&source);
     fs::write(scratch.join("atomic.ll"), source.to_text()).unwrap();
     // Machine-adapter harness only: source-language acceptance is tested by the
@@ -888,26 +894,58 @@ fn native_atomics_synchronize_real_threads_at_o0_and_o2() {
         scratch.join("host.c"),
         r#"
 #include <stdint.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <process.h>
+#else
 #include <pthread.h>
+#endif
 extern int32_t atomic_increment(int32_t *);
 extern int32_t atomic_set(int32_t *);
 extern int32_t atomic_get(int32_t *);
 static int32_t value;
+#ifdef _WIN32
+static unsigned __stdcall worker(void *unused) {
+    (void)unused;
+    for (int i=0; i<25000; ++i) atomic_increment(&value);
+    return 0;
+}
+#else
 static void *worker(void *unused) {
     (void)unused;
     for (int i=0; i<25000; ++i) atomic_increment(&value);
     return 0;
 }
+#endif
 int main(void) {
-    pthread_t threads[4];
     atomic_set(&value);
+#ifdef _WIN32
+    HANDLE threads[4];
+    for (int i=0; i<4; ++i) {
+        uintptr_t h = _beginthreadex(0, 0, worker, 0, 0, 0);
+        if (!h) return 2;
+        threads[i] = (HANDLE)h;
+    }
+    for (int i=0; i<4; ++i) {
+        if (WaitForSingleObject(threads[i], INFINITE) != WAIT_OBJECT_0) return 3;
+        CloseHandle(threads[i]);
+    }
+#else
+    pthread_t threads[4];
     for (int i=0; i<4; ++i) if (pthread_create(&threads[i],0,worker,0)) return 2;
     for (int i=0; i<4; ++i) if (pthread_join(threads[i],0)) return 3;
+#endif
     return atomic_get(&value) == 100007 ? 0 : 4;
 }
 "#,
     )
     .unwrap();
+    let clang = std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into());
+    let obj_ext = if cfg!(target_os = "windows") {
+        "obj"
+    } else {
+        "o"
+    };
     for (opt, flag) in [
         (crate::Optimization::O0, "-O0"),
         (crate::Optimization::O2, "-O2"),
@@ -915,25 +953,22 @@ int main(void) {
         let object = crate::compile_module(
             &source,
             &crate::Config {
-                triple: "x86_64-unknown-linux-gnu",
+                triple: host_triple,
                 optimization: opt,
             },
             &|| false,
         )
         .unwrap();
-        let object_path = scratch.join(format!("api{flag}.o"));
+        let object_path = scratch.join(format!("api{flag}.{obj_ext}"));
         fs::write(&object_path, object.bytes).unwrap();
         for (name, input) in [("api", object_path), ("text", scratch.join("atomic.ll"))] {
-            let executable = scratch.join(format!("{name}{flag}"));
-            let output = Command::new("clang")
-                .arg(flag)
-                .arg(&input)
-                .arg(scratch.join("host.c"))
-                .arg("-pthread")
-                .arg("-o")
-                .arg(&executable)
-                .output()
-                .unwrap();
+            let executable = scratch.join(format!("{name}{flag}{}", std::env::consts::EXE_SUFFIX));
+            let mut cmd = Command::new(&clang);
+            cmd.arg(flag).arg(&input).arg(scratch.join("host.c"));
+            if !cfg!(target_os = "windows") {
+                cmd.arg("-pthread");
+            }
+            let output = cmd.arg("-o").arg(&executable).output().unwrap();
             assert!(
                 output.status.success(),
                 "{}",
@@ -1237,12 +1272,34 @@ fn strong_compare_exchange_native_observes_failure_and_real_contention() {
     );
     let scratch = std::env::temp_dir().join(format!("zil-strong-cas-{}", std::process::id()));
     fs::create_dir_all(&scratch).unwrap();
-    fs::write(scratch.join("cas.ll"), source.to_text()).unwrap();
-    let host = format!("#include <stdint.h>\n#include <pthread.h>\n{declarations}\n")
-        + r#"
+    let host_triple = if cfg!(target_os = "windows") {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "x86_64-unknown-linux-gnu"
+    };
+    let mut host_source = source.clone();
+    host_source.triple = host_triple.into();
+    fs::write(scratch.join("cas.ll"), host_source.to_text()).unwrap();
+    let host = format!(
+        "#include <stdint.h>\n#ifdef _WIN32\n#include <windows.h>\n#include <process.h>\n#else\n#include <pthread.h>\n#endif\n{declarations}\n"
+    ) + r#"
 typedef uint64_t (*cas_fn)(int32_t*,int32_t,int32_t);
 static int32_t value;
 static cas_fn active;
+#ifdef _WIN32
+static unsigned __stdcall worker(void *unused) {
+    (void)unused;
+    for(int i=0;i<5000;++i) {
+        int32_t expected=0;
+        for(;;) {
+            uint64_t answer=active(&value,expected,expected+1);
+            if((uint32_t)(answer>>32)==1) break;
+            expected=(int32_t)(uint32_t)answer;
+        }
+    }
+    return 0;
+}
+#else
 static void *worker(void *unused) {
     (void)unused;
     for(int i=0;i<5000;++i) {
@@ -1255,6 +1312,7 @@ static void *worker(void *unused) {
     }
     return 0;
 }
+#endif
 int main(void) {
     cas_fn functions[]={"#
         + &names.join(",")
@@ -1265,23 +1323,43 @@ int main(void) {
         if((int32_t)(uint32_t)yes!=-7 || (uint32_t)(yes>>32)!=1 || local!=9) return 1;
         uint64_t no=active(&local,-7,99);
         if((int32_t)(uint32_t)no!=9 || (uint32_t)(no>>32)!=0 || local!=9) return 2;
-        value=0;pthread_t threads[4];
+        value=0;
+#ifdef _WIN32
+        HANDLE threads[4];
+        for(int j=0;j<4;++j) {
+            uintptr_t h=_beginthreadex(0,0,worker,0,0,0);
+            if(!h) return 3;
+            threads[j]=(HANDLE)h;
+        }
+        for(int j=0;j<4;++j) {
+            if(WaitForSingleObject(threads[j],INFINITE)!=WAIT_OBJECT_0) return 4;
+            CloseHandle(threads[j]);
+        }
+#else
+        pthread_t threads[4];
         for(int j=0;j<4;++j) if(pthread_create(&threads[j],0,worker,0)) return 3;
         for(int j=0;j<4;++j) if(pthread_join(threads[j],0)) return 4;
+#endif
         if(value!=20000) return 5;
     }
     return 0;
 }
 "#;
     fs::write(scratch.join("host.c"), host).unwrap();
+    let clang = std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into());
+    let obj_ext = if cfg!(target_os = "windows") {
+        "obj"
+    } else {
+        "o"
+    };
     for (optimization, flag) in [
         (crate::Optimization::O0, "-O0"),
         (crate::Optimization::O2, "-O2"),
     ] {
         let object = crate::compile_module(
-            &source,
+            &host_source,
             &crate::Config {
-                triple: "x86_64-unknown-linux-gnu",
+                triple: host_triple,
                 optimization,
             },
             &|| false,
@@ -1289,18 +1367,17 @@ int main(void) {
         .unwrap();
         assert_eq!(object.receipt.parse_ns, 0);
         assert!(object.receipt.verify_before_after);
-        let object_path = scratch.join(format!("api{flag}.o"));
+        let object_path = scratch.join(format!("api{flag}.{obj_ext}"));
         fs::write(&object_path, object.bytes).unwrap();
         for (backend, input) in [("api", object_path), ("text", scratch.join("cas.ll"))] {
-            let executable = scratch.join(format!("{backend}{flag}"));
-            let linked = Command::new("clang")
-                .arg(flag)
-                .arg(input)
-                .arg(scratch.join("host.c"))
-                .args(["-pthread", "-o"])
-                .arg(&executable)
-                .output()
-                .unwrap();
+            let executable =
+                scratch.join(format!("{backend}{flag}{}", std::env::consts::EXE_SUFFIX));
+            let mut cmd = Command::new(&clang);
+            cmd.arg(flag).arg(input).arg(scratch.join("host.c"));
+            if !cfg!(target_os = "windows") {
+                cmd.arg("-pthread");
+            }
+            let linked = cmd.arg("-o").arg(&executable).output().unwrap();
             assert!(
                 linked.status.success(),
                 "{}",
