@@ -648,7 +648,15 @@ fn compile_and_run_win64_o0_o2(
     extra_c_sources: &[PathBuf],
 ) -> (i32, Vec<u8>) {
     let mut expected: Option<(i32, Vec<u8>)> = None;
-    for (label, opt) in [("O0", Optimization::O0), ("O2", Optimization::O2)] {
+    let mut configs = vec![
+        ("clang-o0", NativeBackend::Clang, Optimization::O0),
+        ("clang-o2", NativeBackend::Clang, Optimization::O2),
+    ];
+    if cfg!(feature = "llvm-api") {
+        configs.push(("llvmapi-o0", NativeBackend::LlvmApi, Optimization::O0));
+        configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
+    }
+    for (label, backend, opt) in configs {
         let exe = dir.join(format!("app_{label}.exe"));
         let mut session = CompilationSession::new();
         let report = session.compile_path(
@@ -656,7 +664,7 @@ fn compile_and_run_win64_o0_o2(
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization: opt,
-                backend: NativeBackend::Clang,
+                backend,
                 output: Some(exe.clone()),
                 extra_c_sources: extra_c_sources.to_vec(),
                 codegen: CodegenOptions { units: 1, jobs: 1 },

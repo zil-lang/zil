@@ -43,7 +43,7 @@ fn compile_and_run_status(
     opt: Optimization,
 ) -> ExitStatus {
     let entry = dir.join(format!("{label}.zil"));
-    let exe = dir.join(format!("{label}.bin"));
+    let exe = dir.join(format!("{label}{}", std::env::consts::EXE_SUFFIX));
     std::fs::write(&entry, src).expect("write source");
 
     let mut session = CompilationSession::new();
@@ -79,7 +79,7 @@ fn compile_and_run_output(
     opt: Optimization,
 ) -> (ExitStatus, String) {
     let entry = dir.join(format!("{label}.zil"));
-    let exe = dir.join(format!("{label}.bin"));
+    let exe = dir.join(format!("{label}{}", std::env::consts::EXE_SUFFIX));
     std::fs::write(&entry, src).expect("write source");
 
     let mut session = CompilationSession::new();

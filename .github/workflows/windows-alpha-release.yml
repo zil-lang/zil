@@ -1,0 +1,154 @@
+name: Windows x86_64 Alpha acceptance, release packaging, and clean-env verification
+on:
+  workflow_dispatch:
+    inputs:
+      release_name:
+        description: Release bundle identifier (default v1.0.0-alpha.1)
+        required: false
+        default: v1.0.0-alpha.1
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: read
+concurrency:
+  group: zil-windows-alpha-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  package-windows-x86_64:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '4'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TERM_COLOR: 'always'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Cache pinned LLVM 23.1.4 Windows SDK
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/zil-llvm/23.1.4
+          key: zil-llvm-win64-v1-${{ hashFiles('tools/llvm/version.txt', 'tools/llvm/release-windows-x86_64.json', 'tools/llvm/install_windows.py') }}
+      - name: Install pinned LLVM 23.1.4 (LLVM-C.dll, LLVM-C.lib, clang.exe)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $llvmPrefix = Join-Path $env:USERPROFILE ".cache\zil-llvm\23.1.4"
+          if (-not (Test-Path (Join-Path $llvmPrefix "install-receipt.json"))) {
+            if (Test-Path $llvmPrefix) {
+              Remove-Item -Recurse -Force $llvmPrefix
+            }
+            python tools/llvm/install_windows.py --prefix $llvmPrefix
+          }
+          $llvmBin = Join-Path $llvmPrefix "bin"
+          $llvmLib = Join-Path $llvmPrefix "lib"
+          "ZIL_LLVM_PREFIX=$llvmPrefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZIL_LLVM_LIB_DIR=$llvmLib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZIL_CLANG=$(Join-Path $llvmBin 'clang.exe')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Cache Cargo registry and Windows release target
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ${{ runner.temp }}/release-target-win64
+          key: zil-cargo-release-win64-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            zil-cargo-release-win64-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+            zil-cargo-release-win64-v1-
+      - name: Run 12/12 capabilities + 8/8 everyday apps dual-backend acceptance on Windows x64
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $env:CARGO_TARGET_DIR = Join-Path $env:RUNNER_TEMP "release-target-win64"
+          "CARGO_TARGET_DIR=$env:CARGO_TARGET_DIR" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          rustup toolchain install 1.100.0 --profile minimal
+          rustc -vV
+          & $env:ZIL_CLANG --version
+          $status = git status --porcelain
+          if ($status) { throw "working tree is dirty: $status" }
+          $commit = (git rev-parse HEAD).Trim()
+          $tree = (git rev-parse 'HEAD^{tree}').Trim()
+          "SOURCE_COMMIT=$commit" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SOURCE_TREE=$tree" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $acceptDir = Join-Path $env:RUNNER_TEMP "win64-acceptance"
+          python tools/ci/run_alpha_profile_suites.py `
+            --repo . `
+            --out-dir $acceptDir `
+            --source-commit $commit `
+            --source-tree $tree `
+            --platform windows
+      - name: Build release zil.exe and package deterministic Windows x86_64 zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $releaseName = "${{ github.event.inputs.release_name || 'v1.0.0-alpha.1' }}"
+          if ("${{ github.ref }}".StartsWith("refs/tags/")) {
+            $releaseName = "${{ github.ref_name }}"
+          }
+          python -m unittest discover -s tools/release -p 'test_*.py' -v
+          cargo build --release --locked -p zil-cli
+          $outDir = Join-Path $env:RUNNER_TEMP "release-dist-win64"
+          python tools/release/package_windows_alpha.py `
+            --repo . `
+            --zil-exe (Join-Path $env:CARGO_TARGET_DIR "release\zil.exe") `
+            --llvm-dll (Join-Path $env:ZIL_LLVM_PREFIX "bin\LLVM-C.dll") `
+            --out-dir $outDir `
+            --version $releaseName `
+            --source-commit $env:SOURCE_COMMIT `
+            --source-tree $env:SOURCE_TREE `
+            --clang-bin $env:ZIL_CLANG `
+            --lock-examples
+          Copy-Item "tools/release/verify_clean_windows_install.py" (Join-Path $outDir "verify_clean_windows_install.py")
+          Copy-Item (Join-Path $env:RUNNER_TEMP "win64-acceptance\everyday-apps-receipt.json") (Join-Path $outDir "everyday-apps-receipt.json")
+          Copy-Item (Join-Path $env:RUNNER_TEMP "win64-acceptance\capabilities-receipt.json") (Join-Path $outDir "capabilities-receipt.json")
+      - name: Upload Windows release bundle and 12+8 acceptance receipts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-windows-x86_64-release-bundle
+          path: ${{ runner.temp }}/release-dist-win64
+          retention-days: 30
+          if-no-files-found: error
+
+  verify-clean-env-windows:
+    needs: package-windows-x86_64
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      # Intentionally NO actions/checkout, NO Rust toolchain, NO Cargo cache, NO ZIL_LLVM_LIB_DIR.
+      - name: Download packaged Windows release bundle only
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: zil-windows-x86_64-release-bundle
+          path: ${{ runner.temp }}/bundle
+      - name: Verify checksums, manifest, side-by-side LLVM-C.dll, standalone builds, and SafeReject in clean Windows environment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $bundle = Join-Path $env:RUNNER_TEMP "bundle"
+          $archive = (Get-ChildItem -Path $bundle -Filter "zil-*-windows-x86_64.zip" | Select-Object -First 1).FullName
+          if (-not $archive) { throw "release zip archive not found in $bundle" }
+          python (Join-Path $bundle "verify_clean_windows_install.py") `
+            --archive $archive `
+            --sha256sums (Join-Path $bundle "SHA256SUMS.txt") `
+            --manifest (Join-Path $bundle "RELEASE-MANIFEST.json") `
+            --out-receipt (Join-Path $bundle "clean-env-verify-receipt.json")
+      - name: Upload Windows clean-environment verification receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: zil-windows-x86_64-clean-env-receipt
+          path: ${{ runner.temp }}/bundle/clean-env-verify-receipt.json
+          retention-days: 30
+          if-no-files-found: error

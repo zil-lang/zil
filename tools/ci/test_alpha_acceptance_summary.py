@@ -333,6 +333,8 @@ class AlphaAcceptanceSummaryTests(unittest.TestCase):
         app_ids, cap_ids = _declared_ids()
         self.assertEqual(set(runner.EVERYDAY_APP_TESTS.keys()), set(app_ids))
         self.assertEqual(set(runner.CAPABILITY_TARGETS.keys()), set(cap_ids))
+        self.assertEqual(set(runner.WINDOWS_EVERYDAY_APP_TESTS.keys()), set(app_ids))
+        self.assertEqual(set(runner.WINDOWS_CAPABILITY_TARGETS.keys()), set(cap_ids))
 
         parsed_ok = runner.parse_libtest_stdout(
             "running 2 tests\ntest a ... ok\ntest b ... ok\ntest result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s\n",

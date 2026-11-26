@@ -89,7 +89,7 @@ fn run_exe(exe: &Path, stdin_data: &str) -> (i32, String, String) {
 fn build_and_run_dual(dir: &Path, entry: &Path, stdin_data: &str) -> (i32, String) {
     let mut expected: Option<(i32, String)> = None;
     for (label, backend, opt) in dual_configs() {
-        let exe = dir.join(format!("bin-{label}"));
+        let exe = dir.join(format!("bin-{label}{}", std::env::consts::EXE_SUFFIX));
         build_exe(entry, &exe, backend, opt, label);
         let (code, stdout, stderr) = run_exe(&exe, stdin_data);
         assert!(
@@ -452,7 +452,7 @@ fn u2_owned_sum_consumer_all_8_modes_oracle_native() {
 
     let dir = temp_dir("owned_sum_oracle");
     for (label, backend, opt) in dual_configs() {
-        let exe = dir.join(format!("owned-sum-{label}"));
+        let exe = dir.join(format!("owned-sum-{label}{}", std::env::consts::EXE_SUFFIX));
         build_exe(&project_main, &exe, backend, opt, label);
         for (input, exp_exit, exp_stdout) in &cases {
             let (code, stdout, stderr) = run_exe(&exe, input);
@@ -494,7 +494,10 @@ fn u2_owned_sum_consumer_frozen_probes_native() {
     for (probe_name, runs) in positive_probes {
         let entry = probes_dir.join(probe_name).join("main.zil");
         for (label, backend, opt) in dual_configs() {
-            let exe = dir.join(format!("{probe_name}-{label}"));
+            let exe = dir.join(format!(
+                "{probe_name}-{label}{}",
+                std::env::consts::EXE_SUFFIX
+            ));
             build_exe(&entry, &exe, backend, opt, label);
             for (input, exp_exit, exp_stdout) in *runs {
                 let (code, stdout, stderr) = run_exe(&exe, input);

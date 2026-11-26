@@ -51,7 +51,7 @@ fn dual_configs() -> Vec<(&'static str, NativeBackend, Optimization)> {
 fn build_and_run_dual(dir: &Path, entry: &Path) -> (i32, String) {
     let mut expected: Option<(i32, String)> = None;
     for (label, backend, opt) in dual_configs() {
-        let exe = dir.join(format!("bin-{label}"));
+        let exe = dir.join(format!("bin-{label}{}", std::env::consts::EXE_SUFFIX));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,

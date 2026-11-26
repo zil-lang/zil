@@ -33,11 +33,18 @@ impl Drop for Dir {
 }
 fn execute(module: &Module, opt: Optimization) -> i32 {
     let d = Dir::new();
+    let triple = if cfg!(target_os = "windows") {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "x86_64-unknown-linux-gnu"
+    };
+    let mut host_module = module.clone();
+    host_module.triple = triple.into();
     let out = compile_module(
-        module,
+        &host_module,
         &Config {
+            triple,
             optimization: opt,
-            ..config()
         },
         &|| false,
     )
@@ -45,12 +52,18 @@ fn execute(module: &Module, opt: Optimization) -> i32 {
     assert_eq!(out.receipt.input_kind, "builder");
     assert_eq!(out.receipt.parse_ns, 0);
     assert!(out.receipt.verify_before_after);
-    fs::write(d.0.join("p.o"), out.bytes).unwrap();
+    let obj_path = d.0.join(if cfg!(target_os = "windows") {
+        "p.obj"
+    } else {
+        "p.o"
+    });
+    let exe_path = d.0.join(format!("p{}", std::env::consts::EXE_SUFFIX));
+    fs::write(&obj_path, out.bytes).unwrap();
     let clang = std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into());
     let link = Command::new(clang)
-        .arg(d.0.join("p.o"))
+        .arg(&obj_path)
         .arg("-o")
-        .arg(d.0.join("p"))
+        .arg(&exe_path)
         .output()
         .unwrap();
     assert!(
@@ -58,11 +71,40 @@ fn execute(module: &Module, opt: Optimization) -> i32 {
         "{}",
         String::from_utf8_lossy(&link.stderr)
     );
-    Command::new(d.0.join("p"))
-        .status()
-        .unwrap()
-        .code()
-        .unwrap()
+    Command::new(&exe_path).status().unwrap().code().unwrap()
+}
+#[test]
+fn cache_runtime_identifies_loaded_llvm_library() {
+    let triple = if cfg!(target_os = "windows") {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "x86_64-unknown-linux-gnu"
+    };
+    let (version, lib_path) = zil_llvm_api::cache_runtime(&Config {
+        triple,
+        optimization: Optimization::O0,
+    })
+    .expect("cache_runtime must resolve loaded LLVM library");
+    assert_eq!(version, zil_llvm_api::LLVM_VERSION);
+    assert!(
+        lib_path.is_file(),
+        "resolved LLVM runtime library path must exist: {}",
+        lib_path.display()
+    );
+    let name = lib_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if cfg!(target_os = "windows") {
+        assert_eq!(name, "llvm-c.dll", "unexpected DLL: {}", lib_path.display());
+    } else {
+        assert!(
+            name.contains("llvm"),
+            "unexpected DSO: {}",
+            lib_path.display()
+        );
+    }
 }
 #[test]
 fn direct_loop_forward_block_phi_executes_o0_o2() {

@@ -45,7 +45,7 @@ fn dual_configs() -> Vec<(&'static str, NativeBackend, Optimization)> {
 fn build_and_run_dual(dir: &Path, entry: &Path) -> (i32, String) {
     let mut expected: Option<(i32, String)> = None;
     for (label, backend, opt) in dual_configs() {
-        let exe = dir.join(format!("bin-{label}"));
+        let exe = dir.join(format!("bin-{label}{}", std::env::consts::EXE_SUFFIX));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,
@@ -874,7 +874,10 @@ fn main() -> i32 {
 fn u6_buffered_io_dual_backend_native() {
     let dir = temp_dir("buffered-io");
     let data_file = dir.join("roundtrip.bin");
-    let path_str = data_file.to_str().expect("utf8 temp path");
+    let path_str = data_file
+        .to_str()
+        .expect("utf8 temp path")
+        .replace('\\', "/");
     let src = format!(
         r#"
 import std.io
@@ -1019,10 +1022,12 @@ fn main() -> i32 {
     // 2. Allocator-wrap zero-leak & double-free verification (-Wl,--wrap=calloc -Wl,--wrap=free)
     // across Clang -O0 and -O2: every OwnedDyn box (Copy, Owning, ZST) must be freed
     // with zero live allocations and zero double-frees at process exit.
-    let probe_c = dir.join("alloc_probe.c");
-    std::fs::write(
-        &probe_c,
-        r#"
+    #[cfg(target_os = "linux")]
+    {
+        let probe_c = dir.join("alloc_probe.c");
+        std::fs::write(
+            &probe_c,
+            r#"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -1104,71 +1109,71 @@ static void report_allocs(void) {
     }
 }
 "#,
-    )
-    .expect("write alloc_probe.c");
+        )
+        .expect("write alloc_probe.c");
 
-    let mut session = CompilationSession::new();
-    let emit_exe = dir.join("emit-bin");
-    let emit_opts = CompileOptions {
-        stop_after: Stage::Build,
-        output: Some(emit_exe),
-        codegen: CodegenOptions { units: 1, jobs: 1 },
-        ..CompileOptions::default()
-    };
-    let report = session.compile_path(&entry, &emit_opts);
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "Build failed: {:?}",
-        report.diagnostics
-    );
-    let ll_path = report
-        .artifacts
-        .get("llvm")
-        .expect("llvm artifact path must be populated")
-        .clone();
+        let mut session = CompilationSession::new();
+        let emit_exe = dir.join("emit-bin");
+        let emit_opts = CompileOptions {
+            stop_after: Stage::Build,
+            output: Some(emit_exe),
+            codegen: CodegenOptions { units: 1, jobs: 1 },
+            ..CompileOptions::default()
+        };
+        let report = session.compile_path(&entry, &emit_opts);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "Build failed: {:?}",
+            report.diagnostics
+        );
+        let ll_path = report
+            .artifacts
+            .get("llvm")
+            .expect("llvm artifact path must be populated")
+            .clone();
 
-    let clang = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".to_string());
-    for opt_flag in ["-O0", "-O2"] {
-        let probed_exe = dir.join(format!("probed-{opt_flag}"));
-        let link = Command::new(&clang)
-            .arg(opt_flag)
-            .arg(&ll_path)
-            .arg(&probe_c)
-            .arg("-Wl,--wrap=calloc")
-            .arg("-Wl,--wrap=free")
-            .arg("-o")
-            .arg(&probed_exe)
-            .output()
-            .expect("invoke clang for allocator probe");
-        assert!(
-            link.status.success(),
-            "clang link failed ({opt_flag}): {}",
-            String::from_utf8_lossy(&link.stderr)
-        );
-        let run = Command::new(&probed_exe)
-            .output()
-            .expect("run probed executable");
-        let stderr = String::from_utf8_lossy(&run.stderr);
-        let stdout = String::from_utf8_lossy(&run.stdout);
-        assert!(
-            run.status.success(),
-            "allocator probe failed ({opt_flag}, code={:?}): stderr={stderr}",
-            run.status.code()
-        );
-        assert_eq!(stdout, "D");
-        assert!(
-            stderr.contains("live=0 double_free=0"),
-            "expected zero leaks ({opt_flag}), got: {stderr}"
-        );
-    }
+        let clang = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".to_string());
+        for opt_flag in ["-O0", "-O2"] {
+            let probed_exe = dir.join(format!("probed-{opt_flag}"));
+            let link = Command::new(&clang)
+                .arg(opt_flag)
+                .arg(&ll_path)
+                .arg(&probe_c)
+                .arg("-Wl,--wrap=calloc")
+                .arg("-Wl,--wrap=free")
+                .arg("-o")
+                .arg(&probed_exe)
+                .output()
+                .expect("invoke clang for allocator probe");
+            assert!(
+                link.status.success(),
+                "clang link failed ({opt_flag}): {}",
+                String::from_utf8_lossy(&link.stderr)
+            );
+            let run = Command::new(&probed_exe)
+                .output()
+                .expect("run probed executable");
+            let stderr = String::from_utf8_lossy(&run.stderr);
+            let stdout = String::from_utf8_lossy(&run.stdout);
+            assert!(
+                run.status.success(),
+                "allocator probe failed ({opt_flag}, code={:?}): stderr={stderr}",
+                run.status.code()
+            );
+            assert_eq!(stdout, "D");
+            assert!(
+                stderr.contains("live=0 double_free=0"),
+                "expected zero leaks ({opt_flag}), got: {stderr}"
+            );
+        }
 
-    // 2b. Controlled double-free self-test: prove that alloc_probe.c actively
-    // catches a double-free (exit code 98, double_free=1) rather than silently passing.
-    let df_ctrl_c = dir.join("double_free_control.c");
-    std::fs::write(
-        &df_ctrl_c,
-        r#"
+        // 2b. Controlled double-free self-test: prove that alloc_probe.c actively
+        // catches a double-free (exit code 98, double_free=1) rather than silently passing.
+        let df_ctrl_c = dir.join("double_free_control.c");
+        std::fs::write(
+            &df_ctrl_c,
+            r#"
 #include <stdlib.h>
 int main(void) {
     void *volatile p = calloc(1, 16);
@@ -1177,38 +1182,39 @@ int main(void) {
     return 0;
 }
 "#,
-    )
-    .expect("write double_free_control.c");
-    let df_ctrl_exe = dir.join("double-free-control");
-    let df_link = Command::new(&clang)
-        .arg("-O0")
-        .arg(&df_ctrl_c)
-        .arg(&probe_c)
-        .arg("-Wl,--wrap=calloc")
-        .arg("-Wl,--wrap=free")
-        .arg("-o")
-        .arg(&df_ctrl_exe)
-        .output()
-        .expect("invoke clang for double-free control");
-    assert!(
-        df_link.status.success(),
-        "double-free control link failed: {}",
-        String::from_utf8_lossy(&df_link.stderr)
-    );
-    let df_run = Command::new(&df_ctrl_exe)
-        .output()
-        .expect("run double-free control");
-    let df_stderr = String::from_utf8_lossy(&df_run.stderr);
-    assert_eq!(
-        df_run.status.code(),
-        Some(98),
-        "probe must catch controlled double-free with exit code 98, got {:?}, stderr={df_stderr}",
-        df_run.status.code()
-    );
-    assert!(
-        df_stderr.contains("double_free=1"),
-        "probe stderr must report double_free=1, got: {df_stderr}"
-    );
+        )
+        .expect("write double_free_control.c");
+        let df_ctrl_exe = dir.join("double-free-control");
+        let df_link = Command::new(&clang)
+            .arg("-O0")
+            .arg(&df_ctrl_c)
+            .arg(&probe_c)
+            .arg("-Wl,--wrap=calloc")
+            .arg("-Wl,--wrap=free")
+            .arg("-o")
+            .arg(&df_ctrl_exe)
+            .output()
+            .expect("invoke clang for double-free control");
+        assert!(
+            df_link.status.success(),
+            "double-free control link failed: {}",
+            String::from_utf8_lossy(&df_link.stderr)
+        );
+        let df_run = Command::new(&df_ctrl_exe)
+            .output()
+            .expect("run double-free control");
+        let df_stderr = String::from_utf8_lossy(&df_run.stderr);
+        assert_eq!(
+            df_run.status.code(),
+            Some(98),
+            "probe must catch controlled double-free with exit code 98, got {:?}, stderr={df_stderr}",
+            df_run.status.code()
+        );
+        assert!(
+            df_stderr.contains("double_free=1"),
+            "probe stderr must report double_free=1, got: {df_stderr}"
+        );
+    }
 
     // 3. Safety negative: using OwnedDyn after by-value consume MUST be SafeReject.
     check_rejected(

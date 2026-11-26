@@ -400,14 +400,23 @@ int32_t win64_obs_total(void) { return g_sum; }
     let verified = verify_body_program(&[("win64_exec.zil", WIN64_EXEC_PROGRAM)])
         .expect("Win64 native execution program must verify");
 
-    for (label, opt) in [("o0", Optimization::O0), ("o2", Optimization::O2)] {
+    let mut configs = vec![
+        ("clang-o0", NativeBackend::Clang, Optimization::O0),
+        ("clang-o2", NativeBackend::Clang, Optimization::O2),
+    ];
+    if cfg!(feature = "llvm-api") {
+        configs.push(("llvmapi-o0", NativeBackend::LlvmApi, Optimization::O0));
+        configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
+    }
+
+    for (label, backend, opt) in configs {
         let exe: PathBuf = dir.join(format!("win64_exec_{label}.exe"));
         build_verified_body(
             &verified,
             &BodyBuildOptions {
                 output: exe.clone(),
                 optimization: opt,
-                backend: NativeBackend::Clang,
+                backend,
                 target: TargetProfile::windows_x64_llvm(),
                 windows: None,
                 clang: None,

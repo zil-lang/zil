@@ -1847,7 +1847,7 @@ fn main() -> TaskCreateError!i32 {
         configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
     }
     for (label, backend, opt) in configs {
-        let exe = dir.join(format!("bin-{label}"));
+        let exe = dir.join(format!("bin-{label}{}", std::env::consts::EXE_SUFFIX));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,
