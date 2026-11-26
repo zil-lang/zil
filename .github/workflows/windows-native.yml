@@ -120,9 +120,8 @@ jobs:
           $proj = Join-Path $work "proj"
           New-Item -ItemType Directory -Force -Path (Join-Path $proj "src") | Out-Null
           @"
-          name = "win64-smoke"
-          version = "0.1.0"
-          entry = "src/main.zil"
+          [package]
+          root = "src/main.zil"
           "@ | Set-Content -Path (Join-Path $proj "Zil.toml") -Encoding utf8
           @"
           fn add(a: i32, b: i32) -> i32 { return a + b }
@@ -136,5 +135,6 @@ jobs:
           fn main() -> i32 { return 0 }
           "@ | Set-Content -Path (Join-Path $proj "src\main.zil") -Encoding utf8
           & $zil lock $proj
+          if ($LASTEXITCODE -ne 0) { throw "zil lock failed with exit code $LASTEXITCODE" }
           & $zil test $proj
           if ($LASTEXITCODE -ne 0) { throw "zil test failed with exit code $LASTEXITCODE" }
