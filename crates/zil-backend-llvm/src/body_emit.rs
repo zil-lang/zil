@@ -796,6 +796,11 @@ fail:\n\
             out.push('\n');
         }
 
+        let fn_cfg = FnEmitConfig {
+            is_windows,
+            internalize: single_exe,
+            emit_cancel_clear: reach.uses_tasks,
+        };
         // Emit definitions for functions owned by this unit.
         for (idx, func) in module.functions.iter().enumerate() {
             if idx % actual_units == unit_idx && reach.fns[idx] {
@@ -804,9 +809,7 @@ fail:\n\
                     FnId::from_index(idx),
                     func,
                     &syms[idx],
-                    is_windows,
-                    single_exe,
-                    reach.uses_tasks,
+                    fn_cfg,
                     &mut out,
                 )?;
                 out.push('\n');
@@ -5583,16 +5586,24 @@ fn emit_function_decl(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+struct FnEmitConfig {
+    is_windows: bool,
+    internalize: bool,
+    emit_cancel_clear: bool,
+}
+
 fn emit_function(
     module: &Module,
     fn_id: FnId,
     func: &Function,
     sym: &str,
-    is_windows: bool,
-    internalize: bool,
-    emit_cancel_clear: bool,
+    cfg: FnEmitConfig,
     out: &mut String,
 ) -> Result<(), BodyEmitError> {
+    let is_windows = cfg.is_windows;
+    let internalize = cfg.internalize;
+    let emit_cancel_clear = cfg.emit_cancel_clear;
     let tys = &module.tys;
     let ret = llvm_ty(tys, func.sig.result)?;
     let mut param_sigs = Vec::new();
