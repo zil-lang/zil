@@ -861,6 +861,7 @@ void free(void *p) {
                     entry: None,
                     codegen_units: 1,
                     codegen_jobs: 1,
+                    object_cache: None,
                 },
             )
             .unwrap_or_else(|e| panic!("Win64 OOM build ({label}) failed: {}", e.message));

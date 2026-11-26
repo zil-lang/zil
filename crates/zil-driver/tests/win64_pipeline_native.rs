@@ -425,6 +425,7 @@ int32_t win64_obs_total(void) { return g_sum; }
                 entry: None,
                 codegen_units: 1,
                 codegen_jobs: 1,
+                object_cache: None,
             },
         )
         .unwrap_or_else(|e| panic!("Win64 native build ({label}) failed: {}", e.message));
@@ -461,6 +462,7 @@ int32_t win64_obs_total(void) { return g_sum; }
             entry: Some("helper".into()),
             codegen_units: 1,
             codegen_jobs: 1,
+            object_cache: None,
         },
     )
     .expect("Win64 custom --entry build must succeed with MSVC UCRT printf");

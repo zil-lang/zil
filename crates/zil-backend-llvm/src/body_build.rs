@@ -21,6 +21,7 @@ pub struct BodyBuildOptions {
     pub entry: Option<String>,
     pub codegen_units: usize,
     pub codegen_jobs: usize,
+    pub object_cache: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -30,6 +31,8 @@ pub struct BodyBuildOutput {
     pub commands: Vec<Vec<String>>,
     pub object_reports: Vec<String>,
     pub actual_units: usize,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -77,6 +80,29 @@ fn receipt_to_json(receipt: &zil_llvm_api::Receipt) -> String {
         receipt.emit_ns,
         receipt.total_ns,
     )
+}
+
+#[cfg(feature = "llvm-api")]
+fn cache_hit_receipt_json(triple: &str, opt_flag: &str) -> String {
+    format!(
+        "{{\"backend\":\"llvm-api\",\"llvm_version\":\"cached\",\"triple\":{},\"cpu\":\"generic\",\"features\":\"\",\"data_layout\":\"\",\"pipeline\":{},\"relocation\":\"pic\",\"code_model\":\"default\",\"verify_before_after\":false,\"input_kind\":\"object-cache-hit\",\"preflight_ns\":0,\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":0}}",
+        zil_base::json_string(triple),
+        zil_base::json_string(opt_flag),
+    )
+}
+
+#[cfg(feature = "llvm-api")]
+fn unit_cache_key(triple: &str, opt_flag: &str, unit_ir: &str) -> String {
+    let mut h = zil_base::FingerprintBuilder::new();
+    h.update(b"zil-obj-cache-v1\0");
+    h.update(env!("CARGO_PKG_VERSION").as_bytes());
+    h.update(b"\0");
+    h.update(triple.as_bytes());
+    h.update(b"\0");
+    h.update(opt_flag.as_bytes());
+    h.update(b"\0");
+    h.update(unit_ir.as_bytes());
+    h.digest().to_hex()
 }
 
 fn run_checked_command(mut cmd: Command, label: &str, tool: &Path) -> Result<(), BodyBuildError> {
@@ -175,15 +201,6 @@ pub fn build_verified_body(
     let is_windows = triple.contains("windows");
     let obj_ext = if is_windows { "obj" } else { "o" };
     let entry = options.entry.as_deref();
-    let ir = emit_verified_body_units_with_entry_for_target(
-        verified,
-        options.emit_c_main,
-        1,
-        entry,
-        triple,
-    )?
-    .pop()
-    .unwrap_or_default();
     let ir_path = PathBuf::from(format!("{}.ll", options.output.display()));
     if let Some(parent) = ir_path.parent()
         && !parent.as_os_str().is_empty()
@@ -191,8 +208,6 @@ pub fn build_verified_body(
         fs::create_dir_all(parent)
             .map_err(|e| BodyBuildError::new(format!("failed to create output directory: {e}")))?;
     }
-    fs::write(&ir_path, &ir)
-        .map_err(|e| BodyBuildError::new(format!("failed to write LLVM IR: {e}")))?;
 
     let clang = options
         .clang
@@ -209,29 +224,49 @@ pub fn build_verified_body(
             #[cfg(feature = "llvm-api")]
             {
                 let requested = options.codegen_units.max(1);
-                let unit_irs = if requested == 1 {
-                    vec![ir.clone()]
-                } else {
-                    emit_verified_body_units_with_entry_for_target(
-                        verified,
-                        options.emit_c_main,
-                        requested,
-                        entry,
-                        triple,
-                    )?
-                };
+                let unit_irs = emit_verified_body_units_with_entry_for_target(
+                    verified,
+                    options.emit_c_main,
+                    requested,
+                    entry,
+                    triple,
+                )?;
                 let actual_units = unit_irs.len();
+                let ir = if actual_units == 1 {
+                    unit_irs[0].clone()
+                } else {
+                    unit_irs.join("\n; --- unit boundary ---\n")
+                };
+                fs::write(&ir_path, &ir)
+                    .map_err(|e| BodyBuildError::new(format!("failed to write LLVM IR: {e}")))?;
+
+                let cache_dir = options.object_cache.as_deref();
+                if let Some(dir) = cache_dir {
+                    fs::create_dir_all(dir).map_err(|e| {
+                        BodyBuildError::new(format!(
+                            "failed to create object cache directory {}: {e}",
+                            dir.display()
+                        ))
+                    })?;
+                }
+
                 let api_opt = match options.optimization {
                     Optimization::O0 => zil_llvm_api::Optimization::O0,
                     Optimization::O2 => zil_llvm_api::Optimization::O2,
                 };
                 let jobs = options.codegen_jobs.clamp(1, actual_units);
 
-                let results: Vec<std::sync::Mutex<Option<Result<zil_llvm_api::Object, String>>>> =
-                    (0..actual_units)
-                        .map(|_| std::sync::Mutex::new(None))
-                        .collect();
+                struct UnitCompiled {
+                    bytes: Vec<u8>,
+                    report: String,
+                    cache_hit: bool,
+                }
+                let results: Vec<std::sync::Mutex<Option<Result<UnitCompiled, String>>>> = (0
+                    ..actual_units)
+                    .map(|_| std::sync::Mutex::new(None))
+                    .collect();
                 let next_idx = std::sync::atomic::AtomicUsize::new(0);
+                let pid = std::process::id();
 
                 std::thread::scope(|s| {
                     for _ in 0..jobs {
@@ -246,21 +281,53 @@ pub fn build_verified_body(
                                 if idx >= actual_units {
                                     break;
                                 }
-                                let compiled = crate::body_structured::build_structured_module(
-                                    &unit_irs[idx],
-                                    triple,
-                                    &format!("unit-{idx}"),
-                                )
-                                .map_err(|e| {
-                                    format!(
-                                        "zil-llvm-api unit {idx} structured build failed: {}",
-                                        e.message
-                                    )
-                                })
-                                .and_then(|structured| {
-                                    zil_llvm_api::compile_module(&structured, &config, &|| false)
-                                        .map_err(|e| format!("zil-llvm-api unit {idx} failed: {e}"))
+                                let cache_path = cache_dir.map(|dir| {
+                                    let key = unit_cache_key(triple, opt_flag, &unit_irs[idx]);
+                                    dir.join(format!("{key}.{obj_ext}"))
                                 });
+                                let compiled = if let Some(ref cp) = cache_path
+                                    && let Ok(bytes) = fs::read(cp)
+                                    && !bytes.is_empty()
+                                {
+                                    Ok(UnitCompiled {
+                                        bytes,
+                                        report: cache_hit_receipt_json(triple, opt_flag),
+                                        cache_hit: true,
+                                    })
+                                } else {
+                                    crate::body_structured::build_structured_module(
+                                        &unit_irs[idx],
+                                        triple,
+                                        &format!("unit-{idx}"),
+                                    )
+                                    .map_err(|e| {
+                                        format!(
+                                            "zil-llvm-api unit {idx} structured build failed: {}",
+                                            e.message
+                                        )
+                                    })
+                                    .and_then(|structured| {
+                                        zil_llvm_api::compile_module(&structured, &config, &|| {
+                                            false
+                                        })
+                                        .map_err(|e| format!("zil-llvm-api unit {idx} failed: {e}"))
+                                    })
+                                    .map(|object| {
+                                        if let Some(ref cp) = cache_path {
+                                            let tmp = cp.with_extension(format!(
+                                                "{obj_ext}.tmp.{pid}.{idx}"
+                                            ));
+                                            if fs::write(&tmp, &object.bytes).is_ok() {
+                                                let _ = fs::rename(&tmp, cp);
+                                            }
+                                        }
+                                        UnitCompiled {
+                                            bytes: object.bytes,
+                                            report: receipt_to_json(&object.receipt),
+                                            cache_hit: false,
+                                        }
+                                    })
+                                };
                                 if let Ok(mut slot) = results[idx].lock() {
                                     *slot = Some(compiled);
                                 }
@@ -271,8 +338,10 @@ pub fn build_verified_body(
 
                 let mut obj_paths = Vec::with_capacity(actual_units);
                 let mut object_reports = Vec::with_capacity(actual_units);
+                let mut cache_hits = 0usize;
+                let mut cache_misses = 0usize;
                 for (idx, slot) in results.into_iter().enumerate() {
-                    let object = slot
+                    let unit = slot
                         .into_inner()
                         .ok()
                         .flatten()
@@ -282,19 +351,24 @@ pub fn build_verified_body(
                             ))
                         })?
                         .map_err(BodyBuildError::new)?;
+                    if unit.cache_hit {
+                        cache_hits += 1;
+                    } else if cache_dir.is_some() {
+                        cache_misses += 1;
+                    }
                     let obj_path = if actual_units == 1 {
                         PathBuf::from(format!("{}.{obj_ext}", options.output.display()))
                     } else {
                         PathBuf::from(format!("{}.u{idx}.{obj_ext}", options.output.display()))
                     };
-                    fs::write(&obj_path, &object.bytes).map_err(|e| {
+                    fs::write(&obj_path, &unit.bytes).map_err(|e| {
                         BodyBuildError::new(format!(
                             "failed to write object file {}: {e}",
                             obj_path.display()
                         ))
                     })?;
                     obj_paths.push(obj_path);
-                    object_reports.push(receipt_to_json(&object.receipt));
+                    object_reports.push(unit.report);
                 }
 
                 let mut commands = Vec::new();
@@ -341,6 +415,8 @@ pub fn build_verified_body(
                     commands,
                     object_reports,
                     actual_units,
+                    cache_hits,
+                    cache_misses,
                 })
             }
             #[cfg(not(feature = "llvm-api"))]
@@ -352,6 +428,17 @@ pub fn build_verified_body(
             }
         }
         NativeBackend::Clang => {
+            let ir = emit_verified_body_units_with_entry_for_target(
+                verified,
+                options.emit_c_main,
+                1,
+                entry,
+                triple,
+            )?
+            .pop()
+            .unwrap_or_default();
+            fs::write(&ir_path, &ir)
+                .map_err(|e| BodyBuildError::new(format!("failed to write LLVM IR: {e}")))?;
             let mut commands = Vec::new();
             if is_windows && let Some(windows) = &options.windows {
                 let obj_path = PathBuf::from(format!("{}.{obj_ext}", options.output.display()));
@@ -430,6 +517,8 @@ pub fn build_verified_body(
                 commands,
                 object_reports: Vec::new(),
                 actual_units: 1,
+                cache_hits: 0,
+                cache_misses: 0,
             })
         }
     }

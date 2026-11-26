@@ -852,6 +852,7 @@ impl CompilationSession {
                 entry: options.entry.clone(),
                 codegen_units: options.codegen.units,
                 codegen_jobs: options.codegen.jobs,
+                object_cache: options.object_cache.clone(),
             },
         ) {
             Ok(built) => {
@@ -859,6 +860,13 @@ impl CompilationSession {
                 report.commands = built.commands;
                 report.artifacts.insert("llvm".into(), built.ir_path);
                 report.artifacts.insert("executable".into(), out_path);
+                if options.object_cache.is_some() {
+                    report.disk_cache = if built.cache_misses == 0 && built.cache_hits > 0 {
+                        DiskCacheStatus::Hit
+                    } else {
+                        DiskCacheStatus::Rebuilt
+                    };
+                }
                 report.native_codegen = Some(CodegenSummary {
                     backend: options.backend,
                     object_reports: built.object_reports,
@@ -1194,6 +1202,7 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                         entry: options.entry.clone(),
                         codegen_units: options.codegen.units,
                         codegen_jobs: options.codegen.jobs,
+                        object_cache: options.object_cache.clone(),
                     },
                 ) {
                     Ok(built) => {
@@ -1201,6 +1210,13 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                         report.commands = built.commands;
                         report.artifacts.insert("llvm".into(), built.ir_path);
                         report.artifacts.insert("executable".into(), out_path);
+                        if options.object_cache.is_some() {
+                            report.disk_cache = if built.cache_misses == 0 && built.cache_hits > 0 {
+                                DiskCacheStatus::Hit
+                            } else {
+                                DiskCacheStatus::Rebuilt
+                            };
+                        }
                         report.native_codegen = Some(CodegenSummary {
                             backend: options.backend,
                             object_reports: built.object_reports,
