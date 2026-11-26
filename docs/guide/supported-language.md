@@ -46,22 +46,29 @@
 | `async-ownership` | 多输入借入 `Task`、PC0/Pending/Ready/Cancel/Close、helper 参数与返回、嵌套挂起取消展开、G6.3 Task/Cancel 协议 | frame-local 借入结果不可逃逸；未关闭/活跃任务不可静默丢弃 | 跨线程任务迁移、非标量 `pub Suspend` 外部 ABI |
 | `threads-and-synchronization` | 结构化 `thread_scope`、`Mutex<T>`/affine `Guard`、`AtomicI32/I64/U64/Usize` 与有序操作/强 CAS | `Guard` 不自动获得跨线程或跨挂起迁移资格；须具实际 `Transfer`/`Share`/`SyncDrop` 证明 | 无锁通用工作窃取调度运行时 |
 | `foreign-lifecycle` | C ABI（完整整数/浮点/地址 Record/静态回调）与 `AsyncRegistration<F>` pre-trampoline/原子准入/重入关闭/排空清理 | 跨线程回调仅接已证明 closed 环境与同步 cleanup；无证明的裸指针逃逸必须拒绝 | 通用动态库/跨语言 ABI 生成器 |
-| `standard-library` | `std.utf8`、`std.string`、排序、POD/owning `HashMap`/`HashSet`、`std.iter`、`std.io`/`std.fs`/`std.path`/`std.env`/`std.net`（POSIX TCP） | 所有分配错误显式返回，失败与早退确定性清理拥有句柄 | 完整 Unicode 排版/locale、TLS/UDP/异步非阻塞网络 |
+| `standard-library` | `std.utf8`、`std.string`、排序、POD/owning `HashMap`/`HashSet`、`std.iter`、`std.io`/`std.fs`/`std.path`/`std.env`/`std.net`（Linux POSIX TCP 与 Windows Win32/UCRT Unicode `*W`/Winsock2） | 所有分配错误显式返回，失败与早退确定性清理拥有句柄与 Winsock 引用计数 | 完整 Unicode 排版/locale、TLS/UDP/异步非阻塞网络 |
 | `project-workflow` | `Zil.toml` 清单、路径依赖与 `zil lock`、`check`/`build`/`run`/`test`、独立测试发现与确定性失败码 | 空选择、编译失败、超时与测试失败一律不得报 Pass | 集中式包注册表发布与下载 |
-| `native-delivery` | Linux x86_64 Clang 与 LLVM API 双后端 O0/O2、确定性归档发布包与无源码/无 Rust 空环境安装运行验收（`alpha-release.yml`） | 必须运行独立 `zil-check` 验证器与真实二进制执行 | 原生 Windows x64 执行与多架构交叉发布 |
+| `native-delivery` | Linux x86_64 与 Windows x64 Clang + LLVM 23.1.4 C API 双后端 O0/O2、确定性归档发布包与无源码/无 Rust 空环境安装运行验收（`alpha-release.yml` / `windows-alpha-release.yml`） | 必须运行独立 `zil-check` 验证器与真实二进制执行；发行包不含系统 C 链接器 | macOS 与多架构交叉发布 |
 | `release-acceptance` | 同一冻结提交执行 12/12 能力族 + 8/8 日常应用 + Native API(16/128/56) + Fixed Projects(21/21, 152/152 required / 196 historical, 44 archival) + Roam(42/42, 24/24) 的 fail-closed 收据门 | `Unsupported`/零执行/跳过测试/旧提交收据一律失败；不以测试数冒充产品门 | `validation/product-gates.json` 性能/B0/同语义 Rust 净突破正式批准、ZUI/GPU/IME、Managed GC/RC 模式 |
 
 ## 快速开始
 
-### 方式一：使用预构建 Linux x86_64 Alpha 归档包（无需 Rust 或源码树）
+### 方式一：使用预构建 Alpha 归档包（无需 Rust 或源码树）
 
-在 Linux x86_64（需系统 `clang` 链接器与 `libzstd1`/`libxml2`/`zlib1g`）解压归档包并校验 `SHA256SUMS.txt` 后直接运行：
+- **Linux x86_64**（需系统 `clang` 链接器与 `libzstd1`/`libxml2`/`zlib1g`）：解压 `.tar.gz` 归档包并校验 `SHA256SUMS.txt` 后直接运行：
 
 ```sh
 sha256sum -c SHA256SUMS.txt
-tar -xzf zil-v1.0.0-alpha.1-linux-x86_64.tar.gz
-./zil-v1.0.0-alpha.1-linux-x86_64/bin/zil version
-./zil-v1.0.0-alpha.1-linux-x86_64/bin/zil build zil-v1.0.0-alpha.1-linux-x86_64/examples/everyday-apps/json-processor -o ./json-processor --opt O2
+tar -xzf zil-v1.0.0-alpha.2-linux-x86_64.tar.gz
+./zil-v1.0.0-alpha.2-linux-x86_64/bin/zil version
+./zil-v1.0.0-alpha.2-linux-x86_64/bin/zil build zil-v1.0.0-alpha.2-linux-x86_64/examples/everyday-apps/json-processor -o ./json-processor --opt O2
+```
+
+- **Windows x64**（归档内置 `zil.exe` 与 `LLVM-C.dll`，**无需 Rust/Cargo**；最终原生 PE 链接需系统已安装 `clang.exe` 与 Windows SDK/MSVC UCRT 导入库并在 `PATH` 可见）：解压 `.zip` 归档包并校验 `SHA256SUMS.txt` 后直接运行：
+
+```powershell
+.\zil-v1.0.0-alpha.2-windows-x86_64\bin\zil.exe version
+.\zil-v1.0.0-alpha.2-windows-x86_64\bin\zil.exe build .\zil-v1.0.0-alpha.2-windows-x86_64\examples\everyday-apps\json-processor -o .\json-processor.exe --opt O2
 ```
 
 ### 方式二：从源码构建
@@ -87,7 +94,7 @@ printf '10 20 -3\n' | ./out/stream
 ## 未支持及环境限制
 
 - 明确属于 Post-Alpha 的编译器/语言项：`for<'a>` 高阶生命周期、非可调用或多约束 `impl Trait` 返回类型、浮点字面量模式匹配、`dyn` 常量泛型参数与开放泛型方法槽、运行期 `Type` 值、Managed GC/RC 模式、超 4 层/64 态状态协议、完整 Unicode 排版/locale、TLS/UDP/异步非阻塞网络与集中式包注册表。
-- GPU 首帧、字体、OS IME、完整 ZUI 与原生 Windows 执行不包含在当前 Linux Alpha 范围。目标/后端只按本次收据中真实执行的组合列出；Win64 交叉构建或 Wine 不等于原生 Windows 验证。
+- GPU 首帧、字体、OS IME、完整 ZUI 与 macOS/ARM64 目标不包含在当前 Alpha 范围。Windows 发行包不内置 `clang.exe` 与 Windows SDK，需宿主机器提供系统 C 链接工具链；目标/后端只按本次收据中真实执行的组合列出。
 - `validation/product-gates.json` 中零 safe UB、同语义 Rust 运行/内存与编译/维护成本条件、至少一项可重复净突破及发布前提原样有效。目前不得宣称这些产品条件达成。B0、完整语言与 ZUI 终态验收继续独立进行。
 
-本说明依据 `_zil_design.md` §20、`validation/language-alpha-profile.json`、`validation/language-release-gates.json`、`validation/product-gates.json`、`goal:workflow.md` 与实时 `goal:goal.md`。源码、各门结果与发布包校验绑定同一冻结提交收据；`alpha-release.yml` 的 `verify-clean-environment` 作业在不检出源码、不安装 Rust、不使用 Cargo 缓存的空机器上独立验证归档包安装与运行。
+本说明依据 `_zil_design.md` §20、`validation/language-alpha-profile.json`、`validation/language-release-gates.json`、`validation/product-gates.json`、`goal:workflow.md` 与实时 `goal:goal.md`。源码、各门结果与发布包校验绑定同一冻结提交收据；`alpha-release.yml` 与 `windows-alpha-release.yml` 的干净环境验证作业在不检出源码、不安装 Rust、不使用 Cargo 缓存的空机器上独立验证归档包安装与运行。

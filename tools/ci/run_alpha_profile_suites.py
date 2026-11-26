@@ -170,22 +170,34 @@ WINDOWS_EVERYDAY_APP_TESTS: dict[str, tuple[str, str, list[str]]] = {
     "text-stats-and-file-search": (
         "zil-driver",
         "everyday_apps_core_native",
-        ["everyday_app_text_stats_and_file_search_dual_backend"],
+        [
+            "everyday_app_text_stats_and_file_search_dual_backend",
+            "everyday_apps_oom_injection_cleanup_dual_backend",
+        ],
     ),
     "csv-processor": (
         "zil-driver",
         "everyday_apps_core_native",
-        ["everyday_app_csv_processor_dual_backend"],
+        [
+            "everyday_app_csv_processor_dual_backend",
+            "everyday_apps_oom_injection_cleanup_dual_backend",
+        ],
     ),
     "json-processor": (
         "zil-driver",
         "everyday_apps_core_native",
-        ["everyday_app_json_processor_dual_backend"],
+        [
+            "everyday_app_json_processor_dual_backend",
+            "everyday_apps_oom_injection_cleanup_dual_backend",
+        ],
     ),
     "cli-todo-app": (
         "zil-driver",
         "everyday_apps_core_native",
-        ["everyday_app_cli_todo_app_dual_backend"],
+        [
+            "everyday_app_cli_todo_app_dual_backend",
+            "everyday_apps_oom_injection_cleanup_dual_backend",
+        ],
     ),
     "http-mini-service-and-client": (
         "zil-driver",

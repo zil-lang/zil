@@ -1,7 +1,8 @@
 // Windows x64 Winsock2 TCP networking (IPv4 TcpListener and TcpStream).
-// Each TcpStream and TcpListener owns at most one SOCKET handle (u64/i64;
-// INVALID_SOCKET = -1) and deterministically closes it via closesocket on
-// explicit close() or Drop.
+// Each TcpStream and TcpListener owns at most one SOCKET handle (INVALID_SOCKET = -1)
+// AND its own paired WSAStartup(0x0202) initialization reference, deterministically
+// closing the socket via closesocket and releasing the Winsock reference via WSACleanup
+// on every success, explicit close, Drop, and error path.
 import std.io
 
 struct SockAddrIn {
@@ -15,8 +16,21 @@ struct SockAddrIn {
     sin_zero: u64
 }
 
-extern "C" fn WSAStartup(version_requested: u16, wsa_data: &mut u8) -> i32
+// 416-byte 8-byte-aligned stack buffer for Win64 WSADATA (408 bytes), avoiding
+// any heap allocation during WSAStartup acquisition.
+struct WsaDataBuf {
+    w0: u64; w1: u64; w2: u64; w3: u64; w4: u64; w5: u64; w6: u64; w7: u64;
+    w8: u64; w9: u64; w10: u64; w11: u64; w12: u64; w13: u64; w14: u64; w15: u64;
+    w16: u64; w17: u64; w18: u64; w19: u64; w20: u64; w21: u64; w22: u64; w23: u64;
+    w24: u64; w25: u64; w26: u64; w27: u64; w28: u64; w29: u64; w30: u64; w31: u64;
+    w32: u64; w33: u64; w34: u64; w35: u64; w36: u64; w37: u64; w38: u64; w39: u64;
+    w40: u64; w41: u64; w42: u64; w43: u64; w44: u64; w45: u64; w46: u64; w47: u64;
+    w48: u64; w49: u64; w50: u64; w51: u64
+}
+
+extern "C" fn WSAStartup(version_requested: u16, wsa_data: &mut WsaDataBuf) -> i32
 contract { provides(noescape(wsa_data)); effects(ffi); };
+extern "C" fn WSACleanup() -> i32;
 extern "C" fn WSAGetLastError() -> i32;
 extern "C" fn socket(domain: i32, sock_type: i32, protocol: i32) -> i64;
 extern "C" fn setsockopt(sock: i64, level: i32, optname: i32, optval: &i32, optlen: i32) -> i32
@@ -51,26 +65,31 @@ pub fn localhost() -> Ipv4Addr {
     return Ipv4Addr { a: 127u8, b: 0u8, c: 0u8, d: 1u8 }
 }
 
-fn wsa_init_into(buf: ByteBuffer) -> i32 {
-    let dst = bytes_view_mut(buf)
-    var rc: i32 = -1
-    // MAKEWORD(2, 2) = 0x0202 (514)
-    unsafe { rc = WSAStartup(514u16, &mut dst[0]) }
-    return rc
+fn zero_wsa_data() -> WsaDataBuf {
+    return WsaDataBuf {
+        w0: 0u64, w1: 0u64, w2: 0u64, w3: 0u64, w4: 0u64, w5: 0u64, w6: 0u64, w7: 0u64,
+        w8: 0u64, w9: 0u64, w10: 0u64, w11: 0u64, w12: 0u64, w13: 0u64, w14: 0u64, w15: 0u64,
+        w16: 0u64, w17: 0u64, w18: 0u64, w19: 0u64, w20: 0u64, w21: 0u64, w22: 0u64, w23: 0u64,
+        w24: 0u64, w25: 0u64, w26: 0u64, w27: 0u64, w28: 0u64, w29: 0u64, w30: 0u64, w31: 0u64,
+        w32: 0u64, w33: 0u64, w34: 0u64, w35: 0u64, w36: 0u64, w37: 0u64, w38: 0u64, w39: 0u64,
+        w40: 0u64, w41: 0u64, w42: 0u64, w43: 0u64, w44: 0u64, w45: 0u64, w46: 0u64, w47: 0u64,
+        w48: 0u64, w49: 0u64, w50: 0u64, w51: 0u64,
+    }
 }
 
-fn ensure_winsock() -> io.Error!void {
-    // WSADATA on Windows x64 is 408 bytes; allocate a 416-byte scratch buffer.
-    let buf = bytes_new()
-    if !bytes_reserve(buf, 416) { return io.Error.Allocation }
-    var i: i64 = 0
-    while i < 416 {
-        if !bytes_push(buf, 0u8) { return io.Error.InvalidResult }
-        i += 1
-    }
-    let rc = wsa_init_into(buf)
+// Acquires one thread-safe Winsock 2.2 reference via WSAStartup(MAKEWORD(2,2)).
+// Every successful call MUST be matched 1:1 by release_winsock() / WSACleanup().
+fn acquire_winsock() -> io.Error!void {
+    var data = zero_wsa_data()
+    var rc: i32 = -1
+    // MAKEWORD(2, 2) = 0x0202 (514)
+    unsafe { rc = WSAStartup(514u16, &mut data) }
     if rc != 0 { return io.Error.Open }
     return ()
+}
+
+fn release_winsock() {
+    unsafe { let _ = WSACleanup() }
 }
 
 fn make_sockaddr_in(addr: Ipv4Addr, port: i32) -> SockAddrIn {
@@ -124,13 +143,17 @@ fn empty_chunk() -> [u8; 256] {
 }
 
 pub resource TcpStream {
-    sock: i64
+    sock: i64;
+    wsa_active: bool
 }
 
 impl Drop for TcpStream {
     fn drop(self: Self) {
         if .sock != -1 {
             unsafe { closesocket(.sock) }
+        }
+        if .wsa_active {
+            release_winsock()
         }
     }
 }
@@ -213,11 +236,12 @@ impl TcpStream {
         if port < 0 || port > 65535 {
             return io.Error.InvalidPath
         }
-        ensure_winsock()?
+        acquire_winsock()?
         var sock: i64 = -1
         // AF_INET = 2, SOCK_STREAM = 1, protocol = 0
         unsafe { sock = socket(2, 1, 0) }
         if sock == -1 {
+            release_winsock()
             return io.Error.Open
         }
         let sa = make_sockaddr_in(addr, port)
@@ -225,20 +249,28 @@ impl TcpStream {
         unsafe { status = connect(sock, &sa, 16) }
         if status != 0 {
             unsafe { closesocket(sock) }
+            release_winsock()
             return io.Error.Open
         }
-        return TcpStream { sock: sock }
+        return TcpStream { sock: sock, wsa_active: true }
     }
 
     pub fn close(self: &mut TcpStream) -> io.Error!void {
-        if self.sock == -1 {
-            return ()
+        var close_err = false
+        if self.sock != -1 {
+            let sock = self.sock
+            self.sock = -1
+            var status: i32 = -1
+            unsafe { status = closesocket(sock) }
+            if status != 0 {
+                close_err = true
+            }
         }
-        let sock = self.sock
-        self.sock = -1
-        var status: i32 = -1
-        unsafe { status = closesocket(sock) }
-        if status != 0 {
+        if self.wsa_active {
+            self.wsa_active = false
+            release_winsock()
+        }
+        if close_err {
             return io.Error.Write
         }
         return ()
@@ -331,13 +363,17 @@ impl TcpStream {
 }
 
 pub resource TcpListener {
-    sock: i64
+    sock: i64;
+    wsa_active: bool
 }
 
 impl Drop for TcpListener {
     fn drop(self: Self) {
         if .sock != -1 {
             unsafe { closesocket(.sock) }
+        }
+        if .wsa_active {
+            release_winsock()
         }
     }
 }
@@ -347,11 +383,12 @@ impl TcpListener {
         if port < 0 || port > 65535 {
             return io.Error.InvalidPath
         }
-        ensure_winsock()?
+        acquire_winsock()?
         var sock: i64 = -1
         // AF_INET = 2, SOCK_STREAM = 1, protocol = 0
         unsafe { sock = socket(2, 1, 0) }
         if sock == -1 {
+            release_winsock()
             return io.Error.Open
         }
         let reuse: i32 = 1
@@ -360,6 +397,7 @@ impl TcpListener {
         unsafe { opt_status = setsockopt(sock, 65535, 4, &reuse, 4) }
         if opt_status != 0 {
             unsafe { closesocket(sock) }
+            release_winsock()
             return io.Error.Open
         }
         let sa = make_sockaddr_in(addr, port)
@@ -367,15 +405,17 @@ impl TcpListener {
         unsafe { bind_status = bind(sock, &sa, 16) }
         if bind_status != 0 {
             unsafe { closesocket(sock) }
+            release_winsock()
             return io.Error.Open
         }
         var listen_status: i32 = -1
         unsafe { listen_status = listen(sock, 128) }
         if listen_status != 0 {
             unsafe { closesocket(sock) }
+            release_winsock()
             return io.Error.Open
         }
-        return TcpListener { sock: sock }
+        return TcpListener { sock: sock, wsa_active: true }
     }
 
     pub fn local_port(self: &TcpListener) -> io.Error!i32 {
@@ -412,18 +452,34 @@ impl TcpListener {
             }
             break
         }
-        return TcpStream { sock: client_sock }
+        // Acquire an independent WSAStartup reference for the returned TcpStream so
+        // it remains valid even if the listener closes/drops first, and releases it on Drop.
+        match acquire_winsock() {
+            .ok(_) => {},
+            .err(_) => {
+                unsafe { closesocket(client_sock) }
+                return io.Error.Open
+            }
+        }
+        return TcpStream { sock: client_sock, wsa_active: true }
     }
 
     pub fn close(self: &mut TcpListener) -> io.Error!void {
-        if self.sock == -1 {
-            return ()
+        var close_err = false
+        if self.sock != -1 {
+            let sock = self.sock
+            self.sock = -1
+            var status: i32 = -1
+            unsafe { status = closesocket(sock) }
+            if status != 0 {
+                close_err = true
+            }
         }
-        let sock = self.sock
-        self.sock = -1
-        var status: i32 = -1
-        unsafe { status = closesocket(sock) }
-        if status != 0 {
+        if self.wsa_active {
+            self.wsa_active = false
+            release_winsock()
+        }
+        if close_err {
             return io.Error.Write
         }
         return ()

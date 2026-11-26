@@ -843,14 +843,13 @@ fn main() -> i32 {
     let _ = std::fs::remove_dir_all(&work);
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 #[test]
 fn everyday_apps_oom_injection_cleanup_dual_backend() {
     let work = temp_dir("oom-injection");
     let oom_probe = work.join("oom_realloc_probe.c");
-    std::fs::write(
-        &oom_probe,
-        r#"
+    #[cfg(target_os = "linux")]
+    let probe_src = r#"
 #include <stddef.h>
 #include <stdlib.h>
 
@@ -880,9 +879,72 @@ void *realloc(void *ptr, size_t size) {
     }
     return __libc_realloc(ptr, size);
 }
-"#,
-    )
-    .expect("write oom_realloc_probe.c");
+"#;
+    #[cfg(target_os = "windows")]
+    let probe_src = r#"
+#include <stddef.h>
+#include <stdint.h>
+#include <windows.h>
+
+static long g_fail_at = -1;
+static long g_calls = 0;
+
+static void init_fail_point(void) {
+    if (g_fail_at != -1) return;
+    char buf[64];
+    DWORD n = GetEnvironmentVariableA("ZIL_OOM_FAIL_AT", buf, sizeof(buf));
+    if (n == 0 || n >= sizeof(buf)) {
+        g_fail_at = 0;
+        return;
+    }
+    long parsed = 0;
+    for (DWORD i = 0; i < n; i++) {
+        if (buf[i] < '0' || buf[i] > '9') {
+            parsed = 0;
+            break;
+        }
+        parsed = parsed * 10 + (buf[i] - '0');
+    }
+    g_fail_at = parsed > 0 ? parsed : 0;
+}
+
+void *malloc(size_t size) {
+    if (size == 0) size = 1;
+    return HeapAlloc(GetProcessHeap(), 0, size);
+}
+
+void *calloc(size_t count, size_t size) {
+    if (count != 0 && size > ((size_t)-1) / count) return NULL;
+    size_t total = count * size;
+    if (total == 0) total = 1;
+    return HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, total);
+}
+
+void free(void *ptr) {
+    if (!ptr) return;
+    HeapFree(GetProcessHeap(), 0, ptr);
+}
+
+void *realloc(void *ptr, size_t size) {
+    init_fail_point();
+    if (g_fail_at > 0) {
+        g_calls++;
+        if (g_calls == g_fail_at) {
+            return NULL;
+        }
+    }
+    if (!ptr) {
+        if (size == 0) size = 1;
+        return HeapAlloc(GetProcessHeap(), 0, size);
+    }
+    if (size == 0) {
+        HeapFree(GetProcessHeap(), 0, ptr);
+        return NULL;
+    }
+    return HeapReAlloc(GetProcessHeap(), 0, ptr, size);
+}
+"#;
+    std::fs::write(&oom_probe, probe_src).expect("write oom_realloc_probe.c");
 
     let corpus = work.join("corpus");
     std::fs::create_dir_all(&corpus).expect("create corpus");
@@ -934,7 +996,7 @@ void *realloc(void *ptr, size_t size) {
     let mut json_oom_hits = 0usize;
     let mut todo_oom_hits = 0usize;
 
-    for fail_at in [1usize, 3, 6, 10, 15] {
+    for fail_at in [1usize, 3, 6, 10, 15, 25, 40] {
         let fail_str = fail_at.to_string();
         let envs = [("ZIL_OOM_FAIL_AT", fail_str.as_str())];
 
