@@ -257,6 +257,7 @@ pub fn build_body_source_native(
             entry: None,
             codegen_units: 1,
             codegen_jobs: 1,
+            object_cache: None,
         },
     )
     .map(|o| o.ir)

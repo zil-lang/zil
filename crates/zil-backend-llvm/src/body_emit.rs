@@ -160,12 +160,19 @@ pub fn emit_verified_body_units_with_entry_for_target(
         syms.push(sym);
     }
 
-    let single_exe = actual_units == 1 && emit_c_main && main_fn.is_some();
-    let reach = if single_exe {
+    let prune_exe = emit_c_main && main_fn.is_some();
+    let single_exe = actual_units == 1 && prune_exe;
+    let mut reach = if prune_exe {
         compute_codegen_reachability(module, main_fn.as_ref().map(|(id, _, _)| *id))
     } else {
         CodegenReachability::all(module)
     };
+    if actual_units > 1 {
+        // Preserve multi-unit runtime helper definitions/declarations in unit 0..N
+        // while pruning all unreachable ZIL/std functions across units.
+        reach.uses_regs = true;
+        reach.uses_aregs = true;
+    }
     let runtime_linkage = if single_exe { "internal " } else { "" };
 
     let mut runtime_defs = String::with_capacity(4096);
@@ -768,6 +775,17 @@ fail:\n\
         foreign_header.push('\n');
     }
 
+    let mut unit_of_fn = vec![0usize; fn_count];
+    if actual_units > 1 {
+        let mut reach_ord = 0usize;
+        for idx in 0..fn_count {
+            if reach.fns[idx] {
+                unit_of_fn[idx] = reach_ord % actual_units;
+                reach_ord += 1;
+            }
+        }
+    }
+
     let mut units = Vec::with_capacity(actual_units);
     for unit_idx in 0..actual_units {
         let mut out =
@@ -780,15 +798,18 @@ fail:\n\
         }
         out.push_str(&foreign_header);
 
-        // Emit declarations for functions owned by other units.
+        // Emit declarations for reachable functions owned by other units.
         if actual_units > 1 {
             for (idx, func) in module.functions.iter().enumerate() {
-                if idx % actual_units != unit_idx {
+                if reach.fns[idx] && unit_of_fn[idx] != unit_idx {
                     emit_function_decl(module, func, &syms[idx], &mut out)?;
                 }
             }
             if unit_idx != 0 {
                 for (i, dimpl) in module.dyn_impls.iter().enumerate() {
+                    if !reach.dyn_impls[i] {
+                        continue;
+                    }
                     let n = dimpl.methods.len() + 1;
                     let _ = writeln!(out, "@__zil_vtable_{i} = external constant [{n} x ptr]");
                 }
@@ -801,9 +822,9 @@ fail:\n\
             internalize: single_exe,
             emit_cancel_clear: reach.uses_tasks,
         };
-        // Emit definitions for functions owned by this unit.
+        // Emit definitions for reachable functions owned by this unit.
         for (idx, func) in module.functions.iter().enumerate() {
-            if idx % actual_units == unit_idx && reach.fns[idx] {
+            if reach.fns[idx] && unit_of_fn[idx] == unit_idx {
                 emit_function(
                     module,
                     FnId::from_index(idx),
