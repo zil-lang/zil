@@ -206,10 +206,22 @@ def verify_bundle(
                     )
 
             # 3. Build & execute standalone multi-module async-task-scheduler project (`Zil.toml`) at O2.
+            # Also copy it without Zil.lock into work_dir and verify `zil lock` works in a clean env.
             async_project = bundle_dir / "examples/everyday-apps/async-task-scheduler"
+            copied_async = work_dir / "fresh-async-project"
+            copied_async.mkdir(parents=True, exist_ok=True)
+            for item in async_project.iterdir():
+                if item.is_file() and item.name != "Zil.lock":
+                    (copied_async / item.name).write_bytes(item.read_bytes())
+            lk = _run([zil_exe, "lock", str(copied_async)], env=env, cwd=work_dir)
+            lk_ok = lk.returncode == 0 and (copied_async / "Zil.lock").is_file()
+            checks["zil_lock"] = {"status": "pass" if lk_ok else "fail", "exit_code": lk.returncode}
+            if not lk_ok:
+                errors.append(f"zil lock failed: rc={lk.returncode} out={lk.stdout!r} err={lk.stderr!r}")
+
             async_bin = work_dir / "async-scheduler-O2"
             ba = _run(
-                [zil_exe, "build", str(async_project), "-o", str(async_bin), "--opt", "O2"],
+                [zil_exe, "build", str(copied_async), "-o", str(async_bin), "--opt", "O2"],
                 env=env,
                 cwd=work_dir,
             )
