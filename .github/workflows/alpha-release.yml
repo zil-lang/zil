@@ -175,6 +175,7 @@ jobs:
           RECEIPT="$RUNNER_TEMP/release-assets/zil-linux-x86_64-clean-env-receipt/clean-env-verify-receipt.json"
           ARCHIVE="$(ls "$BUNDLE"/zil-*-linux-x86_64.tar.gz)"
           gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
             "$ARCHIVE" \
             "$BUNDLE/SHA256SUMS.txt" \
             "$BUNDLE/RELEASE-MANIFEST.json" \
