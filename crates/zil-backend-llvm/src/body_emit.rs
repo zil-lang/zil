@@ -18,17 +18,27 @@ use zil_ir::body::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BodyEmitError {
     pub message: String,
+    pub unsupported: bool,
 }
 
 impl BodyEmitError {
     fn new(msg: impl Into<String>) -> Self {
         Self {
             message: msg.into(),
+            unsupported: false,
+        }
+    }
+
+    fn unsupported(msg: impl Into<String>) -> Self {
+        Self {
+            message: msg.into(),
+            unsupported: true,
         }
     }
 }
 
-/// Emits LLVM 23 opaque-pointer IR for a verified Body IR module as a single unit.
+/// Emits LLVM 23 opaque-pointer IR for a verified Body IR module as a single unit
+/// targeting the host LLVM triple.
 ///
 /// When `emit_c_main` is true and a zero-argument `main` function exists, a C
 /// `main()` entry wrapper is emitted that invokes it and returns its `i32`
@@ -37,7 +47,18 @@ pub fn emit_verified_body(
     verified: &VerifiedModule,
     emit_c_main: bool,
 ) -> Result<String, BodyEmitError> {
-    let mut units = emit_verified_body_units(verified, emit_c_main, 1)?;
+    let host = zil_base::TargetProfile::host_llvm();
+    emit_verified_body_for_target(verified, emit_c_main, &host.triple)
+}
+
+/// Emits LLVM 23 opaque-pointer IR for a verified Body IR module as a single unit
+/// for an explicit LLVM target triple (for example `"x86_64-pc-windows-msvc"`).
+pub fn emit_verified_body_for_target(
+    verified: &VerifiedModule,
+    emit_c_main: bool,
+    target_triple: &str,
+) -> Result<String, BodyEmitError> {
+    let mut units = emit_verified_body_units_for_target(verified, emit_c_main, 1, target_triple)?;
     Ok(units.pop().unwrap_or_default())
 }
 
@@ -53,47 +74,155 @@ pub fn emit_verified_body_units(
     emit_c_main: bool,
     requested_units: usize,
 ) -> Result<Vec<String>, BodyEmitError> {
-    emit_verified_body_units_with_entry(verified, emit_c_main, requested_units, None)
+    let host = zil_base::TargetProfile::host_llvm();
+    emit_verified_body_units_with_entry_for_target(
+        verified,
+        emit_c_main,
+        requested_units,
+        None,
+        &host.triple,
+    )
 }
 
-pub fn emit_verified_body_units_with_entry(
+/// Partitions `verified` into independent LLVM 23 IR modules for an explicit target triple.
+pub fn emit_verified_body_units_for_target(
+    verified: &VerifiedModule,
+    emit_c_main: bool,
+    requested_units: usize,
+    target_triple: &str,
+) -> Result<Vec<String>, BodyEmitError> {
+    emit_verified_body_units_with_entry_for_target(
+        verified,
+        emit_c_main,
+        requested_units,
+        None,
+        target_triple,
+    )
+}
+
+fn validate_windows_runtime_support(
+    module: &Module,
+    target_triple: &str,
+) -> Result<(), BodyEmitError> {
+    for func in &module.functions {
+        for block in &func.body.blocks {
+            if let Terminator::Call { callee, cancel, .. } = &block.terminator {
+                if cancel.is_some() {
+                    return Err(BodyEmitError::unsupported(format!(
+                        "target `{target_triple}` does not yet support suspendable Task cancel unwinding (planned for Windows W3)"
+                    )));
+                }
+                if let Callee::Intrinsic(op) = callee {
+                    let unsupported = match op {
+                        IntrinsicOp::MutexCreate
+                        | IntrinsicOp::MutexLock
+                        | IntrinsicOp::MutexValue
+                        | IntrinsicOp::MutexUnlock => Some("Mutex"),
+                        IntrinsicOp::TaskStart
+                        | IntrinsicOp::TaskCreate
+                        | IntrinsicOp::TaskYield
+                        | IntrinsicOp::TaskValid
+                        | IntrinsicOp::TaskPoll
+                        | IntrinsicOp::TaskRequestCancel
+                        | IntrinsicOp::TaskPollClose
+                        | IntrinsicOp::TaskFinishDestroy => Some("Task"),
+                        IntrinsicOp::AsyncRegistrationStart
+                        | IntrinsicOp::AsyncRegistrationValid
+                        | IntrinsicOp::AsyncRegistrationRequestClose
+                        | IntrinsicOp::AsyncRegistrationPollClose
+                        | IntrinsicOp::AsyncRegistrationFinishDestroy => Some("AsyncRegistration"),
+                        IntrinsicOp::ThreadScope => Some("ThreadScope"),
+                        IntrinsicOp::StoreNew
+                        | IntrinsicOp::StoreReserve
+                        | IntrinsicOp::StorePush
+                        | IntrinsicOp::StorePop
+                        | IntrinsicOp::StoreLen
+                        | IntrinsicOp::StoreCapacity
+                        | IntrinsicOp::StoreBorrow { .. }
+                        | IntrinsicOp::ByteBufferNew
+                        | IntrinsicOp::ByteBufferReserve
+                        | IntrinsicOp::ByteBufferPush
+                        | IntrinsicOp::ByteBufferTruncate
+                        | IntrinsicOp::ByteBufferLen
+                        | IntrinsicOp::ByteBufferCapacity
+                        | IntrinsicOp::ByteBufferBorrow
+                        | IntrinsicOp::SyncLoad
+                        | IntrinsicOp::SyncStore
+                        | IntrinsicOp::SyncFetchAdd
+                        | IntrinsicOp::SyncCompareExchange
+                        | IntrinsicOp::RegistrationStart
+                        | IntrinsicOp::RegistrationValid
+                        | IntrinsicOp::RegistrationClose
+                        | IntrinsicOp::ManagedCreate
+                        | IntrinsicOp::OwnedDynCreate
+                        | IntrinsicOp::SyncInit
+                        | IntrinsicOp::ScopedCallback
+                        | IntrinsicOp::SyncLoadOrdered(_)
+                        | IntrinsicOp::SyncStoreOrdered(_)
+                        | IntrinsicOp::SyncFetchAddOrdered(_)
+                        | IntrinsicOp::SyncExchangeOrdered(_)
+                        | IntrinsicOp::SyncCompareExchangeOrdered { .. }
+                        | IntrinsicOp::CNull
+                        | IntrinsicOp::CCallback => None,
+                    };
+                    if let Some(feature) = unsupported {
+                        return Err(BodyEmitError::unsupported(format!(
+                            "target `{target_triple}` does not yet support {feature} runtime lowering (planned for Windows W3)"
+                        )));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn emit_verified_body_units_with_entry_for_target(
     verified: &VerifiedModule,
     emit_c_main: bool,
     requested_units: usize,
     entry_name: Option<&str>,
+    target_triple: &str,
 ) -> Result<Vec<String>, BodyEmitError> {
     let module = verified.module();
+    let is_windows = target_triple.contains("windows");
+    if is_windows {
+        validate_windows_runtime_support(module, target_triple)?;
+    }
     let fn_count = module.functions.len();
     let actual_units = requested_units.clamp(1, fn_count.max(1));
 
     // Precompute header (target triple, runtime decls, private statics, foreign decls).
     let mut header = String::with_capacity(2048);
     header.push_str("; ZIL Verified Body IR -> LLVM 23 IR\n");
-    header.push_str("target triple = \"x86_64-unknown-linux-gnu\"\n\n");
+    let _ = writeln!(header, "target triple = \"{target_triple}\"\n");
     header.push_str("declare ptr @calloc(i64, i64) nobuiltin\n");
     header.push_str("declare ptr @realloc(ptr, i64) nobuiltin\n");
     header.push_str("declare void @free(ptr) nobuiltin\n");
     header.push_str("declare void @abort() noreturn\n");
     header.push_str("declare i32 @printf(ptr, ...)\n");
-    header.push_str("declare i32 @getcontext(ptr)\n");
-    header.push_str("declare void @makecontext(ptr, ptr, i32, ...)\n");
-    header.push_str("declare i32 @swapcontext(ptr, ptr)\n");
-    header.push_str("declare i32 @mprotect(ptr, i64, i32)\n");
-    header.push_str("declare i32 @pthread_create(ptr, ptr, ptr, ptr)\n");
-    header.push_str("declare i32 @pthread_join(i64, ptr)\n");
-    header.push_str("declare i32 @pthread_mutex_init(ptr, ptr)\n");
-    header.push_str("declare i32 @pthread_mutex_destroy(ptr)\n");
-    header.push_str("declare i32 @pthread_mutex_lock(ptr)\n");
-    header.push_str("declare i32 @pthread_mutex_unlock(ptr)\n");
+    if !is_windows {
+        header.push_str("declare i32 @getcontext(ptr)\n");
+        header.push_str("declare void @makecontext(ptr, ptr, i32, ...)\n");
+        header.push_str("declare i32 @swapcontext(ptr, ptr)\n");
+        header.push_str("declare i32 @mprotect(ptr, i64, i32)\n");
+        header.push_str("declare i32 @pthread_create(ptr, ptr, ptr, ptr)\n");
+        header.push_str("declare i32 @pthread_join(i64, ptr)\n");
+        header.push_str("declare i32 @pthread_mutex_init(ptr, ptr)\n");
+        header.push_str("declare i32 @pthread_mutex_destroy(ptr)\n");
+        header.push_str("declare i32 @pthread_mutex_lock(ptr)\n");
+        header.push_str("declare i32 @pthread_mutex_unlock(ptr)\n");
+    }
     header.push_str("@__zil_current_task = linkonce_odr thread_local global ptr null\n");
     header.push_str("@__zil_task_cancel_trap = linkonce_odr thread_local global i1 false\n");
     header.push_str("@zil_process_argc = linkonce_odr global i32 0\n");
     header.push_str("@zil_process_argv = linkonce_odr global ptr null\n");
-    header.push_str(
-        "%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [9216 x i64], ptr, ptr }\n",
-    );
-    header.push_str(
-        "define linkonce_odr void @__zil_task_drop_frame(ptr %child) {\n\
+    if !is_windows {
+        header.push_str(
+            "%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [9216 x i64], ptr, ptr }\n",
+        );
+        header.push_str(
+            "define linkonce_odr void @__zil_task_drop_frame(ptr %child) {\n\
 entry:\n\
   %is_null = icmp eq ptr %child, null\n\
   br i1 %is_null, label %done, label %check\n\
@@ -163,7 +292,8 @@ sys_abort:\n\
 done:\n\
   ret void\n\
 }\n",
-    );
+        );
+    }
     header.push_str(
         "%__zil_reg_hdr = type { i32, ptr, ptr, ptr }\n\
 define linkonce_odr void @__zil_reg_drop_frame(ptr %frame) {\n\
@@ -200,8 +330,11 @@ do_free:\n\
   br label %done\n\
 done:\n\
   ret void\n\
-}\n\
-%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n\
+}\n",
+    );
+    if !is_windows {
+        header.push_str(
+            "%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n\
 define linkonce_odr void @__zil_areg_mark_closing(ptr %frame) {\n\
 entry:\n\
   %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 0\n\
@@ -391,7 +524,8 @@ finish:\n\
 done:\n\
   ret void\n\
 }\n",
-    );
+        );
+    }
     header.push_str(
         "@__zil_fmt_i64 = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\", align 1\n\n",
     );
@@ -414,13 +548,18 @@ done:\n\
             continue;
         }
         if f.symbol == "zil_glibc_errno_exchange" {
-            let _ = writeln!(header, "declare ptr @__errno_location()");
+            let errno_fn = if is_windows {
+                "_errno"
+            } else {
+                "__errno_location"
+            };
+            let _ = writeln!(header, "declare ptr @{errno_fn}()");
             let _ = writeln!(
                 header,
                 "define internal i32 @zil_glibc_errno_exchange(i32 %next) {{"
             );
             let _ = writeln!(header, "entry:");
-            let _ = writeln!(header, "  %p = call ptr @__errno_location()");
+            let _ = writeln!(header, "  %p = call ptr @{errno_fn}()");
             let _ = writeln!(header, "  %old = load i32, ptr %p");
             let _ = writeln!(header, "  store i32 %next, ptr %p");
             let _ = writeln!(header, "  ret i32 %old");

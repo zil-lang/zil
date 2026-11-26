@@ -1,10 +1,11 @@
 //! Native build driver for `zil_check::VerifiedModule` using LLVM 23 clang at O0/O2.
 
-use crate::body_emit::{BodyEmitError, emit_verified_body_units_with_entry};
-use crate::{NativeBackend, Optimization};
+use crate::body_emit::{BodyEmitError, emit_verified_body_units_with_entry_for_target};
+use crate::{NativeBackend, Optimization, WindowsLinkOptions};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use zil_base::TargetProfile;
 use zil_check::VerifiedModule;
 
 #[derive(Clone, Debug)]
@@ -12,6 +13,8 @@ pub struct BodyBuildOptions {
     pub output: PathBuf,
     pub optimization: Optimization,
     pub backend: NativeBackend,
+    pub target: TargetProfile,
+    pub windows: Option<WindowsLinkOptions>,
     pub clang: Option<PathBuf>,
     pub extra_c_sources: Vec<PathBuf>,
     pub emit_c_main: bool,
@@ -32,20 +35,24 @@ pub struct BodyBuildOutput {
 #[derive(Clone, Debug)]
 pub struct BodyBuildError {
     pub message: String,
+    pub unsupported: bool,
+}
+
+impl BodyBuildError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            unsupported: false,
+        }
+    }
 }
 
 impl From<BodyEmitError> for BodyBuildError {
     fn from(e: BodyEmitError) -> Self {
-        Self { message: e.message }
-    }
-}
-
-#[cfg(feature = "llvm-api")]
-fn host_triple() -> &'static str {
-    if cfg!(target_arch = "aarch64") {
-        "aarch64-unknown-linux-gnu"
-    } else {
-        "x86_64-unknown-linux-gnu"
+        Self {
+            message: e.message,
+            unsupported: e.unsupported,
+        }
     }
 }
 
@@ -72,37 +79,130 @@ fn receipt_to_json(receipt: &zil_llvm_api::Receipt) -> String {
     )
 }
 
+fn run_checked_command(mut cmd: Command, label: &str, tool: &Path) -> Result<(), BodyBuildError> {
+    let out = cmd.output().map_err(|e| {
+        BodyBuildError::new(format!(
+            "failed to invoke {label} ({}): {e}",
+            tool.display()
+        ))
+    })?;
+    if !out.status.success() {
+        return Err(BodyBuildError::new(format!(
+            "{label} failed ({}):\nstdout: {}\nstderr: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        )));
+    }
+    Ok(())
+}
+
+fn link_windows_lld(
+    clang: &Path,
+    target_flag: &str,
+    opt_flag: &str,
+    mut obj_paths: Vec<PathBuf>,
+    options: &BodyBuildOptions,
+    windows: &WindowsLinkOptions,
+    commands: &mut Vec<Vec<String>>,
+) -> Result<(), BodyBuildError> {
+    for (idx, c_src) in options.extra_c_sources.iter().enumerate() {
+        let c_obj = PathBuf::from(format!("{}.c{idx}.obj", options.output.display()));
+        let mut c_cmd = Command::new(clang);
+        let c_argv = vec![
+            clang.display().to_string(),
+            target_flag.to_owned(),
+            "-x".into(),
+            "c".into(),
+            opt_flag.into(),
+            "-c".into(),
+            c_src.display().to_string(),
+            "-o".into(),
+            c_obj.display().to_string(),
+        ];
+        c_cmd
+            .arg(target_flag)
+            .arg("-x")
+            .arg("c")
+            .arg(opt_flag)
+            .arg("-c")
+            .arg(c_src)
+            .arg("-o")
+            .arg(&c_obj);
+        run_checked_command(c_cmd, "clang", clang)?;
+        commands.push(c_argv);
+        obj_paths.push(c_obj);
+    }
+
+    let out_arg = format!("/out:{}", options.output.display());
+    let mut link_cmd = Command::new(&windows.linker);
+    let mut link_argv = vec![
+        windows.linker.display().to_string(),
+        "/nologo".into(),
+        "/subsystem:console".into(),
+        out_arg.clone(),
+    ];
+    link_cmd
+        .arg("/nologo")
+        .arg("/subsystem:console")
+        .arg(&out_arg);
+    for obj in &obj_paths {
+        link_cmd.arg(obj);
+        link_argv.push(obj.display().to_string());
+    }
+    for lib in &windows.import_libraries {
+        link_cmd.arg(lib);
+        link_argv.push(lib.display().to_string());
+    }
+    run_checked_command(link_cmd, "linker", &windows.linker)?;
+    commands.push(link_argv);
+    Ok(())
+}
+
 /// Emits LLVM 23 IR from `verified` and compiles/links a native executable.
 ///
 /// For `NativeBackend::LlvmApi` (when built with feature `llvm-api`), partitions
 /// the module into `actual_units = codegen_units.clamp(1, fn_count.max(1))`
 /// independent IR units, compiles each unit in parallel (up to `codegen_jobs`)
-/// through `zil-llvm-api` to its own `.o` object file, and invokes `clang`
-/// strictly for linking the produced `.o` files into the final executable.
+/// through `zil-llvm-api` to its own object file (`.o` on ELF, `.obj` on COFF),
+/// and invokes `clang` (or explicit `WindowsLinkOptions::linker`) strictly for
+/// linking the produced object files into the final executable.
 pub fn build_verified_body(
     verified: &VerifiedModule,
     options: &BodyBuildOptions,
 ) -> Result<BodyBuildOutput, BodyBuildError> {
+    let triple = options.target.triple.as_str();
+    let is_windows = triple.contains("windows");
+    let obj_ext = if is_windows { "obj" } else { "o" };
     let entry = options.entry.as_deref();
-    let ir = emit_verified_body_units_with_entry(verified, options.emit_c_main, 1, entry)?
-        .pop()
-        .unwrap_or_default();
+    let ir = emit_verified_body_units_with_entry_for_target(
+        verified,
+        options.emit_c_main,
+        1,
+        entry,
+        triple,
+    )?
+    .pop()
+    .unwrap_or_default();
     let ir_path = PathBuf::from(format!("{}.ll", options.output.display()));
     if let Some(parent) = ir_path.parent()
         && !parent.as_os_str().is_empty()
     {
-        fs::create_dir_all(parent).map_err(|e| BodyBuildError {
-            message: format!("failed to create output directory: {e}"),
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|e| BodyBuildError::new(format!("failed to create output directory: {e}")))?;
     }
-    fs::write(&ir_path, &ir).map_err(|e| BodyBuildError {
-        message: format!("failed to write LLVM IR: {e}"),
-    })?;
+    fs::write(&ir_path, &ir)
+        .map_err(|e| BodyBuildError::new(format!("failed to write LLVM IR: {e}")))?;
 
     let clang = options
         .clang
         .clone()
         .unwrap_or_else(|| PathBuf::from("clang"));
+    let target_flag = format!("--target={triple}");
+    let opt_flag = match options.optimization {
+        Optimization::O0 => "-O0",
+        Optimization::O2 => "-O2",
+    };
 
     match options.backend {
         NativeBackend::LlvmApi => {
@@ -112,11 +212,12 @@ pub fn build_verified_body(
                 let unit_irs = if requested == 1 {
                     vec![ir.clone()]
                 } else {
-                    emit_verified_body_units_with_entry(
+                    emit_verified_body_units_with_entry_for_target(
                         verified,
                         options.emit_c_main,
                         requested,
                         entry,
+                        triple,
                     )?
                 };
                 let actual_units = unit_irs.len();
@@ -124,7 +225,6 @@ pub fn build_verified_body(
                     Optimization::O0 => zil_llvm_api::Optimization::O0,
                     Optimization::O2 => zil_llvm_api::Optimization::O2,
                 };
-                let triple = host_triple();
                 let jobs = options.codegen_jobs.clamp(1, actual_units);
 
                 let results: Vec<std::sync::Mutex<Option<Result<zil_llvm_api::Object, String>>>> =
@@ -176,126 +276,155 @@ pub fn build_verified_body(
                         .into_inner()
                         .ok()
                         .flatten()
-                        .ok_or_else(|| BodyBuildError {
-                            message: format!("missing compilation result for unit {idx}"),
+                        .ok_or_else(|| {
+                            BodyBuildError::new(format!(
+                                "missing compilation result for unit {idx}"
+                            ))
                         })?
-                        .map_err(|message| BodyBuildError { message })?;
+                        .map_err(BodyBuildError::new)?;
                     let obj_path = if actual_units == 1 {
-                        PathBuf::from(format!("{}.o", options.output.display()))
+                        PathBuf::from(format!("{}.{obj_ext}", options.output.display()))
                     } else {
-                        PathBuf::from(format!("{}.u{idx}.o", options.output.display()))
+                        PathBuf::from(format!("{}.u{idx}.{obj_ext}", options.output.display()))
                     };
-                    fs::write(&obj_path, &object.bytes).map_err(|e| BodyBuildError {
-                        message: format!("failed to write object file {}: {e}", obj_path.display()),
+                    fs::write(&obj_path, &object.bytes).map_err(|e| {
+                        BodyBuildError::new(format!(
+                            "failed to write object file {}: {e}",
+                            obj_path.display()
+                        ))
                     })?;
                     obj_paths.push(obj_path);
                     object_reports.push(receipt_to_json(&object.receipt));
                 }
 
-                let target_flag = format!("--target={triple}");
-                let opt_flag = match options.optimization {
-                    Optimization::O0 => "-O0",
-                    Optimization::O2 => "-O2",
-                };
-                let mut cmd = Command::new(&clang);
-                let mut argv = vec![
-                    clang.display().to_string(),
-                    target_flag.clone(),
-                    opt_flag.into(),
-                ];
-                cmd.arg(&target_flag).arg(opt_flag);
-                for obj_path in &obj_paths {
-                    cmd.arg(obj_path);
-                    argv.push(obj_path.display().to_string());
-                }
-                for c_src in &options.extra_c_sources {
-                    cmd.arg(c_src);
-                    argv.push(c_src.display().to_string());
-                }
-                cmd.arg("-o").arg(&options.output);
-                argv.push("-o".into());
-                argv.push(options.output.display().to_string());
-
-                let out = cmd.output().map_err(|e| BodyBuildError {
-                    message: format!("failed to invoke linker ({}): {e}", clang.display()),
-                })?;
-                if !out.status.success() {
-                    return Err(BodyBuildError {
-                        message: format!(
-                            "linker failed ({}):\nstdout: {}\nstderr: {}",
-                            out.status,
-                            String::from_utf8_lossy(&out.stdout),
-                            String::from_utf8_lossy(&out.stderr)
-                        ),
-                    });
+                let mut commands = Vec::new();
+                if is_windows && let Some(windows) = &options.windows {
+                    link_windows_lld(
+                        &clang,
+                        &target_flag,
+                        opt_flag,
+                        obj_paths,
+                        options,
+                        windows,
+                        &mut commands,
+                    )?;
+                } else {
+                    let mut cmd = Command::new(&clang);
+                    let mut argv = vec![
+                        clang.display().to_string(),
+                        target_flag.clone(),
+                        opt_flag.into(),
+                    ];
+                    cmd.arg(&target_flag).arg(opt_flag);
+                    for obj_path in &obj_paths {
+                        cmd.arg(obj_path);
+                        argv.push(obj_path.display().to_string());
+                    }
+                    for c_src in &options.extra_c_sources {
+                        cmd.arg(c_src);
+                        argv.push(c_src.display().to_string());
+                    }
+                    cmd.arg("-o").arg(&options.output);
+                    argv.push("-o".into());
+                    argv.push(options.output.display().to_string());
+                    if is_windows {
+                        cmd.arg("-llegacy_stdio_definitions");
+                        argv.push("-llegacy_stdio_definitions".into());
+                    }
+                    run_checked_command(cmd, "linker", &clang)?;
+                    commands.push(argv);
                 }
                 Ok(BodyBuildOutput {
                     ir,
                     ir_path,
-                    commands: vec![argv],
+                    commands,
                     object_reports,
                     actual_units,
                 })
             }
             #[cfg(not(feature = "llvm-api"))]
             {
-                Err(BodyBuildError {
-                    message: "llvm-api backend is not enabled in this build".into(),
-                })
+                let _ = (obj_ext, target_flag, opt_flag, clang, is_windows);
+                Err(BodyBuildError::new(
+                    "llvm-api backend is not enabled in this build",
+                ))
             }
         }
         NativeBackend::Clang => {
-            let opt_flag = match options.optimization {
-                Optimization::O0 => "-O0",
-                Optimization::O2 => "-O2",
-            };
-            let target_flag = if cfg!(target_arch = "aarch64") {
-                "--target=aarch64-unknown-linux-gnu"
+            let mut commands = Vec::new();
+            if is_windows && let Some(windows) = &options.windows {
+                let obj_path = PathBuf::from(format!("{}.{obj_ext}", options.output.display()));
+                let mut compile_cmd = Command::new(&clang);
+                let compile_argv = vec![
+                    clang.display().to_string(),
+                    target_flag.clone(),
+                    "-x".into(),
+                    "ir".into(),
+                    opt_flag.into(),
+                    "-c".into(),
+                    ir_path.display().to_string(),
+                    "-o".into(),
+                    obj_path.display().to_string(),
+                ];
+                compile_cmd
+                    .arg(&target_flag)
+                    .arg("-x")
+                    .arg("ir")
+                    .arg(opt_flag)
+                    .arg("-c")
+                    .arg(&ir_path)
+                    .arg("-o")
+                    .arg(&obj_path);
+                run_checked_command(compile_cmd, "clang", &clang)?;
+                commands.push(compile_argv);
+                link_windows_lld(
+                    &clang,
+                    &target_flag,
+                    opt_flag,
+                    vec![obj_path],
+                    options,
+                    windows,
+                    &mut commands,
+                )?;
             } else {
-                "--target=x86_64-unknown-linux-gnu"
-            };
-
-            let mut cmd = Command::new(&clang);
-            let mut argv = vec![
-                clang.display().to_string(),
-                target_flag.into(),
-                "-x".into(),
-                "ir".into(),
-                opt_flag.into(),
-                ir_path.display().to_string(),
-            ];
-            cmd.arg(target_flag)
-                .arg("-x")
-                .arg("ir")
-                .arg(opt_flag)
-                .arg(&ir_path);
-            for c_src in &options.extra_c_sources {
-                cmd.arg("-x").arg("c").arg(c_src);
-                argv.push("-x".into());
-                argv.push("c".into());
-                argv.push(c_src.display().to_string());
-            }
-            cmd.arg("-o").arg(&options.output);
-            argv.push("-o".into());
-            argv.push(options.output.display().to_string());
-
-            let out = cmd.output().map_err(|e| BodyBuildError {
-                message: format!("failed to invoke clang ({}): {e}", clang.display()),
-            })?;
-            if !out.status.success() {
-                return Err(BodyBuildError {
-                    message: format!(
-                        "clang failed ({}):\nstdout: {}\nstderr: {}",
-                        out.status,
-                        String::from_utf8_lossy(&out.stdout),
-                        String::from_utf8_lossy(&out.stderr)
-                    ),
-                });
+                let mut cmd = Command::new(&clang);
+                let mut argv = vec![
+                    clang.display().to_string(),
+                    target_flag.clone(),
+                    "-x".into(),
+                    "ir".into(),
+                    opt_flag.into(),
+                    ir_path.display().to_string(),
+                    "-x".into(),
+                    "none".into(),
+                ];
+                cmd.arg(&target_flag)
+                    .arg("-x")
+                    .arg("ir")
+                    .arg(opt_flag)
+                    .arg(&ir_path)
+                    .arg("-x")
+                    .arg("none");
+                for c_src in &options.extra_c_sources {
+                    cmd.arg("-x").arg("c").arg(c_src);
+                    argv.push("-x".into());
+                    argv.push("c".into());
+                    argv.push(c_src.display().to_string());
+                }
+                cmd.arg("-o").arg(&options.output);
+                argv.push("-o".into());
+                argv.push(options.output.display().to_string());
+                if is_windows {
+                    cmd.arg("-llegacy_stdio_definitions");
+                    argv.push("-llegacy_stdio_definitions".into());
+                }
+                run_checked_command(cmd, "clang", &clang)?;
+                commands.push(argv);
             }
             Ok(BodyBuildOutput {
                 ir,
                 ir_path,
-                commands: vec![argv],
+                commands,
                 object_reports: Vec::new(),
                 actual_units: 1,
             })

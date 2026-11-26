@@ -333,9 +333,6 @@ fn main() -> ExitCode {
             json,
         );
     }
-    if options.target.triple == "x86_64-pc-windows-msvc" && options.windows.is_none() {
-        options.windows = Some(WindowsLinkOptions::default());
-    }
     if action == "run" && options.target.triple != TargetProfile::host_llvm().triple {
         return usage(
             "cross-target output must use build and an explicit external runner",
@@ -655,7 +652,11 @@ fn run_tests(
     let mut passed = 0usize;
     let mut results = Vec::new();
     for (index, (source, name)) in cases.iter().enumerate() {
-        let executable = directory.join(format!("test-{index}"));
+        let executable = directory.join(if cfg!(windows) {
+            format!("test-{index}.exe")
+        } else {
+            format!("test-{index}")
+        });
         let mut selected = options.clone();
         selected.test_harness = true;
         selected.entry = Some(name.clone());

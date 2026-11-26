@@ -829,16 +829,21 @@ impl CompilationSession {
             report.seconds = start.elapsed().as_secs_f64();
             return report;
         }
-        let out_path = options
-            .output
-            .clone()
-            .unwrap_or_else(|| PathBuf::from("a.out"));
+        let out_path = options.output.clone().unwrap_or_else(|| {
+            PathBuf::from(if options.target.triple.contains("windows") {
+                "a.exe"
+            } else {
+                "a.out"
+            })
+        });
         match build_verified_body(
             &verified,
             &BodyBuildOptions {
                 output: out_path.clone(),
                 optimization: options.optimization,
                 backend: options.backend,
+                target: options.target.clone(),
+                windows: options.windows.clone(),
                 clang: options.clang.clone(),
                 extra_c_sources: options.extra_c_sources.clone(),
                 emit_c_main: true,
@@ -863,13 +868,24 @@ impl CompilationSession {
             }
             Err(e) => {
                 report.phase = Phase::Codegen;
-                report.status = ResultCategory::SafeReject;
-                report.diagnostics.push(Diagnostic::error(
-                    Phase::Codegen,
-                    "E-CODEGEN",
-                    None,
-                    e.message,
-                ));
+                if e.unsupported {
+                    report.status = ResultCategory::Unsupported;
+                    report.diagnostics.push(Diagnostic::new(
+                        Phase::Codegen,
+                        ResultCategory::Unsupported,
+                        "E-TARGET-UNSUPPORTED",
+                        e.message,
+                        None,
+                    ));
+                } else {
+                    report.status = ResultCategory::SafeReject;
+                    report.diagnostics.push(Diagnostic::error(
+                        Phase::Codegen,
+                        "E-CODEGEN",
+                        None,
+                        e.message,
+                    ));
+                }
             }
         }
         report.seconds = start.elapsed().as_secs_f64();
@@ -1132,16 +1148,21 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
             report.verification_runs = 1;
             report.phase = Phase::Verify;
             if options.stop_after >= Stage::Build {
-                let out_path = options
-                    .output
-                    .clone()
-                    .unwrap_or_else(|| PathBuf::from("a.out"));
+                let out_path = options.output.clone().unwrap_or_else(|| {
+                    PathBuf::from(if options.target.triple.contains("windows") {
+                        "a.exe"
+                    } else {
+                        "a.out"
+                    })
+                });
                 match build_verified_body(
                     &verified,
                     &BodyBuildOptions {
                         output: out_path.clone(),
                         optimization: options.optimization,
                         backend: options.backend,
+                        target: options.target.clone(),
+                        windows: options.windows.clone(),
                         clang: options.clang.clone(),
                         extra_c_sources: options.extra_c_sources.clone(),
                         emit_c_main: true,
@@ -1166,13 +1187,24 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                     }
                     Err(e) => {
                         report.phase = Phase::Codegen;
-                        report.status = ResultCategory::SafeReject;
-                        report.diagnostics.push(Diagnostic::error(
-                            Phase::Codegen,
-                            "E-CODEGEN",
-                            None,
-                            e.message,
-                        ));
+                        if e.unsupported {
+                            report.status = ResultCategory::Unsupported;
+                            report.diagnostics.push(Diagnostic::new(
+                                Phase::Codegen,
+                                ResultCategory::Unsupported,
+                                "E-TARGET-UNSUPPORTED",
+                                e.message,
+                                None,
+                            ));
+                        } else {
+                            report.status = ResultCategory::SafeReject;
+                            report.diagnostics.push(Diagnostic::error(
+                                Phase::Codegen,
+                                "E-CODEGEN",
+                                None,
+                                e.message,
+                            ));
+                        }
                     }
                 }
             }
