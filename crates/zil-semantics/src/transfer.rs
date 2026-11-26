@@ -274,7 +274,7 @@ impl<'a> Kernel<'a> {
             flags: MustFacts::default(),
             carries,
         };
-        self.prune(&mut state, &self.live.entry(BlockId(0)).clone());
+        self.prune(&mut state, self.live.entry(BlockId(0)));
         state
     }
 
@@ -293,7 +293,7 @@ impl<'a> Kernel<'a> {
                 state.init.set_subtree(&self.paths, path, InitClaim::Uninit);
                 self.invalidate_root(state, PlaceRoot::Local(*l));
                 state.carries.clear(*l);
-                self.prune(state, &self.live.after(at).clone());
+                self.prune(state, self.live.after(at));
                 return Ok(());
             }
             InstructionKind::StorageDead(l) => {
@@ -303,11 +303,11 @@ impl<'a> Kernel<'a> {
                 state.init.set_subtree(&self.paths, path, InitClaim::Uninit);
                 self.invalidate_root(state, PlaceRoot::Local(*l));
                 state.carries.clear(*l);
-                self.prune(state, &self.live.after(at).clone());
+                self.prune(state, self.live.after(at));
                 return Ok(());
             }
             InstructionKind::ScopeEnter(_) | InstructionKind::ScopeExit { .. } => {
-                self.prune(state, &self.live.after(at).clone());
+                self.prune(state, self.live.after(at));
                 return Ok(());
             }
             InstructionKind::RegisterDefer { .. } => {
@@ -360,7 +360,7 @@ impl<'a> Kernel<'a> {
                 | Rvalue::StaticUtf(_) => {}
             }
         }
-        self.prune(state, &self.live.after(at).clone());
+        self.prune(state, self.live.after(at));
         Ok(())
     }
 

@@ -234,6 +234,9 @@ impl Kernel<'_> {
         place: &Place,
         access: PlaceAccess,
     ) -> Result<(), ViolationKind> {
+        if state.carries.is_empty() {
+            return Ok(());
+        }
         for id in state.carries.all().iter() {
             let Some(loan) = self.loans.get(id) else {
                 continue;
@@ -262,6 +265,9 @@ impl Kernel<'_> {
         state: &State,
         local: Local,
     ) -> Result<(), ViolationKind> {
+        if state.carries.is_empty() {
+            return Ok(());
+        }
         let place = Place::local(local);
         for id in state.carries.all().iter() {
             let Some(loan) = self.loans.get(id) else {
@@ -1283,12 +1289,20 @@ impl Kernel<'_> {
     /// Drops carried loans of locals that are neither live nor borrowed by a
     /// kept local's loan.
     pub(crate) fn prune(&self, state: &mut State, live: &BitSet) {
+        if !state.carries.has_fields() && state.carries.all_non_empty_in(live) {
+            return;
+        }
         let n = state.carries.locals();
         let mut keep = BitSet::new(n);
         let mut work = Vec::new();
-        for l in live.iter().filter(|l| *l < n) {
+        for l in live.iter() {
+            if l >= n {
+                break;
+            }
             keep.insert(l);
-            work.push(l);
+            if !state.carries.of(Local::from_index(l)).is_empty() {
+                work.push(l);
+            }
         }
         while let Some(l) = work.pop() {
             for id in state.carries.of(Local::from_index(l)).iter() {
@@ -1298,14 +1312,26 @@ impl Kernel<'_> {
                     && !keep.contains(y.index())
                 {
                     keep.insert(y.index());
-                    work.push(y.index());
+                    if !state.carries.of(y).is_empty() {
+                        work.push(y.index());
+                    }
                 }
             }
         }
-        for l in 0..n {
-            if !keep.contains(l) {
-                state.carries.clear(Local::from_index(l));
+        let mut to_clear: Vec<usize> = state
+            .carries
+            .non_empty_locals()
+            .filter(|&l| !keep.contains(l))
+            .collect();
+        if state.carries.has_fields() {
+            for l in state.carries.field_locals() {
+                if !keep.contains(l) {
+                    to_clear.push(l);
+                }
             }
+        }
+        for l in to_clear {
+            state.carries.clear(Local::from_index(l));
         }
     }
 
@@ -1689,6 +1715,9 @@ impl Kernel<'_> {
         let Some(new_loan) = self.loans.get(new_id) else {
             return Ok(());
         };
+        if state.carries.is_empty() {
+            return Ok(());
+        }
         for id in state.carries.all().iter() {
             let Some(loan) = self.loans.get(id) else {
                 continue;

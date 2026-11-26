@@ -106,9 +106,7 @@ pub fn check_function(
                     "duplicate loan claim",
                 )));
             }
-            let mut one = zil_semantics::BitSet::new(kernel.loans.len());
-            one.insert(id);
-            state.carries.add(claim.holder, &one);
+            state.carries.insert_loan(claim.holder, id);
         }
         for claim in &inv.init {
             let path = kernel
