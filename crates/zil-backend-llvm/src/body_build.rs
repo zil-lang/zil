@@ -22,9 +22,11 @@ pub struct BodyBuildOptions {
     pub codegen_units: usize,
     pub codegen_jobs: usize,
     pub object_cache: Option<PathBuf>,
-    /// Maximum on-disk byte budget for `object_cache` (`None` = unlimited).
-    /// When exceeded after new misses, oldest entries by mtime (excluding active
-    /// objects of the current build) are evicted down to an 80% watermark.
+    /// Best-effort soft on-disk byte budget for `object_cache` (`None` = unlimited).
+    /// When exceeded, oldest inactive cached entries (and paired `.meta` sidecars)
+    /// by mtime are evicted down to an 80% watermark. Active objects needed by the
+    /// current build are never evicted, so cache size may temporarily exceed the
+    /// budget when the active working set itself is larger than the budget.
     pub object_cache_max_bytes: Option<u64>,
     /// Whether `NativeBackend::LlvmApi` should write the diagnostic `<output>.ll`
     /// text dump to disk. Disabling it avoids multi-MB IR text I/O on cached builds.
@@ -70,6 +72,21 @@ impl From<BodyEmitError> for BodyBuildError {
 }
 
 #[cfg(feature = "llvm-api")]
+static CACHE_STAGE_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+#[cfg(feature = "llvm-api")]
+struct StageDirGuard {
+    path: PathBuf,
+}
+
+#[cfg(feature = "llvm-api")]
+impl Drop for StageDirGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+#[cfg(feature = "llvm-api")]
 fn receipt_to_json(receipt: &zil_llvm_api::Receipt) -> String {
     format!(
         "{{\"backend\":\"llvm-api\",\"llvm_version\":{},\"triple\":{},\"cpu\":{},\"features\":{},\"data_layout\":{},\"pipeline\":{},\"relocation\":{},\"code_model\":{},\"verify_before_after\":{},\"input_kind\":{},\"preflight_ns\":{},\"builder_ns\":{},\"parse_ns\":{},\"optimize_ns\":{},\"emit_ns\":{},\"total_ns\":{}}}",
@@ -93,26 +110,129 @@ fn receipt_to_json(receipt: &zil_llvm_api::Receipt) -> String {
 }
 
 #[cfg(feature = "llvm-api")]
-fn cache_hit_receipt_json(triple: &str, opt_flag: &str) -> String {
+fn cache_hit_receipt_json(triple: &str, pipeline: &str) -> String {
     format!(
-        "{{\"backend\":\"llvm-api\",\"llvm_version\":\"cached\",\"triple\":{},\"cpu\":\"generic\",\"features\":\"\",\"data_layout\":\"\",\"pipeline\":{},\"relocation\":\"pic\",\"code_model\":\"default\",\"verify_before_after\":false,\"input_kind\":\"object-cache-hit\",\"preflight_ns\":0,\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":0}}",
+        "{{\"backend\":\"llvm-api\",\"llvm_version\":{},\"triple\":{},\"cpu\":\"generic\",\"features\":\"\",\"data_layout\":\"\",\"pipeline\":{},\"relocation\":\"pic\",\"code_model\":\"default\",\"verify_before_after\":true,\"input_kind\":\"object-cache-hit\",\"preflight_ns\":0,\"builder_ns\":0,\"parse_ns\":0,\"optimize_ns\":0,\"emit_ns\":0,\"total_ns\":0}}",
+        zil_base::json_string(zil_llvm_api::LLVM_VERSION),
         zil_base::json_string(triple),
-        zil_base::json_string(opt_flag),
+        zil_base::json_string(pipeline),
     )
 }
 
 #[cfg(feature = "llvm-api")]
-fn unit_cache_key(triple: &str, opt_flag: &str, unit_ir: &str) -> String {
+fn sha256_hex(bytes: &[u8]) -> String {
     let mut h = zil_base::FingerprintBuilder::new();
-    h.update(b"zil-obj-cache-v2\0");
+    h.update(bytes);
+    h.digest().to_hex()
+}
+
+#[cfg(feature = "llvm-api")]
+fn unit_cache_key(triple: &str, obj_ext: &str, pipeline: &str, unit_ir: &str) -> String {
+    let mut h = zil_base::FingerprintBuilder::new();
+    h.update(b"zil-obj-cache-v3\0");
     h.update(env!("CARGO_PKG_VERSION").as_bytes());
+    h.update(b"\0");
+    h.update(zil_llvm_api::LLVM_VERSION.as_bytes());
     h.update(b"\0");
     h.update(triple.as_bytes());
     h.update(b"\0");
-    h.update(opt_flag.as_bytes());
+    h.update(obj_ext.as_bytes());
     h.update(b"\0");
+    h.update(pipeline.as_bytes());
+    h.update(b"\0cpu=generic|features=|reloc=pic|cm=default|verify=true\0");
     h.update(unit_ir.as_bytes());
     h.digest().to_hex()
+}
+
+#[cfg(feature = "llvm-api")]
+fn cache_meta_path(obj_cache_path: &Path) -> PathBuf {
+    PathBuf::from(format!("{}.meta", obj_cache_path.display()))
+}
+
+#[cfg(feature = "llvm-api")]
+fn format_cache_meta(
+    key: &str,
+    len: usize,
+    obj_sha256: &str,
+    llvm_version: &str,
+    triple: &str,
+    pipeline: &str,
+) -> String {
+    format!(
+        "v3\nkey={key}\nlen={len}\nsha256={obj_sha256}\nllvm={llvm_version}\ntriple={triple}\npipeline={pipeline}\n"
+    )
+}
+
+#[cfg(feature = "llvm-api")]
+fn has_valid_object_magic(bytes: &[u8], obj_ext: &str) -> bool {
+    if obj_ext == "obj" {
+        // x86_64 Windows COFF header: IMAGE_FILE_MACHINE_AMD64 (0x8664 little-endian)
+        bytes.len() >= 20 && bytes[0] == 0x64 && bytes[1] == 0x86
+    } else {
+        // ELF magic header: 0x7f 'E' 'L' 'F'
+        bytes.len() >= 16 && &bytes[..4] == b"\x7fELF"
+    }
+}
+
+#[cfg(feature = "llvm-api")]
+fn verify_cache_integrity(
+    meta_text: &str,
+    staged_bytes: &[u8],
+    obj_ext: &str,
+    expected_key: &str,
+    expected_llvm: &str,
+    expected_triple: &str,
+    expected_pipeline: &str,
+) -> bool {
+    let mut lines = meta_text.lines();
+    if lines.next() != Some("v3") {
+        return false;
+    }
+    let mut key = None;
+    let mut len = None;
+    let mut digest = None;
+    let mut llvm = None;
+    let mut triple = None;
+    let mut pipeline = None;
+    for line in lines {
+        if let Some((k, v)) = line.split_once('=') {
+            match k {
+                "key" => key = Some(v),
+                "len" => len = v.parse::<usize>().ok(),
+                "sha256" => digest = Some(v),
+                "llvm" => llvm = Some(v),
+                "triple" => triple = Some(v),
+                "pipeline" => pipeline = Some(v),
+                _ => {}
+            }
+        }
+    }
+    if key != Some(expected_key)
+        || llvm != Some(expected_llvm)
+        || triple != Some(expected_triple)
+        || pipeline != Some(expected_pipeline)
+    {
+        return false;
+    }
+    let Some(expected_len) = len else {
+        return false;
+    };
+    if expected_len == 0 || staged_bytes.len() != expected_len {
+        return false;
+    }
+    if !has_valid_object_magic(staged_bytes, obj_ext) {
+        return false;
+    }
+    digest == Some(sha256_hex(staged_bytes).as_str())
+}
+
+#[cfg(feature = "llvm-api")]
+fn stage_object_snapshot(src: &Path, dst: &Path) -> std::io::Result<()> {
+    match fs::hard_link(src, dst) {
+        Ok(()) => Ok(()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Err(err),
+        Err(_) => fs::copy(src, dst).map(|_| ()),
+    }
 }
 
 #[cfg(feature = "llvm-api")]
@@ -130,18 +250,22 @@ fn enforce_object_cache_budget(
     active_paths: &std::collections::HashSet<PathBuf>,
 ) -> (usize, u64, u64) {
     let start = std::time::Instant::now();
-    let suffix = format!(".{obj_ext}");
+    let obj_suffix = format!(".{obj_ext}");
+    let meta_suffix = format!(".{obj_ext}.meta");
     let Ok(read_dir) = fs::read_dir(cache_dir) else {
         return (0, 0, start.elapsed().as_nanos() as u64);
     };
+    let now = std::time::SystemTime::now();
     let mut total_bytes = 0u64;
-    let mut candidates: Vec<(std::time::SystemTime, u64, PathBuf)> = Vec::new();
+    let mut candidates: Vec<(std::time::SystemTime, u64, PathBuf, PathBuf)> = Vec::new();
+    let mut orphan_metas: Vec<PathBuf> = Vec::new();
     for entry in read_dir.flatten() {
         let path = entry.path();
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        if !name.ends_with(&suffix) {
+        // Never disturb per-build staging directories (`.stage-*`).
+        if name.starts_with('.') {
             continue;
         }
         let Ok(meta) = entry.metadata() else {
@@ -150,12 +274,36 @@ fn enforce_object_cache_budget(
         if !meta.is_file() {
             continue;
         }
-        let sz = meta.len();
-        total_bytes = total_bytes.saturating_add(sz);
+        // Opportunistically sweep stale abandoned temp files (> 120s old).
+        if name.contains(".tmp.") {
+            if let Ok(mtime) = meta.modified()
+                && now.duration_since(mtime).is_ok_and(|d| d.as_secs() > 120)
+            {
+                let _ = fs::remove_file(&path);
+            }
+            continue;
+        }
+        if name.ends_with(&meta_suffix) {
+            let paired_obj = path.with_extension("");
+            if !paired_obj.exists() {
+                orphan_metas.push(path);
+            }
+            continue;
+        }
+        if !name.ends_with(&obj_suffix) {
+            continue;
+        }
+        let meta_path = cache_meta_path(&path);
+        let meta_sz = fs::metadata(&meta_path).map(|m| m.len()).unwrap_or(0);
+        let entry_sz = meta.len().saturating_add(meta_sz);
+        total_bytes = total_bytes.saturating_add(entry_sz);
         if !active_paths.contains(&path) {
             let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
-            candidates.push((mtime, sz, path));
+            candidates.push((mtime, entry_sz, path, meta_path));
         }
+    }
+    for orphan in orphan_metas {
+        let _ = fs::remove_file(orphan);
     }
     if total_bytes <= max_bytes {
         return (0, 0, start.elapsed().as_nanos() as u64);
@@ -164,14 +312,15 @@ fn enforce_object_cache_budget(
     candidates.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.2.cmp(&b.2)));
     let mut evicted_entries = 0usize;
     let mut evicted_bytes = 0u64;
-    for (_, sz, path) in candidates {
+    for (_, entry_sz, obj_path, meta_path) in candidates {
         if total_bytes <= watermark {
             break;
         }
-        if fs::remove_file(&path).is_ok() {
-            total_bytes = total_bytes.saturating_sub(sz);
+        let _ = fs::remove_file(&meta_path);
+        if fs::remove_file(&obj_path).is_ok() {
+            total_bytes = total_bytes.saturating_sub(entry_sz);
             evicted_entries += 1;
-            evicted_bytes = evicted_bytes.saturating_add(sz);
+            evicted_bytes = evicted_bytes.saturating_add(entry_sz);
         }
     }
     (
@@ -323,25 +472,44 @@ pub fn build_verified_body(
                 };
 
                 let cache_dir = options.object_cache.as_deref();
-                if let Some(dir) = cache_dir {
+                let pid = std::process::id();
+                let stage_seq = CACHE_STAGE_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let stage_guard = if let Some(dir) = cache_dir {
                     fs::create_dir_all(dir).map_err(|e| {
                         BodyBuildError::new(format!(
                             "failed to create object cache directory {}: {e}",
                             dir.display()
                         ))
                     })?;
-                }
+                    let stage_dir = dir.join(format!(".stage-{pid}-{stage_seq}"));
+                    fs::create_dir_all(&stage_dir).map_err(|e| {
+                        BodyBuildError::new(format!(
+                            "failed to create object cache staging directory {}: {e}",
+                            stage_dir.display()
+                        ))
+                    })?;
+                    Some(StageDirGuard { path: stage_dir })
+                } else {
+                    None
+                };
+                let stage_dir_ref = stage_guard.as_ref().map(|g| g.path.as_path());
 
                 let api_opt = match options.optimization {
                     Optimization::O0 => zil_llvm_api::Optimization::O0,
                     Optimization::O2 => zil_llvm_api::Optimization::O2,
                 };
+                let pipeline_id = zil_llvm_api::pipeline_identity(
+                    api_opt,
+                    zil_llvm_api::FunctionMerging::Disabled,
+                );
                 let jobs = options.codegen_jobs.clamp(1, actual_units);
 
                 struct UnitCompiled {
-                    /// Ready-to-link cached object path (zero-copy when `cache_dir` is enabled).
-                    cached_path: Option<PathBuf>,
-                    /// In-memory bytes when `cache_dir` is disabled (or fallback).
+                    /// Canonical cache entry path in `cache_dir` (for active-set protection during LRU).
+                    cache_entry_path: Option<PathBuf>,
+                    /// Private hard-linked/staged object path safe from concurrent cross-process eviction.
+                    staged_path: Option<PathBuf>,
+                    /// In-memory bytes when `cache_dir` is disabled (or staging fallback).
                     bytes: Vec<u8>,
                     report: String,
                     cache_hit: bool,
@@ -351,7 +519,6 @@ pub fn build_verified_body(
                     .map(|_| std::sync::Mutex::new(None))
                     .collect();
                 let next_idx = std::sync::atomic::AtomicUsize::new(0);
-                let pid = std::process::id();
 
                 std::thread::scope(|s| {
                     for _ in 0..jobs {
@@ -366,20 +533,70 @@ pub fn build_verified_body(
                                 if idx >= actual_units {
                                     break;
                                 }
-                                let cache_path = cache_dir.map(|dir| {
-                                    let key = unit_cache_key(triple, opt_flag, &unit_irs[idx]);
-                                    dir.join(format!("{key}.{obj_ext}"))
+                                let cache_info = cache_dir.map(|dir| {
+                                    let key = unit_cache_key(
+                                        triple,
+                                        obj_ext,
+                                        pipeline_id,
+                                        &unit_irs[idx],
+                                    );
+                                    let cp = dir.join(format!("{key}.{obj_ext}"));
+                                    let mp = cache_meta_path(&cp);
+                                    (key, cp, mp)
                                 });
-                                let compiled = if let Some(ref cp) = cache_path
-                                    && cp.metadata().is_ok_and(|m| m.is_file() && m.len() > 0)
+                                let staged_target =
+                                    stage_dir_ref.map(|sd| sd.join(format!("u{idx}.{obj_ext}")));
+
+                                // Pin a private hard-link snapshot BEFORE verifying integrity so a
+                                // concurrent process running LRU eviction cannot unlink our link input.
+                                let mut hit_unit: Option<UnitCompiled> = None;
+                                if let (Some((key, cp, mp)), Some(staged)) =
+                                    (cache_info.as_ref(), staged_target.as_ref())
                                 {
-                                    touch_cache_mtime(cp);
-                                    Ok(UnitCompiled {
-                                        cached_path: Some(cp.clone()),
-                                        bytes: Vec::new(),
-                                        report: cache_hit_receipt_json(triple, opt_flag),
-                                        cache_hit: true,
-                                    })
+                                    match stage_object_snapshot(cp, staged) {
+                                        Ok(()) => {
+                                            let verified_ok = fs::read_to_string(mp)
+                                                .ok()
+                                                .zip(fs::read(staged).ok())
+                                                .is_some_and(|(meta_txt, bytes)| {
+                                                    verify_cache_integrity(
+                                                        &meta_txt,
+                                                        &bytes,
+                                                        obj_ext,
+                                                        key,
+                                                        zil_llvm_api::LLVM_VERSION,
+                                                        triple,
+                                                        pipeline_id,
+                                                    )
+                                                });
+                                            if verified_ok {
+                                                touch_cache_mtime(cp);
+                                                hit_unit = Some(UnitCompiled {
+                                                    cache_entry_path: Some(cp.clone()),
+                                                    staged_path: Some(staged.clone()),
+                                                    bytes: Vec::new(),
+                                                    report: cache_hit_receipt_json(
+                                                        triple,
+                                                        pipeline_id,
+                                                    ),
+                                                    cache_hit: true,
+                                                });
+                                            } else {
+                                                // Corrupt or mismatched cache entry: drop staged copy and
+                                                // best-effort purge corrupt entry, then recompile cleanly.
+                                                let _ = fs::remove_file(staged);
+                                                let _ = fs::remove_file(mp);
+                                                let _ = fs::remove_file(cp);
+                                            }
+                                        }
+                                        Err(_) => {
+                                            // Not present or concurrently evicted; compile fresh.
+                                        }
+                                    }
+                                }
+
+                                let compiled = if let Some(hit) = hit_unit {
+                                    Ok(hit)
                                 } else {
                                     crate::body_structured::build_structured_module(
                                         &unit_irs[idx],
@@ -399,24 +616,61 @@ pub fn build_verified_body(
                                         .map_err(|e| format!("zil-llvm-api unit {idx} failed: {e}"))
                                     })
                                     .map(|object| {
-                                        let mut linked_cache_path = None;
-                                        if let Some(ref cp) = cache_path {
-                                            let tmp = cp.with_extension(format!(
-                                                "{obj_ext}.tmp.{pid}.{idx}"
+                                        let mut cache_entry_path = None;
+                                        let mut staged_path = None;
+                                        if let (Some((key, cp, mp)), Some(staged)) =
+                                            (cache_info.as_ref(), staged_target.as_ref())
+                                        {
+                                            let obj_sha = sha256_hex(&object.bytes);
+                                            let meta_text = format_cache_meta(
+                                                key,
+                                                object.bytes.len(),
+                                                &obj_sha,
+                                                &object.receipt.llvm_version,
+                                                &object.receipt.triple,
+                                                &object.receipt.pipeline,
+                                            );
+                                            let tmp_obj = cp.with_extension(format!(
+                                                "{obj_ext}.tmp.{pid}.{stage_seq}.{idx}"
                                             ));
-                                            if fs::write(&tmp, &object.bytes).is_ok()
-                                                && fs::rename(&tmp, cp).is_ok()
+                                            let tmp_meta = PathBuf::from(format!(
+                                                "{}.tmp.{pid}.{stage_seq}.{idx}",
+                                                mp.display()
+                                            ));
+                                            if fs::write(&tmp_obj, &object.bytes).is_ok() {
+                                                // Pin our private staged hard-link BEFORE publishing into
+                                                // cache_dir so neither concurrent eviction nor Windows rename
+                                                // contention can ever disrupt this build's link input.
+                                                if stage_object_snapshot(&tmp_obj, staged).is_ok() {
+                                                    staged_path = Some(staged.clone());
+                                                }
+                                                if fs::rename(&tmp_obj, cp).is_ok() {
+                                                    if fs::write(&tmp_meta, &meta_text).is_ok() {
+                                                        if fs::rename(&tmp_meta, mp).is_err() {
+                                                            let _ = fs::remove_file(&tmp_meta);
+                                                        }
+                                                    } else {
+                                                        let _ = fs::remove_file(&tmp_meta);
+                                                    }
+                                                    cache_entry_path = Some(cp.clone());
+                                                } else {
+                                                    let _ = fs::remove_file(&tmp_obj);
+                                                }
+                                            }
+                                            if staged_path.is_none()
+                                                && fs::write(staged, &object.bytes).is_ok()
                                             {
-                                                linked_cache_path = Some(cp.clone());
+                                                staged_path = Some(staged.clone());
                                             }
                                         }
-                                        let bytes = if linked_cache_path.is_some() {
+                                        let bytes = if staged_path.is_some() {
                                             Vec::new()
                                         } else {
                                             object.bytes
                                         };
                                         UnitCompiled {
-                                            cached_path: linked_cache_path,
+                                            cache_entry_path,
+                                            staged_path,
                                             bytes,
                                             report: receipt_to_json(&object.receipt),
                                             cache_hit: false,
@@ -453,9 +707,11 @@ pub fn build_verified_body(
                     } else if cache_dir.is_some() {
                         cache_misses += 1;
                     }
-                    if let Some(cp) = unit.cached_path {
-                        active_cache_paths.insert(cp.clone());
-                        obj_paths.push(cp);
+                    if let Some(cp) = unit.cache_entry_path {
+                        active_cache_paths.insert(cp);
+                    }
+                    if let Some(sp) = unit.staged_path {
+                        obj_paths.push(sp);
                     } else {
                         let obj_path = if actual_units == 1 {
                             PathBuf::from(format!("{}.{obj_ext}", options.output.display()))
@@ -512,12 +768,13 @@ pub fn build_verified_body(
                     run_checked_command(cmd, "linker", &clang)?;
                     commands.push(argv);
                 }
+                // Release our private hard-link staging directory immediately after linking.
+                drop(stage_guard);
                 for tmp_obj in temp_obj_paths {
                     let _ = fs::remove_file(tmp_obj);
                 }
-                let (cache_evicted_entries, cache_evicted_bytes, cache_evict_ns) = if cache_misses
-                    > 0
-                    && let Some(dir) = cache_dir
+                let (cache_evicted_entries, cache_evicted_bytes, cache_evict_ns) = if let Some(dir) =
+                    cache_dir
                     && let Some(max_bytes) = options.object_cache_max_bytes
                     && max_bytes > 0
                 {
