@@ -57,7 +57,49 @@ def _extract_selected(archive: Path, prefix: Path, members: list[str]) -> list[s
     tar_exe = _find_tar()
     zstd_exe = shutil.which("zstd")
 
-    # Try bsdtar native zstd decompression first (no external zstd binary required).
+    # Official LLVM .tar.zst archives use a large zstd window (--long=31), which
+    # exceeds Windows bsdtar's default memory limit; streaming through zstd -dc
+    # handles arbitrary window sizes cleanly and avoids bsdtar's -I (= --files-from).
+    if zstd_exe:
+        zstd_cmd = [zstd_exe, "--long=31", "-dc", str(archive)]
+        tar_cmd = [
+            tar_exe,
+            "-xf",
+            "-",
+            "--strip-components=1",
+            "-C",
+            str(prefix),
+            *members,
+        ]
+        zstd_proc = subprocess.Popen(
+            zstd_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        assert zstd_proc.stdout is not None
+        tar_proc = subprocess.Popen(
+            tar_cmd,
+            stdin=zstd_proc.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        zstd_proc.stdout.close()
+        _, tar_err = tar_proc.communicate(timeout=600)
+        if tar_proc.returncode == 0:
+            if zstd_proc.poll() is None:
+                zstd_proc.terminate()
+            try:
+                zstd_proc.communicate(timeout=30)
+            except subprocess.TimeoutExpired:
+                zstd_proc.kill()
+                zstd_proc.communicate()
+            return zstd_cmd + ["|"] + tar_cmd
+        _, zstd_err = zstd_proc.communicate(timeout=60)
+        raise RuntimeError(
+            f"zstd|tar extraction failed (zstd rc={zstd_proc.returncode}: {zstd_err.decode('utf-8', 'replace').strip()}; "
+            f"tar rc={tar_proc.returncode}: {tar_err.decode('utf-8', 'replace').strip()})"
+        )
+
     cmd_native = [
         tar_exe,
         "-xf",
@@ -70,28 +112,6 @@ def _extract_selected(archive: Path, prefix: Path, members: list[str]) -> list[s
     proc = subprocess.run(cmd_native, capture_output=True, text=True, timeout=600)
     if proc.returncode == 0:
         return cmd_native
-
-    # Fallback: explicit zstd decompressor pipe/filter.
-    if zstd_exe:
-        cmd_zstd = [
-            tar_exe,
-            "-I",
-            f"{zstd_exe} -d",
-            "-xf",
-            str(archive),
-            "--strip-components=1",
-            "-C",
-            str(prefix),
-            *members,
-        ]
-        proc2 = subprocess.run(cmd_zstd, capture_output=True, text=True, timeout=600)
-        if proc2.returncode == 0:
-            return cmd_zstd
-        raise RuntimeError(
-            f"tar extraction failed (native rc={proc.returncode}: {proc.stderr.strip()}; "
-            f"zstd rc={proc2.returncode}: {proc2.stderr.strip()})"
-        )
-
     raise RuntimeError(f"tar extraction failed (rc={proc.returncode}): {proc.stderr.strip()}")
 
 
