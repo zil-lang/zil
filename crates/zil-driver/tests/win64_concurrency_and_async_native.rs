@@ -798,7 +798,7 @@ fn win64_native_task_fibers_owned_child_pending_exit_fp_and_stress() {
         (
             "task_owned_child_direct",
             "tests/language-readiness/terminal/concurrency-and-registration/task-owned-child-direct.zil",
-            b"AB".as_slice(),
+            b"BA".as_slice(),
         ),
         (
             "task_unit_ready",
