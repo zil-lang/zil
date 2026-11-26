@@ -200,7 +200,7 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "zil-backend-llvm"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
  "zil-check",
@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "zil-base"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "rustc_apfloat",
  "sha2",
@@ -218,7 +218,7 @@ dependencies = [
 
 [[package]]
 name = "zil-check"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
  "zil-ir",
@@ -228,14 +228,14 @@ dependencies = [
 
 [[package]]
 name = "zil-db"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
 ]
 
 [[package]]
 name = "zil-driver"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-backend-llvm",
  "zil-base",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "zil-interp"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
  "zil-check",
@@ -259,18 +259,18 @@ dependencies = [
 
 [[package]]
 name = "zil-ir"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
 ]
 
 [[package]]
 name = "zil-llvm-api"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 
 [[package]]
 name = "zil-semantics"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
  "zil-ir",
@@ -278,7 +278,7 @@ dependencies = [
 
 [[package]]
 name = "zil-solve"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-ir",
  "zil-semantics",
@@ -286,14 +286,14 @@ dependencies = [
 
 [[package]]
 name = "zil-syntax"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
 ]
 
 [[package]]
 name = "zil-typeck"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "zil-base",
  "zil-ir",
