@@ -1542,4 +1542,47 @@ entry:
             }
         }
     }
+
+    #[test]
+    fn win64_msvc_secondary_unit_external_tls_and_runtime_decls_emit_coff() {
+        let ir = r#"; ZIL Verified Body IR -> LLVM 23 IR (unit 1)
+target triple = "x86_64-pc-windows-msvc"
+
+declare void @free(ptr) nobuiltin
+%__zil_reg_hdr = type { i32, ptr, ptr, ptr }
+@__zil_current_task = external thread_local global ptr
+@__zil_task_cancel_trap = external thread_local global i1
+@zil_process_argc = external global i32
+@zil_process_argv = external global ptr
+declare void @__zil_reg_drop_frame(ptr)
+
+define i32 @unit1_helper(ptr %frame) {
+entry:
+  call void @__zil_reg_drop_frame(ptr %frame)
+  store i1 false, ptr @__zil_task_cancel_trap
+  %c = load i32, ptr @zil_process_argc
+  ret i32 %c
+}
+"#;
+        let triple = "x86_64-pc-windows-msvc";
+        let module = build_structured_module(ir, triple, "win64-w2-unit1")
+            .expect("secondary Win64 unit structured build should succeed");
+        zil_llvm_api::validate_module(&module)
+            .expect("secondary Win64 unit should pass zil-llvm-api preflight");
+
+        #[cfg(feature = "llvm-api")]
+        {
+            let obj = zil_llvm_api::compile_module(
+                &module,
+                &zil_llvm_api::Config {
+                    triple,
+                    optimization: zil_llvm_api::Optimization::O2,
+                },
+                &|| false,
+            )
+            .expect("secondary Win64 unit should emit AMD64 COFF object");
+            assert!(obj.bytes.starts_with(b"\x64\x86"));
+            assert_eq!(obj.receipt.triple, triple);
+        }
+    }
 }

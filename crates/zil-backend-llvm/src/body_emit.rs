@@ -213,16 +213,40 @@ pub fn emit_verified_body_units_with_entry_for_target(
         header.push_str("declare i32 @pthread_mutex_lock(ptr)\n");
         header.push_str("declare i32 @pthread_mutex_unlock(ptr)\n");
     }
-    header.push_str("@__zil_current_task = linkonce_odr thread_local global ptr null\n");
-    header.push_str("@__zil_task_cancel_trap = linkonce_odr thread_local global i1 false\n");
-    header.push_str("@zil_process_argc = linkonce_odr global i32 0\n");
-    header.push_str("@zil_process_argv = linkonce_odr global ptr null\n");
     if !is_windows {
         header.push_str(
             "%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [9216 x i64], ptr, ptr }\n",
         );
-        header.push_str(
-            "define linkonce_odr void @__zil_task_drop_frame(ptr %child) {\n\
+    }
+    header.push_str("%__zil_reg_hdr = type { i32, ptr, ptr, ptr }\n");
+    if !is_windows {
+        header.push_str("%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n");
+    }
+
+    let mut runtime_defs = String::with_capacity(4096);
+    runtime_defs.push_str("@__zil_current_task = thread_local global ptr null\n");
+    runtime_defs.push_str("@__zil_task_cancel_trap = thread_local global i1 false\n");
+    runtime_defs.push_str("@zil_process_argc = global i32 0\n");
+    runtime_defs.push_str("@zil_process_argv = global ptr null\n");
+
+    let mut runtime_decls = String::with_capacity(512);
+    runtime_decls.push_str("@__zil_current_task = external thread_local global ptr\n");
+    runtime_decls.push_str("@__zil_task_cancel_trap = external thread_local global i1\n");
+    runtime_decls.push_str("@zil_process_argc = external global i32\n");
+    runtime_decls.push_str("@zil_process_argv = external global ptr\n");
+    runtime_decls.push_str("declare void @__zil_reg_drop_frame(ptr)\n");
+    if !is_windows {
+        runtime_decls.push_str("declare void @__zil_task_drop_frame(ptr)\n");
+        runtime_decls.push_str("declare void @__zil_areg_mark_closing(ptr)\n");
+        runtime_decls.push_str("declare void @__zil_areg_request_close(ptr)\n");
+        runtime_decls.push_str("declare i1 @__zil_areg_poll_close(ptr)\n");
+        runtime_decls.push_str("declare void @__zil_areg_finish_destroy(ptr)\n");
+        runtime_decls.push_str("declare void @__zil_areg_drop_frame(ptr)\n");
+    }
+
+    if !is_windows {
+        runtime_defs.push_str(
+            "define void @__zil_task_drop_frame(ptr %child) {\n\
 entry:\n\
   %is_null = icmp eq ptr %child, null\n\
   br i1 %is_null, label %done, label %check\n\
@@ -294,9 +318,8 @@ done:\n\
 }\n",
         );
     }
-    header.push_str(
-        "%__zil_reg_hdr = type { i32, ptr, ptr, ptr }\n\
-define linkonce_odr void @__zil_reg_drop_frame(ptr %frame) {\n\
+    runtime_defs.push_str(
+        "define void @__zil_reg_drop_frame(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %close_step\n\
@@ -333,9 +356,8 @@ done:\n\
 }\n",
     );
     if !is_windows {
-        header.push_str(
-            "%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n\
-define linkonce_odr void @__zil_areg_mark_closing(ptr %frame) {\n\
+        runtime_defs.push_str(
+            "define void @__zil_areg_mark_closing(ptr %frame) {\n\
 entry:\n\
   %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 0\n\
   %g0 = load atomic i32, ptr %gate_p acquire, align 4\n\
@@ -355,7 +377,7 @@ retry:\n\
 done:\n\
   ret void\n\
 }\n\
-define linkonce_odr void @__zil_areg_request_close(ptr %frame) {\n\
+define void @__zil_areg_request_close(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %mark\n\
@@ -390,7 +412,7 @@ unlock:\n\
 done:\n\
   ret void\n\
 }\n\
-define linkonce_odr i1 @__zil_areg_poll_close(ptr %frame) {\n\
+define i1 @__zil_areg_poll_close(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %ret_ready, label %try_lock\n\
@@ -475,7 +497,7 @@ ret_pending:\n\
 ret_ready:\n\
   ret i1 1\n\
 }\n\
-define linkonce_odr void @__zil_areg_finish_destroy(ptr %frame) {\n\
+define void @__zil_areg_finish_destroy(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %check\n\
@@ -493,7 +515,7 @@ do_free:\n\
 done:\n\
   ret void\n\
 }\n\
-define linkonce_odr void @__zil_areg_drop_frame(ptr %frame) {\n\
+define void @__zil_areg_drop_frame(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %loop\n\
@@ -542,6 +564,7 @@ done:\n\
         header.push('\n');
     }
 
+    let mut foreign_header = String::new();
     let mut emitted_foreigns = std::collections::BTreeSet::new();
     for f in &module.foreigns {
         if !emitted_foreigns.insert(f.symbol.as_str()) {
@@ -553,70 +576,79 @@ done:\n\
             } else {
                 "__errno_location"
             };
-            let _ = writeln!(header, "declare ptr @{errno_fn}()");
+            let _ = writeln!(foreign_header, "declare ptr @{errno_fn}()");
             let _ = writeln!(
-                header,
+                foreign_header,
                 "define internal i32 @zil_glibc_errno_exchange(i32 %next) {{"
             );
-            let _ = writeln!(header, "entry:");
-            let _ = writeln!(header, "  %p = call ptr @{errno_fn}()");
-            let _ = writeln!(header, "  %old = load i32, ptr %p");
-            let _ = writeln!(header, "  store i32 %next, ptr %p");
-            let _ = writeln!(header, "  ret i32 %old");
-            let _ = writeln!(header, "}}");
+            let _ = writeln!(foreign_header, "entry:");
+            let _ = writeln!(foreign_header, "  %p = call ptr @{errno_fn}()");
+            let _ = writeln!(foreign_header, "  %old = load i32, ptr %p");
+            let _ = writeln!(foreign_header, "  store i32 %next, ptr %p");
+            let _ = writeln!(foreign_header, "  ret i32 %old");
+            let _ = writeln!(foreign_header, "}}");
             continue;
         }
         if f.symbol == "zil_process_arg_count" {
-            let _ = writeln!(header, "define internal i64 @zil_process_arg_count() {{");
-            let _ = writeln!(header, "entry:");
-            let _ = writeln!(header, "  %argv = load ptr, ptr @zil_process_argv");
-            let _ = writeln!(header, "  %is_null = icmp eq ptr %argv, null");
-            let _ = writeln!(header, "  br i1 %is_null, label %zero, label %check_argc");
-            let _ = writeln!(header, "check_argc:");
-            let _ = writeln!(header, "  %c = load i32, ptr @zil_process_argc");
-            let _ = writeln!(header, "  %neg = icmp slt i32 %c, 0");
-            let _ = writeln!(header, "  br i1 %neg, label %zero, label %ok");
-            let _ = writeln!(header, "ok:");
-            let _ = writeln!(header, "  %ext = sext i32 %c to i64");
-            let _ = writeln!(header, "  ret i64 %ext");
-            let _ = writeln!(header, "zero:");
-            let _ = writeln!(header, "  ret i64 0");
-            let _ = writeln!(header, "}}");
+            let _ = writeln!(
+                foreign_header,
+                "define internal i64 @zil_process_arg_count() {{"
+            );
+            let _ = writeln!(foreign_header, "entry:");
+            let _ = writeln!(foreign_header, "  %argv = load ptr, ptr @zil_process_argv");
+            let _ = writeln!(foreign_header, "  %is_null = icmp eq ptr %argv, null");
+            let _ = writeln!(
+                foreign_header,
+                "  br i1 %is_null, label %zero, label %check_argc"
+            );
+            let _ = writeln!(foreign_header, "check_argc:");
+            let _ = writeln!(foreign_header, "  %c = load i32, ptr @zil_process_argc");
+            let _ = writeln!(foreign_header, "  %neg = icmp slt i32 %c, 0");
+            let _ = writeln!(foreign_header, "  br i1 %neg, label %zero, label %ok");
+            let _ = writeln!(foreign_header, "ok:");
+            let _ = writeln!(foreign_header, "  %ext = sext i32 %c to i64");
+            let _ = writeln!(foreign_header, "  ret i64 %ext");
+            let _ = writeln!(foreign_header, "zero:");
+            let _ = writeln!(foreign_header, "  ret i64 0");
+            let _ = writeln!(foreign_header, "}}");
             continue;
         }
         if f.symbol == "zil_process_arg_ptr" {
             let _ = writeln!(
-                header,
+                foreign_header,
                 "define internal ptr @zil_process_arg_ptr(i64 %idx) {{"
             );
-            let _ = writeln!(header, "entry:");
-            let _ = writeln!(header, "  %argv = load ptr, ptr @zil_process_argv");
-            let _ = writeln!(header, "  %is_null = icmp eq ptr %argv, null");
+            let _ = writeln!(foreign_header, "entry:");
+            let _ = writeln!(foreign_header, "  %argv = load ptr, ptr @zil_process_argv");
+            let _ = writeln!(foreign_header, "  %is_null = icmp eq ptr %argv, null");
             let _ = writeln!(
-                header,
+                foreign_header,
                 "  br i1 %is_null, label %ret_null, label %check_bounds"
             );
-            let _ = writeln!(header, "check_bounds:");
-            let _ = writeln!(header, "  %c = load i32, ptr @zil_process_argc");
-            let _ = writeln!(header, "  %c64 = sext i32 %c to i64");
-            let _ = writeln!(header, "  %neg = icmp slt i64 %idx, 0");
-            let _ = writeln!(header, "  br i1 %neg, label %ret_null, label %check_upper");
-            let _ = writeln!(header, "check_upper:");
-            let _ = writeln!(header, "  %in_range = icmp slt i64 %idx, %c64");
+            let _ = writeln!(foreign_header, "check_bounds:");
+            let _ = writeln!(foreign_header, "  %c = load i32, ptr @zil_process_argc");
+            let _ = writeln!(foreign_header, "  %c64 = sext i32 %c to i64");
+            let _ = writeln!(foreign_header, "  %neg = icmp slt i64 %idx, 0");
             let _ = writeln!(
-                header,
+                foreign_header,
+                "  br i1 %neg, label %ret_null, label %check_upper"
+            );
+            let _ = writeln!(foreign_header, "check_upper:");
+            let _ = writeln!(foreign_header, "  %in_range = icmp slt i64 %idx, %c64");
+            let _ = writeln!(
+                foreign_header,
                 "  br i1 %in_range, label %load_arg, label %ret_null"
             );
-            let _ = writeln!(header, "load_arg:");
+            let _ = writeln!(foreign_header, "load_arg:");
             let _ = writeln!(
-                header,
+                foreign_header,
                 "  %slot = getelementptr inbounds ptr, ptr %argv, i64 %idx"
             );
-            let _ = writeln!(header, "  %arg = load ptr, ptr %slot");
-            let _ = writeln!(header, "  ret ptr %arg");
-            let _ = writeln!(header, "ret_null:");
-            let _ = writeln!(header, "  ret ptr null");
-            let _ = writeln!(header, "}}");
+            let _ = writeln!(foreign_header, "  %arg = load ptr, ptr %slot");
+            let _ = writeln!(foreign_header, "  ret ptr %arg");
+            let _ = writeln!(foreign_header, "ret_null:");
+            let _ = writeln!(foreign_header, "  ret ptr null");
+            let _ = writeln!(foreign_header, "}}");
             continue;
         }
         let ret = llvm_ty(&module.tys, f.result)?;
@@ -628,14 +660,14 @@ done:\n\
             }
         }
         let _ = writeln!(
-            header,
+            foreign_header,
             "declare {ret} @{}({})",
             sanitize_symbol(&f.symbol),
             params.join(", ")
         );
     }
     if !module.foreigns.is_empty() {
-        header.push('\n');
+        foreign_header.push('\n');
     }
 
     let target_entry = entry_name.unwrap_or("main");
@@ -656,8 +688,15 @@ done:\n\
 
     let mut units = Vec::with_capacity(actual_units);
     for unit_idx in 0..actual_units {
-        let mut out = String::with_capacity(header.len() + 4096);
+        let mut out =
+            String::with_capacity(header.len() + runtime_defs.len() + foreign_header.len() + 4096);
         out.push_str(&header);
+        if unit_idx == 0 {
+            out.push_str(&runtime_defs);
+        } else {
+            out.push_str(&runtime_decls);
+        }
+        out.push_str(&foreign_header);
 
         // Emit declarations for functions owned by other units.
         if actual_units > 1 {
