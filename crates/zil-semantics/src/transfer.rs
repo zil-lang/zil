@@ -240,7 +240,17 @@ impl<'a> Kernel<'a> {
             if self.local_holds_address(p) {
                 let ty = self.body.locals.get(p.index()).map(|d| d.ty);
                 let regions = ty.map(|t| self.tys.regions_in(t)).unwrap_or_default();
-                let has_unannotated = ty.is_none_or(|t| self.tys.has_unannotated_ref(t));
+                let outer_is_named_ref = ty.is_some_and(|t| {
+                    matches!(
+                        self.tys.get(t),
+                        Some(zil_ir::body::TyKind::Ref {
+                            region: zil_ir::body::Region::Param(_),
+                            ..
+                        })
+                    )
+                });
+                let has_unannotated =
+                    !outer_is_named_ref && ty.is_none_or(|t| self.tys.has_unannotated_ref(t));
                 if regions.is_empty() {
                     carries.set(p, self.external());
                 } else {

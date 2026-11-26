@@ -631,7 +631,28 @@ impl Kernel<'_> {
                 {
                     let ret_regions = self.tys.regions_in(sig.result);
                     if ret_regions.is_empty() {
-                        self.empty_loans()
+                        if self.tys.has_unannotated_ref(sig.result) {
+                            // Purely unannotated/elided return reference on a function with
+                            // lifetime parameters (e.g. `impl<life a> Trait for View<'a> {
+                            // fn view(&self) -> &[u8] }`): propagate loans from arguments
+                            // flowing into the return value (`param_mask`).
+                            let param_mask = summary.map_or(u64::MAX, |s| s.param_mask);
+                            let mut out = self.empty_loans();
+                            for a in &accesses {
+                                let OperandRole::Arg(idx) = a.role else {
+                                    continue;
+                                };
+                                if idx >= 64 || (param_mask & (1u64 << idx)) != 0 {
+                                    out.union_with(&self.operand_loans(
+                                        state,
+                                        std::iter::once((a.role, a.access, a.place.as_ref())),
+                                    ));
+                                }
+                            }
+                            out
+                        } else {
+                            self.empty_loans()
+                        }
                     } else {
                         let param_mask = summary.map_or(u64::MAX, |s| s.param_mask);
                         let mut out = self.empty_loans();
@@ -1010,11 +1031,13 @@ impl Kernel<'_> {
                     return Err(ViolationKind::ReturnsLocalBorrow { loan });
                 }
                 let allowed = self.tys.regions_in(self.body.result);
-                let require_named = self.body.closure.is_none()
-                    && !allowed.is_empty()
-                    && !self.tys.has_unannotated_ref(self.body.result);
+                let has_unannotated = self.tys.has_unannotated_ref(self.body.result);
+                let unannotated_only = allowed.is_empty() && has_unannotated;
+                let require_named =
+                    self.body.closure.is_none() && !allowed.is_empty() && !has_unannotated;
                 for id in self.close(state, &flows.loans).iter() {
-                    if let Some(region) = self.loans.loan_region(id)
+                    if !unannotated_only
+                        && let Some(region) = self.loans.loan_region(id)
                         && !allowed.contains(&region)
                     {
                         return Err(ViolationKind::RegionEscape { region });
