@@ -168,7 +168,12 @@ def verify_bundle(
 
             # 1. `zil version` in stripped environment (no LD_LIBRARY_PATH / ZIL_LLVM_LIB_DIR / Rust).
             ver = _run([zil_exe, "version"], env=env, cwd=work_dir)
-            ver_ok = ver.returncode == 0 and "default backend: llvm-api" in ver.stdout
+            expected_semver = str(manifest.get("release_name", "")).lstrip("v")
+            ver_ok = (
+                ver.returncode == 0
+                and "default backend: llvm-api" in ver.stdout
+                and (not expected_semver or expected_semver in ver.stdout)
+            )
             checks["zil_version"] = {
                 "status": "pass" if ver_ok else "fail",
                 "exit_code": ver.returncode,
