@@ -1585,4 +1585,106 @@ entry:
             assert_eq!(obj.receipt.triple, triple);
         }
     }
+
+    #[test]
+    fn win64_msvc_w3_concurrency_and_fiber_runtime_emits_coff() {
+        let ir = r#"; ZIL Verified Body IR -> LLVM 23 IR (Win64 W3 concurrency/async)
+target triple = "x86_64-pc-windows-msvc"
+
+declare void @abort() noreturn
+declare void @free(ptr) nobuiltin
+declare void @InitializeSRWLock(ptr)
+declare void @AcquireSRWLockExclusive(ptr)
+declare void @ReleaseSRWLockExclusive(ptr)
+declare ptr @_beginthreadex(ptr, i32, ptr, ptr, i32, ptr)
+declare i32 @WaitForSingleObject(ptr, i32)
+declare i32 @CloseHandle(ptr)
+declare ptr @ConvertThreadToFiber(ptr)
+declare ptr @CreateFiberEx(i64, i64, i32, ptr, ptr)
+declare void @SwitchToFiber(ptr)
+declare void @DeleteFiber(ptr)
+
+%__zil_task_hdr = type { i32, ptr, ptr, ptr, ptr, ptr, ptr }
+@__zil_current_task = thread_local global ptr null
+@__zil_current_fiber = thread_local global ptr null
+
+define ptr @__zil_ensure_fiber() {
+entry:
+  %cur = load ptr, ptr @__zil_current_fiber
+  %has = icmp ne ptr %cur, null
+  br i1 %has, label %ret_cur, label %convert
+convert:
+  %fib = call ptr @ConvertThreadToFiber(ptr null)
+  %ok = icmp ne ptr %fib, null
+  br i1 %ok, label %save, label %fail
+save:
+  store ptr %fib, ptr @__zil_current_fiber
+  ret ptr %fib
+ret_cur:
+  ret ptr %cur
+fail:
+  call void @abort()
+  unreachable
+}
+
+define internal i32 @worker_thread(ptr %arg) {
+entry:
+  call void @AcquireSRWLockExclusive(ptr %arg)
+  call void @ReleaseSRWLockExclusive(ptr %arg)
+  ret i32 0
+}
+
+define internal void @fiber_entry(ptr %frame) {
+entry:
+  %cctx = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 2
+  %cfib = load ptr, ptr %cctx
+  call void @SwitchToFiber(ptr %cfib)
+  call void @abort()
+  unreachable
+}
+
+define i32 @main(i32 %argc, ptr %argv) {
+entry:
+  %lock = alloca i64
+  call void @InitializeSRWLock(ptr %lock)
+  %th = call ptr @_beginthreadex(ptr null, i32 0, ptr @worker_thread, ptr %lock, i32 0, ptr null)
+  %wrc = call i32 @WaitForSingleObject(ptr %th, i32 -1)
+  %crc = call i32 @CloseHandle(ptr %th)
+  %cfib = call ptr @__zil_ensure_fiber()
+  %frame = alloca %__zil_task_hdr
+  %cctx = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 2
+  store ptr %cfib, ptr %cctx
+  %wfib = call ptr @CreateFiberEx(i64 16384, i64 131072, i32 1, ptr @fiber_entry, ptr %frame)
+  call void @SwitchToFiber(ptr %wfib)
+  call void @DeleteFiber(ptr %wfib)
+  %sum = add i32 %wrc, %crc
+  ret i32 %sum
+}
+"#;
+        let triple = "x86_64-pc-windows-msvc";
+        let module = build_structured_module(ir, triple, "win64-w3-runtime")
+            .expect("Win64 W3 concurrency/fiber structured build should succeed");
+        zil_llvm_api::validate_module(&module)
+            .expect("Win64 W3 structured module should pass zil-llvm-api preflight");
+
+        #[cfg(feature = "llvm-api")]
+        {
+            for opt in [
+                zil_llvm_api::Optimization::O0,
+                zil_llvm_api::Optimization::O2,
+            ] {
+                let obj = zil_llvm_api::compile_module(
+                    &module,
+                    &zil_llvm_api::Config {
+                        triple,
+                        optimization: opt,
+                    },
+                    &|| false,
+                )
+                .expect("Win64 W3 runtime should emit AMD64 COFF object");
+                assert!(obj.bytes.starts_with(b"\x64\x86"));
+                assert_eq!(obj.receipt.triple, triple);
+            }
+        }
+    }
 }

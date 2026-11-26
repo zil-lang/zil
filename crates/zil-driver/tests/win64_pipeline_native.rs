@@ -219,7 +219,6 @@ fn win64_ir_targets_msvc_and_omits_posix_symbols() {
             "@pthread_mutex_lock",
             "@pthread_mutex_unlock",
             "@__errno_location",
-            "@__zil_task_drop_frame",
         ] {
             assert!(
                 !ir.contains(forbidden),
@@ -234,44 +233,100 @@ fn win64_ir_targets_msvc_and_omits_posix_symbols() {
 }
 
 #[test]
-fn win64_unimplemented_concurrency_returns_unsupported() {
-    let mutex_src = r#"
+fn win64_concurrency_and_tasks_emit_win32_runtime_without_posix() {
+    let concurrency_src = r#"
+fn worker(m: Mutex<i32>) -> i32 {
+    var g = mutex_lock(m)
+    let p = mutex_value(&mut g)
+    *p = *p + 3
+    return *p
+}
+
+fn task_body(x: i32) -> i32 {
+    task_yield()
+    return x + 1
+}
+
 fn main() -> i32 {
-    match mutex_create(1) {
+    var acc: i32 = 0
+    match mutex_create(4) {
         .ok(m) => {
-            var g = mutex_lock(m)
-            let p = mutex_value(&mut g)
-            return *p
+            let (ok, r1, r2) = thread_scope(worker, m, () -> i32 => 5)
+            if ok {
+                acc = r1 + r2
+            }
         }
-        .err(_) => { return 0 }
+        .err(_) => { acc = 0 }
     }
+    match task_create(task_body, acc) {
+        .ok(t) => {
+            var handle = give t
+            match task_poll(&mut handle) {
+                .ok(p) => {
+                    match p {
+                        Poll.Pending() => {}
+                        Poll.Ready(v) => { acc = v }
+                    }
+                }
+                .err(_) => {}
+            }
+            match task_poll(&mut handle) {
+                .ok(p) => {
+                    match p {
+                        Poll.Pending() => {}
+                        Poll.Ready(v) => { acc = v }
+                    }
+                }
+                .err(_) => {}
+            }
+        }
+        .err(_) => {}
+    }
+    return acc
 }
 "#;
-    let source = SourceUnit::new(FileId(1), ModuleId(1), "win64_mutex.zil", mutex_src);
-    let options = CompileOptions {
-        stop_after: Stage::Build,
-        target: TargetProfile::windows_x64_llvm(),
-        backend: NativeBackend::Clang,
-        output: Some(
-            std::env::temp_dir().join(format!("zil-win64-unsupported-{}.exe", std::process::id())),
-        ),
-        ..CompileOptions::default()
-    };
-    let report = compile_source(&source, &options);
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "expected Unsupported for Mutex on Windows W1, got {:?}",
-        report
-    );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-TARGET-UNSUPPORTED"),
-        "expected E-TARGET-UNSUPPORTED diagnostic, got {:?}",
-        report.diagnostics
-    );
+    let target = TargetProfile::windows_x64_llvm();
+    let verified = verify_body_program(&[("win64_concurrency.zil", concurrency_src)])
+        .expect("Win64 W3 concurrency/task source must pass independent zil-check");
+    let ir = emit_verified_body_for_target(&verified, true, &target.triple)
+        .expect("Win64 W3 concurrency/task IR emission must succeed");
+    assert!(ir.contains("target triple = \"x86_64-pc-windows-msvc\""));
+    for expected in [
+        "@InitializeSRWLock",
+        "@AcquireSRWLockExclusive",
+        "@ReleaseSRWLockExclusive",
+        "@_beginthreadex",
+        "@WaitForSingleObject",
+        "@CloseHandle",
+        "@ConvertThreadToFiber",
+        "@CreateFiberEx",
+        "@SwitchToFiber",
+        "@DeleteFiber",
+        "@__zil_ensure_fiber",
+        "@__zil_current_fiber",
+    ] {
+        assert!(
+            ir.contains(expected),
+            "Win64 W3 IR must contain Win32 concurrency/fiber symbol {expected}"
+        );
+    }
+    for forbidden in [
+        "@pthread_create",
+        "@pthread_join",
+        "@pthread_mutex_init",
+        "@pthread_mutex_destroy",
+        "@pthread_mutex_lock",
+        "@pthread_mutex_unlock",
+        "@getcontext",
+        "@makecontext",
+        "@swapcontext",
+        "@mprotect",
+    ] {
+        assert!(
+            !ir.contains(forbidden),
+            "Win64 W3 IR must not contain Linux POSIX symbol {forbidden}"
+        );
+    }
 }
 
 #[test]

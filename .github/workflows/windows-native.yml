@@ -73,7 +73,7 @@ jobs:
           cargo build --locked -p zil-cli --no-default-features
           $zil = "$env:CARGO_TARGET_DIR\debug\zil.exe"
           & $zil version
-      - name: Run Windows x64 backend, driver, and MSVC ABI/runtime tests
+      - name: Run Windows x64 backend, driver, ABI, and concurrency/async tests
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -81,6 +81,7 @@ jobs:
           cargo test --locked -p zil-driver --no-default-features --lib
           cargo test --locked -p zil-driver --no-default-features --test win64_pipeline_native
           cargo test --locked -p zil-driver --no-default-features --test win64_abi_and_runtime_native
+          cargo test --locked -p zil-driver --no-default-features --test win64_concurrency_and_async_native
       - name: End-to-end native zil.exe check/build/run/test smoke on Windows x64
         shell: pwsh
         run: |

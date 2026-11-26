@@ -28,13 +28,6 @@ impl BodyEmitError {
             unsupported: false,
         }
     }
-
-    fn unsupported(msg: impl Into<String>) -> Self {
-        Self {
-            message: msg.into(),
-            unsupported: true,
-        }
-    }
 }
 
 /// Emits LLVM 23 opaque-pointer IR for a verified Body IR module as a single unit
@@ -100,83 +93,6 @@ pub fn emit_verified_body_units_for_target(
     )
 }
 
-fn validate_windows_runtime_support(
-    module: &Module,
-    target_triple: &str,
-) -> Result<(), BodyEmitError> {
-    for func in &module.functions {
-        for block in &func.body.blocks {
-            if let Terminator::Call { callee, cancel, .. } = &block.terminator {
-                if cancel.is_some() {
-                    return Err(BodyEmitError::unsupported(format!(
-                        "target `{target_triple}` does not yet support suspendable Task cancel unwinding (planned for Windows W3)"
-                    )));
-                }
-                if let Callee::Intrinsic(op) = callee {
-                    let unsupported = match op {
-                        IntrinsicOp::MutexCreate
-                        | IntrinsicOp::MutexLock
-                        | IntrinsicOp::MutexValue
-                        | IntrinsicOp::MutexUnlock => Some("Mutex"),
-                        IntrinsicOp::TaskStart
-                        | IntrinsicOp::TaskCreate
-                        | IntrinsicOp::TaskYield
-                        | IntrinsicOp::TaskValid
-                        | IntrinsicOp::TaskPoll
-                        | IntrinsicOp::TaskRequestCancel
-                        | IntrinsicOp::TaskPollClose
-                        | IntrinsicOp::TaskFinishDestroy => Some("Task"),
-                        IntrinsicOp::AsyncRegistrationStart
-                        | IntrinsicOp::AsyncRegistrationValid
-                        | IntrinsicOp::AsyncRegistrationRequestClose
-                        | IntrinsicOp::AsyncRegistrationPollClose
-                        | IntrinsicOp::AsyncRegistrationFinishDestroy => Some("AsyncRegistration"),
-                        IntrinsicOp::ThreadScope => Some("ThreadScope"),
-                        IntrinsicOp::StoreNew
-                        | IntrinsicOp::StoreReserve
-                        | IntrinsicOp::StorePush
-                        | IntrinsicOp::StorePop
-                        | IntrinsicOp::StoreLen
-                        | IntrinsicOp::StoreCapacity
-                        | IntrinsicOp::StoreBorrow { .. }
-                        | IntrinsicOp::ByteBufferNew
-                        | IntrinsicOp::ByteBufferReserve
-                        | IntrinsicOp::ByteBufferPush
-                        | IntrinsicOp::ByteBufferTruncate
-                        | IntrinsicOp::ByteBufferLen
-                        | IntrinsicOp::ByteBufferCapacity
-                        | IntrinsicOp::ByteBufferBorrow
-                        | IntrinsicOp::SyncLoad
-                        | IntrinsicOp::SyncStore
-                        | IntrinsicOp::SyncFetchAdd
-                        | IntrinsicOp::SyncCompareExchange
-                        | IntrinsicOp::RegistrationStart
-                        | IntrinsicOp::RegistrationValid
-                        | IntrinsicOp::RegistrationClose
-                        | IntrinsicOp::ManagedCreate
-                        | IntrinsicOp::OwnedDynCreate
-                        | IntrinsicOp::SyncInit
-                        | IntrinsicOp::ScopedCallback
-                        | IntrinsicOp::SyncLoadOrdered(_)
-                        | IntrinsicOp::SyncStoreOrdered(_)
-                        | IntrinsicOp::SyncFetchAddOrdered(_)
-                        | IntrinsicOp::SyncExchangeOrdered(_)
-                        | IntrinsicOp::SyncCompareExchangeOrdered { .. }
-                        | IntrinsicOp::CNull
-                        | IntrinsicOp::CCallback => None,
-                    };
-                    if let Some(feature) = unsupported {
-                        return Err(BodyEmitError::unsupported(format!(
-                            "target `{target_triple}` does not yet support {feature} runtime lowering (planned for Windows W3)"
-                        )));
-                    }
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
 pub fn emit_verified_body_units_with_entry_for_target(
     verified: &VerifiedModule,
     emit_c_main: bool,
@@ -186,13 +102,10 @@ pub fn emit_verified_body_units_with_entry_for_target(
 ) -> Result<Vec<String>, BodyEmitError> {
     let module = verified.module();
     let is_windows = target_triple.contains("windows");
-    if is_windows {
-        validate_windows_runtime_support(module, target_triple)?;
-    }
     let fn_count = module.functions.len();
     let actual_units = requested_units.clamp(1, fn_count.max(1));
 
-    // Precompute header (target triple, runtime decls, private statics, foreign decls).
+    // Precompute header (target triple, runtime decls, named types, private statics).
     let mut header = String::with_capacity(2048);
     header.push_str("; ZIL Verified Body IR -> LLVM 23 IR\n");
     let _ = writeln!(header, "target triple = \"{target_triple}\"\n");
@@ -201,7 +114,19 @@ pub fn emit_verified_body_units_with_entry_for_target(
     header.push_str("declare void @free(ptr) nobuiltin\n");
     header.push_str("declare void @abort() noreturn\n");
     header.push_str("declare i32 @printf(ptr, ...)\n");
-    if !is_windows {
+    if is_windows {
+        header.push_str("declare void @InitializeSRWLock(ptr)\n");
+        header.push_str("declare void @AcquireSRWLockExclusive(ptr)\n");
+        header.push_str("declare void @ReleaseSRWLockExclusive(ptr)\n");
+        header.push_str("declare ptr @_beginthreadex(ptr, i32, ptr, ptr, i32, ptr)\n");
+        header.push_str("declare i32 @WaitForSingleObject(ptr, i32)\n");
+        header.push_str("declare i32 @CloseHandle(ptr)\n");
+        header.push_str("declare ptr @ConvertThreadToFiber(ptr)\n");
+        header.push_str("declare ptr @CreateFiberEx(i64, i64, i32, ptr, ptr)\n");
+        header.push_str("declare void @SwitchToFiber(ptr)\n");
+        header.push_str("declare void @DeleteFiber(ptr)\n");
+        header.push_str("%__zil_task_hdr = type { i32, ptr, ptr, ptr, ptr, ptr, ptr }\n");
+    } else {
         header.push_str("declare i32 @getcontext(ptr)\n");
         header.push_str("declare void @makecontext(ptr, ptr, i32, ...)\n");
         header.push_str("declare i32 @swapcontext(ptr, ptr)\n");
@@ -212,39 +137,129 @@ pub fn emit_verified_body_units_with_entry_for_target(
         header.push_str("declare i32 @pthread_mutex_destroy(ptr)\n");
         header.push_str("declare i32 @pthread_mutex_lock(ptr)\n");
         header.push_str("declare i32 @pthread_mutex_unlock(ptr)\n");
-    }
-    if !is_windows {
         header.push_str(
             "%__zil_task_hdr = type { i32, ptr, [128 x i64], [128 x i64], [9216 x i64], ptr, ptr }\n",
         );
     }
     header.push_str("%__zil_reg_hdr = type { i32, ptr, ptr, ptr }\n");
-    if !is_windows {
-        header.push_str("%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n");
-    }
+    header.push_str("%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n");
 
     let mut runtime_defs = String::with_capacity(4096);
     runtime_defs.push_str("@__zil_current_task = thread_local global ptr null\n");
     runtime_defs.push_str("@__zil_task_cancel_trap = thread_local global i1 false\n");
+    if is_windows {
+        runtime_defs.push_str("@__zil_current_fiber = thread_local global ptr null\n");
+    }
     runtime_defs.push_str("@zil_process_argc = global i32 0\n");
     runtime_defs.push_str("@zil_process_argv = global ptr null\n");
 
     let mut runtime_decls = String::with_capacity(512);
     runtime_decls.push_str("@__zil_current_task = external thread_local global ptr\n");
     runtime_decls.push_str("@__zil_task_cancel_trap = external thread_local global i1\n");
+    if is_windows {
+        runtime_decls.push_str("@__zil_current_fiber = external thread_local global ptr\n");
+        runtime_decls.push_str("declare ptr @__zil_ensure_fiber()\n");
+    }
     runtime_decls.push_str("@zil_process_argc = external global i32\n");
     runtime_decls.push_str("@zil_process_argv = external global ptr\n");
     runtime_decls.push_str("declare void @__zil_reg_drop_frame(ptr)\n");
-    if !is_windows {
-        runtime_decls.push_str("declare void @__zil_task_drop_frame(ptr)\n");
-        runtime_decls.push_str("declare void @__zil_areg_mark_closing(ptr)\n");
-        runtime_decls.push_str("declare void @__zil_areg_request_close(ptr)\n");
-        runtime_decls.push_str("declare i1 @__zil_areg_poll_close(ptr)\n");
-        runtime_decls.push_str("declare void @__zil_areg_finish_destroy(ptr)\n");
-        runtime_decls.push_str("declare void @__zil_areg_drop_frame(ptr)\n");
-    }
+    runtime_decls.push_str("declare void @__zil_task_drop_frame(ptr)\n");
+    runtime_decls.push_str("declare void @__zil_areg_mark_closing(ptr)\n");
+    runtime_decls.push_str("declare void @__zil_areg_request_close(ptr)\n");
+    runtime_decls.push_str("declare i1 @__zil_areg_poll_close(ptr)\n");
+    runtime_decls.push_str("declare void @__zil_areg_finish_destroy(ptr)\n");
+    runtime_decls.push_str("declare void @__zil_areg_drop_frame(ptr)\n");
 
-    if !is_windows {
+    if is_windows {
+        runtime_defs.push_str(
+            "define ptr @__zil_ensure_fiber() {\n\
+entry:\n\
+  %cur = load ptr, ptr @__zil_current_fiber\n\
+  %has = icmp ne ptr %cur, null\n\
+  br i1 %has, label %ret_cur, label %convert\n\
+convert:\n\
+  %fib = call ptr @ConvertThreadToFiber(ptr null)\n\
+  %ok = icmp ne ptr %fib, null\n\
+  br i1 %ok, label %save, label %fail\n\
+save:\n\
+  store ptr %fib, ptr @__zil_current_fiber\n\
+  ret ptr %fib\n\
+ret_cur:\n\
+  ret ptr %cur\n\
+fail:\n\
+  call void @abort()\n\
+  unreachable\n\
+}\n\
+define void @__zil_task_drop_frame(ptr %child) {\n\
+entry:\n\
+  %is_null = icmp eq ptr %child, null\n\
+  br i1 %is_null, label %done, label %check\n\
+check:\n\
+  %st_p = getelementptr inbounds %__zil_task_hdr, ptr %child, i32 0, i32 0\n\
+  %st = load i32, ptr %st_p\n\
+  switch i32 %st, label %close_unstarted [\n\
+    i32 1, label %req_close\n\
+    i32 2, label %close_ready\n\
+    i32 4, label %drive_close\n\
+    i32 5, label %do_free\n\
+    i32 6, label %done\n\
+  ]\n\
+req_close:\n\
+  store i32 4, ptr %st_p\n\
+  br label %drive_close\n\
+drive_close:\n\
+  %prev = load ptr, ptr @__zil_current_task\n\
+  %cfib = call ptr @__zil_ensure_fiber()\n\
+  %cctx = getelementptr inbounds %__zil_task_hdr, ptr %child, i32 0, i32 2\n\
+  store ptr %cfib, ptr %cctx\n\
+  %wctx = getelementptr inbounds %__zil_task_hdr, ptr %child, i32 0, i32 3\n\
+  %wfib = load ptr, ptr %wctx\n\
+  store ptr %child, ptr @__zil_current_task\n\
+  store ptr %wfib, ptr @__zil_current_fiber\n\
+  call void @SwitchToFiber(ptr %wfib)\n\
+  store ptr %cfib, ptr @__zil_current_fiber\n\
+  store ptr %prev, ptr @__zil_current_task\n\
+  %st2 = load i32, ptr %st_p\n\
+  %is_closed = icmp eq i32 %st2, 5\n\
+  br i1 %is_closed, label %do_free, label %maybe_yield\n\
+maybe_yield:\n\
+  %has_parent = icmp ne ptr %prev, null\n\
+  br i1 %has_parent, label %yield_parent, label %drive_close\n\
+yield_parent:\n\
+  %pcctx = getelementptr inbounds %__zil_task_hdr, ptr %prev, i32 0, i32 2\n\
+  %pcfib = load ptr, ptr %pcctx\n\
+  call void @SwitchToFiber(ptr %pcfib)\n\
+  br label %drive_close\n\
+close_unstarted:\n\
+  %da_slot = getelementptr inbounds %__zil_task_hdr, ptr %child, i32 0, i32 6\n\
+  %da_fn = load ptr, ptr %da_slot\n\
+  %has_da = icmp ne ptr %da_fn, null\n\
+  br i1 %has_da, label %call_da, label %close_ready\n\
+call_da:\n\
+  store ptr null, ptr %da_slot\n\
+  call void %da_fn(ptr %child)\n\
+  br label %close_ready\n\
+close_ready:\n\
+  store i32 5, ptr %st_p\n\
+  br label %do_free\n\
+do_free:\n\
+  store i32 6, ptr %st_p\n\
+  %wf_slot = getelementptr inbounds %__zil_task_hdr, ptr %child, i32 0, i32 3\n\
+  %wf = load ptr, ptr %wf_slot\n\
+  %has_wf = icmp ne ptr %wf, null\n\
+  br i1 %has_wf, label %del_fiber, label %free_now\n\
+del_fiber:\n\
+  store ptr null, ptr %wf_slot\n\
+  call void @DeleteFiber(ptr %wf)\n\
+  br label %free_now\n\
+free_now:\n\
+  call void @free(ptr %child)\n\
+  br label %done\n\
+done:\n\
+  ret void\n\
+}\n",
+        );
+    } else {
         runtime_defs.push_str(
             "define void @__zil_task_drop_frame(ptr %child) {\n\
 entry:\n\
@@ -355,9 +370,8 @@ done:\n\
   ret void\n\
 }\n",
     );
-    if !is_windows {
-        runtime_defs.push_str(
-            "define void @__zil_areg_mark_closing(ptr %frame) {\n\
+    runtime_defs.push_str(
+        "define void @__zil_areg_mark_closing(ptr %frame) {\n\
 entry:\n\
   %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 0\n\
   %g0 = load atomic i32, ptr %gate_p acquire, align 4\n\
@@ -514,8 +528,41 @@ do_free:\n\
   br label %done\n\
 done:\n\
   ret void\n\
-}\n\
-define void @__zil_areg_drop_frame(ptr %frame) {\n\
+}\n",
+    );
+    if is_windows {
+        runtime_defs.push_str(
+            "define void @__zil_areg_drop_frame(ptr %frame) {\n\
+entry:\n\
+  %is_null = icmp eq ptr %frame, null\n\
+  br i1 %is_null, label %done, label %loop\n\
+loop:\n\
+  %ready = call i1 @__zil_areg_poll_close(ptr %frame)\n\
+  br i1 %ready, label %finish, label %maybe_yield\n\
+maybe_yield:\n\
+  %cur = load ptr, ptr @__zil_current_task\n\
+  %in_task = icmp ne ptr %cur, null\n\
+  br i1 %in_task, label %yield_task, label %loop\n\
+yield_task:\n\
+  %st_p = getelementptr inbounds %__zil_task_hdr, ptr %cur, i32 0, i32 0\n\
+  %cur_st = load i32, ptr %st_p\n\
+  %is_cl = icmp eq i32 %cur_st, 4\n\
+  %next_st = select i1 %is_cl, i32 4, i32 1\n\
+  store i32 %next_st, ptr %st_p\n\
+  %cctx = getelementptr inbounds %__zil_task_hdr, ptr %cur, i32 0, i32 2\n\
+  %cfib = load ptr, ptr %cctx\n\
+  call void @SwitchToFiber(ptr %cfib)\n\
+  br label %loop\n\
+finish:\n\
+  call void @__zil_areg_finish_destroy(ptr %frame)\n\
+  br label %done\n\
+done:\n\
+  ret void\n\
+}\n",
+        );
+    } else {
+        runtime_defs.push_str(
+            "define void @__zil_areg_drop_frame(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %loop\n\
@@ -717,14 +764,21 @@ done:\n\
         // Emit definitions for functions owned by this unit.
         for (idx, func) in module.functions.iter().enumerate() {
             if idx % actual_units == unit_idx {
-                emit_function(module, FnId::from_index(idx), func, &syms[idx], &mut out)?;
+                emit_function(
+                    module,
+                    FnId::from_index(idx),
+                    func,
+                    &syms[idx],
+                    is_windows,
+                    &mut out,
+                )?;
                 out.push('\n');
             }
         }
 
         // Emit dyn Trait vtables, drop shims, and slot thunks in unit 0.
         if unit_idx == 0 && !module.dyn_impls.is_empty() {
-            emit_dyn_vtables(module, &syms, &mut out)?;
+            emit_dyn_vtables(module, &syms, is_windows, &mut out)?;
         }
 
         // Emit C `main()` wrapper in unit 0.
@@ -792,6 +846,7 @@ done:\n\
                         module,
                         fn_id: FnId(0),
                         body: &empty_body,
+                        is_windows,
                         out: &mut out,
                         entry_allocas: None,
                         extra_defs: String::new(),
@@ -1005,6 +1060,7 @@ struct FnEmitter<'a> {
     module: &'a Module,
     fn_id: FnId,
     body: &'a Body,
+    is_windows: bool,
     out: &'a mut String,
     entry_allocas: Option<&'a mut String>,
     extra_defs: String,
@@ -1444,22 +1500,25 @@ impl<'a> FnEmitter<'a> {
                         let _ = writeln!(self.out, "  call void @free(ptr {data})");
                     }
                     Some(TyKind::Opaque(OpaqueTy::Mutex { payload: elem })) => {
-                        let rc = self.fresh();
-                        let ok = self.fresh();
-                        let tid = self.tmp;
-                        self.tmp += 1;
-                        let l_ok = format!("md_ok_{tid}");
-                        let l_ab = format!("md_ab_{tid}");
-                        let _ = writeln!(
-                            self.out,
-                            "  {rc} = call i32 @pthread_mutex_destroy(ptr {handle})"
-                        );
-                        let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
-                        let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
-                        let _ = writeln!(self.out, "{l_ab}:");
-                        let _ = writeln!(self.out, "  call void @abort()");
-                        let _ = writeln!(self.out, "  unreachable");
-                        let _ = writeln!(self.out, "{l_ok}:");
+                        if !self.is_windows {
+                            let rc = self.fresh();
+                            let ok = self.fresh();
+                            let tid = self.tmp;
+                            self.tmp += 1;
+                            let l_ok = format!("md_ok_{tid}");
+                            let l_ab = format!("md_ab_{tid}");
+                            let _ = writeln!(
+                                self.out,
+                                "  {rc} = call i32 @pthread_mutex_destroy(ptr {handle})"
+                            );
+                            let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
+                            let _ =
+                                writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
+                            let _ = writeln!(self.out, "{l_ab}:");
+                            let _ = writeln!(self.out, "  call void @abort()");
+                            let _ = writeln!(self.out, "  unreachable");
+                            let _ = writeln!(self.out, "{l_ok}:");
+                        }
                         let pay_ptr = self.fresh();
                         let _ = writeln!(
                             self.out,
@@ -1468,22 +1527,30 @@ impl<'a> FnEmitter<'a> {
                         self.emit_drop_ptr(&pay_ptr, elem)?;
                     }
                     Some(TyKind::Opaque(OpaqueTy::MutexGuard { .. })) => {
-                        let rc = self.fresh();
-                        let ok = self.fresh();
-                        let tid = self.tmp;
-                        self.tmp += 1;
-                        let l_ok = format!("mgu_ok_{tid}");
-                        let l_ab = format!("mgu_ab_{tid}");
-                        let _ = writeln!(
-                            self.out,
-                            "  {rc} = call i32 @pthread_mutex_unlock(ptr {handle})"
-                        );
-                        let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
-                        let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
-                        let _ = writeln!(self.out, "{l_ab}:");
-                        let _ = writeln!(self.out, "  call void @abort()");
-                        let _ = writeln!(self.out, "  unreachable");
-                        let _ = writeln!(self.out, "{l_ok}:");
+                        if self.is_windows {
+                            let _ = writeln!(
+                                self.out,
+                                "  call void @ReleaseSRWLockExclusive(ptr {handle})"
+                            );
+                        } else {
+                            let rc = self.fresh();
+                            let ok = self.fresh();
+                            let tid = self.tmp;
+                            self.tmp += 1;
+                            let l_ok = format!("mgu_ok_{tid}");
+                            let l_ab = format!("mgu_ab_{tid}");
+                            let _ = writeln!(
+                                self.out,
+                                "  {rc} = call i32 @pthread_mutex_unlock(ptr {handle})"
+                            );
+                            let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
+                            let _ =
+                                writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
+                            let _ = writeln!(self.out, "{l_ab}:");
+                            let _ = writeln!(self.out, "  call void @abort()");
+                            let _ = writeln!(self.out, "  unreachable");
+                            let _ = writeln!(self.out, "{l_ok}:");
+                        }
                         return Ok(());
                     }
                     Some(TyKind::Opaque(OpaqueTy::Task { .. })) => {
@@ -1705,23 +1772,30 @@ impl<'a> FnEmitter<'a> {
             }
             TyKind::Opaque(OpaqueTy::MutexGuard { .. }) => {
                 let handle = self.fresh();
-                let rc = self.fresh();
-                let ok = self.fresh();
-                let tid = self.tmp;
-                self.tmp += 1;
-                let l_ok = format!("mgo_ok_{tid}");
-                let l_ab = format!("mgo_ab_{tid}");
                 let _ = writeln!(self.out, "  {handle} = load ptr, ptr {ptr}");
-                let _ = writeln!(
-                    self.out,
-                    "  {rc} = call i32 @pthread_mutex_unlock(ptr {handle})"
-                );
-                let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
-                let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
-                let _ = writeln!(self.out, "{l_ab}:");
-                let _ = writeln!(self.out, "  call void @abort()");
-                let _ = writeln!(self.out, "  unreachable");
-                let _ = writeln!(self.out, "{l_ok}:");
+                if self.is_windows {
+                    let _ = writeln!(
+                        self.out,
+                        "  call void @ReleaseSRWLockExclusive(ptr {handle})"
+                    );
+                } else {
+                    let rc = self.fresh();
+                    let ok = self.fresh();
+                    let tid = self.tmp;
+                    self.tmp += 1;
+                    let l_ok = format!("mgo_ok_{tid}");
+                    let l_ab = format!("mgo_ab_{tid}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {rc} = call i32 @pthread_mutex_unlock(ptr {handle})"
+                    );
+                    let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
+                    let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
+                    let _ = writeln!(self.out, "{l_ab}:");
+                    let _ = writeln!(self.out, "  call void @abort()");
+                    let _ = writeln!(self.out, "  unreachable");
+                    let _ = writeln!(self.out, "{l_ok}:");
+                }
                 Ok(())
             }
             TyKind::OwnedDyn { .. } => {
@@ -3054,20 +3128,25 @@ impl<'a> FnEmitter<'a> {
                     "  br i1 {is_null}, label %{l_fail}, label %{l_alloc_ok}"
                 );
                 let _ = writeln!(self.out, "{l_alloc_ok}:");
-                let init_rc = self.fresh();
-                let init_ok = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {init_rc} = call i32 @pthread_mutex_init(ptr {raw}, ptr null)"
-                );
-                let _ = writeln!(self.out, "  {init_ok} = icmp eq i32 {init_rc}, 0");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {init_ok}, label %{l_init_ok}, label %{l_init_fail}"
-                );
-                let _ = writeln!(self.out, "{l_init_fail}:");
-                let _ = writeln!(self.out, "  call void @free(ptr {raw})");
-                let _ = writeln!(self.out, "  br label %{l_fail}");
+                if self.is_windows {
+                    let _ = writeln!(self.out, "  call void @InitializeSRWLock(ptr {raw})");
+                    let _ = writeln!(self.out, "  br label %{l_init_ok}");
+                } else {
+                    let init_rc = self.fresh();
+                    let init_ok = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {init_rc} = call i32 @pthread_mutex_init(ptr {raw}, ptr null)"
+                    );
+                    let _ = writeln!(self.out, "  {init_ok} = icmp eq i32 {init_rc}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {init_ok}, label %{l_init_ok}, label %{l_init_fail}"
+                    );
+                    let _ = writeln!(self.out, "{l_init_fail}:");
+                    let _ = writeln!(self.out, "  call void @free(ptr {raw})");
+                    let _ = writeln!(self.out, "  br label %{l_fail}");
+                }
                 let _ = writeln!(self.out, "{l_fail}:");
                 let e_tag = self.fresh();
                 let e_slot = self.fresh();
@@ -3111,19 +3190,23 @@ impl<'a> FnEmitter<'a> {
             }
             IntrinsicOp::MutexLock => {
                 let (h, _, _) = self.emit_operand(&args[0])?;
-                let tid = self.tmp;
-                self.tmp += 1;
-                let rc = self.fresh();
-                let ok = self.fresh();
-                let l_ok = format!("ml_ok_{tid}");
-                let l_ab = format!("ml_ab_{tid}");
-                let _ = writeln!(self.out, "  {rc} = call i32 @pthread_mutex_lock(ptr {h})");
-                let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
-                let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
-                let _ = writeln!(self.out, "{l_ab}:");
-                let _ = writeln!(self.out, "  call void @abort()");
-                let _ = writeln!(self.out, "  unreachable");
-                let _ = writeln!(self.out, "{l_ok}:");
+                if self.is_windows {
+                    let _ = writeln!(self.out, "  call void @AcquireSRWLockExclusive(ptr {h})");
+                } else {
+                    let tid = self.tmp;
+                    self.tmp += 1;
+                    let rc = self.fresh();
+                    let ok = self.fresh();
+                    let l_ok = format!("ml_ok_{tid}");
+                    let l_ab = format!("ml_ab_{tid}");
+                    let _ = writeln!(self.out, "  {rc} = call i32 @pthread_mutex_lock(ptr {h})");
+                    let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
+                    let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
+                    let _ = writeln!(self.out, "{l_ab}:");
+                    let _ = writeln!(self.out, "  call void @abort()");
+                    let _ = writeln!(self.out, "  unreachable");
+                    let _ = writeln!(self.out, "{l_ok}:");
+                }
                 let _ = writeln!(self.out, "  store ptr {h}, ptr {d_ptr}");
                 Ok(())
             }
@@ -3141,19 +3224,23 @@ impl<'a> FnEmitter<'a> {
             }
             IntrinsicOp::MutexUnlock => {
                 let (h, _, _) = self.emit_operand(&args[0])?;
-                let tid = self.tmp;
-                self.tmp += 1;
-                let rc = self.fresh();
-                let ok = self.fresh();
-                let l_ok = format!("mu_ok_{tid}");
-                let l_ab = format!("mu_ab_{tid}");
-                let _ = writeln!(self.out, "  {rc} = call i32 @pthread_mutex_unlock(ptr {h})");
-                let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
-                let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
-                let _ = writeln!(self.out, "{l_ab}:");
-                let _ = writeln!(self.out, "  call void @abort()");
-                let _ = writeln!(self.out, "  unreachable");
-                let _ = writeln!(self.out, "{l_ok}:");
+                if self.is_windows {
+                    let _ = writeln!(self.out, "  call void @ReleaseSRWLockExclusive(ptr {h})");
+                } else {
+                    let tid = self.tmp;
+                    self.tmp += 1;
+                    let rc = self.fresh();
+                    let ok = self.fresh();
+                    let l_ok = format!("mu_ok_{tid}");
+                    let l_ab = format!("mu_ab_{tid}");
+                    let _ = writeln!(self.out, "  {rc} = call i32 @pthread_mutex_unlock(ptr {h})");
+                    let _ = writeln!(self.out, "  {ok} = icmp eq i32 {rc}, 0");
+                    let _ = writeln!(self.out, "  br i1 {ok}, label %{l_ok}, label %{l_ab}");
+                    let _ = writeln!(self.out, "{l_ab}:");
+                    let _ = writeln!(self.out, "  call void @abort()");
+                    let _ = writeln!(self.out, "  unreachable");
+                    let _ = writeln!(self.out, "{l_ok}:");
+                }
                 Ok(())
             }
             IntrinsicOp::SyncInit => {
@@ -3332,11 +3419,18 @@ impl<'a> FnEmitter<'a> {
                 self.tmp += 1;
                 let entry_sym = format!("__zil_thread_entry_f{}_{tid}", self.fn_id.0);
 
-                // Emit pthread worker trampoline into extra_defs.
-                let _ = writeln!(
-                    self.extra_defs,
-                    "\ndefine internal ptr @{entry_sym}(ptr %arg) {{"
-                );
+                // Emit worker trampoline into extra_defs.
+                if self.is_windows {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "\ndefine internal i32 @{entry_sym}(ptr %arg) {{"
+                    );
+                } else {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "\ndefine internal ptr @{entry_sym}(ptr %arg) {{"
+                    );
+                }
                 self.extra_defs.push_str("entry:\n");
                 let _ = writeln!(
                     self.extra_defs,
@@ -3363,12 +3457,14 @@ impl<'a> FnEmitter<'a> {
                     );
                     let _ = writeln!(self.extra_defs, "  store {r1_ty} %rv, ptr %rp");
                 }
-                self.extra_defs.push_str("  ret ptr null\n}\n");
+                if self.is_windows {
+                    self.extra_defs.push_str("  ret i32 0\n}\n");
+                } else {
+                    self.extra_defs.push_str("  ret ptr null\n}\n");
+                }
 
                 let ctx = self.fresh();
-                let tid_slot = self.fresh();
                 let c_fn_p = self.fresh();
-                let pc_rc = self.fresh();
                 let pc_ok = self.fresh();
                 let l_ok = format!("ts_ok_{tid}");
                 let l_fail = format!("ts_fail_{tid}");
@@ -3377,7 +3473,13 @@ impl<'a> FnEmitter<'a> {
                 let l_done = format!("ts_done_{tid}");
 
                 let _ = writeln!(self.out, "  {ctx} = alloca {ctx_ty}");
-                let _ = writeln!(self.out, "  {tid_slot} = alloca i64");
+                let (tid_slot, win_thread_handle) = if self.is_windows {
+                    (String::new(), self.fresh())
+                } else {
+                    let slot = self.fresh();
+                    let _ = writeln!(self.out, "  {slot} = alloca i64");
+                    (slot, String::new())
+                };
                 let _ = writeln!(
                     self.out,
                     "  {c_fn_p} = getelementptr inbounds {ctx_ty}, ptr {ctx}, i32 0, i32 0"
@@ -3391,11 +3493,23 @@ impl<'a> FnEmitter<'a> {
                     );
                     let _ = writeln!(self.out, "  store {cell_lt} {cell_v}, ptr {c_arg_p}");
                 }
-                let _ = writeln!(
-                    self.out,
-                    "  {pc_rc} = call i32 @pthread_create(ptr {tid_slot}, ptr null, ptr @{entry_sym}, ptr {ctx})"
-                );
-                let _ = writeln!(self.out, "  {pc_ok} = icmp eq i32 {pc_rc}, 0");
+                if self.is_windows {
+                    let _ = writeln!(
+                        self.out,
+                        "  {win_thread_handle} = call ptr @_beginthreadex(ptr null, i32 0, ptr @{entry_sym}, ptr {ctx}, i32 0, ptr null)"
+                    );
+                    let _ = writeln!(
+                        self.out,
+                        "  {pc_ok} = icmp ne ptr {win_thread_handle}, null"
+                    );
+                } else {
+                    let pc_rc = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {pc_rc} = call i32 @pthread_create(ptr {tid_slot}, ptr null, ptr @{entry_sym}, ptr {ctx})"
+                    );
+                    let _ = writeln!(self.out, "  {pc_ok} = icmp eq i32 {pc_rc}, 0");
+                }
                 let _ = writeln!(self.out, "  br i1 {pc_ok}, label %{l_ok}, label %{l_fail}");
 
                 // Thread creation failed:
@@ -3419,7 +3533,7 @@ impl<'a> FnEmitter<'a> {
                 }
                 let _ = writeln!(self.out, "  br label %{l_done}");
 
-                // Thread created -> run parent concurrently, then pthread_join.
+                // Thread created -> run parent concurrently, then join.
                 let _ = writeln!(self.out, "{l_ok}:");
                 let r2 = if r2_ty == "void" {
                     let _ = writeln!(self.out, "  call void @{sym}(ptr {env_ptr})");
@@ -3429,19 +3543,42 @@ impl<'a> FnEmitter<'a> {
                     let _ = writeln!(self.out, "  {r} = call {r2_ty} @{sym}(ptr {env_ptr})");
                     r
                 };
-                let tid_val = self.fresh();
-                let pj_rc = self.fresh();
-                let pj_ok = self.fresh();
-                let _ = writeln!(self.out, "  {tid_val} = load i64, ptr {tid_slot}");
-                let _ = writeln!(
-                    self.out,
-                    "  {pj_rc} = call i32 @pthread_join(i64 {tid_val}, ptr null)"
-                );
-                let _ = writeln!(self.out, "  {pj_ok} = icmp eq i32 {pj_rc}, 0");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {pj_ok}, label %{l_joined}, label %{l_abort}"
-                );
+                if self.is_windows {
+                    let wrc = self.fresh();
+                    let crc = self.fresh();
+                    let w_ok = self.fresh();
+                    let c_ok = self.fresh();
+                    let pj_ok = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {wrc} = call i32 @WaitForSingleObject(ptr {win_thread_handle}, i32 -1)"
+                    );
+                    let _ = writeln!(
+                        self.out,
+                        "  {crc} = call i32 @CloseHandle(ptr {win_thread_handle})"
+                    );
+                    let _ = writeln!(self.out, "  {w_ok} = icmp eq i32 {wrc}, 0");
+                    let _ = writeln!(self.out, "  {c_ok} = icmp ne i32 {crc}, 0");
+                    let _ = writeln!(self.out, "  {pj_ok} = and i1 {w_ok}, {c_ok}");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {pj_ok}, label %{l_joined}, label %{l_abort}"
+                    );
+                } else {
+                    let tid_val = self.fresh();
+                    let pj_rc = self.fresh();
+                    let pj_ok = self.fresh();
+                    let _ = writeln!(self.out, "  {tid_val} = load i64, ptr {tid_slot}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {pj_rc} = call i32 @pthread_join(i64 {tid_val}, ptr null)"
+                    );
+                    let _ = writeln!(self.out, "  {pj_ok} = icmp eq i32 {pj_rc}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {pj_ok}, label %{l_joined}, label %{l_abort}"
+                    );
+                }
                 let _ = writeln!(self.out, "{l_abort}:");
                 let _ = writeln!(self.out, "  call void @abort()");
                 let _ = writeln!(self.out, "  unreachable");
@@ -3530,9 +3667,6 @@ impl<'a> FnEmitter<'a> {
                 let is_cl = self.fresh();
                 let next_st = self.fresh();
                 let cctx = self.fresh();
-                let wctx = self.fresh();
-                let sc_rc = self.fresh();
-                let sc_ok = self.fresh();
                 let l_have = format!("ty_have_{tid}");
                 let l_ok = format!("ty_ok_{tid}");
                 let l_ab = format!("ty_ab_{tid}");
@@ -3552,16 +3686,26 @@ impl<'a> FnEmitter<'a> {
                     self.out,
                     "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 2"
                 );
-                let _ = writeln!(
-                    self.out,
-                    "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 3"
-                );
-                let _ = writeln!(
-                    self.out,
-                    "  {sc_rc} = call i32 @swapcontext(ptr {wctx}, ptr {cctx})"
-                );
-                let _ = writeln!(self.out, "  {sc_ok} = icmp eq i32 {sc_rc}, 0");
-                let _ = writeln!(self.out, "  br i1 {sc_ok}, label %{l_ok}, label %{l_ab}");
+                if self.is_windows {
+                    let cfib = self.fresh();
+                    let _ = writeln!(self.out, "  {cfib} = load ptr, ptr {cctx}");
+                    let _ = writeln!(self.out, "  call void @SwitchToFiber(ptr {cfib})");
+                    let _ = writeln!(self.out, "  br label %{l_ok}");
+                } else {
+                    let wctx = self.fresh();
+                    let sc_rc = self.fresh();
+                    let sc_ok = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {f}, i32 0, i32 3"
+                    );
+                    let _ = writeln!(
+                        self.out,
+                        "  {sc_rc} = call i32 @swapcontext(ptr {wctx}, ptr {cctx})"
+                    );
+                    let _ = writeln!(self.out, "  {sc_ok} = icmp eq i32 {sc_rc}, 0");
+                    let _ = writeln!(self.out, "  br i1 {sc_ok}, label %{l_ok}, label %{l_ab}");
+                }
                 let _ = writeln!(self.out, "{l_ab}:");
                 let _ = writeln!(self.out, "  call void @abort()");
                 let _ = writeln!(self.out, "  unreachable");
@@ -3634,17 +3778,25 @@ impl<'a> FnEmitter<'a> {
                 let tramp_sym = format!("__zil_task_entry_f{}_{tid}", self.fn_id.0);
 
                 // Emit worker trampoline into extra_defs.
-                let _ = writeln!(
-                    self.extra_defs,
-                    "\ndefine internal void @{tramp_sym}(i32 %lo, i32 %hi) {{"
-                );
-                self.extra_defs.push_str("entry:\n");
-                self.extra_defs.push_str("  %lo64 = zext i32 %lo to i64\n");
-                self.extra_defs.push_str("  %hi64 = zext i32 %hi to i64\n");
-                self.extra_defs.push_str("  %hi_sh = shl i64 %hi64, 32\n");
-                self.extra_defs.push_str("  %addr = or i64 %hi_sh, %lo64\n");
-                self.extra_defs
-                    .push_str("  %frame = inttoptr i64 %addr to ptr\n");
+                if self.is_windows {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "\ndefine internal void @{tramp_sym}(ptr %frame) {{"
+                    );
+                    self.extra_defs.push_str("entry:\n");
+                } else {
+                    let _ = writeln!(
+                        self.extra_defs,
+                        "\ndefine internal void @{tramp_sym}(i32 %lo, i32 %hi) {{"
+                    );
+                    self.extra_defs.push_str("entry:\n");
+                    self.extra_defs.push_str("  %lo64 = zext i32 %lo to i64\n");
+                    self.extra_defs.push_str("  %hi64 = zext i32 %hi to i64\n");
+                    self.extra_defs.push_str("  %hi_sh = shl i64 %hi64, 32\n");
+                    self.extra_defs.push_str("  %addr = or i64 %hi_sh, %lo64\n");
+                    self.extra_defs
+                        .push_str("  %frame = inttoptr i64 %addr to ptr\n");
+                }
                 let _ = writeln!(
                     self.extra_defs,
                     "  %fn_slot = getelementptr inbounds {frame_ty}, ptr %frame, i32 0, i32 2"
@@ -3725,20 +3877,28 @@ impl<'a> FnEmitter<'a> {
                 self.extra_defs.push_str(
                     "  %cctx = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 2\n",
                 );
-                self.extra_defs.push_str(
-                    "  %wctx = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 3\n",
-                );
-                self.extra_defs
-                    .push_str("  %sc_rc = call i32 @swapcontext(ptr %wctx, ptr %cctx)\n");
-                self.extra_defs
-                    .push_str("  %sc_ok = icmp eq i32 %sc_rc, 0\n");
-                self.extra_defs
-                    .push_str("  br i1 %sc_ok, label %swap_ok, label %swap_ab\n");
-                self.extra_defs.push_str("swap_ab:\n");
-                self.extra_defs.push_str("  call void @abort()\n");
-                self.extra_defs.push_str("  unreachable\n");
-                self.extra_defs.push_str("swap_ok:\n");
-                self.extra_defs.push_str("  ret void\n}\n");
+                if self.is_windows {
+                    self.extra_defs.push_str("  %cfib = load ptr, ptr %cctx\n");
+                    self.extra_defs
+                        .push_str("  call void @SwitchToFiber(ptr %cfib)\n");
+                    self.extra_defs.push_str("  call void @abort()\n");
+                    self.extra_defs.push_str("  unreachable\n}\n");
+                } else {
+                    self.extra_defs.push_str(
+                        "  %wctx = getelementptr inbounds %__zil_task_hdr, ptr %frame, i32 0, i32 3\n",
+                    );
+                    self.extra_defs
+                        .push_str("  %sc_rc = call i32 @swapcontext(ptr %wctx, ptr %cctx)\n");
+                    self.extra_defs
+                        .push_str("  %sc_ok = icmp eq i32 %sc_rc, 0\n");
+                    self.extra_defs
+                        .push_str("  br i1 %sc_ok, label %swap_ok, label %swap_ab\n");
+                    self.extra_defs.push_str("swap_ab:\n");
+                    self.extra_defs.push_str("  call void @abort()\n");
+                    self.extra_defs.push_str("  unreachable\n");
+                    self.extra_defs.push_str("swap_ok:\n");
+                    self.extra_defs.push_str("  ret void\n}\n");
+                }
 
                 // Optionally emit drop_args helper for tasks cancelled before start.
                 let mut drop_args_body = String::new();
@@ -4073,141 +4233,191 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "  store i32 2, ptr {i_err}");
                 let _ = writeln!(self.out, "  br label %{l_done}");
 
-                // Start: install 4 KiB PROT_NONE guard page inside the stack buffer,
-                // then initialize worker_ctx via getcontext + makecontext.
+                // Start: allocate/initialize worker stack/fiber.
                 let _ = writeln!(self.out, "{l_start}:");
-                let wctx0 = self.fresh();
-                let link_p = self.fresh();
-                let sp_p = self.fresh();
-                let flg_p = self.fresh();
-                let sz_p = self.fresh();
-                let stk_raw = self.fresh();
-                let stk_int = self.fresh();
-                let stk_add = self.fresh();
-                let guard_int = self.fresh();
-                let guard_ptr = self.fresh();
-                let gp_slot = self.fresh();
-                let usable_stk = self.fresh();
-                let tr_slot = self.fresh();
-                let tr_fn = self.fresh();
-                let addr = self.fresh();
-                let lo = self.fresh();
-                let hi64 = self.fresh();
-                let hi = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {wctx0} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
-                );
-                let gc_rc = self.fresh();
-                let gc_ok = self.fresh();
-                let l_gc_ok = format!("tp_gcok_{tid}");
-                let _ = writeln!(self.out, "  {gc_rc} = call i32 @getcontext(ptr {wctx0})");
-                let _ = writeln!(self.out, "  {gc_ok} = icmp eq i32 {gc_rc}, 0");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {gc_ok}, label %{l_gc_ok}, label %{l_inv}"
-                );
-                let _ = writeln!(self.out, "{l_gc_ok}:");
-                let _ = writeln!(
-                    self.out,
-                    "  {link_p} = getelementptr inbounds i8, ptr {wctx0}, i64 8"
-                );
-                let _ = writeln!(self.out, "  store ptr null, ptr {link_p}");
-                let _ = writeln!(
-                    self.out,
-                    "  {stk_raw} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 4"
-                );
-                let _ = writeln!(self.out, "  {stk_int} = ptrtoint ptr {stk_raw} to i64");
-                let _ = writeln!(self.out, "  {stk_add} = add i64 {stk_int}, 4095");
-                let _ = writeln!(self.out, "  {guard_int} = and i64 {stk_add}, -4096");
-                let _ = writeln!(self.out, "  {guard_ptr} = inttoptr i64 {guard_int} to ptr");
-                let mp_rc = self.fresh();
-                let mp_ok = self.fresh();
-                let l_mp_ok = format!("tp_mpok_{tid}");
-                let _ = writeln!(
-                    self.out,
-                    "  {mp_rc} = call i32 @mprotect(ptr {guard_ptr}, i64 4096, i32 0)"
-                );
-                let _ = writeln!(self.out, "  {mp_ok} = icmp eq i32 {mp_rc}, 0");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {mp_ok}, label %{l_mp_ok}, label %{l_inv}"
-                );
-                let _ = writeln!(self.out, "{l_mp_ok}:");
-                let _ = writeln!(
-                    self.out,
-                    "  {gp_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 5"
-                );
-                let _ = writeln!(self.out, "  store ptr {guard_ptr}, ptr {gp_slot}");
-                let _ = writeln!(
-                    self.out,
-                    "  {usable_stk} = getelementptr inbounds i8, ptr {guard_ptr}, i64 4096"
-                );
-                let _ = writeln!(
-                    self.out,
-                    "  {sp_p} = getelementptr inbounds i8, ptr {wctx0}, i64 16"
-                );
-                let _ = writeln!(self.out, "  store ptr {usable_stk}, ptr {sp_p}");
-                let _ = writeln!(
-                    self.out,
-                    "  {flg_p} = getelementptr inbounds i8, ptr {wctx0}, i64 24"
-                );
-                let _ = writeln!(self.out, "  store i32 0, ptr {flg_p}");
-                let _ = writeln!(
-                    self.out,
-                    "  {sz_p} = getelementptr inbounds i8, ptr {wctx0}, i64 32"
-                );
-                let _ = writeln!(self.out, "  store i64 65536, ptr {sz_p}");
-                let _ = writeln!(
-                    self.out,
-                    "  {tr_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 1"
-                );
-                let _ = writeln!(self.out, "  {tr_fn} = load ptr, ptr {tr_slot}");
-                let _ = writeln!(self.out, "  {addr} = ptrtoint ptr {frame} to i64");
-                let _ = writeln!(self.out, "  {lo} = trunc i64 {addr} to i32");
-                let _ = writeln!(self.out, "  {hi64} = lshr i64 {addr}, 32");
-                let _ = writeln!(self.out, "  {hi} = trunc i64 {hi64} to i32");
-                let _ = writeln!(
-                    self.out,
-                    "  call void (ptr, ptr, i32, ...) @makecontext(ptr {wctx0}, ptr {tr_fn}, i32 2, i32 {lo}, i32 {hi})"
-                );
-                let _ = writeln!(self.out, "  br label %{l_resume}");
+                if self.is_windows {
+                    let tr_slot = self.fresh();
+                    let tr_fn = self.fresh();
+                    let wfib0 = self.fresh();
+                    let wf_ok = self.fresh();
+                    let wctx0 = self.fresh();
+                    let l_wf_ok = format!("tp_wfok_{tid}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {tr_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 1"
+                    );
+                    let _ = writeln!(self.out, "  {tr_fn} = load ptr, ptr {tr_slot}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {wfib0} = call ptr @CreateFiberEx(i64 16384, i64 131072, i32 1, ptr {tr_fn}, ptr {frame})"
+                    );
+                    let _ = writeln!(self.out, "  {wf_ok} = icmp ne ptr {wfib0}, null");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {wf_ok}, label %{l_wf_ok}, label %{l_inv}"
+                    );
+                    let _ = writeln!(self.out, "{l_wf_ok}:");
+                    let _ = writeln!(
+                        self.out,
+                        "  {wctx0} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                    );
+                    let _ = writeln!(self.out, "  store ptr {wfib0}, ptr {wctx0}");
+                    let _ = writeln!(self.out, "  br label %{l_resume}");
+                } else {
+                    let wctx0 = self.fresh();
+                    let link_p = self.fresh();
+                    let sp_p = self.fresh();
+                    let flg_p = self.fresh();
+                    let sz_p = self.fresh();
+                    let stk_raw = self.fresh();
+                    let stk_int = self.fresh();
+                    let stk_add = self.fresh();
+                    let guard_int = self.fresh();
+                    let guard_ptr = self.fresh();
+                    let gp_slot = self.fresh();
+                    let usable_stk = self.fresh();
+                    let tr_slot = self.fresh();
+                    let tr_fn = self.fresh();
+                    let addr = self.fresh();
+                    let lo = self.fresh();
+                    let hi64 = self.fresh();
+                    let hi = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {wctx0} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                    );
+                    let gc_rc = self.fresh();
+                    let gc_ok = self.fresh();
+                    let l_gc_ok = format!("tp_gcok_{tid}");
+                    let _ = writeln!(self.out, "  {gc_rc} = call i32 @getcontext(ptr {wctx0})");
+                    let _ = writeln!(self.out, "  {gc_ok} = icmp eq i32 {gc_rc}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {gc_ok}, label %{l_gc_ok}, label %{l_inv}"
+                    );
+                    let _ = writeln!(self.out, "{l_gc_ok}:");
+                    let _ = writeln!(
+                        self.out,
+                        "  {link_p} = getelementptr inbounds i8, ptr {wctx0}, i64 8"
+                    );
+                    let _ = writeln!(self.out, "  store ptr null, ptr {link_p}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {stk_raw} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 4"
+                    );
+                    let _ = writeln!(self.out, "  {stk_int} = ptrtoint ptr {stk_raw} to i64");
+                    let _ = writeln!(self.out, "  {stk_add} = add i64 {stk_int}, 4095");
+                    let _ = writeln!(self.out, "  {guard_int} = and i64 {stk_add}, -4096");
+                    let _ = writeln!(self.out, "  {guard_ptr} = inttoptr i64 {guard_int} to ptr");
+                    let mp_rc = self.fresh();
+                    let mp_ok = self.fresh();
+                    let l_mp_ok = format!("tp_mpok_{tid}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {mp_rc} = call i32 @mprotect(ptr {guard_ptr}, i64 4096, i32 0)"
+                    );
+                    let _ = writeln!(self.out, "  {mp_ok} = icmp eq i32 {mp_rc}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {mp_ok}, label %{l_mp_ok}, label %{l_inv}"
+                    );
+                    let _ = writeln!(self.out, "{l_mp_ok}:");
+                    let _ = writeln!(
+                        self.out,
+                        "  {gp_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 5"
+                    );
+                    let _ = writeln!(self.out, "  store ptr {guard_ptr}, ptr {gp_slot}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {usable_stk} = getelementptr inbounds i8, ptr {guard_ptr}, i64 4096"
+                    );
+                    let _ = writeln!(
+                        self.out,
+                        "  {sp_p} = getelementptr inbounds i8, ptr {wctx0}, i64 16"
+                    );
+                    let _ = writeln!(self.out, "  store ptr {usable_stk}, ptr {sp_p}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {flg_p} = getelementptr inbounds i8, ptr {wctx0}, i64 24"
+                    );
+                    let _ = writeln!(self.out, "  store i32 0, ptr {flg_p}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {sz_p} = getelementptr inbounds i8, ptr {wctx0}, i64 32"
+                    );
+                    let _ = writeln!(self.out, "  store i64 65536, ptr {sz_p}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {tr_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 1"
+                    );
+                    let _ = writeln!(self.out, "  {tr_fn} = load ptr, ptr {tr_slot}");
+                    let _ = writeln!(self.out, "  {addr} = ptrtoint ptr {frame} to i64");
+                    let _ = writeln!(self.out, "  {lo} = trunc i64 {addr} to i32");
+                    let _ = writeln!(self.out, "  {hi64} = lshr i64 {addr}, 32");
+                    let _ = writeln!(self.out, "  {hi} = trunc i64 {hi64} to i32");
+                    let _ = writeln!(
+                        self.out,
+                        "  call void (ptr, ptr, i32, ...) @makecontext(ptr {wctx0}, ptr {tr_fn}, i32 2, i32 {lo}, i32 {hi})"
+                    );
+                    let _ = writeln!(self.out, "  br label %{l_resume}");
+                }
 
-                // Resume: swapcontext into worker, then check state.
+                // Resume: switch into worker, then check state.
                 let _ = writeln!(self.out, "{l_resume}:");
                 let prev = self.fresh();
                 let cctx = self.fresh();
                 let wctx = self.fresh();
-                let sc_rc = self.fresh();
-                let sc_ok = self.fresh();
-                let l_sc_ok = format!("tp_scok_{tid}");
-                let l_sc_ab = format!("tp_scab_{tid}");
                 let st2 = self.fresh();
                 let is_ready = self.fresh();
                 let _ = writeln!(self.out, "  {prev} = load ptr, ptr @__zil_current_task");
-                let _ = writeln!(self.out, "  store ptr {frame}, ptr @__zil_current_task");
-                let _ = writeln!(
-                    self.out,
-                    "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 2"
-                );
-                let _ = writeln!(
-                    self.out,
-                    "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
-                );
-                let _ = writeln!(
-                    self.out,
-                    "  {sc_rc} = call i32 @swapcontext(ptr {cctx}, ptr {wctx})"
-                );
-                let _ = writeln!(self.out, "  {sc_ok} = icmp eq i32 {sc_rc}, 0");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {sc_ok}, label %{l_sc_ok}, label %{l_sc_ab}"
-                );
-                let _ = writeln!(self.out, "{l_sc_ab}:");
-                let _ = writeln!(self.out, "  call void @abort()");
-                let _ = writeln!(self.out, "  unreachable");
-                let _ = writeln!(self.out, "{l_sc_ok}:");
-                let _ = writeln!(self.out, "  store ptr {prev}, ptr @__zil_current_task");
+                if self.is_windows {
+                    let cfib = self.fresh();
+                    let wfib = self.fresh();
+                    let _ = writeln!(self.out, "  {cfib} = call ptr @__zil_ensure_fiber()");
+                    let _ = writeln!(
+                        self.out,
+                        "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 2"
+                    );
+                    let _ = writeln!(self.out, "  store ptr {cfib}, ptr {cctx}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                    );
+                    let _ = writeln!(self.out, "  {wfib} = load ptr, ptr {wctx}");
+                    let _ = writeln!(self.out, "  store ptr {frame}, ptr @__zil_current_task");
+                    let _ = writeln!(self.out, "  store ptr {wfib}, ptr @__zil_current_fiber");
+                    let _ = writeln!(self.out, "  call void @SwitchToFiber(ptr {wfib})");
+                    let _ = writeln!(self.out, "  store ptr {cfib}, ptr @__zil_current_fiber");
+                    let _ = writeln!(self.out, "  store ptr {prev}, ptr @__zil_current_task");
+                } else {
+                    let sc_rc = self.fresh();
+                    let sc_ok = self.fresh();
+                    let l_sc_ok = format!("tp_scok_{tid}");
+                    let l_sc_ab = format!("tp_scab_{tid}");
+                    let _ = writeln!(self.out, "  store ptr {frame}, ptr @__zil_current_task");
+                    let _ = writeln!(
+                        self.out,
+                        "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 2"
+                    );
+                    let _ = writeln!(
+                        self.out,
+                        "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                    );
+                    let _ = writeln!(
+                        self.out,
+                        "  {sc_rc} = call i32 @swapcontext(ptr {cctx}, ptr {wctx})"
+                    );
+                    let _ = writeln!(self.out, "  {sc_ok} = icmp eq i32 {sc_rc}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {sc_ok}, label %{l_sc_ok}, label %{l_sc_ab}"
+                    );
+                    let _ = writeln!(self.out, "{l_sc_ab}:");
+                    let _ = writeln!(self.out, "  call void @abort()");
+                    let _ = writeln!(self.out, "  unreachable");
+                    let _ = writeln!(self.out, "{l_sc_ok}:");
+                    let _ = writeln!(self.out, "  store ptr {prev}, ptr @__zil_current_task");
+                }
                 let _ = writeln!(self.out, "  {st2} = load i32, ptr {st_p}");
                 let _ = writeln!(self.out, "  {is_ready} = icmp eq i32 {st2}, 2");
                 let _ = writeln!(
@@ -4357,33 +4567,54 @@ impl<'a> FnEmitter<'a> {
                 let st2 = self.fresh();
                 let is_closed = self.fresh();
                 let _ = writeln!(self.out, "  {prev} = load ptr, ptr @__zil_current_task");
-                let _ = writeln!(self.out, "  store ptr {frame}, ptr @__zil_current_task");
-                let _ = writeln!(
-                    self.out,
-                    "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 2"
-                );
-                let _ = writeln!(
-                    self.out,
-                    "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
-                );
-                let sc_rc = self.fresh();
-                let sc_ok = self.fresh();
-                let l_sc_ok = format!("tpc_scok_{tid}");
-                let l_sc_ab = format!("tpc_scab_{tid}");
-                let _ = writeln!(
-                    self.out,
-                    "  {sc_rc} = call i32 @swapcontext(ptr {cctx}, ptr {wctx})"
-                );
-                let _ = writeln!(self.out, "  {sc_ok} = icmp eq i32 {sc_rc}, 0");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {sc_ok}, label %{l_sc_ok}, label %{l_sc_ab}"
-                );
-                let _ = writeln!(self.out, "{l_sc_ab}:");
-                let _ = writeln!(self.out, "  call void @abort()");
-                let _ = writeln!(self.out, "  unreachable");
-                let _ = writeln!(self.out, "{l_sc_ok}:");
-                let _ = writeln!(self.out, "  store ptr {prev}, ptr @__zil_current_task");
+                if self.is_windows {
+                    let cfib = self.fresh();
+                    let wfib = self.fresh();
+                    let _ = writeln!(self.out, "  {cfib} = call ptr @__zil_ensure_fiber()");
+                    let _ = writeln!(
+                        self.out,
+                        "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 2"
+                    );
+                    let _ = writeln!(self.out, "  store ptr {cfib}, ptr {cctx}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                    );
+                    let _ = writeln!(self.out, "  {wfib} = load ptr, ptr {wctx}");
+                    let _ = writeln!(self.out, "  store ptr {frame}, ptr @__zil_current_task");
+                    let _ = writeln!(self.out, "  store ptr {wfib}, ptr @__zil_current_fiber");
+                    let _ = writeln!(self.out, "  call void @SwitchToFiber(ptr {wfib})");
+                    let _ = writeln!(self.out, "  store ptr {cfib}, ptr @__zil_current_fiber");
+                    let _ = writeln!(self.out, "  store ptr {prev}, ptr @__zil_current_task");
+                } else {
+                    let _ = writeln!(self.out, "  store ptr {frame}, ptr @__zil_current_task");
+                    let _ = writeln!(
+                        self.out,
+                        "  {cctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 2"
+                    );
+                    let _ = writeln!(
+                        self.out,
+                        "  {wctx} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                    );
+                    let sc_rc = self.fresh();
+                    let sc_ok = self.fresh();
+                    let l_sc_ok = format!("tpc_scok_{tid}");
+                    let l_sc_ab = format!("tpc_scab_{tid}");
+                    let _ = writeln!(
+                        self.out,
+                        "  {sc_rc} = call i32 @swapcontext(ptr {cctx}, ptr {wctx})"
+                    );
+                    let _ = writeln!(self.out, "  {sc_ok} = icmp eq i32 {sc_rc}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {sc_ok}, label %{l_sc_ok}, label %{l_sc_ab}"
+                    );
+                    let _ = writeln!(self.out, "{l_sc_ab}:");
+                    let _ = writeln!(self.out, "  call void @abort()");
+                    let _ = writeln!(self.out, "  unreachable");
+                    let _ = writeln!(self.out, "{l_sc_ok}:");
+                    let _ = writeln!(self.out, "  store ptr {prev}, ptr @__zil_current_task");
+                }
                 let _ = writeln!(self.out, "  {st2} = load i32, ptr {st_p}");
                 let _ = writeln!(self.out, "  {is_closed} = icmp eq i32 {st2}, 5");
                 let _ = writeln!(
@@ -4411,9 +4642,6 @@ impl<'a> FnEmitter<'a> {
                 let st_p = self.fresh();
                 let st = self.fresh();
                 let is_closed = self.fresh();
-                let gp_slot = self.fresh();
-                let gp = self.fresh();
-                let has_gp = self.fresh();
                 let l_abort = format!("tfd_ab_{tid}");
                 let l_ok = format!("tfd_ok_{tid}");
                 let l_unprot = format!("tfd_up_{tid}");
@@ -4433,28 +4661,51 @@ impl<'a> FnEmitter<'a> {
                 let _ = writeln!(self.out, "  unreachable");
                 let _ = writeln!(self.out, "{l_ok}:");
                 let _ = writeln!(self.out, "  store i32 6, ptr {st_p}");
-                let _ = writeln!(
-                    self.out,
-                    "  {gp_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 5"
-                );
-                let _ = writeln!(self.out, "  {gp} = load ptr, ptr {gp_slot}");
-                let _ = writeln!(self.out, "  {has_gp} = icmp ne ptr {gp}, null");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {has_gp}, label %{l_unprot}, label %{l_free}"
-                );
-                let _ = writeln!(self.out, "{l_unprot}:");
-                let up_rc = self.fresh();
-                let up_ok = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {up_rc} = call i32 @mprotect(ptr {gp}, i64 4096, i32 3)"
-                );
-                let _ = writeln!(self.out, "  {up_ok} = icmp eq i32 {up_rc}, 0");
-                let _ = writeln!(
-                    self.out,
-                    "  br i1 {up_ok}, label %{l_free}, label %{l_abort}"
-                );
+                if self.is_windows {
+                    let wf_slot = self.fresh();
+                    let wf = self.fresh();
+                    let has_wf = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {wf_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 3"
+                    );
+                    let _ = writeln!(self.out, "  {wf} = load ptr, ptr {wf_slot}");
+                    let _ = writeln!(self.out, "  {has_wf} = icmp ne ptr {wf}, null");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {has_wf}, label %{l_unprot}, label %{l_free}"
+                    );
+                    let _ = writeln!(self.out, "{l_unprot}:");
+                    let _ = writeln!(self.out, "  store ptr null, ptr {wf_slot}");
+                    let _ = writeln!(self.out, "  call void @DeleteFiber(ptr {wf})");
+                    let _ = writeln!(self.out, "  br label %{l_free}");
+                } else {
+                    let gp_slot = self.fresh();
+                    let gp = self.fresh();
+                    let has_gp = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {gp_slot} = getelementptr inbounds %__zil_task_hdr, ptr {frame}, i32 0, i32 5"
+                    );
+                    let _ = writeln!(self.out, "  {gp} = load ptr, ptr {gp_slot}");
+                    let _ = writeln!(self.out, "  {has_gp} = icmp ne ptr {gp}, null");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {has_gp}, label %{l_unprot}, label %{l_free}"
+                    );
+                    let _ = writeln!(self.out, "{l_unprot}:");
+                    let up_rc = self.fresh();
+                    let up_ok = self.fresh();
+                    let _ = writeln!(
+                        self.out,
+                        "  {up_rc} = call i32 @mprotect(ptr {gp}, i64 4096, i32 3)"
+                    );
+                    let _ = writeln!(self.out, "  {up_ok} = icmp eq i32 {up_rc}, 0");
+                    let _ = writeln!(
+                        self.out,
+                        "  br i1 {up_ok}, label %{l_free}, label %{l_abort}"
+                    );
+                }
                 let _ = writeln!(self.out, "{l_free}:");
                 let _ = writeln!(self.out, "  call void @free(ptr {frame})");
                 Ok(())
@@ -5304,6 +5555,7 @@ fn emit_function(
     fn_id: FnId,
     func: &Function,
     sym: &str,
+    is_windows: bool,
     out: &mut String,
 ) -> Result<(), BodyEmitError> {
     let tys = &module.tys;
@@ -5337,6 +5589,7 @@ fn emit_function(
             module,
             fn_id,
             body: &func.body,
+            is_windows,
             out: &mut body_out,
             entry_allocas: Some(&mut entry_allocas),
             extra_defs: String::new(),
@@ -5366,6 +5619,7 @@ fn emit_block(emitter: &mut FnEmitter<'_>, bi: usize, block: &Block) -> Result<(
 fn emit_dyn_vtables(
     module: &Module,
     syms: &[String],
+    is_windows: bool,
     out: &mut String,
 ) -> Result<(), BodyEmitError> {
     let empty_body = Body {
@@ -5392,6 +5646,7 @@ fn emit_dyn_vtables(
                 module,
                 fn_id: FnId(0),
                 body: &empty_body,
+                is_windows,
                 out,
                 entry_allocas: None,
                 extra_defs: String::new(),
