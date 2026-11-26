@@ -3,7 +3,9 @@
 
 Checks that all required receipts from a single exact Git commit exist, have
 non-zero executions, contain no Unsupported / ResourceLimit / resource-exhausted
-fallbacks, and meet all required fixed-project, Roam, and native-API counts.
+fallbacks, cover all 8 declared everyday applications and all 12 declared basic-
+language capabilities with both Clang and LLVM API backends at O0/O2, and meet
+all required Fixed Projects, Roam, and Native API counts.
 """
 
 from __future__ import annotations
@@ -20,12 +22,17 @@ MIN_NATIVE_EXECUTIONS = 128
 MIN_NATIVE_INJECTED_FAILURES = 56
 MIN_FIXED_ORIGINAL_PROJECTS = 21
 MIN_FIXED_REQUIRED_COMPARISONS = 152
+FIXED_HISTORICAL_COMPARISONS = 196
+FIXED_ARCHIVAL_COMPARISONS = 44
 MIN_ROAM_CALLABLE_POS = 28
 MIN_ROAM_CALLABLE_NEG = 14
 MIN_ROAM_TASK_POS = 16
 MIN_ROAM_TASK_NEG = 8
 
+REQUIRED_BACKENDS = {"clang-o0", "clang-o2", "llvmapi-o0", "llvmapi-o2"}
 FORBIDDEN_TOKENS = ("Unsupported", "ResourceLimit", "resource_limit")
+
+DEFAULT_REPO = Path(__file__).resolve().parents[2]
 
 
 def _load_json(path: Path, label: str, errors: list[str]) -> dict[str, Any] | None:
@@ -41,6 +48,32 @@ def _load_json(path: Path, label: str, errors: list[str]) -> dict[str, Any] | No
         errors.append(f"expected JSON object in {label} ({path})")
         return None
     return data
+
+
+def _load_declared_contracts(repo: Path, errors: list[str]) -> tuple[list[str], list[str]]:
+    profile = _load_json(
+        repo / "validation/language-alpha-profile.json",
+        "validation/language-alpha-profile.json",
+        errors,
+    )
+    gates = _load_json(
+        repo / "validation/language-release-gates.json",
+        "validation/language-release-gates.json",
+        errors,
+    )
+    app_ids: list[str] = []
+    if profile is not None:
+        apps = (profile.get("everyday_applications") or {}).get("applications") or []
+        app_ids = [str(a["id"]) for a in apps if isinstance(a, dict) and isinstance(a.get("id"), str)]
+        if len(app_ids) != 8:
+            errors.append(f"language-alpha-profile.json declared {len(app_ids)} everyday apps, expected 8")
+    cap_ids: list[str] = []
+    if gates is not None:
+        caps = gates.get("capabilities") or []
+        cap_ids = [str(c["id"]) for c in caps if isinstance(c, dict) and isinstance(c.get("id"), str)]
+        if len(cap_ids) != 12:
+            errors.append(f"language-release-gates.json declared {len(cap_ids)} capabilities, expected 12")
+    return app_ids, cap_ids
 
 
 def _case_identity(case: dict[str, Any]) -> str:
@@ -105,7 +138,6 @@ def _validate_roam_cases(
             failed_cases.append(f"{label}:{name}:{status or 'missing'}")
             errors.append(f"{label} case `{name}` status is `{status or 'missing'}`, expected `pass`")
 
-        # Unconditionally reject forbidden fallback/limit tokens even if `status == "pass"`.
         raw = json.dumps(case, sort_keys=True)
         for tok in FORBIDDEN_TOKENS:
             if tok in raw:
@@ -141,9 +173,152 @@ def _check_non_empty_sha(val: Any, name: str, errors: list[str]) -> str:
     return s
 
 
-def evaluate_receipts(receipts_dir: Path) -> tuple[dict[str, Any], list[str]]:
+def _validate_profile_receipt(
+    data: dict[str, Any] | None,
+    *,
+    label: str,
+    items_key: str,
+    declared_ids: list[str],
+    expected_commit: str,
+    expected_tree: str,
+    require_targets: bool,
+    errors: list[str],
+    failed_items: list[str],
+) -> dict[str, Any]:
+    if data is None:
+        return {}
+
+    status = str(data.get("status", "")).lower()
+    if status != "pass":
+        errors.append(f"{label} status is `{status or 'missing'}`, expected `pass`")
+
+    r_commit = str(data.get("source_commit", "")).strip()
+    r_tree = str(data.get("source_tree", "")).strip()
+    if expected_commit and r_commit != expected_commit:
+        errors.append(
+            f"{label} source_commit `{r_commit}` does not match build-receipt `{expected_commit}`"
+        )
+    if expected_tree and r_tree != expected_tree:
+        errors.append(
+            f"{label} source_tree `{r_tree}` does not match build-receipt `{expected_tree}`"
+        )
+
+    if data.get("llvm_api_enabled") is not True:
+        errors.append(f"{label} llvm_api_enabled is not true (dual-backend llvm-api required)")
+
+    top_backends = set(data.get("backends") or [])
+    missing_top_backends = sorted(REQUIRED_BACKENDS - top_backends)
+    if missing_top_backends:
+        errors.append(f"{label} missing required backends: {missing_top_backends}")
+
+    raw_top = json.dumps(data, sort_keys=True)
+    for tok in FORBIDDEN_TOKENS:
+        if tok in raw_top:
+            errors.append(f"{label} contains forbidden token `{tok}`")
+
+    items = data.get(items_key)
+    if not isinstance(items, list):
+        errors.append(f"{label} missing `{items_key}` list")
+        return {"status": "fail", "passed": f"0/{len(declared_ids)}", "items": []}
+
+    by_id: dict[str, dict[str, Any]] = {}
+    for idx, entry in enumerate(items):
+        if not isinstance(entry, dict):
+            errors.append(f"{label} {items_key}[{idx}] is not a JSON object")
+            continue
+        eid = str(entry.get("id", "")).strip()
+        if not eid:
+            errors.append(f"{label} {items_key}[{idx}] missing `id`")
+            continue
+        if eid in by_id:
+            errors.append(f"{label} duplicate id `{eid}`")
+            continue
+        by_id[eid] = entry
+
+    unexpected = sorted(set(by_id) - set(declared_ids))
+    if unexpected:
+        errors.append(f"{label} contains undeclared ids: {unexpected}")
+
+    summary_rows: list[dict[str, Any]] = []
+    passed_count = 0
+    total_tests = 0
+    for expected_id in declared_ids:
+        entry = by_id.get(expected_id)
+        if entry is None:
+            errors.append(f"{label} missing required id `{expected_id}`")
+            failed_items.append(f"{label}:{expected_id}:missing")
+            summary_rows.append(
+                {"id": expected_id, "status": "missing", "tests_executed": 0, "tests_passed": 0}
+            )
+            continue
+
+        e_status = str(entry.get("status", "")).lower()
+        t_exec = int(entry.get("tests_executed", 0))
+        t_pass = int(entry.get("tests_passed", 0))
+        t_fail = int(entry.get("tests_failed", 0))
+        t_ign = int(entry.get("tests_ignored", 0))
+        e_backends = set(entry.get("backends") or [])
+        missing_e_backends = sorted(REQUIRED_BACKENDS - e_backends)
+
+        item_errors: list[str] = []
+        if e_status != "pass":
+            item_errors.append(f"status=`{e_status or 'missing'}`")
+        if t_exec <= 0:
+            item_errors.append("tests_executed==0")
+        if t_pass != t_exec:
+            item_errors.append(f"tests_passed({t_pass})!=tests_executed({t_exec})")
+        if t_fail != 0:
+            item_errors.append(f"tests_failed={t_fail}")
+        if t_ign != 0:
+            item_errors.append(f"tests_ignored={t_ign}")
+        if missing_e_backends:
+            item_errors.append(f"missing_backends={missing_e_backends}")
+        if require_targets and not (entry.get("targets") or []):
+            item_errors.append("targets empty")
+
+        if item_errors:
+            errors.append(f"{label} `{expected_id}` failed validation: {', '.join(item_errors)}")
+            failed_items.append(f"{label}:{expected_id}:{e_status or 'fail'}")
+        else:
+            passed_count += 1
+        total_tests += t_exec
+        summary_rows.append(
+            {
+                "id": expected_id,
+                "status": "pass" if not item_errors else "fail",
+                "tests_executed": t_exec,
+                "tests_passed": t_pass,
+                "tests_failed": t_fail,
+                "tests_ignored": t_ign,
+            }
+        )
+
+    if int(data.get("required_count", 0)) != len(declared_ids):
+        errors.append(
+            f"{label} required_count={data.get('required_count')} != declared {len(declared_ids)}"
+        )
+    if int(data.get("passed_count", 0)) != passed_count:
+        errors.append(
+            f"{label} passed_count={data.get('passed_count')} != verified {passed_count}"
+        )
+
+    return {
+        "status": "pass" if (passed_count == len(declared_ids) and status == "pass" and not missing_top_backends) else "fail",
+        "passed": f"{passed_count}/{len(declared_ids)}",
+        "total_tests_executed": total_tests,
+        "backends": sorted(top_backends),
+        "items": summary_rows,
+    }
+
+
+def evaluate_receipts(
+    receipts_dir: Path,
+    repo: Path = DEFAULT_REPO,
+) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
     failed_items: list[str] = []
+
+    declared_app_ids, declared_cap_ids = _load_declared_contracts(repo, errors)
 
     build = _load_json(receipts_dir / "build-receipt.json", "build-receipt", errors)
     native = _load_json(receipts_dir / "native-api-summary.json", "native-api-summary", errors)
@@ -152,6 +327,12 @@ def evaluate_receipts(receipts_dir: Path) -> tuple[dict[str, Any], list[str]]:
         receipts_dir / "roam-callable-report.json", "roam-callable-report", errors
     )
     roam_task = _load_json(receipts_dir / "roam-task-report.json", "roam-task-report", errors)
+    everyday_apps = _load_json(
+        receipts_dir / "everyday-apps-receipt.json", "everyday-apps-receipt", errors
+    )
+    capabilities = _load_json(
+        receipts_dir / "capabilities-receipt.json", "capabilities-receipt", errors
+    )
 
     commit = ""
     source_tree = ""
@@ -200,12 +381,23 @@ def evaluate_receipts(receipts_dir: Path) -> tuple[dict[str, Any], list[str]]:
         ctrl_native = fixed.get("control_native", {}) or {}
         cleanup_native = fixed.get("cleanup_control_native", {}) or {}
 
+        orig_cmp_pass = int(orig_native.get("comparisons_passed", 0))
+        orig_cmp_req = int(orig_native.get("comparisons_required", 0))
+        orig_cmp_hist = int(orig_native.get("comparisons_selected", FIXED_HISTORICAL_COMPARISONS))
+        orig_cmp_archival = max(0, orig_cmp_hist - orig_cmp_req)
+
         fixed_summary = {
             "original_projects": orig_projects,
             "originals_verified": originals_verified,
             "expected_rejections": f"{exp_rej}/{exp_rej_sel}",
             "original_native_builds": f"{orig_native.get('builds_passed', 0)}/{orig_native.get('builds_selected', 0)}",
-            "original_native_comparisons": f"{orig_native.get('comparisons_passed', 0)}/{orig_native.get('comparisons_required', 0)}",
+            "original_native_comparisons": f"{orig_cmp_pass}/{orig_cmp_req}",
+            "original_native_comparisons_historical": orig_cmp_hist,
+            "original_native_comparisons_archival": orig_cmp_archival,
+            "original_native_comparisons_note": (
+                f"{orig_cmp_pass}/{orig_cmp_req} required "
+                f"({orig_cmp_hist} historical, {orig_cmp_archival} archival due to lost stdin)"
+            ),
             "additional_native_builds": f"{add_native.get('builds_passed', 0)}/{add_native.get('builds_selected', 0)}",
             "additional_native_comparisons": f"{add_native.get('comparisons_passed', 0)}/{add_native.get('comparisons_required', 0)}",
             "control_native_builds": f"{ctrl_native.get('builds_passed', 0)}/{ctrl_native.get('builds_selected', 0)}",
@@ -280,6 +472,29 @@ def evaluate_receipts(receipts_dir: Path) -> tuple[dict[str, Any], list[str]]:
         roam_task, "roam-task", MIN_ROAM_TASK_POS, MIN_ROAM_TASK_NEG
     )
 
+    everyday_apps_summary = _validate_profile_receipt(
+        everyday_apps,
+        label="everyday-apps",
+        items_key="applications",
+        declared_ids=declared_app_ids,
+        expected_commit=commit,
+        expected_tree=source_tree,
+        require_targets=False,
+        errors=errors,
+        failed_items=failed_items,
+    )
+    capabilities_summary = _validate_profile_receipt(
+        capabilities,
+        label="capabilities",
+        items_key="capabilities",
+        declared_ids=declared_cap_ids,
+        expected_commit=commit,
+        expected_tree=source_tree,
+        require_targets=True,
+        errors=errors,
+        failed_items=failed_items,
+    )
+
     overall = "pass" if not errors else "fail"
     summary = {
         "status": overall,
@@ -291,6 +506,8 @@ def evaluate_receipts(receipts_dir: Path) -> tuple[dict[str, Any], list[str]]:
         "fixed_projects": fixed_summary,
         "roam_callable": roam_callable_summary,
         "roam_task": roam_task_summary,
+        "everyday_apps": everyday_apps_summary,
+        "capabilities": capabilities_summary,
         "failed_items": failed_items,
         "errors": errors,
     }
@@ -320,7 +537,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"| Fixed Projects (`check-fixed-projects.py`) | "
         f"`{fp.get('original_projects', 0)}` projects | "
         f"verified={fp.get('originals_verified', 0)}, rej={fp.get('expected_rejections', '0/0')}, "
-        f"orig={fp.get('original_native_builds', '0/0')} builds / {fp.get('original_native_comparisons', '0/0')} cmp, "
+        f"orig={fp.get('original_native_builds', '0/0')} builds / "
+        f"{fp.get('original_native_comparisons_note', fp.get('original_native_comparisons', '0/0'))}, "
         f"add={fp.get('additional_native_builds', '0/0')}, ctrl={fp.get('control_native_builds', '0/0')} |"
     )
     rc = summary.get("roam_callable") or {}
@@ -333,6 +551,29 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"| Roam `task-result-combinations` | `{rt.get('status', 'missing')}` | "
         f"pos={rt.get('positive', '0/0')}, neg={rt.get('negative', '0/0')}, total={rt.get('total', '0/0')} |"
     )
+    ea = summary.get("everyday_apps") or {}
+    lines.append(
+        f"| Everyday Applications (`language-alpha-profile.json`) | `{ea.get('status', 'missing')}` | "
+        f"apps={ea.get('passed', '0/8')}, tests={ea.get('total_tests_executed', 0)}, "
+        f"backends={','.join(ea.get('backends', []))} |"
+    )
+    cap = summary.get("capabilities") or {}
+    lines.append(
+        f"| Functional Capabilities (`language-release-gates.json`) | `{cap.get('status', 'missing')}` | "
+        f"gates={cap.get('passed', '0/12')}, tests={cap.get('total_tests_executed', 0)}, "
+        f"backends={','.join(cap.get('backends', []))} |"
+    )
+
+    if ea.get("items"):
+        lines.extend(["", "### Everyday Applications (8/8 Contract)", "", "| Application | Status | Tests Passed |", "| --- | --- | --- |"])
+        for row in ea["items"]:
+            lines.append(f"| `{row['id']}` | `{row['status']}` | {row['tests_passed']}/{row['tests_executed']} |")
+
+    if cap.get("items"):
+        lines.extend(["", "### Basic-Language Capabilities (12/12 Contract)", "", "| Capability | Status | Tests Passed |", "| --- | --- | --- |"])
+        for row in cap["items"]:
+            lines.append(f"| `{row['id']}` | `{row['status']}` | {row['tests_passed']}/{row['tests_executed']} |")
+
     if summary.get("errors"):
         lines.append("")
         lines.append("### Errors")
@@ -349,12 +590,13 @@ def render_markdown(summary: dict[str, Any]) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, default=DEFAULT_REPO)
     parser.add_argument("--receipts-dir", type=Path, required=True)
     parser.add_argument("--out-json", type=Path, required=True)
     parser.add_argument("--out-md", type=Path, required=True)
     args = parser.parse_args(argv)
 
-    summary, errors = evaluate_receipts(args.receipts_dir)
+    summary, errors = evaluate_receipts(args.receipts_dir, repo=args.repo.resolve())
     args.out_json.parent.mkdir(parents=True, exist_ok=True)
     args.out_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     md = render_markdown(summary)
