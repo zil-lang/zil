@@ -101,7 +101,7 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
 name = "zil-backend-llvm"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-check",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "zil-base"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "rustc_apfloat",
  "sha2",
@@ -119,7 +119,7 @@ dependencies = [
 
 [[package]]
 name = "zil-check"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-ir",
@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "zil-cli"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-driver",
@@ -137,14 +137,14 @@ dependencies = [
 
 [[package]]
 name = "zil-db"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
 ]
 
 [[package]]
 name = "zil-driver"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-backend-llvm",
  "zil-base",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "zil-ide"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-driver",
@@ -167,7 +167,7 @@ dependencies = [
 
 [[package]]
 name = "zil-interp"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-check",
@@ -177,18 +177,18 @@ dependencies = [
 
 [[package]]
 name = "zil-ir"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
 ]
 
 [[package]]
 name = "zil-llvm-api"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 
 [[package]]
 name = "zil-safety-cases"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-check",
@@ -200,7 +200,7 @@ dependencies = [
 
 [[package]]
 name = "zil-semantics"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-ir",
@@ -208,7 +208,7 @@ dependencies = [
 
 [[package]]
 name = "zil-solve"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-ir",
  "zil-semantics",
@@ -216,14 +216,14 @@ dependencies = [
 
 [[package]]
 name = "zil-syntax"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
 ]
 
 [[package]]
 name = "zil-typeck"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "zil-base",
  "zil-ir",

@@ -59,9 +59,9 @@
 
 ```sh
 sha256sum -c SHA256SUMS.txt
-tar -xzf zil-alpha-linux-x86_64.tar.gz
-./zil-alpha-linux-x86_64/bin/zil version
-./zil-alpha-linux-x86_64/bin/zil build zil-alpha-linux-x86_64/examples/everyday-apps/json-processor -o ./json-processor --opt O2
+tar -xzf zil-v1.0.0-alpha.1-linux-x86_64.tar.gz
+./zil-v1.0.0-alpha.1-linux-x86_64/bin/zil version
+./zil-v1.0.0-alpha.1-linux-x86_64/bin/zil build zil-v1.0.0-alpha.1-linux-x86_64/examples/everyday-apps/json-processor -o ./json-processor --opt O2
 ```
 
 ### 方式二：从源码构建
