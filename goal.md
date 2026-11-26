@@ -9,8 +9,11 @@
 
 ## 0. 执行摘要与已完成合入总表
 
-- **当前主干候选基线**：`main@2100daa`（Linux x86_64 全基础功能日常可用 **`Alpha`** 候选已全部实现并合入 `main`，全部 12 类基础语言功能门 + **G6.3 状态协议全套 4/4** + **G5.3 `dyn Trait<'a>` 生命周期返回** + **G9.3b 日常标准库 4 件套** + **G10.7 8/8 真实日常多模块应用** 均已绿灯落地）。
-- **冻结全门验收已绿灯**：已在 `main@2100daa` 完成 [`alpha-acceptance.yml` run #45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436)（4m5s 全绿：State/Store `16/128/56` ✅、Fixed Projects `21/21` / `152/152` ✅、Roam `42/42` ✅、Roam `24/24` ✅、Fail-Closed 汇总核验与收据产物上传 ✅），等待用户最终检视与签发。
+- **当前最终冻结候选基线**：`main@99058c1`（`99058c19fe26c19e0ab6e425a70652ba1af0105f`），Linux x86_64 全基础功能日常可用 **`Alpha`** 候选与四项外部验收整改已全部闭环并合入 `main`。
+- **同一冻结提交双工作流全绿**：
+  - **12+8 全门冻结验收**（[`alpha-acceptance.yml` #45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096)，6m32s 全绿）：Native API State/Store `16/128/56` ✅、Fixed Projects `21/21`（`152/152 required`，`196 historical`，`44 archival due to lost stdin`）✅、Roam `42/42` ✅、Roam `24/24` ✅、**Everyday Apps `8/8`（16 项双后端测试）** ✅、**Basic-Language Capabilities `12/12`（217 项双后端测试）** ✅、全部覆盖 `clang-o0`/`clang-o2`/`llvmapi-o0`/`llvmapi-o2` 四配置与 fail-closed 汇总核验 ✅。
+  - **Linux x86_64 打包 + 空环境独立验证**（[`alpha-release.yml` #45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740)，打包 2m46s + 空环境验证 36s 全绿）：产出确定性归档 `zil-alpha-linux-x86_64.tar.gz`（SHA-256 `82288024b9bb396c51c81b5ae5b19f5dee838c3b3cfaa83444f420a505dbe08f`）+ `RELEASE-MANIFEST.json` + `SHA256SUMS.txt`；全新 `ubuntu-24.04`  runner（**无 `actions/checkout`、无 Rust、无 Cargo 缓存**）独立验证校验和、46 文件 + 1 软链清单、`zil version`（`default backend: llvm-api`）、`json-processor` O0/O2（含 UTF-16 代理对 `\uD83D\uDE00 -> "😀"`）、`zil lock`、`async-task-scheduler` O2 与 `SafeReject` 负控全部通过 ✅。
+- **发布就绪态**：未擅自创建 GitHub Release 标签；用户签发后直接推送 `v*` 标签即可触发 `alpha-release.yml` 的 `publish-github-release` 作业自动附带已验证归档、校验和、清单与空环境收据发布。
 - **非 Alpha 阻断项**：Windows x64（`G10.4`）、ZUI 窗口/渲染/应用层（`G9.4–G9.6`）、编译与运行性能净突破专项（`G10.5`）及终态产品门（`G10.6`）保持独立推进，不阻断首个 Linux Alpha。
 
 ### 本轮已完成并合入 `main` 的全部 PR（按合入顺序）
@@ -32,7 +35,13 @@
 | 13 | G6.3-E `Cancel` 边状态协议联合语义与嵌套可挂起调用确定性取消展开 | `G6.3-E` | [PR #151](https://github.com/zil-lang/zil/pull/151) (`04225ae`) | ✅ 已合入 `main` |
 | 14 | 8 类日常应用 8（异步任务调度器 `async-task-scheduler`）+ 40 轮取消压力与配对安全反例 | `G10.7` | [PR #152](https://github.com/zil-lang/zil/pull/152) (`7236b35`) | ✅ 已合入 `main` |
 | 15 | 同步 `docs/guide/supported-language.md` 反映全部已合入 Alpha 能力与 8 类日常应用 | `G10.1` | [PR #153](https://github.com/zil-lang/zil/pull/153) (`1f67627`) | ✅ 已合入 `main` |
-| 16 | 修复 `alpha-acceptance.yml` 浅克隆按需拉取 Fixed Projects 历史提交并跑通冻结全门验收 | `G10.7` | [PR #154](https://github.com/zil-lang/zil/pull/154) (`2100daa`) | ✅ 已合入 `main` + [#45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436) 全绿 |
+| 16 | 修复 `alpha-acceptance.yml` 浅克隆按需拉取 Fixed Projects 历史提交 | `G10.7` | [PR #154](https://github.com/zil-lang/zil/pull/154) (`2100daa`) | ✅ 已合入 `main` |
+| 17 | 修复 JSON UTF-16 代理对解码与控制字符转义、补强 CSV RFC 4180 与 HTTP/1.1 11 项协议边界 | `G10.7` | [PR #155](https://github.com/zil-lang/zil/pull/155) (`953507d`) | ✅ 已合入 `main` |
+| 18 | 修复 `zil-semantics` 泛型 lending trait 方法与外层具名引用参数语义，新增多输入借入/泛型 lending 全量双后端与 Raw/Wire 套件 | `G3.4` | [PR #156](https://github.com/zil-lang/zil/pull/156) (`b6385be`) | ✅ 已合入 `main` |
+| 19 | 新增 Linux x86_64 确定性发布打包、`alpha-release.yml` 无源码/无 Rust 空环境验证与 `supported-language.md` 三分类核对表 | `G10.0` / `G10.7` | [PR #157](https://github.com/zil-lang/zil/pull/157) (`bc4fd51`) | ✅ 已合入 `main` |
+| 20 | 升级 `alpha-acceptance.yml` 与 `alpha_acceptance_summary.py` 强制 fail-closed 核验 12/12 能力族 + 8/8 日常应用 + 诚实 Fixed Projects 分母 | `G10.7` | [PR #158](https://github.com/zil-lang/zil/pull/158) (`c48fae4`) | ✅ 已合入 `main` |
+| 21 | 修复发布归档 `libLLVM.so.23.1` ELF SONAME + `libLLVM-23.so` 软链与 `Zil.toml` 项目目录验证 | `G10.0` | [PR #159](https://github.com/zil-lang/zil/pull/159) (`c63b3df`) | ✅ 已合入 `main` |
+| 22 | 发布打包自动为 8 个日常样例生成 `Zil.lock`，空环境验证覆盖 `zil lock` + `zil build` 全链路 | `G10.0` | [PR #160](https://github.com/zil-lang/zil/pull/160) (`99058c1`) | ✅ 已合入 `main` + [#45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096) & [#45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740) 双全绿 |
 
 ---
 
@@ -42,16 +51,16 @@
 
 | 域 | 语言功能域 | 对应发布门（`language-release-gates.json`） | 当前态 | 核心已支持能力（一句话） | 剩余项（Alpha vs Post-Alpha） |
 | --- | --- | --- | --- | --- | --- |
-| [G1](#g1--基础类型聚合与模式匹配) | 基础类型、聚合与模式匹配 | `values-and-patterns` | ✅ 已闭环 | 10 整数 + `f32/f64`、`Record`/`Package`/`Enum`/`Option`/`ErrorUnion`/`T \| U`、引用模式与条件部分 Drop，经 8 类日常应用联验 | Alpha 无缺口；更深多层模式/`match` 表达式属 Post-Alpha |
-| [G2](#g2--泛型与-trait-api) | 泛型与 Trait API | `generic-libraries` | ✅ 已闭环（Alpha） | 固有 `impl`（含 `result(create)`）、泛型/Supertrait/关联类型/默认方法、整数 `const` 泛型、blanket `where`、拥有/借用迭代与泛型 `Queue<T>` | Alpha 无缺口；高级 `Self` 常量方程与开放泛型方法槽属 Post-Alpha |
-| [G3](#g3--借用拥有与生命周期组合) | 借用、拥有与生命周期组合 | `ownership-composition`（数据模型） | ✅ 已闭环（Alpha） | 逐字段借用、嵌套 `Package`、512 槽共享地址数组、`Fn`/`FnMut`/`FnOnce` 捕获与路径敏感补齐，经 8 类应用与 OOM 清理联验 | Alpha 无缺口；广义多源 lending 属 Post-Alpha |
-| [G4](#g4--编译期计算与元编程) | 编译期计算与元编程 | `project-workflow`（编译期部分） | ✅ 已闭环（Alpha） | 泛型 `Type` 返回、CT 反射与全序号身份、真实 Definition 上下文、`MetaBlock` + `yield` | Alpha 无缺口；`#if`/`#for` 与 ambient `Type` 属 Post-Alpha |
-| [G5](#g5--动态抽象与异构派发) | 动态抽象与异构派发 | `dynamic-abstraction` | ✅ 已闭环（Alpha） | 借入 `dyn Trait<'a>`（PR #147 闭环生命周期返回 region 替换与 `DynImpl` 健全性）、参数化 `dyn Trait<T>`、`OwnedDyn<dyn Trait, Context<'a>>` 与 `Store<OwnedDyn>`（HTTP Router & 异步调度器 Sink 实测） | Alpha 无缺口；未选 owner 错误联合捕获与开放泛型方法槽属 Post-Alpha |
+| [G1](#g1--基础类型聚合与模式匹配) | 基础类型、聚合与模式匹配 | `values-and-patterns` | ✅ 已闭环 | 10 整数 + `f32/f64`、`Record`/`Package`/`Enum`/`Option`/`ErrorUnion`/`T \| U`、引用模式与条件部分 Drop，经 8 类日常应用联验 | Alpha 无缺口；浮点字面量模式与 `match` 表达式属 Post-Alpha |
+| [G2](#g2--泛型与-trait-api) | 泛型与 Trait API | `generic-libraries` | ✅ 已闭环（Alpha） | 固有 `impl`（含 `result(create)`）、泛型/Supertrait/关联类型/默认方法、整数 `const` 泛型、blanket `where`、拥有/借用迭代与泛型 `Queue<T>` | Alpha 无缺口；`for<'a>`、非可调用/多约束 `impl Trait` 返回与开放泛型方法槽属 Post-Alpha |
+| [G3](#g3--借用拥有与生命周期组合) | 借用、拥有与生命周期组合 | `ownership-composition`（数据模型） | ✅ 已闭环（Alpha） | 逐字段借用、嵌套 `Package`、512 槽共享地址数组、`Fn`/`FnMut`/`FnOnce` 捕获，以及 **G3.4 多输入共享/独占/多生命周期借入返回、借入 `Option`/`Enum`/`ErrorUnion` 与泛型 trait/`Store<T>` lending**（PR #156） | Alpha 无缺口；高阶生命周期 `for<'a>` 属 Post-Alpha |
+| [G4](#g4--编译期计算与元编程) | 编译期计算与元编程 | `project-workflow`（编译期部分） | ✅ 已闭环（Alpha） | 泛型 `Type` 返回、CT 反射与全序号身份、真实 Definition 上下文、`MetaBlock` + `yield` | Alpha 无缺口；`#if`/`#for` 与运行期/ambient `Type` 属 Post-Alpha |
+| [G5](#g5--动态抽象与异构派发) | 动态抽象与异构派发 | `dynamic-abstraction` | ✅ 已闭环（Alpha） | 借入 `dyn Trait<'a>`（PR #147 闭环生命周期返回 region 替换与 `DynImpl` 健全性）、参数化 `dyn Trait<T>`、`OwnedDyn<dyn Trait, Context<'a>>` 与 `Store<OwnedDyn>`（HTTP Router & 异步调度器 Sink 实测） | Alpha 无缺口；`dyn` 常量泛型实参与开放泛型方法槽属 Post-Alpha |
 | [G6](#g6--状态协议与效应合同) | 状态协议与效应合同 | `ownership-composition`（协议核心） | ✅ 已闭环（Alpha） | 64 态用户协议（G6.1）、投影失效上界/历史撤销 `H`/嵌套资源别名（G6.2 `27/27`）、**G6.3 全套 4/4**（`Replace` PR #139、`Store` PR #145、`Task/Registration` PR #150、`Cancel` PR #151）共享 `zil-semantics` 单一事实源 | Alpha 无缺口；超 4 层嵌套路径与超 64 态协议域属 Post-Alpha |
 | [G7](#g7--外部接口c-abi-与已登记回调) | 外部接口、C ABI 与已登记回调 | `foreign-lifecycle` | ✅ 已闭环（Alpha） | 完整 POD C-ABI/`CCallback`/`errno`、五态 CAS `c_register`/`c_register_async`、`RISKS.json` 14 项、与 G6.3-D/E 协议及取消边完整联合 | Alpha 无缺口；非 Linux ABI 见 `G10.4` |
-| [G8](#g8--异步任务与多线程并发) | 异步任务与多线程并发 | `async-ownership` + `threads-and-synchronization` | ✅ 已闭环（Alpha） | `ucontext_t` 协程、嵌套可挂起调用确定性取消展开（PR #151）、`TaskStart`/`TaskValid`（PR #150）、Roam `24/24`、`pthread` `ThreadScope`/`Mutex<T>`/5 序原子与强 CAS，经 HTTP/批处理/异步调度器三应用联验 | Alpha 无缺口；用户泛型自动派生 `Transfer`/`Share` 与跨模块非标量 `pub Suspend` 属 Post-Alpha |
+| [G8](#g8--异步任务与多线程并发) | 异步任务与多线程并发 | `async-ownership` + `threads-and-synchronization` | ✅ 已闭环（Alpha） | `ucontext_t` 协程、嵌套可挂起调用确定性取消展开（PR #151）、`TaskStart`/`TaskValid`（PR #150）、Roam `24/24`、`pthread` `ThreadScope`/`Mutex<T>`/5 序原子与强 CAS，经 HTTP/批处理/异步调度器三应用联验 | Alpha 无缺口；跨线程任务迁移与跨模块非标量 `pub Suspend` 属 Post-Alpha |
 | [G9](#g9--标准库资源图与-zui) | 标准库、资源图与 ZUI | `standard-library` + `resource-graphs` | ✅ 已闭环（Alpha 标准库） | 28 个内嵌信任根模块（UTF-8/`std.string` 高频辅助/数值/POD&Owning 哈希集合/`iter`/`graph`/`io`/`buffered_io`/`std.fs` 全套目录元数据/`std.path`/`std.env.args`/`std.net` POSIX TCP/`time`）+ `G9.2` 软件 UI 核心 | Alpha 标准库 4/4 已闭环；`G9.4–G9.6` ZUI（窗口/GPU/IME）不阻断 Alpha |
-| [G10](#g10--工程工作流原生交付与发布验收) | 工程工作流、原生交付与发布验收 | `project-workflow` + `native-delivery` + `release-acceptance` | ✅ 候选已全绿（待签发） | `zil check/build/run/test/lock`、双后端 O0/O2、分层缓存 CI（PR #140）、`tools/dev-check.py`、**8/8 日常应用全绿合入**（PR #148/#149/#152）与 `main@2100daa` 冻结全门验收全绿（[#45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436)） | 待用户检视并正式发布首个 Linux Alpha；`G10.4` Windows / `G10.5` 性能 / `G10.6` 终态产品门不阻断 Alpha |
+| [G10](#g10--工程工作流原生交付与发布验收) | 工程工作流、原生交付与发布验收 | `project-workflow` + `native-delivery` + `release-acceptance` | ✅ 双冻结全绿（待签发标签） | `zil check/build/run/test/lock`、双后端 O0/O2、分层缓存 CI、**12+8 全门冻结收据**（[#45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096)）与 **Linux x86_64 确定性发布包 + 无源码/无 Rust 空环境安装验证**（[#45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740)）同提交全绿 | 待用户签发并推送 `v*` 标签发布首个 Linux Alpha；`G10.4` Windows / `G10.5` 性能 / `G10.6` 终态产品门不阻断 Alpha |
 
 ---
 
@@ -88,7 +97,7 @@
 | G3.1 | 逐字段借用与嵌套拥有资源包 | ✅ 已闭环 | Alpha 必选 | `Struct`/`Package`/`Tuple` 逐字段借用（`Carries::set_field`）、字段覆写释放旧 loan、多共享/独占借入叶、嵌套 qualified 子 `Package`、`move_out` 后补回 | 无 |
 | G3.2 | 固定共享地址数组与快照 | ✅ 已闭环 | Alpha 必选 | 非零 `[&'a T; N]`（含 512 槽）、常量/动态整数索引、普通 helper 传参返回、字段快照逐槽初始化核验 | 空数组与独占数组复制（Post-Alpha） |
 | G3.3 | 闭包捕获与路径敏感补齐 | ✅ 已闭环 | Alpha 必选 | 真实捕获 `Fn`/`FnMut`/`FnOnce`、外层上下文、路径敏感 `FnMut` 捕获与 `match`/`let`/`break` 补齐、逐 role 独立核验 | 无 |
-| G3.4 | 可变借入存储与跨函数 Lending | 🟠 部分实现 | Post-Alpha | 同型整对象从唯一实际输入返回、`Store<Item>` lending 窗口与拥有回调管线 | 多输入借用返回源、跨函数显式存储上界、任意嵌套可变载体与广义 affine lending |
+| G3.4 | 多输入借用返回与泛型 Lending | ✅ 已闭环（[PR #156](https://github.com/zil-lang/zil/pull/156)） | **Alpha 必选** | `zil-semantics` 共享语义（`borrow.rs`/`transfer.rs`）闭环多输入共享/独占/多生命周期返回（`select_shared`/`select_mut`/`pick_first`/`Pair<'a,'b>`）、借入 `Option`/`Enum`/`ErrorUnion`、泛型 trait `impl<life a>` `&self -> &[u8]` lending 与泛型 `Store<T>` lending；双后端 + 11 安全反例 + Raw/Wire 独立 `zil-check` 全绿 | 高阶生命周期 `for<'a>`（Post-Alpha） |
 | G3.5 | 拥有/借入捕获与责任综合矩阵 | ✅ 已闭环 | Alpha 必选 | 闭合 `FnMut` 捕获与 `OwnedDyn` 释放矩阵，并随 G6.3 全套与 8 类日常应用（含 OOM 注入清理）双后端原生联验 | 无 |
 
 ### G4 · 编译期计算与元编程
@@ -163,9 +172,9 @@
 
 | ID | 子功能 | 状态 | 里程碑 | 已完成（当前可用能力） | 待完成（剩余差距与边界） |
 | --- | --- | --- | --- | --- | --- |
-| G10.0 & G10.2–G10.3 | Linux x86_64 双后端、大值 ABI 与栈可靠 | ✅ 已闭环 | Alpha 必选 | Clang + LLVM 23.1.4 C API × O0/O2、1/4/8 并行链接、Fixed Projects `21/21`、State/Store `16/128/56`、大数组 O0/2 MiB 深栈修复、逐分配点 OOM 零泄漏自检 | 无（已在 `main@2100daa` 全门复验通过） |
-| G10.1 | 项目工作流、分层 CI 与留证治理 | ✅ 已闭环（PR #140/#142/#153/#154） | Alpha 必选 | `zil check/build/run/test/lock`、常驻模式；清理 20 份过程 JSON、CI 提速至 `documentation` ~11s / `workspace` ~3–4m、新增 `tools/dev-check.py`、更新 `docs/guide/supported-language.md` 与 `alpha-acceptance.yml` | 无 |
-| **G10.7** | **8 类真实日常程序综合验收与 Alpha 冻结签发** | ✅ 8/8 + 冻结收据全绿（待签发） | **Alpha 必选** | `validation/language-alpha-profile.json` 已对齐 12+8 合同（PR #138）；全部 8 类多模块 ZIL 应用及双后端原生/OOM/安全反例已合入 `main`（PR #148/#149/#152）；`main@2100daa` 冻结全门验收 [`alpha-acceptance.yml` #45683234436](https://github.com/zil-lang/zil/actions/runs/45683234436) 4m5s 全绿（State/Store `16/128/56`、Fixed Projects `21/21` / `152/152`、Roam `42/42` + `24/24`） | 待用户/非作者检视收据并签发首个 Linux Alpha |
+| G10.0 & G10.2–G10.3 | Linux x86_64 双后端、发布打包与空环境验证 | ✅ 已闭环（PR #157/#159/#160） | Alpha 必选 | Clang + LLVM 23.1.4 C API × O0/O2、1/4/8 并行链接、Fixed Projects `21/21`（`152/152 required` / `196 historical`, `44 archival`）、State/Store `16/128/56`、确定性 Linux x86_64 归档包（含 `bin/zil`、`lib/libLLVM.so.23.1` + `libLLVM-23.so`、`RELEASE-MANIFEST.json`、`SHA256SUMS.txt`、预锁 `Zil.lock` 样例）与全新无源码/无 Rust `ubuntu-24.04` 空环境验证（[`alpha-release.yml` #45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740) 全绿） | 无（待用户签发 `v*` 标签自动发布 GitHub Release） |
+| G10.1 | 项目工作流、分层 CI 与留证治理 | ✅ 已闭环（PR #140/#142/#153/#154/#157/#158） | Alpha 必选 | `zil check/build/run/test/lock`、常驻模式；清理 20 份过程 JSON、CI 提速至 `documentation` ~11s / `workspace` ~3–4m、新增 `tools/dev-check.py`、`docs/guide/supported-language.md` 12 项能力三分类核对表与 fail-closed `alpha-acceptance.yml` | 无 |
+| **G10.7** | **12+8 全门冻结验收与 Alpha 签发就绪** | ✅ 双冻结全绿（待签发标签） | **Alpha 必选** | `validation/language-alpha-profile.json` 12+8 合同对齐（PR #138）；8 类日常应用全部合入并在 PR #155 补齐 JSON UTF-16 代理对/控制字符与 CSV/HTTP 规范边界；`main@99058c1` 冻结验收 [`alpha-acceptance.yml` #45739611096](https://github.com/zil-lang/zil/actions/runs/45739611096)（6m32s 全绿：State/Store `16/128/56`、Fixed Projects `21/21` [`152/152 required`, `196 historical`, `44 archival`]、Roam `42/42` + `24/24`、**Everyday Apps `8/8` [16/16]**、**Capabilities `12/12` [217/217]**，全部覆盖 Clang+LLVM API O0/O2）与 [`alpha-release.yml` #45739607740](https://github.com/zil-lang/zil/actions/runs/45739607740) 双全绿 | 待用户签发并推送 `v*` 标签触发 `publish-github-release` |
 | G10.4 | Windows x64 原生支持 | ⚪ 未开始 | **非 Alpha 阻断** | 无原生 Windows 执行收据 | 原生 Windows x64 CLI、ABI、Runtime、I/O、线程/Task 与真实 Windows CI（交叉构建/Wine 不算通过） |
 | G10.5 | 编译与运行性能突破专项 | 🟠 进行中 | **非 Alpha 阻断** | LLVM 23.1.4 Stage 1 桥接已合入；独立研究分支 `research/full-push-native`、`integrate/scalar-codegen` 推进中 | Stage 2（去除 `body_structured.rs` 文本桥接直接降级）及同语义 Rust 相对性能/编译净突破 |
 | G10.6 | 终态产品门（`product-gates.json`） | ⚪ 未开始 | **非 Alpha 阻断** | `validation/product-gates.json` 合同已固定 | 零 safe UB、Rust 相对性能/编译门、可重复净突破、B0 与 ZUI 终态冻结独立复验 |
