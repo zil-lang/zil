@@ -764,43 +764,30 @@ fail:\n\
 
     let mut unit_of_fn = vec![0usize; fn_count];
     if actual_units > 1 {
-        // Group reachable functions by source module so all functions of one module
-        // share a CGU and contiguous modules occupy contiguous CGUs.
-        // Place the entry module first so `main` stays in unit 0.
+        // Assign each reachable module to a CGU using a stable hash of its module key
+        // (independent of global module count or import order) so inserting, deleting,
+        // or renaming a module only invalidates its own bucket(s) and direct callers.
+        // Keep the entry module dedicated to unit 0 alongside the C `main` wrapper.
         let main_mod_key = main_fn
             .as_ref()
             .map(|(id, _, _)| fn_module_key(&module.functions[id.index()].name));
-        let mut other_mods: Vec<&str> = Vec::new();
         let mut seen_mods: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        if let Some(mk) = main_mod_key {
-            seen_mods.insert(mk);
-        }
         for idx in 0..fn_count {
             if reach.fns[idx] {
-                let mk = fn_module_key(&module.functions[idx].name);
-                if seen_mods.insert(mk) {
-                    other_mods.push(mk);
-                }
+                seen_mods.insert(fn_module_key(&module.functions[idx].name));
             }
         }
-        other_mods.sort_by(|a, b| natural_key_cmp(a, b));
-        let mut mod_to_ord: std::collections::HashMap<&str, usize> =
-            std::collections::HashMap::with_capacity(other_mods.len() + 1);
-        let mut mod_count = 0usize;
-        if let Some(mk) = main_mod_key {
-            mod_to_ord.insert(mk, 0);
-            mod_count = 1;
-        }
-        for mk in other_mods {
-            mod_to_ord.insert(mk, mod_count);
-            mod_count += 1;
-        }
+        let mod_count = seen_mods.len();
         if mod_count >= actual_units {
+            let worker_buckets = actual_units - 1;
             for idx in 0..fn_count {
                 if reach.fns[idx] {
                     let mk = fn_module_key(&module.functions[idx].name);
-                    let mord = mod_to_ord[mk];
-                    unit_of_fn[idx] = (mord * actual_units) / mod_count;
+                    if main_mod_key == Some(mk) {
+                        unit_of_fn[idx] = 0;
+                    } else {
+                        unit_of_fn[idx] = 1 + ((stable_module_hash(mk) as usize) % worker_buckets);
+                    }
                 }
             }
         } else {
@@ -822,24 +809,33 @@ fail:\n\
         static_syms: &static_syms,
     };
 
+    let mut unit_fn_lists: Vec<Vec<usize>> = vec![Vec::new(); actual_units];
+    for idx in 0..fn_count {
+        if reach.fns[idx] {
+            unit_fn_lists[unit_of_fn[idx]].push(idx);
+        }
+    }
+    for list in &mut unit_fn_lists {
+        list.sort_by(|&a, &b| syms[a].cmp(&syms[b]));
+    }
+
     let mut units = Vec::with_capacity(actual_units);
-    for unit_idx in 0..actual_units {
+    for (unit_idx, unit_fns) in unit_fn_lists.iter().enumerate() {
         let mut defs_buf = String::with_capacity(4096);
         let mut refs = UnitRefs::default();
 
-        // 1. Emit definitions owned by this unit first, recording exact symbol references.
-        for (idx, func) in module.functions.iter().enumerate() {
-            if reach.fns[idx] && unit_of_fn[idx] == unit_idx {
-                emit_function(
-                    module,
-                    FnId::from_index(idx),
-                    func,
-                    fn_cfg,
-                    &mut refs,
-                    &mut defs_buf,
-                )?;
-                defs_buf.push('\n');
-            }
+        // 1. Emit definitions owned by this unit in canonical symbol order, recording exact references.
+        for &idx in unit_fns {
+            let func = &module.functions[idx];
+            emit_function(
+                module,
+                FnId::from_index(idx),
+                func,
+                fn_cfg,
+                &mut refs,
+                &mut defs_buf,
+            )?;
+            defs_buf.push('\n');
         }
 
         // Emit dyn Trait vtables, drop shims, and slot thunks in unit 0.
@@ -970,8 +966,8 @@ fail:\n\
         );
         out.push_str(&header);
         if !refs.statics.is_empty() {
-            refs.statics.sort_unstable();
-            refs.statics.dedup();
+            refs.statics
+                .sort_by(|&a, &b| static_syms[a].cmp(&static_syms[b]));
             let mut emitted_static_syms = std::collections::HashSet::new();
             for &sidx in &refs.statics {
                 let ssym = &static_syms[sidx];
@@ -995,7 +991,7 @@ fail:\n\
         out.push_str(&foreign_header);
 
         if actual_units > 1 {
-            refs.fns.sort_unstable();
+            refs.fns.sort_by(|&a, &b| syms[a].cmp(&syms[b]));
             refs.fns.dedup();
             let mut wrote_decl = false;
             for &idx in &refs.fns {
@@ -1040,43 +1036,20 @@ fn fn_module_key(name: &str) -> &str {
     base.rsplit_once('.').map_or("", |(m, _)| m)
 }
 
-fn natural_key_cmp(a: &str, b: &str) -> std::cmp::Ordering {
-    let (ab, bb) = (a.as_bytes(), b.as_bytes());
-    let (mut i, mut j) = (0usize, 0usize);
-    while i < ab.len() && j < bb.len() {
-        if ab[i].is_ascii_digit() && bb[j].is_ascii_digit() {
-            let i0 = i;
-            while i < ab.len() && ab[i].is_ascii_digit() {
-                i += 1;
-            }
-            let j0 = j;
-            while j < bb.len() && bb[j].is_ascii_digit() {
-                j += 1;
-            }
-            let na = &ab[i0..i];
-            let nb = &bb[j0..j];
-            let ta = na
-                .iter()
-                .position(|&c| c != b'0')
-                .map_or(&[][..], |p| &na[p..]);
-            let tb = nb
-                .iter()
-                .position(|&c| c != b'0')
-                .map_or(&[][..], |p| &nb[p..]);
-            let ord = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb));
-            if ord != std::cmp::Ordering::Equal {
-                return ord;
-            }
-        } else {
-            let ord = ab[i].cmp(&bb[j]);
-            if ord != std::cmp::Ordering::Equal {
-                return ord;
-            }
-            i += 1;
-            j += 1;
-        }
+/// Deterministic 64-bit hash (FNV-1a + Murmur3 fmix64 finalizer) for stable
+/// module-to-CGU bucketing independent of total module count or import order.
+fn stable_module_hash(key: &str) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in key.as_bytes() {
+        h ^= u64::from(b);
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    ab.len().cmp(&bb.len()).then_with(|| a.cmp(b))
+    h ^= h >> 33;
+    h = h.wrapping_mul(0xff51_afd7_ed55_8ccd);
+    h ^= h >> 33;
+    h = h.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+    h ^= h >> 33;
+    h
 }
 
 fn compute_stable_fn_symbols(module: &Module) -> Vec<String> {

@@ -165,7 +165,9 @@ pub struct CompileOptions {
     pub cache_dir: Option<PathBuf>,
     pub semantic_cache: Option<PathBuf>,
     pub object_cache: Option<PathBuf>,
-    /// Maximum byte budget for `object_cache` (`None` = unlimited; default 256 MiB).
+    /// Best-effort soft byte budget for `object_cache` (`None` = unlimited; default 256 MiB).
+    /// Active objects required by the current build are never evicted, so cache size may exceed
+    /// the budget when the active working set itself is larger than the budget.
     pub object_cache_max_bytes: Option<u64>,
     pub clang: Option<PathBuf>,
     pub extra_c_sources: Vec<PathBuf>,
