@@ -142,7 +142,11 @@ fn dyn_context_fixtures_execute_natively_on_dual_backends() {
         let path = root.join(rel);
         let (code, stdout) = build_and_run_dual_with_c(&dir, &path, &[]);
         let expected_code = if rel.ends_with("dyn-owned-allocation-loop.zil") {
-            128 // 400_000 & 0xff
+            if cfg!(target_os = "windows") {
+                400_000
+            } else {
+                128 // 400_000 & 0xff on POSIX waitpid
+            }
         } else {
             0
         };
