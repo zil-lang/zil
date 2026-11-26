@@ -141,6 +141,20 @@ fn is_simple_escape(esc: u8) -> bool {
     return esc == 114u8 || esc == 116u8
 }
 
+fn parse_hex4(src: &[u8], pos: i64, limit: i64) -> i32 {
+    if pos + 4 > limit {
+        return -1
+    }
+    let h0 = hex_value(src[pos])
+    let h1 = hex_value(src[pos + 1])
+    let h2 = hex_value(src[pos + 2])
+    let h3 = hex_value(src[pos + 3])
+    if h0 < 0 || h1 < 0 || h2 < 0 || h3 < 0 {
+        return -1
+    }
+    return ((h0 * 16 + h1) * 16 + h2) * 16 + h3
+}
+
 fn scan_string(src: &[u8], start: i64) -> JsonError!i64 {
     var at = start + 1
     while at < src.len() {
@@ -160,14 +174,24 @@ fn scan_string(src: &[u8], start: i64) -> JsonError!i64 {
             if is_simple_escape(esc) {
                 at += 1
             } else if esc == 117u8 {
-                if at + 4 >= src.len() {
+                let u1 = parse_hex4(src, at + 1, src.len())
+                if u1 < 0 {
                     return JsonError.InvalidEscape
                 }
-                if hex_value(src[at + 1]) < 0 { return JsonError.InvalidEscape }
-                if hex_value(src[at + 2]) < 0 { return JsonError.InvalidEscape }
-                if hex_value(src[at + 3]) < 0 { return JsonError.InvalidEscape }
-                if hex_value(src[at + 4]) < 0 { return JsonError.InvalidEscape }
-                at += 5
+                if u1 >= 55296 && u1 <= 56319 {
+                    if at + 10 >= src.len() || src[at + 5] != 92u8 || src[at + 6] != 117u8 {
+                        return JsonError.InvalidEscape
+                    }
+                    let u2 = parse_hex4(src, at + 7, src.len())
+                    if u2 < 56320 || u2 > 57343 {
+                        return JsonError.InvalidEscape
+                    }
+                    at += 11
+                } else if u1 >= 56320 && u1 <= 57343 {
+                    return JsonError.InvalidEscape
+                } else {
+                    at += 5
+                }
             } else {
                 return JsonError.InvalidEscape
             }
@@ -312,18 +336,32 @@ pub fn unescape_string(src: &[u8], start: i64, end: i64, byte_limit: i64) -> Jso
                 push_byte(out, 9u8)?
                 at += 1
             } else if esc == 117u8 {
-                let h0 = hex_value(src[at + 1])
-                let h1 = hex_value(src[at + 2])
-                let h2 = hex_value(src[at + 3])
-                let h3 = hex_value(src[at + 4])
-                let scalar = ((h0 * 16 + h1) * 16 + h2) * 16 + h3
+                let u1 = parse_hex4(src, at + 1, inner_end)
+                if u1 < 0 {
+                    return JsonError.InvalidEscape
+                }
+                var scalar = u1
+                var step: i64 = 5
+                if u1 >= 55296 && u1 <= 56319 {
+                    if at + 10 >= inner_end || src[at + 5] != 92u8 || src[at + 6] != 117u8 {
+                        return JsonError.InvalidEscape
+                    }
+                    let u2 = parse_hex4(src, at + 7, inner_end)
+                    if u2 < 56320 || u2 > 57343 {
+                        return JsonError.InvalidEscape
+                    }
+                    scalar = 65536 + (u1 - 55296) * 1024 + (u2 - 56320)
+                    step = 11
+                } else if u1 >= 56320 && u1 <= 57343 {
+                    return JsonError.InvalidEscape
+                }
                 var enc = [0u8, 0u8, 0u8, 0u8]
                 let width = utf8.encode(scalar, &mut enc[..])
                 if width <= 0 {
                     return JsonError.InvalidEscape
                 }
                 push_slice(out, &enc[0..width])?
-                at += 5
+                at += step
             } else {
                 return JsonError.InvalidEscape
             }

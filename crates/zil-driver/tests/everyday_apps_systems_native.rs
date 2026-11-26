@@ -131,10 +131,16 @@ fn http_mini_service_and_client_dual_backend_native() {
     let expected_stdout = concat!(
         "GET /health -> 200 ok:v1\n",
         "GET /echo?msg=zil-alpha -> 200 echo:zil-alpha\n",
+        "GET /echo?a=1&msg=&b=2 -> 200 echo:\n",
+        "GET /echo -> 400 missing msg\n",
         "POST /upper -> 200 HELLO ZIL 42\n",
         "GET /missing -> 404 not found\n",
         "BAD -> 400 bad request\n",
-        "SERVED 5\n",
+        "BAD_CL -> 400 bad request\n",
+        "BAD_DUP_CL -> 400 bad request\n",
+        "BAD_VER -> 400 bad request\n",
+        "BAD_HDR -> 400 bad request\n",
+        "SERVED 11\n",
     );
 
     for (label, exe) in built {

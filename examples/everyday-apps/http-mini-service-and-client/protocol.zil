@@ -118,6 +118,8 @@ fn trim_ows(data: &[u8]) -> &[u8] {
 
 fn parse_content_length_header(headers_block: &[u8]) -> ProtocolError!Option<i64> {
     var pos: i64 = 0
+    var found = false
+    var content_length: i64 = 0
     while pos < headers_block.len() {
         var line_end = find_crlf(headers_block, pos)
         if line_end < 0 { line_end = headers_block.len() }
@@ -126,13 +128,16 @@ fn parse_content_length_header(headers_block: &[u8]) -> ProtocolError!Option<i64
             let colon = find_byte(line, 0, 58u8)
             if colon <= 0 { return ProtocolError.MalformedRequest }
             let name = trim_ows(&line[0..colon])
+            if name.len() == 0 { return ProtocolError.MalformedRequest }
             let val = trim_ows(&line[colon + 1..line.len()])
             if bytes_eq_ascii_icase(name, "content-length") {
+                if found { return ProtocolError.MalformedRequest }
                 match int.parse_i64(val) {
                     .err(_) => { return ProtocolError.MalformedRequest },
                     .ok(n) => {
                         if n < 0 { return ProtocolError.MalformedRequest }
-                        return Option::<i64>.Some(n)
+                        found = true
+                        content_length = n
                     }
                 }
             }
@@ -142,6 +147,9 @@ fn parse_content_length_header(headers_block: &[u8]) -> ProtocolError!Option<i64
         } else {
             break
         }
+    }
+    if found {
+        return Option::<i64>.Some(content_length)
     }
     return Option::<i64>.None()
 }
@@ -213,7 +221,11 @@ pub fn parse_request(raw: &[u8]) -> ProtocolError!HttpRequest {
     if first_crlf + 2 <= header_end {
         let headers_slice = &raw[first_crlf + 2..header_end]
         match parse_content_length_header(headers_slice)? {
-            Option.None() => {},
+            Option.None() => {
+                if body_slice.len() > 0 {
+                    return ProtocolError.MalformedRequest
+                }
+            },
             Option.Some(expected_len) => {
                 if expected_len > 65536 { return ProtocolError.BodyTooLarge }
                 if body_slice.len() != expected_len {
@@ -221,6 +233,8 @@ pub fn parse_request(raw: &[u8]) -> ProtocolError!HttpRequest {
                 }
             }
         }
+    } else if body_slice.len() > 0 {
+        return ProtocolError.MalformedRequest
     }
 
     let qmark = find_byte(target_slice, 0, 63u8)
