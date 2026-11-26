@@ -27,6 +27,8 @@ pub struct MovePaths {
     /// descendant, so a subtree is the contiguous range `p..end[p]`.
     end: Vec<u32>,
     index: HashMap<Place, PathId>,
+    local_roots: Vec<PathId>,
+    capture_roots: Vec<PathId>,
 }
 
 /// Number of leading steps of `place` that address inline storage.
@@ -43,33 +45,34 @@ pub fn tracked_len(place: &Place) -> usize {
 
 impl MovePaths {
     pub fn build(body: &Body) -> Self {
-        let mut set: Vec<Place> = Vec::new();
-        let mut add = |place: &Place| {
-            for len in 0..=tracked_len(place) {
+        let mut set: Vec<Place> = Vec::with_capacity(body.locals.len() + body.captures.len());
+        for i in 0..body.locals.len() {
+            set.push(Place::local(zil_ir::body::Local::from_index(i)));
+        }
+        for i in 0..body.captures.len() {
+            set.push(Place::capture(i as u32));
+        }
+        let mut add_projections = |place: &Place| {
+            let tlen = tracked_len(place);
+            for len in 1..=tlen {
                 set.push(place.prefix(len));
             }
         };
-        for i in 0..body.locals.len() {
-            add(&Place::local(zil_ir::body::Local::from_index(i)));
-        }
-        for i in 0..body.captures.len() {
-            add(&Place::capture(i as u32));
-        }
         for decl in &body.drop_flags {
-            add(&decl.place);
+            add_projections(&decl.place);
         }
         for block in &body.blocks {
             for inst in &block.instructions {
                 for a in inst.kind.accesses() {
-                    add(&a.place);
+                    add_projections(&a.place);
                 }
             }
             for a in block.terminator.accesses() {
-                add(&a.place);
+                add_projections(&a.place);
             }
             for (kind, _) in block.terminator.edges() {
                 for a in block.terminator.edge_accesses(kind) {
-                    add(&a.place);
+                    add_projections(&a.place);
                 }
             }
         }
@@ -77,8 +80,22 @@ impl MovePaths {
         set.sort();
         set.dedup();
         let mut index = HashMap::with_capacity(set.len());
+        let mut local_roots = vec![PathId(u32::MAX); body.locals.len()];
+        let mut capture_roots = vec![PathId(u32::MAX); body.captures.len()];
         for (i, p) in set.iter().enumerate() {
-            index.insert(p.clone(), PathId(i as u32));
+            let pid = PathId(i as u32);
+            if p.projections.is_empty() {
+                match p.root {
+                    PlaceRoot::Local(l) if l.index() < local_roots.len() => {
+                        local_roots[l.index()] = pid;
+                    }
+                    PlaceRoot::Capture(c) if (c as usize) < capture_roots.len() => {
+                        capture_roots[c as usize] = pid;
+                    }
+                    PlaceRoot::Local(_) | PlaceRoot::Capture(_) => {}
+                }
+            }
+            index.insert(p.clone(), pid);
         }
         let parent: Vec<Option<PathId>> = set
             .iter()
@@ -95,6 +112,8 @@ impl MovePaths {
             parent,
             end,
             index,
+            local_roots,
+            capture_roots,
         }
     }
 
@@ -111,18 +130,29 @@ impl MovePaths {
         self.parent[path.index()]
     }
     /// Exact lookup of a tracked place.
+    #[inline]
     pub fn lookup(&self, place: &Place) -> Option<PathId> {
+        if place.projections.is_empty() {
+            return self.root(place.root);
+        }
         self.index.get(place).copied()
     }
     /// The tracked inline prefix of an accessed place.
+    #[inline]
     pub fn tracked(&self, place: &Place) -> Option<PathId> {
-        self.index.get(&place.prefix(tracked_len(place))).copied()
+        let tlen = tracked_len(place);
+        if tlen == 0 {
+            return self.root(place.root);
+        }
+        self.index.get(&place.prefix(tlen)).copied()
     }
+    #[inline]
     pub fn root(&self, root: PlaceRoot) -> Option<PathId> {
-        self.lookup(&Place {
-            root,
-            projections: Vec::new(),
-        })
+        let pid = match root {
+            PlaceRoot::Local(l) => *self.local_roots.get(l.index())?,
+            PlaceRoot::Capture(c) => *self.capture_roots.get(c as usize)?,
+        };
+        (pid.0 != u32::MAX).then_some(pid)
     }
     /// `path` and all its descendants.
     pub fn subtree(&self, path: PathId) -> impl Iterator<Item = PathId> {

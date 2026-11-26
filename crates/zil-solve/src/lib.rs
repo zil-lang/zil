@@ -4,12 +4,11 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::wildcard_enum_match_arm)]
 
-use std::collections::VecDeque;
 use zil_ir::body::{
-    BlockId, BlockInvariant, Certificate, FlagClaim, FnId, FunctionCertificate, InitClaim,
+    BlockId, BlockInvariant, Body, Certificate, FlagClaim, FnId, FunctionCertificate, InitClaim,
     LoanClaim, Local, Module, OpLocation, PlaceInit, Sigs, TagClaim, VariantClaim,
 };
-use zil_semantics::{Kernel, State, Violation};
+use zil_semantics::{BitSet, Kernel, State, Violation};
 
 /// Work budget: transfer applications across one request.
 #[derive(Clone, Copy, Debug)]
@@ -72,13 +71,60 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
 
 /// Blocks whose entry state the certificate must state: join points and
 /// any block (including the entry) reached by a back or side edge.
-pub fn certified_blocks(body: &zil_ir::body::Body) -> Vec<bool> {
+pub fn certified_blocks(body: &Body) -> Vec<bool> {
     let preds = body.predecessors();
     preds
         .iter()
         .enumerate()
         .map(|(i, p)| p.len() > 1 || (i == 0 && !p.is_empty()))
         .collect()
+}
+
+/// Reverse Post-Order numbering of blocks reachable from `BlockId(0)`.
+/// Returns `(rpo_blocks, block_to_rpo)` where `rpo_blocks[rank]` is the block
+/// at RPO rank `rank`.
+fn compute_rpo(body: &Body) -> (Vec<BlockId>, Vec<usize>) {
+    let n = body.blocks.len();
+    let mut visited = vec![false; n];
+    let mut postorder = Vec::with_capacity(n);
+    if n > 0 {
+        // Iterative DFS to avoid stack overflow on deep CFGs.
+        let mut stack: Vec<(usize, usize, Vec<usize>)> = Vec::new();
+        visited[0] = true;
+        let succs0: Vec<usize> = body.blocks[0]
+            .terminator
+            .edges()
+            .into_iter()
+            .map(|(_, t)| t.index())
+            .collect();
+        stack.push((0, 0, succs0));
+        while let Some((b, idx, succs)) = stack.last_mut() {
+            if *idx < succs.len() {
+                let next = succs[*idx];
+                *idx += 1;
+                if next < n && !visited[next] {
+                    visited[next] = true;
+                    let next_succs: Vec<usize> = body.blocks[next]
+                        .terminator
+                        .edges()
+                        .into_iter()
+                        .map(|(_, t)| t.index())
+                        .collect();
+                    stack.push((next, 0, next_succs));
+                }
+            } else {
+                let finished = *b;
+                stack.pop();
+                postorder.push(BlockId::from_index(finished));
+            }
+        }
+    }
+    postorder.reverse();
+    let mut block_to_rpo = vec![usize::MAX; n];
+    for (rank, &blk) in postorder.iter().enumerate() {
+        block_to_rpo[blk.index()] = rank;
+    }
+    (postorder, block_to_rpo)
 }
 
 pub fn solve_function(
@@ -92,13 +138,16 @@ pub fn solve_function(
     };
     kernel.check_structure().map_err(violation)?;
     let body = kernel.body;
+    let (rpo_blocks, block_to_rpo) = compute_rpo(body);
     let mut entry: Vec<Option<State>> = vec![None; body.blocks.len()];
     entry[0] = Some(kernel.entry_state());
-    let mut queue: VecDeque<BlockId> = VecDeque::from([BlockId(0)]);
-    let mut queued = vec![false; body.blocks.len()];
-    queued[0] = true;
-    while let Some(b) = queue.pop_front() {
-        queued[b.index()] = false;
+    let mut queued_rpo = BitSet::new(rpo_blocks.len());
+    if !rpo_blocks.is_empty() {
+        queued_rpo.insert(0);
+    }
+    while let Some(rank) = queued_rpo.first_set() {
+        queued_rpo.remove(rank);
+        let b = rpo_blocks[rank];
         let Some(mut state) = entry[b.index()].clone() else {
             continue;
         };
@@ -139,20 +188,13 @@ pub fn solve_function(
                     *slot = Some(s);
                     true
                 }
-                Some(old) => {
-                    let mut joined = old.clone();
-                    joined.join_with(&s);
-                    if joined == *old {
-                        false
-                    } else {
-                        *old = joined;
-                        true
-                    }
-                }
+                Some(old) => old.join_with_changed(&s),
             };
-            if changed && !queued[target.index()] {
-                queued[target.index()] = true;
-                queue.push_back(target);
+            if changed {
+                let target_rank = block_to_rpo[target.index()];
+                if target_rank < rpo_blocks.len() {
+                    queued_rpo.insert(target_rank);
+                }
             }
         }
     }

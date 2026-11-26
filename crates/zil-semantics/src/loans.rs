@@ -66,6 +66,7 @@ pub struct LoanTable {
     /// Index 0 is `EXTERNAL`; indices `1..=region_count` are `Region(0..region_count)`.
     region_count: u32,
     loans: Vec<Option<Loan>>,
+    by_origin: std::collections::HashMap<OpLocation, usize>,
 }
 
 fn resolve_store_borrow_place(body: &Body, arg_place: &Place) -> Place {
@@ -285,9 +286,18 @@ impl LoanTable {
                 }));
             }
         }
+        let mut by_origin = std::collections::HashMap::with_capacity(
+            loans.len().saturating_sub(1 + region_count as usize),
+        );
+        for (idx, loan) in loans.iter().enumerate() {
+            if let Some(l) = loan {
+                by_origin.entry(l.origin).or_insert(idx);
+            }
+        }
         LoanTable {
             region_count,
             loans,
+            by_origin,
         }
     }
 
@@ -315,10 +325,7 @@ impl LoanTable {
         match origin {
             LoanOrigin::External => Some(EXTERNAL),
             LoanOrigin::Region(r) => self.region_loan(r),
-            LoanOrigin::At(at) => self
-                .loans
-                .iter()
-                .position(|l| l.as_ref().is_some_and(|l| l.origin == at)),
+            LoanOrigin::At(at) => self.by_origin.get(&at).copied(),
         }
     }
     pub fn origin(&self, id: usize) -> LoanOrigin {
@@ -369,6 +376,31 @@ fn step_back(live: &mut BitSet, place: &Place, access: PlaceAccess) {
     }
 }
 
+/// Summarizes one access backwards into `(uses, kill)` so `live_in = (live_out & !kill) | uses`.
+fn step_back_gen_kill(uses: &mut BitSet, kill: &mut BitSet, place: &Place, access: PlaceAccess) {
+    let Some(l) = root_local(place) else { return };
+    let idx = l.index();
+    match access {
+        PlaceAccess::Init if place.projections.is_empty() => {
+            uses.remove(idx);
+            kill.insert(idx);
+        }
+        PlaceAccess::Init
+        | PlaceAccess::Copy
+        | PlaceAccess::Move
+        | PlaceAccess::Borrow(_)
+        | PlaceAccess::Describe
+        | PlaceAccess::Drop
+        | PlaceAccess::ReplaceInstance
+        | PlaceAccess::InspectTag
+        | PlaceAccess::InspectLen
+        | PlaceAccess::CallClosure(_) => {
+            uses.insert(idx);
+            kill.remove(idx);
+        }
+    }
+}
+
 fn instruction_back(live: &mut BitSet, kind: &InstructionKind) {
     match kind {
         InstructionKind::StorageLive(l) | InstructionKind::StorageDead(l) => {
@@ -387,9 +419,35 @@ fn instruction_back(live: &mut BitSet, kind: &InstructionKind) {
     }
 }
 
+fn instruction_back_gen_kill(uses: &mut BitSet, kill: &mut BitSet, kind: &InstructionKind) {
+    match kind {
+        InstructionKind::StorageLive(l) | InstructionKind::StorageDead(l) => {
+            let idx = l.index();
+            uses.remove(idx);
+            kill.insert(idx);
+            return;
+        }
+        InstructionKind::Assign { .. }
+        | InstructionKind::Drop { .. }
+        | InstructionKind::Replace { .. }
+        | InstructionKind::ScopeEnter(_)
+        | InstructionKind::ScopeExit { .. }
+        | InstructionKind::RegisterDefer { .. } => {}
+    }
+    for a in kind.accesses().iter().rev() {
+        step_back_gen_kill(uses, kill, &a.place, a.access);
+    }
+}
+
 fn terminator_back(live: &mut BitSet, term: &Terminator) {
     for a in term.accesses().iter().rev() {
         step_back(live, &a.place, a.access);
+    }
+}
+
+fn terminator_back_gen_kill(uses: &mut BitSet, kill: &mut BitSet, term: &Terminator) {
+    for a in term.accesses().iter().rev() {
+        step_back_gen_kill(uses, kill, &a.place, a.access);
     }
 }
 
@@ -397,39 +455,84 @@ impl Liveness {
     pub fn compute(body: &Body) -> Self {
         let n = body.blocks.len();
         let locals = body.locals.len();
+
+        struct EdgeLiveness {
+            target: usize,
+            gen_kill: Option<(BitSet, BitSet)>,
+        }
+
+        // Precompute per-block (uses, kill) and per-edge (target, Option<(uses, kill)>) once.
+        let mut block_gen: Vec<BitSet> = Vec::with_capacity(n);
+        let mut block_kill: Vec<BitSet> = Vec::with_capacity(n);
+        let mut block_edges: Vec<Vec<EdgeLiveness>> = Vec::with_capacity(n);
+
+        for block in &body.blocks {
+            let mut uses = BitSet::new(locals);
+            let mut kill = BitSet::new(locals);
+            terminator_back_gen_kill(&mut uses, &mut kill, &block.terminator);
+            for inst in block.instructions.iter().rev() {
+                instruction_back_gen_kill(&mut uses, &mut kill, &inst.kind);
+            }
+            block_gen.push(uses);
+            block_kill.push(kill);
+
+            let mut edges = Vec::new();
+            for (kind, target) in block.terminator.edges() {
+                let ea = block.terminator.edge_accesses(kind);
+                let gen_kill = if ea.is_empty() {
+                    None
+                } else {
+                    let mut egen = BitSet::new(locals);
+                    let mut ekill = BitSet::new(locals);
+                    for a in ea.iter().rev() {
+                        step_back_gen_kill(&mut egen, &mut ekill, &a.place, a.access);
+                    }
+                    Some((egen, ekill))
+                };
+                edges.push(EdgeLiveness {
+                    target: target.index(),
+                    gen_kill,
+                });
+            }
+            block_edges.push(edges);
+        }
+
         let mut entry: Vec<BitSet> = vec![BitSet::new(locals); n];
+        let mut live_out = BitSet::new(locals);
+        let mut edge_tmp = BitSet::new(locals);
         let mut changed = true;
         while changed {
             changed = false;
             for b in (0..n).rev() {
-                let block = &body.blocks[b];
-                let mut live = BitSet::new(locals);
-                for (kind, target) in block.terminator.edges() {
-                    let mut edge = entry[target.index()].clone();
-                    for a in block.terminator.edge_accesses(kind).iter().rev() {
-                        step_back(&mut edge, &a.place, a.access);
+                live_out.clear_all();
+                for edge in &block_edges[b] {
+                    match &edge.gen_kill {
+                        None => live_out.union_with(&entry[edge.target]),
+                        Some((egen, ekill)) => {
+                            edge_tmp.clear_all();
+                            edge_tmp.assign_gen_kill_changed(&entry[edge.target], ekill, egen);
+                            live_out.union_with(&edge_tmp);
+                        }
                     }
-                    live.union_with(&edge);
                 }
-                terminator_back(&mut live, &block.terminator);
-                for inst in block.instructions.iter().rev() {
-                    instruction_back(&mut live, &inst.kind);
-                }
-                if live != entry[b] {
-                    entry[b] = live;
+                if entry[b].assign_gen_kill_changed(&live_out, &block_kill[b], &block_gen[b]) {
                     changed = true;
                 }
             }
         }
+
         let mut before = Vec::with_capacity(n);
-        for block in &body.blocks {
+        for (b, block) in body.blocks.iter().enumerate() {
             let mut live = BitSet::new(locals);
-            for (kind, target) in block.terminator.edges() {
-                let mut edge = entry[target.index()].clone();
-                for a in block.terminator.edge_accesses(kind).iter().rev() {
-                    step_back(&mut edge, &a.place, a.access);
+            for edge in &block_edges[b] {
+                match &edge.gen_kill {
+                    None => live.union_with(&entry[edge.target]),
+                    Some((egen, ekill)) => {
+                        edge_tmp.clear_all();
+                        edge_tmp.assign_gen_kill_changed(&entry[edge.target], ekill, egen);
+                        live.union_with(&edge_tmp);
+                    }
                 }
-                live.union_with(&edge);
             }
             terminator_back(&mut live, &block.terminator);
             let mut rows = vec![live.clone(); block.instructions.len() + 1];

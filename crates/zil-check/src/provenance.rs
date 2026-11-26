@@ -822,6 +822,36 @@ pub(crate) fn verify_fn_provenance(
     if n_blocks == 0 {
         return Ok(());
     }
+    let needs_provenance = func.body.blocks.iter().any(|b| match &b.terminator {
+        Terminator::Call {
+            callee: Callee::Foreign(fid),
+            ..
+        } => module.foreigns.get(fid.index()).is_some_and(|f| {
+            matches!(
+                f.callback_role,
+                Some(ForeignCallbackRole::ScopedRegister | ForeignCallbackRole::ScopedClose)
+            )
+        }),
+        Terminator::Call {
+            callee:
+                Callee::Intrinsic(
+                    IntrinsicOp::AsyncRegistrationStart
+                    | IntrinsicOp::ScopedCallback
+                    | IntrinsicOp::ThreadScope,
+                ),
+            ..
+        } => true,
+        Terminator::Call { .. }
+        | Terminator::Goto { .. }
+        | Terminator::Switch { .. }
+        | Terminator::Return { .. }
+        | Terminator::Assert { .. }
+        | Terminator::Unreachable
+        | Terminator::Trap(_) => false,
+    });
+    if !needs_provenance {
+        return Ok(());
+    }
     let n_locals = func.body.locals.len();
     let fail = |reason: &'static str| CheckError {
         function: fn_id,

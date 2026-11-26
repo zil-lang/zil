@@ -241,6 +241,81 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
         .collect();
     let mut field_flows = vec![FieldFlow::Unset; n];
 
+    let mut closure_to_fn: std::collections::HashMap<zil_ir::body::ClosureId, usize> =
+        std::collections::HashMap::new();
+    for (fi, func) in module.functions.iter().enumerate() {
+        if let Some(cid) = func.body.closure {
+            closure_to_fn.insert(cid, fi);
+        }
+    }
+    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut closure_callers: Vec<usize> = Vec::new();
+    for (fi, func) in module.functions.iter().enumerate() {
+        let mut has_closure_consumer = false;
+        for block in &func.body.blocks {
+            for inst in &block.instructions {
+                if let InstructionKind::Assign { value, .. } = &inst.kind {
+                    match value {
+                        Rvalue::FnRef(cid) if cid.index() < n => {
+                            dependents[cid.index()].push(fi);
+                        }
+                        Rvalue::Aggregate {
+                            kind: AggregateKind::Closure { def, .. },
+                            ..
+                        } => {
+                            if let Some(&cfn) = closure_to_fn.get(def) {
+                                dependents[cfn].push(fi);
+                            }
+                        }
+                        Rvalue::Use(_)
+                        | Rvalue::Ref { .. }
+                        | Rvalue::SliceRef { .. }
+                        | Rvalue::Describe { .. }
+                        | Rvalue::Aggregate { .. }
+                        | Rvalue::ErrorUnion { .. }
+                        | Rvalue::Unary { .. }
+                        | Rvalue::Binary { .. }
+                        | Rvalue::Convert { .. }
+                        | Rvalue::Discriminant(_)
+                        | Rvalue::ErrorArm(_)
+                        | Rvalue::Len(_)
+                        | Rvalue::FnRef(_)
+                        | Rvalue::ForeignFnRef(_)
+                        | Rvalue::StaticUtf(_) => {}
+                    }
+                }
+            }
+            if let Terminator::Call { callee, .. } = &block.terminator {
+                match callee {
+                    Callee::Direct(cid) if cid.index() < n => {
+                        dependents[cid.index()].push(fi);
+                    }
+                    Callee::Closure { .. }
+                    | Callee::Intrinsic(
+                        IntrinsicOp::ThreadScope
+                        | IntrinsicOp::ScopedCallback
+                        | IntrinsicOp::TaskCreate
+                        | IntrinsicOp::TaskStart
+                        | IntrinsicOp::AsyncRegistrationStart,
+                    ) => has_closure_consumer = true,
+                    Callee::Direct(_)
+                    | Callee::Indirect(_)
+                    | Callee::DynSlot { .. }
+                    | Callee::Foreign(_)
+                    | Callee::Intrinsic(_) => {}
+                }
+            }
+        }
+        if has_closure_consumer {
+            closure_callers.push(fi);
+        }
+    }
+    for deps in &mut dependents {
+        deps.sort_unstable();
+        deps.dedup();
+    }
+    let mut dirty = vec![true; n];
+    let mut next_dirty = vec![false; n];
     let mut changed = true;
     let max_rounds = n.saturating_mul(64).max(1) + 1;
     for _ in 0..max_rounds {
@@ -248,7 +323,11 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
             break;
         }
         changed = false;
+        next_dirty.fill(false);
         for (fi, func) in module.functions.iter().enumerate() {
+            if !dirty[fi] {
+                continue;
+            }
             let body = &func.body;
             let param_count = body.params().count();
             if param_count >= 64 {
@@ -269,6 +348,14 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                     summaries[fi].ret_field_param_masks.clear();
                     field_flows[fi] = FieldFlow::Top;
                     changed = true;
+                    for &dep in &dependents[fi] {
+                        next_dirty[dep] = true;
+                    }
+                    if func.body.closure.is_some() {
+                        for &cc in &closure_callers {
+                            next_dirty[cc] = true;
+                        }
+                    }
                 }
                 continue;
             }
@@ -299,7 +386,18 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
             let mut ret_fields = field_flows[fi].clone();
 
             let cx = body.cx(&module.tys);
+            let local_holds_addr: Vec<bool> = body
+                .locals
+                .iter()
+                .map(|d| module.tys.holds_address(d.ty))
+                .collect();
             let place_holds_addr = |p: &zil_ir::body::Place| -> bool {
+                if p.projections.is_empty()
+                    && let PlaceRoot::Local(l) = p.root
+                    && let Some(&holds) = local_holds_addr.get(l.index())
+                {
+                    return holds;
+                }
                 zil_ir::body::type_place(p, &cx).map_or(true, |t| module.tys.holds_address(t.ty()))
             };
 
@@ -307,6 +405,12 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                 local_changed = false;
                 for block in &body.blocks {
                     for inst in &block.instructions {
+                        if !matches!(
+                            &inst.kind,
+                            InstructionKind::Assign { .. } | InstructionKind::Replace { .. }
+                        ) {
+                            continue;
+                        }
                         let accesses = inst.kind.accesses();
                         match &inst.kind {
                             InstructionKind::Assign { dest, value } => {
@@ -1080,8 +1184,17 @@ pub fn compute_return_summaries(module: &zil_ir::body::Module) -> Vec<zil_ir::bo
                 summaries[fi].ret_field_param_masks = next_field_masks;
                 field_flows[fi] = ret_fields;
                 changed = true;
+                for &dep in &dependents[fi] {
+                    next_dirty[dep] = true;
+                }
+                if func.body.closure.is_some() {
+                    for &cc in &closure_callers {
+                        next_dirty[cc] = true;
+                    }
+                }
             }
         }
+        std::mem::swap(&mut dirty, &mut next_dirty);
     }
     summaries
 }
