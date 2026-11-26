@@ -715,3 +715,186 @@ fn win64_native_unicode_paths_env_and_args_roundtrip() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+const WIN64_ARGV_DUMPER_PROGRAM: &str = r#"
+import std.env
+import std.io
+
+fn dump_args() -> io.Error!i32 {
+    let n = env.arg_count()
+    var i: i64 = 1
+    while i < n {
+        match env.arg(i) {
+            Option.None() => { return 21 },
+            Option.Some(arg) => {
+                let v = bytes_view(arg)
+                io.print_i64(v.len())?
+                io.print(":")?
+                io.print(v)?
+                io.print("\n")?
+            }
+        }
+        i += 1
+    }
+    return 0
+}
+
+fn main() -> i32 {
+    match dump_args() {
+        .ok(code) => { return code },
+        .err(_) => { return 98 }
+    }
+}
+"#;
+
+#[test]
+fn win64_argv_differential_dumper_verifies_for_windows_target() {
+    let report = compile_source(
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "win64_argv_dumper.zil",
+            WIN64_ARGV_DUMPER_PROGRAM,
+        ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            backend: NativeBackend::Clang,
+            target: TargetProfile::windows_x64_llvm(),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "Win64 argv dumper must verify for Windows target: {:?}",
+        report.diagnostics
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn win64_native_argv_matches_msvc_crt_wmain_differential() {
+    use std::os::windows::process::CommandExt;
+
+    let dir = std::env::temp_dir().join(format!("zil-win64-argv-diff-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+
+    // 1. Build ZIL argv dumper.
+    let zil_src = dir.join("argv_dumper.zil");
+    std::fs::write(&zil_src, WIN64_ARGV_DUMPER_PROGRAM).expect("write argv_dumper.zil");
+    let zil_exe = dir.join("zil_argv_dumper.exe");
+    let mut session = CompilationSession::new();
+    let report = session.compile_path(
+        &zil_src,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            optimization: Optimization::O2,
+            backend: NativeBackend::Clang,
+            output: Some(zil_exe.clone()),
+            codegen: CodegenOptions { units: 1, jobs: 1 },
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "Win64 argv dumper build failed: {:?}",
+        report.diagnostics
+    );
+
+    // 2. Build reference MSVC CRT wmain dumper using the exact same Windows clang toolchain.
+    let c_src = dir.join("crt_wmain_dumper.c");
+    std::fs::write(
+        &c_src,
+        r#"
+#include <windows.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <io.h>
+#include <fcntl.h>
+
+int wmain(int argc, wchar_t **argv) {
+    _setmode(_fileno(stdout), _O_BINARY);
+    for (int i = 1; i < argc; i++) {
+        int needed = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, NULL, 0, NULL, NULL);
+        if (needed <= 0) return 10;
+        char *buf = (char *)malloc((size_t)needed);
+        if (!buf) return 11;
+        int written = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, buf, needed, NULL, NULL);
+        if (written <= 0) { free(buf); return 12; }
+        int utf8_len = written - 1;
+        printf("%d:", utf8_len);
+        if (utf8_len > 0) fwrite(buf, 1, (size_t)utf8_len, stdout);
+        fputc('\n', stdout);
+        free(buf);
+    }
+    fflush(stdout);
+    return 0;
+}
+"#,
+    )
+    .expect("write crt_wmain_dumper.c");
+    let crt_exe = dir.join("crt_wmain_dumper.exe");
+    let clang = std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into());
+    let cc = Command::new(&clang)
+        .arg(&c_src)
+        .arg("-o")
+        .arg(&crt_exe)
+        .output()
+        .expect("compile crt_wmain_dumper.c");
+    assert!(
+        cc.status.success(),
+        "failed to compile CRT reference dumper: stdout={} stderr={}",
+        String::from_utf8_lossy(&cc.stdout),
+        String::from_utf8_lossy(&cc.stderr)
+    );
+
+    // 3. Differential matrix of raw Win32 command lines (quotes, backslashes, empty args,
+    //    escaped quotes, doubled quotes inside quotes, tabs, CJK, and emoji surrogate pairs).
+    let raw_cases = [
+        r#"plain "hello world" "" tail"#,
+        r#"a\"b a\\"b a\\\"b a\\\\"b"#,
+        r#""" "" "a""b" """a b""" """" """"" end"#,
+        r#""trailing\\" "trailing\\\"quote" \"\" \"a b\""#,
+        "\"a b\"c\t\"d\te\"  \"\"x\"\"   \\\\\\notquote",
+        "中文 \"带 引 号\" \"emoji 🚀 \"\"quoted\"\"\" café",
+    ];
+
+    for raw in raw_cases {
+        let zil_out = Command::new(&zil_exe)
+            .raw_arg(raw)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap_or_else(|e| panic!("run zil_argv_dumper failed: {e}"));
+        let crt_out = Command::new(&crt_exe)
+            .raw_arg(raw)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap_or_else(|e| panic!("run crt_wmain_dumper failed: {e}"));
+        assert_eq!(
+            zil_out.status.code(),
+            Some(0),
+            "zil dumper failed on raw={raw:?}: stderr={}",
+            String::from_utf8_lossy(&zil_out.stderr)
+        );
+        assert_eq!(
+            crt_out.status.code(),
+            Some(0),
+            "crt dumper failed on raw={raw:?}: stderr={}",
+            String::from_utf8_lossy(&crt_out.stderr)
+        );
+        assert_eq!(
+            zil_out.stdout,
+            crt_out.stdout,
+            "ZIL std.env.args() diverged from MSVC CRT wmain on raw={raw:?}\nZIL:\n{}\nCRT:\n{}",
+            String::from_utf8_lossy(&zil_out.stdout),
+            String::from_utf8_lossy(&crt_out.stdout)
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

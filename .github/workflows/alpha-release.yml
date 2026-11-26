@@ -93,6 +93,7 @@ jobs:
             --clang-bin "$ZIL_CLANG" \
             --lock-examples
           cp tools/release/verify_clean_install.py "$OUT_DIR/verify_clean_install.py"
+          cp tools/release/verify_published_assets.py "$OUT_DIR/verify_published_assets.py"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
       - name: Upload packaged release artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -174,12 +175,13 @@ jobs:
           BUNDLE="$RUNNER_TEMP/release-assets/zil-linux-x86_64-release-bundle"
           RECEIPT="$RUNNER_TEMP/release-assets/zil-linux-x86_64-clean-env-receipt/clean-env-verify-receipt.json"
           STAGE="$RUNNER_TEMP/publish-linux"
-          mkdir -p "$STAGE"
-          ARCHIVE="$(ls "$BUNDLE"/zil-*-linux-x86_64.tar.gz)"
-          cp "$ARCHIVE" "$STAGE/$(basename "$ARCHIVE")"
-          cp "$BUNDLE/SHA256SUMS.txt" "$STAGE/SHA256SUMS-linux-x86_64.txt"
-          cp "$BUNDLE/RELEASE-MANIFEST.json" "$STAGE/RELEASE-MANIFEST-linux-x86_64.json"
-          cp "$RECEIPT" "$STAGE/clean-env-verify-receipt-linux-x86_64.json"
+          rm -rf "$STAGE"
+          python3 "$BUNDLE/verify_published_assets.py" stage \
+            --platform linux-x86_64 \
+            --bundle-dir "$BUNDLE" \
+            --receipt "$RECEIPT" \
+            --stage-dir "$STAGE"
+          ARCHIVE="$(ls "$STAGE"/zil-*-linux-x86_64.tar.gz)"
 
           if ! gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release create "${GITHUB_REF_NAME}" \
@@ -194,7 +196,28 @@ jobs:
           gh release upload "${GITHUB_REF_NAME}" \
             --repo "${GITHUB_REPOSITORY}" \
             --clobber \
-            "$STAGE/$(basename "$ARCHIVE")" \
+            "$ARCHIVE" \
             "$STAGE/SHA256SUMS-linux-x86_64.txt" \
             "$STAGE/RELEASE-MANIFEST-linux-x86_64.json" \
             "$STAGE/clean-env-verify-receipt-linux-x86_64.json"
+      - name: Verify downloaded public GitHub Release assets in clean directory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/release-assets/zil-linux-x86_64-release-bundle"
+          VERIFY_DIR="$RUNNER_TEMP/verify-public-linux"
+          rm -rf "$VERIFY_DIR"
+          mkdir -p "$VERIFY_DIR"
+          gh release download "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --dir "$VERIFY_DIR" \
+            --pattern "zil-*-linux-x86_64.tar.gz" \
+            --pattern "RELEASE-MANIFEST-linux-x86_64.json" \
+            --pattern "SHA256SUMS-linux-x86_64.txt"
+          python3 "$BUNDLE/verify_published_assets.py" verify-dir \
+            --platform linux-x86_64 \
+            --dir "$VERIFY_DIR" \
+            --expected-commit "${GITHUB_SHA}" \
+            --require-sha256sum-cli
