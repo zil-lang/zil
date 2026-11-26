@@ -144,6 +144,30 @@ pub fn emit_verified_body_units_with_entry_for_target(
     header.push_str("%__zil_reg_hdr = type { i32, ptr, ptr, ptr }\n");
     header.push_str("%__zil_areg_hdr = type { i32, i32, i32, ptr, ptr, ptr, ptr }\n");
 
+    let target_entry = entry_name.unwrap_or("main");
+    let custom_entry = target_entry != "main";
+    let mut main_fn: Option<(FnId, String, TyId)> = None;
+    let mut syms = Vec::with_capacity(fn_count);
+    for (idx, func) in module.functions.iter().enumerate() {
+        let fn_id = FnId::from_index(idx);
+        let sym = fn_symbol(fn_id, func);
+        if (func.name == target_entry || func.name.ends_with(&format!(".{target_entry}")))
+            && func.sig.params.is_empty()
+            && func.sig.role == FnRole::Normal
+        {
+            main_fn = Some((fn_id, sym.clone(), func.sig.result));
+        }
+        syms.push(sym);
+    }
+
+    let single_exe = actual_units == 1 && emit_c_main && main_fn.is_some();
+    let reach = if single_exe {
+        compute_codegen_reachability(module, main_fn.as_ref().map(|(id, _, _)| *id))
+    } else {
+        CodegenReachability::all(module)
+    };
+    let runtime_linkage = if single_exe { "internal " } else { "" };
+
     let mut runtime_defs = String::with_capacity(4096);
     runtime_defs.push_str("@__zil_current_task = thread_local global ptr null\n");
     runtime_defs.push_str("@__zil_task_cancel_trap = thread_local global i1 false\n");
@@ -170,7 +194,7 @@ pub fn emit_verified_body_units_with_entry_for_target(
     runtime_decls.push_str("declare void @__zil_areg_finish_destroy(ptr)\n");
     runtime_decls.push_str("declare void @__zil_areg_drop_frame(ptr)\n");
 
-    if is_windows {
+    if reach.uses_tasks && is_windows {
         runtime_defs.push_str(
             "define ptr @__zil_ensure_fiber() {\n\
 entry:\n\
@@ -259,7 +283,7 @@ done:\n\
   ret void\n\
 }\n",
         );
-    } else {
+    } else if reach.uses_tasks {
         runtime_defs.push_str(
             "define void @__zil_task_drop_frame(ptr %child) {\n\
 entry:\n\
@@ -333,8 +357,9 @@ done:\n\
 }\n",
         );
     }
-    runtime_defs.push_str(
-        "define void @__zil_reg_drop_frame(ptr %frame) {\n\
+    if reach.uses_regs {
+        runtime_defs.push_str(
+            "define void @__zil_reg_drop_frame(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %close_step\n\
@@ -369,9 +394,11 @@ do_free:\n\
 done:\n\
   ret void\n\
 }\n",
-    );
-    runtime_defs.push_str(
-        "define void @__zil_areg_mark_closing(ptr %frame) {\n\
+        );
+    }
+    if reach.uses_aregs {
+        runtime_defs.push_str(
+            "define void @__zil_areg_mark_closing(ptr %frame) {\n\
 entry:\n\
   %gate_p = getelementptr inbounds %__zil_areg_hdr, ptr %frame, i32 0, i32 0\n\
   %g0 = load atomic i32, ptr %gate_p acquire, align 4\n\
@@ -529,10 +556,10 @@ do_free:\n\
 done:\n\
   ret void\n\
 }\n",
-    );
-    if is_windows {
-        runtime_defs.push_str(
-            "define void @__zil_areg_drop_frame(ptr %frame) {\n\
+        );
+        if is_windows {
+            runtime_defs.push_str(
+                "define void @__zil_areg_drop_frame(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %loop\n\
@@ -559,10 +586,10 @@ finish:\n\
 done:\n\
   ret void\n\
 }\n",
-        );
-    } else {
-        runtime_defs.push_str(
-            "define void @__zil_areg_drop_frame(ptr %frame) {\n\
+            );
+        } else {
+            runtime_defs.push_str(
+                "define void @__zil_areg_drop_frame(ptr %frame) {\n\
 entry:\n\
   %is_null = icmp eq ptr %frame, null\n\
   br i1 %is_null, label %done, label %loop\n\
@@ -593,6 +620,30 @@ finish:\n\
 done:\n\
   ret void\n\
 }\n",
+            );
+        }
+    }
+    let _ = runtime_linkage;
+    if reach.uses_bytes_grow {
+        header.push_str(
+            "define internal i1 @__zil_bytes_grow(ptr %h, i64 %cap) noinline {\n\
+entry:\n\
+  %is_zero = icmp eq i64 %cap, 0\n\
+  %doubled = shl i64 %cap, 1\n\
+  %new_cap = select i1 %is_zero, i64 8, i64 %doubled\n\
+  %data_slot = getelementptr inbounds { ptr, i64, i64 }, ptr %h, i32 0, i32 0\n\
+  %old_data = load ptr, ptr %data_slot\n\
+  %new_data = call ptr @realloc(ptr %old_data, i64 %new_cap)\n\
+  %ok_alloc = icmp ne ptr %new_data, null\n\
+  br i1 %ok_alloc, label %commit, label %fail\n\
+commit:\n\
+  store ptr %new_data, ptr %data_slot\n\
+  %cap_slot = getelementptr inbounds { ptr, i64, i64 }, ptr %h, i32 0, i32 2\n\
+  store i64 %new_cap, ptr %cap_slot\n\
+  ret i1 1\n\
+fail:\n\
+  ret i1 0\n\
+}\n\n",
         );
     }
     header.push_str(
@@ -717,22 +768,6 @@ done:\n\
         foreign_header.push('\n');
     }
 
-    let target_entry = entry_name.unwrap_or("main");
-    let custom_entry = target_entry != "main";
-    let mut main_fn: Option<(FnId, String, TyId)> = None;
-    let mut syms = Vec::with_capacity(fn_count);
-    for (idx, func) in module.functions.iter().enumerate() {
-        let fn_id = FnId::from_index(idx);
-        let sym = fn_symbol(fn_id, func);
-        if (func.name == target_entry || func.name.ends_with(&format!(".{target_entry}")))
-            && func.sig.params.is_empty()
-            && func.sig.role == FnRole::Normal
-        {
-            main_fn = Some((fn_id, sym.clone(), func.sig.result));
-        }
-        syms.push(sym);
-    }
-
     let mut units = Vec::with_capacity(actual_units);
     for unit_idx in 0..actual_units {
         let mut out =
@@ -763,13 +798,15 @@ done:\n\
 
         // Emit definitions for functions owned by this unit.
         for (idx, func) in module.functions.iter().enumerate() {
-            if idx % actual_units == unit_idx {
+            if idx % actual_units == unit_idx && reach.fns[idx] {
                 emit_function(
                     module,
                     FnId::from_index(idx),
                     func,
                     &syms[idx],
                     is_windows,
+                    single_exe,
+                    reach.uses_tasks,
                     &mut out,
                 )?;
                 out.push('\n');
@@ -778,7 +815,14 @@ done:\n\
 
         // Emit dyn Trait vtables, drop shims, and slot thunks in unit 0.
         if unit_idx == 0 && !module.dyn_impls.is_empty() {
-            emit_dyn_vtables(module, &syms, is_windows, &mut out)?;
+            emit_dyn_vtables(
+                module,
+                &syms,
+                is_windows,
+                single_exe,
+                &reach.dyn_impls,
+                &mut out,
+            )?;
         }
 
         // Emit C `main()` wrapper in unit 0.
@@ -847,6 +891,7 @@ done:\n\
                         fn_id: FnId(0),
                         body: &empty_body,
                         is_windows,
+                        emit_cancel_clear: false,
                         out: &mut out,
                         entry_allocas: None,
                         extra_defs: String::new(),
@@ -1061,6 +1106,7 @@ struct FnEmitter<'a> {
     fn_id: FnId,
     body: &'a Body,
     is_windows: bool,
+    emit_cancel_clear: bool,
     out: &'a mut String,
     entry_allocas: Option<&'a mut String>,
     extra_defs: String,
@@ -2359,8 +2405,10 @@ impl<'a> FnEmitter<'a> {
             }
             Terminator::Return { value } => {
                 let (v, lt, _) = self.emit_operand(value)?;
-                self.out
-                    .push_str("  store i1 false, ptr @__zil_task_cancel_trap\n");
+                if self.emit_cancel_clear {
+                    self.out
+                        .push_str("  store i1 false, ptr @__zil_task_cancel_trap\n");
+                }
                 if lt == "void" {
                     self.out.push_str("  ret void\n");
                 } else {
@@ -2879,31 +2927,12 @@ impl<'a> FnEmitter<'a> {
                     (&grow_bb[1..], &write_bb[1..], &fail_bb[1..], &done_bb[1..]);
                 let _ = writeln!(self.out, "  br i1 {full}, label %{gl}, label %{wl}");
                 let _ = writeln!(self.out, "{gl}:");
-                let is_zero = self.fresh();
-                let _ = writeln!(self.out, "  {is_zero} = icmp eq i64 {cap}, 0");
-                let doubled = self.fresh();
-                let _ = writeln!(self.out, "  {doubled} = shl i64 {cap}, 1");
-                let new_cap = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {new_cap} = select i1 {is_zero}, i64 8, i64 {doubled}"
-                );
-                let old_data = self.fresh();
-                let _ = writeln!(self.out, "  {old_data} = load ptr, ptr {data_slot}");
-                let new_data = self.fresh();
-                let _ = writeln!(
-                    self.out,
-                    "  {new_data} = call ptr @realloc(ptr {old_data}, i64 {new_cap})"
-                );
                 let ok_alloc = self.fresh();
-                let _ = writeln!(self.out, "  {ok_alloc} = icmp ne ptr {new_data}, null");
-                let commit_bb = self.fresh();
-                let cl = &commit_bb[1..];
-                let _ = writeln!(self.out, "  br i1 {ok_alloc}, label %{cl}, label %{fl}");
-                let _ = writeln!(self.out, "{cl}:");
-                let _ = writeln!(self.out, "  store ptr {new_data}, ptr {data_slot}");
-                let _ = writeln!(self.out, "  store i64 {new_cap}, ptr {cap_slot}");
-                let _ = writeln!(self.out, "  br label %{wl}");
+                let _ = writeln!(
+                    self.out,
+                    "  {ok_alloc} = call i1 @__zil_bytes_grow(ptr {h}, i64 {cap})"
+                );
+                let _ = writeln!(self.out, "  br i1 {ok_alloc}, label %{wl}, label %{fl}");
                 let _ = writeln!(self.out, "{wl}:");
                 let data = self.fresh();
                 let _ = writeln!(self.out, "  {data} = load ptr, ptr {data_slot}");
@@ -3815,6 +3844,8 @@ impl<'a> FnEmitter<'a> {
                         call_args.push(format!("{lt} %av{i}"));
                     }
                 }
+                self.extra_defs
+                    .push_str("  store i1 false, ptr @__zil_task_cancel_trap\n");
                 if res_llvm == "void" {
                     let _ = writeln!(
                         self.extra_defs,
@@ -3856,6 +3887,8 @@ impl<'a> FnEmitter<'a> {
                     if !drop_res_ir.is_empty() {
                         self.extra_defs
                             .push_str("  %canc_trapped = load i1, ptr @__zil_task_cancel_trap\n");
+                        self.extra_defs
+                            .push_str("  store i1 false, ptr @__zil_task_cancel_trap\n");
                         self.extra_defs.push_str(
                             "  br i1 %canc_trapped, label %done_canc_finish, label %done_canc_drop\n",
                         );
@@ -5556,6 +5589,8 @@ fn emit_function(
     func: &Function,
     sym: &str,
     is_windows: bool,
+    internalize: bool,
+    emit_cancel_clear: bool,
     out: &mut String,
 ) -> Result<(), BodyEmitError> {
     let tys = &module.tys;
@@ -5570,7 +5605,12 @@ fn emit_function(
             param_sigs.push(format!("{lt} %p{i}"));
         }
     }
-    let _ = writeln!(out, "define {ret} @{sym}({}) {{", param_sigs.join(", "));
+    let linkage = if internalize { "internal " } else { "" };
+    let _ = writeln!(
+        out,
+        "define {linkage}{ret} @{sym}({}) {{",
+        param_sigs.join(", ")
+    );
     out.push_str("entry:\n");
     for (i, local) in func.body.locals.iter().enumerate() {
         let st = llvm_storage_ty(tys, local.ty)?;
@@ -5590,6 +5630,7 @@ fn emit_function(
             fn_id,
             body: &func.body,
             is_windows,
+            emit_cancel_clear,
             out: &mut body_out,
             entry_allocas: Some(&mut entry_allocas),
             extra_defs: String::new(),
@@ -5620,6 +5661,8 @@ fn emit_dyn_vtables(
     module: &Module,
     syms: &[String],
     is_windows: bool,
+    internalize: bool,
+    reachable_dyn_impls: &[bool],
     out: &mut String,
 ) -> Result<(), BodyEmitError> {
     let empty_body = Body {
@@ -5632,7 +5675,11 @@ fn emit_dyn_vtables(
         drop_flags: Vec::new(),
         param_env: zil_ir::body::ParamEnv::default(),
     };
+    let vtable_linkage = if internalize { "internal " } else { "" };
     for (idx, dimpl) in module.dyn_impls.iter().enumerate() {
+        if !reachable_dyn_impls.get(idx).copied().unwrap_or(true) {
+            continue;
+        }
         let def = module
             .tys
             .get_dyn(dimpl.dyn_id)
@@ -5647,6 +5694,7 @@ fn emit_dyn_vtables(
                 fn_id: FnId(0),
                 body: &empty_body,
                 is_windows,
+                emit_cancel_clear: false,
                 out,
                 entry_allocas: None,
                 extra_defs: String::new(),
@@ -5715,9 +5763,347 @@ fn emit_dyn_vtables(
         let n = entries.len();
         let _ = writeln!(
             out,
-            "@__zil_vtable_{idx} = constant [{n} x ptr] [{}]\n",
+            "@__zil_vtable_{idx} = {vtable_linkage}constant [{n} x ptr] [{}]\n",
             entries.join(", ")
         );
     }
     Ok(())
+}
+
+struct CodegenReachability {
+    fns: Vec<bool>,
+    dyn_impls: Vec<bool>,
+    uses_tasks: bool,
+    uses_regs: bool,
+    uses_aregs: bool,
+    uses_bytes_grow: bool,
+}
+
+impl CodegenReachability {
+    fn all(module: &Module) -> Self {
+        let mut uses_bytes_grow = false;
+        for f in &module.functions {
+            for b in &f.body.blocks {
+                if let Terminator::Call {
+                    callee: Callee::Intrinsic(IntrinsicOp::ByteBufferPush),
+                    ..
+                } = &b.terminator
+                {
+                    uses_bytes_grow = true;
+                }
+            }
+        }
+        Self {
+            fns: vec![true; module.functions.len()],
+            dyn_impls: vec![true; module.dyn_impls.len()],
+            uses_tasks: true,
+            uses_regs: true,
+            uses_aregs: true,
+            uses_bytes_grow,
+        }
+    }
+}
+
+fn compute_codegen_reachability(module: &Module, root: Option<FnId>) -> CodegenReachability {
+    let Some(root) = root else {
+        return CodegenReachability::all(module);
+    };
+    let mut closure_to_fn = std::collections::HashMap::new();
+    for (idx, f) in module.functions.iter().enumerate() {
+        if let Some(cid) = f.body.closure {
+            closure_to_fn.insert(cid, FnId::from_index(idx));
+        }
+    }
+
+    let mut reach = CodegenReachability {
+        fns: vec![false; module.functions.len()],
+        dyn_impls: vec![false; module.dyn_impls.len()],
+        uses_tasks: false,
+        uses_regs: false,
+        uses_aregs: false,
+        uses_bytes_grow: false,
+    };
+    let mut visited_tys = std::collections::HashSet::<TyId>::new();
+    let mut fn_queue = std::collections::VecDeque::<FnId>::new();
+    let mut ty_queue = std::collections::VecDeque::<TyId>::new();
+
+    let enqueue_fn =
+        |fid: FnId, reach: &mut CodegenReachability, q: &mut std::collections::VecDeque<FnId>| {
+            if let Some(slot) = reach.fns.get_mut(fid.index())
+                && !*slot
+            {
+                *slot = true;
+                q.push_back(fid);
+            }
+        };
+    let enqueue_ty = |tid: TyId,
+                      visited: &mut std::collections::HashSet<TyId>,
+                      q: &mut std::collections::VecDeque<TyId>| {
+        if visited.insert(tid) {
+            q.push_back(tid);
+        }
+    };
+
+    enqueue_fn(root, &mut reach, &mut fn_queue);
+
+    while !fn_queue.is_empty() || !ty_queue.is_empty() {
+        while let Some(fid) = fn_queue.pop_front() {
+            let func = &module.functions[fid.index()];
+            enqueue_ty(func.sig.result, &mut visited_tys, &mut ty_queue);
+            for &pt in &func.sig.params {
+                enqueue_ty(pt, &mut visited_tys, &mut ty_queue);
+            }
+            for loc in &func.body.locals {
+                enqueue_ty(loc.ty, &mut visited_tys, &mut ty_queue);
+            }
+            for &cap in &func.body.captures {
+                enqueue_ty(cap, &mut visited_tys, &mut ty_queue);
+            }
+            for block in &func.body.blocks {
+                for inst in &block.instructions {
+                    match &inst.kind {
+                        InstructionKind::Assign { value, .. } => match value {
+                            Rvalue::FnRef(target) => enqueue_fn(*target, &mut reach, &mut fn_queue),
+                            Rvalue::ErrorUnion { ty, .. } => {
+                                enqueue_ty(*ty, &mut visited_tys, &mut ty_queue);
+                            }
+                            Rvalue::Convert { to, .. } => {
+                                enqueue_ty(*to, &mut visited_tys, &mut ty_queue);
+                            }
+                            Rvalue::Aggregate { kind, .. } => match kind {
+                                AggregateKind::Closure { def, .. } => {
+                                    if let Some(&cfn) = closure_to_fn.get(def) {
+                                        enqueue_fn(cfn, &mut reach, &mut fn_queue);
+                                    }
+                                }
+                                AggregateKind::Adt { adt, args, .. } => {
+                                    if let Some(drop_fn) = module.drop_fn(*adt) {
+                                        enqueue_fn(drop_fn, &mut reach, &mut fn_queue);
+                                    }
+                                    if let Some(ga) = module.tys.get_args(*args) {
+                                        for &t in &ga.tys {
+                                            enqueue_ty(t, &mut visited_tys, &mut ty_queue);
+                                        }
+                                    }
+                                }
+                                AggregateKind::Array { element } => {
+                                    enqueue_ty(*element, &mut visited_tys, &mut ty_queue);
+                                }
+                                AggregateKind::Tuple => {}
+                            },
+                            Rvalue::Use(_)
+                            | Rvalue::Ref { .. }
+                            | Rvalue::SliceRef { .. }
+                            | Rvalue::Describe { .. }
+                            | Rvalue::Unary { .. }
+                            | Rvalue::Binary { .. }
+                            | Rvalue::Discriminant(_)
+                            | Rvalue::ErrorArm(_)
+                            | Rvalue::Len(_)
+                            | Rvalue::ForeignFnRef(_)
+                            | Rvalue::StaticUtf(_) => {}
+                        },
+                        InstructionKind::Drop { .. }
+                        | InstructionKind::Replace { .. }
+                        | InstructionKind::StorageLive(_)
+                        | InstructionKind::StorageDead(_)
+                        | InstructionKind::ScopeEnter(_)
+                        | InstructionKind::ScopeExit { .. }
+                        | InstructionKind::RegisterDefer { .. } => {}
+                    }
+                }
+                match &block.terminator {
+                    Terminator::Call { callee, .. } => match callee {
+                        Callee::Direct(target) => enqueue_fn(*target, &mut reach, &mut fn_queue),
+                        Callee::Intrinsic(op) => match op {
+                            IntrinsicOp::ByteBufferPush => {
+                                reach.uses_bytes_grow = true;
+                            }
+                            IntrinsicOp::TaskStart
+                            | IntrinsicOp::TaskCreate
+                            | IntrinsicOp::TaskYield
+                            | IntrinsicOp::TaskValid
+                            | IntrinsicOp::TaskPoll
+                            | IntrinsicOp::TaskRequestCancel
+                            | IntrinsicOp::TaskPollClose
+                            | IntrinsicOp::TaskFinishDestroy => {
+                                reach.uses_tasks = true;
+                            }
+                            IntrinsicOp::RegistrationStart
+                            | IntrinsicOp::RegistrationValid
+                            | IntrinsicOp::RegistrationClose => {
+                                reach.uses_regs = true;
+                            }
+                            IntrinsicOp::AsyncRegistrationStart
+                            | IntrinsicOp::AsyncRegistrationValid
+                            | IntrinsicOp::AsyncRegistrationRequestClose
+                            | IntrinsicOp::AsyncRegistrationPollClose
+                            | IntrinsicOp::AsyncRegistrationFinishDestroy => {
+                                reach.uses_aregs = true;
+                            }
+                            IntrinsicOp::StoreNew
+                            | IntrinsicOp::StoreReserve
+                            | IntrinsicOp::StorePush
+                            | IntrinsicOp::StorePop
+                            | IntrinsicOp::StoreLen
+                            | IntrinsicOp::StoreCapacity
+                            | IntrinsicOp::StoreBorrow { .. }
+                            | IntrinsicOp::ByteBufferNew
+                            | IntrinsicOp::ByteBufferReserve
+                            | IntrinsicOp::ByteBufferTruncate
+                            | IntrinsicOp::ByteBufferLen
+                            | IntrinsicOp::ByteBufferCapacity
+                            | IntrinsicOp::ByteBufferBorrow
+                            | IntrinsicOp::MutexCreate
+                            | IntrinsicOp::MutexLock
+                            | IntrinsicOp::MutexValue
+                            | IntrinsicOp::MutexUnlock
+                            | IntrinsicOp::SyncLoad
+                            | IntrinsicOp::SyncStore
+                            | IntrinsicOp::SyncFetchAdd
+                            | IntrinsicOp::SyncCompareExchange
+                            | IntrinsicOp::ManagedCreate
+                            | IntrinsicOp::OwnedDynCreate
+                            | IntrinsicOp::ThreadScope
+                            | IntrinsicOp::SyncInit
+                            | IntrinsicOp::ScopedCallback
+                            | IntrinsicOp::SyncLoadOrdered(_)
+                            | IntrinsicOp::SyncStoreOrdered(_)
+                            | IntrinsicOp::SyncFetchAddOrdered(_)
+                            | IntrinsicOp::SyncExchangeOrdered(_)
+                            | IntrinsicOp::SyncCompareExchangeOrdered { .. }
+                            | IntrinsicOp::CNull
+                            | IntrinsicOp::CCallback => {}
+                        },
+                        Callee::Indirect(_)
+                        | Callee::Closure { .. }
+                        | Callee::DynSlot { .. }
+                        | Callee::Foreign(_) => {}
+                    },
+                    Terminator::Goto { .. }
+                    | Terminator::Switch { .. }
+                    | Terminator::Return { .. }
+                    | Terminator::Assert { .. }
+                    | Terminator::Unreachable
+                    | Terminator::Trap(_) => {}
+                }
+            }
+        }
+
+        while let Some(tid) = ty_queue.pop_front() {
+            let Some(kind) = module.tys.get(tid) else {
+                continue;
+            };
+            match kind {
+                TyKind::Adt { adt, args } => {
+                    if let Some(drop_fn) = module.drop_fn(*adt) {
+                        enqueue_fn(drop_fn, &mut reach, &mut fn_queue);
+                    }
+                    if let Some(ga) = module.tys.get_args(*args) {
+                        for &t in &ga.tys {
+                            enqueue_ty(t, &mut visited_tys, &mut ty_queue);
+                        }
+                    }
+                    if let Some(def) = module.tys.get_adt(*adt) {
+                        for v in &def.variants {
+                            for f in &v.fields {
+                                enqueue_ty(f.ty, &mut visited_tys, &mut ty_queue);
+                            }
+                        }
+                    }
+                }
+                TyKind::Closure { def, args } => {
+                    if let Some(&cfn) = closure_to_fn.get(def) {
+                        enqueue_fn(cfn, &mut reach, &mut fn_queue);
+                    }
+                    if let Some(ga) = module.tys.get_args(*args) {
+                        for &t in &ga.tys {
+                            enqueue_ty(t, &mut visited_tys, &mut ty_queue);
+                        }
+                    }
+                }
+                TyKind::Dyn { def, .. } | TyKind::OwnedDyn { def, .. } => {
+                    if let TyKind::OwnedDyn {
+                        context: Some(ctx), ..
+                    } = kind
+                    {
+                        enqueue_ty(*ctx, &mut visited_tys, &mut ty_queue);
+                    }
+                    for (idx, dimpl) in module.dyn_impls.iter().enumerate() {
+                        if dimpl.dyn_id == *def && !reach.dyn_impls[idx] {
+                            reach.dyn_impls[idx] = true;
+                            enqueue_ty(dimpl.concrete_ty, &mut visited_tys, &mut ty_queue);
+                            for &mfn in &dimpl.methods {
+                                enqueue_fn(mfn, &mut reach, &mut fn_queue);
+                            }
+                        }
+                    }
+                }
+                TyKind::Tuple(elems) => {
+                    for &t in elems {
+                        enqueue_ty(t, &mut visited_tys, &mut ty_queue);
+                    }
+                }
+                TyKind::Array { element, .. }
+                | TyKind::Slice(element)
+                | TyKind::Ref {
+                    pointee: element, ..
+                }
+                | TyKind::Managed(element)
+                | TyKind::Desc(element) => {
+                    enqueue_ty(*element, &mut visited_tys, &mut ty_queue);
+                }
+                TyKind::ErrorUnion { ok, err } => {
+                    enqueue_ty(*ok, &mut visited_tys, &mut ty_queue);
+                    enqueue_ty(*err, &mut visited_tys, &mut ty_queue);
+                }
+                TyKind::FnPtr { params, result } => {
+                    for &p in params {
+                        enqueue_ty(p, &mut visited_tys, &mut ty_queue);
+                    }
+                    enqueue_ty(*result, &mut visited_tys, &mut ty_queue);
+                }
+                TyKind::Opaque(op) => match op {
+                    OpaqueTy::Task { result, context } => {
+                        reach.uses_tasks = true;
+                        enqueue_ty(*result, &mut visited_tys, &mut ty_queue);
+                        if let Some(ctx) = context {
+                            enqueue_ty(*ctx, &mut visited_tys, &mut ty_queue);
+                        }
+                    }
+                    OpaqueTy::Registration { environment } => {
+                        reach.uses_regs = true;
+                        enqueue_ty(*environment, &mut visited_tys, &mut ty_queue);
+                    }
+                    OpaqueTy::AsyncRegistration { environment } => {
+                        reach.uses_aregs = true;
+                        enqueue_ty(*environment, &mut visited_tys, &mut ty_queue);
+                    }
+                    OpaqueTy::OwnedStore { element: elem }
+                    | OpaqueTy::Mutex { payload: elem }
+                    | OpaqueTy::MutexGuard { payload: elem, .. } => {
+                        enqueue_ty(*elem, &mut visited_tys, &mut ty_queue);
+                    }
+                    OpaqueTy::ForeignCallback { params, result } => {
+                        for &p in params {
+                            enqueue_ty(p, &mut visited_tys, &mut ty_queue);
+                        }
+                        enqueue_ty(*result, &mut visited_tys, &mut ty_queue);
+                    }
+                    OpaqueTy::ByteBuffer
+                    | OpaqueTy::ForeignHandle
+                    | OpaqueTy::CWideString
+                    | OpaqueTy::SyncCell(_) => {}
+                },
+                TyKind::Unit
+                | TyKind::Bool
+                | TyKind::Never
+                | TyKind::Int(_)
+                | TyKind::Float(_)
+                | TyKind::Param(_) => {}
+            }
+        }
+    }
+
+    reach
 }
