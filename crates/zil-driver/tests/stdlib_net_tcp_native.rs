@@ -545,3 +545,232 @@ fn main() -> io.Error!i32 {
         report2.diagnostics
     );
 }
+
+const WIN64_WINSOCK_LIFECYCLE_PROGRAM: &str = r#"
+import std.io
+import std.net
+
+extern "C" fn probe_wsa_is_uninitialized() -> i32;
+
+fn bytes_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() { return false }
+    var i: i64 = 0
+    while i < a.len() {
+        if a[i] != b[i] { return false }
+        i += 1
+    }
+    return true
+}
+
+fn run_loopback_round(round: i32) -> io.Error!i32 {
+    var listener = net.TcpListener.bind(net.localhost(), 0)?
+    let port = listener.local_port()?
+    var client = net.TcpStream.connect(net.localhost(), port)?
+    var server = listener.accept()?
+
+    // On odd rounds, close the listener BEFORE using the accepted stream to prove
+    // accepted TcpStream holds its own independent WSAStartup reference.
+    if round % 2 == 1 {
+        listener.close()?
+        listener.close()?
+    }
+
+    client.write_all("wsa-ping")?
+    client.shutdown_write()?
+    let req = server.read_to_end(64)?
+    if !bytes_eq(bytes_view(req), "wsa-ping") { return 21 }
+
+    server.write_all("wsa-pong")?
+    server.shutdown_write()?
+    let resp = client.read_to_end(64)?
+    if !bytes_eq(bytes_view(resp), "wsa-pong") { return 22 }
+
+    if round % 3 == 0 {
+        client.close()?
+        client.close()?
+        server.close()?
+    }
+    return 0
+}
+
+fn run_failure_paths() -> io.Error!i32 {
+    let lo = net.localhost()
+    // Capture an unused port, then close listener so connect() hits connection refused
+    // after WSAStartup + socket() succeeded.
+    var temp_listener = net.TcpListener.bind(lo, 0)?
+    let closed_port = temp_listener.local_port()?
+    temp_listener.close()?
+
+    var i: i32 = 0
+    while i < 5 {
+        match net.TcpStream.connect(lo, closed_port) {
+            .ok(_) => { return 31 },
+            .err(_) => {}
+        }
+        i += 1
+    }
+
+    match net.TcpListener.bind(lo, -1) {
+        .ok(_) => { return 32 },
+        .err(_) => {}
+    }
+    match net.TcpStream.connect(lo, 70000) {
+        .ok(_) => { return 33 },
+        .err(_) => {}
+    }
+    return 0
+}
+
+fn main() -> io.Error!i32 {
+    var uninit: i32 = 0
+    unsafe { uninit = probe_wsa_is_uninitialized() }
+    if uninit != 1 { return 1 }
+
+    // 20 rounds of connect/accept/read/write/close/Drop (including listener-first close).
+    var round: i32 = 0
+    while round < 20 {
+        let rc = run_loopback_round(round)?
+        if rc != 0 { return rc }
+        round += 1
+    }
+
+    // Repeated connect-refused and invalid-port error paths must also balance WSAStartup/WSACleanup.
+    let frc = run_failure_paths()?
+    if frc != 0 { return frc }
+
+    // Every TcpListener and TcpStream has been closed/dropped: Winsock refcount MUST be 0.
+    unsafe { uninit = probe_wsa_is_uninitialized() }
+    if uninit != 1 { return 40 }
+
+    // Re-initialization after refcount reached 0 must succeed and return to 0 again on Drop.
+    let rc2 = run_loopback_round(1)?
+    if rc2 != 0 { return rc2 }
+    unsafe { uninit = probe_wsa_is_uninitialized() }
+    if uninit != 1 { return 41 }
+
+    return 0
+}
+"#;
+
+#[test]
+fn win64_winsock_paired_lifecycle_verifies_and_emits_wsacleanup_for_windows_target() {
+    use zil_base::{FileId, ModuleId, SourceUnit, TargetProfile};
+    use zil_driver::compile_source;
+
+    let report = compile_source(
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "win64_winsock_lifecycle.zil",
+            WIN64_WINSOCK_LIFECYCLE_PROGRAM,
+        ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            backend: NativeBackend::Clang,
+            target: TargetProfile::windows_x64_llvm(),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "Win64 Winsock lifecycle program must verify for Windows target: {:?}",
+        report.diagnostics
+    );
+    assert_eq!(report.verification_runs, 1);
+
+    #[cfg(unix)]
+    {
+        let dir = temp_dir("winsock-ir");
+        let out_exe = dir.join("winsock_probe.exe");
+        let ir_report = compile_source(
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "win64_winsock_lifecycle.zil",
+                WIN64_WINSOCK_LIFECYCLE_PROGRAM,
+            ),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend: NativeBackend::Clang,
+                target: TargetProfile::windows_x64_llvm(),
+                clang: Some(PathBuf::from("/bin/true")),
+                output: Some(out_exe.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(ir_report.status, ResultCategory::Success);
+        let ir = std::fs::read_to_string(format!("{}.ll", out_exe.display()))
+            .expect("read emitted winsock IR");
+        assert!(ir.contains("@WSAStartup"), "missing @WSAStartup");
+        assert!(ir.contains("@WSACleanup"), "missing @WSACleanup");
+        assert!(ir.contains("@closesocket"), "missing @closesocket");
+    }
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn win64_native_winsock_paired_lifecycle_and_refcount_zero() {
+    let dir = temp_dir("win64-winsock-refcount");
+    let entry = write_source(&dir, "main.zil", WIN64_WINSOCK_LIFECYCLE_PROGRAM);
+    let probe_c = dir.join("winsock_probe.c");
+    std::fs::write(
+        &probe_c,
+        r#"
+#include <stdint.h>
+#include <winsock2.h>
+
+int32_t probe_wsa_is_uninitialized(void) {
+    int rc = WSACleanup();
+    if (rc == SOCKET_ERROR && WSAGetLastError() == WSANOTINITIALISED) {
+        return 1;
+    }
+    return 0;
+}
+"#,
+    )
+    .expect("write winsock_probe.c");
+
+    for (label, backend, opt) in dual_configs() {
+        let exe = dir.join(format!("winsock_refcount_{label}.exe"));
+        let mut session = CompilationSession::new();
+        let report = session.compile_path(
+            &entry,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization: opt,
+                backend,
+                output: Some(exe.clone()),
+                extra_c_sources: vec![probe_c.clone()],
+                codegen: CodegenOptions { units: 1, jobs: 1 },
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "Win64 Winsock lifecycle build failed ({label}): {:?}",
+            report.diagnostics
+        );
+        assert_eq!(report.verification_runs, 1);
+
+        let out = Command::new(&exe)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .unwrap_or_else(|e| panic!("failed to run {}: {e}", exe.display()));
+        assert!(
+            out.stderr.is_empty(),
+            "unexpected stderr ({label}): {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "Win64 Winsock refcount==0 check failed with exit code {:?} ({label})",
+            out.status.code()
+        );
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

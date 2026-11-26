@@ -119,7 +119,7 @@ lint 与格式范围：新管线 crate（`zil-semantics`、`zil-solve`、`zil-ch
 
 ## 边界
 
-- 实测Linux原生构建运行；Win64已验证COFF对象与PE交叉链接，没有Windows宿主安装或Windows本机运行验收。Store仍遵守原有Linux目标限制。
+- 实测 Linux x86_64 与 Windows x64 原生双后端（Clang + LLVM 23.1.4 C API × O0/O2）构建运行及无源码/无 Rust 干净环境独立安装验收。Windows 发行包内置 `zil.exe` 与 `LLVM-C.dll`（无需 Rust/Cargo），最终原生 PE 链接仍依赖系统已安装的 C 链接工具链（`clang.exe` 与 Windows SDK/MSVC UCRT 导入库）。
 - 机器预检不使任意恶意IR成为可信输入，也不隔离LLVM本身的原生错误。原生unsafe仅在登记的适配边界；Verify继续禁止unsafe。
 - 取消是阶段间协作检查，不能立即打断LLVM pass或链接器。失败不会返回旧成功产物作为本次结果；崩溃时暂存目录可能残留。
 - LLVM前后结构核验、对象生成和链接均可失败，任何失败都停止发布。
