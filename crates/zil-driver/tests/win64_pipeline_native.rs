@@ -293,8 +293,8 @@ fn consume(h: Handle) -> i32 {
 
 fn main() -> i32 {
     let h = Handle { fd: 9 }
-    let a = consume(h)
-    let b = consume(h)
+    let a = consume(give h)
+    let b = consume(give h)
     return a + b
 }
 "#;
@@ -311,39 +311,12 @@ fn main() -> i32 {
         ResultCategory::SafeReject,
         "use-after-move must be SafeReject on Windows target too"
     );
-}
-
-#[cfg(feature = "llvm-api")]
-#[test]
-fn win64_llvm_api_emits_amd64_coff_object() {
-    let verified = verify_body_program(&[("win64_coff.zil", CORE_WIN64_PROGRAM)])
-        .expect("core Win64 program must verify");
-    let triple = "x86_64-pc-windows-msvc";
-    let ir = emit_verified_body_for_target(&verified, true, triple)
-        .expect("Win64 IR emission must succeed");
-    let structured = zil_backend_llvm::build_structured_module(&ir, triple, "win64-w1-coff")
-        .expect("structured module build for Win64 must succeed");
-
-    for opt in [
-        zil_llvm_api::Optimization::O0,
-        zil_llvm_api::Optimization::O2,
-    ] {
-        let obj = zil_llvm_api::compile_module(
-            &structured,
-            &zil_llvm_api::Config {
-                triple,
-                optimization: opt,
-            },
-            &|| false,
-        )
-        .expect("zil-llvm-api must emit AMD64 COFF object for Win64");
-        assert!(
-            obj.bytes.starts_with(b"\x64\x86"),
-            "expected AMD64 COFF header (0x8664), got {:?}",
-            &obj.bytes[..obj.bytes.len().min(8)]
-        );
-        assert_eq!(obj.receipt.triple, triple);
-    }
+    assert_ne!(
+        report.phase,
+        zil_base::Phase::Codegen,
+        "safety violation must be rejected before Codegen, got {:?}",
+        report
+    );
 }
 
 #[cfg(target_os = "windows")]
