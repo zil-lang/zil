@@ -137,10 +137,24 @@ def verify_bundle(
                 bad_files.append(f"sha256:{rel}")
         if bad_files:
             errors.append(f"packaged file integrity failures: {bad_files}")
+
+        manifest_symlinks = manifest.get("symlinks") or []
+        bad_symlinks: list[str] = []
+        for entry in manifest_symlinks:
+            rel = entry["path"]
+            want_target = entry["target"]
+            p = bundle_dir / rel
+            if not p.is_symlink() or os.readlink(p) != want_target:
+                bad_symlinks.append(rel)
+        if bad_symlinks:
+            errors.append(f"packaged symlink integrity failures: {bad_symlinks}")
+
         checks["manifest_inventory"] = {
-            "status": "pass" if not bad_files and manifest_files else "fail",
+            "status": "pass" if (not bad_files and not bad_symlinks and manifest_files) else "fail",
             "verified_files": len(manifest_files) - len(bad_files),
             "total_files": len(manifest_files),
+            "verified_symlinks": len(manifest_symlinks) - len(bad_symlinks),
+            "total_symlinks": len(manifest_symlinks),
         }
 
         inner_manifest = bundle_dir / "RELEASE-MANIFEST.json"
@@ -164,14 +178,14 @@ def verify_bundle(
             if not ver_ok:
                 errors.append(f"zil version failed: rc={ver.returncode} out={ver.stdout!r} err={ver.stderr!r}")
 
-            # 2. Build & execute standalone multi-module json-processor at O0 and O2 with UTF-16 surrogate pairs.
-            json_entry = bundle_dir / "examples/everyday-apps/json-processor/main.zil"
+            # 2. Build & execute standalone multi-module json-processor project (`Zil.toml`) at O0 and O2 with UTF-16 surrogate pairs.
+            json_project = bundle_dir / "examples/everyday-apps/json-processor"
             sample_json = work_dir / "unicode.json"
             sample_json.write_text('{"emoji":"\\uD83D\\uDE00","text":"\\u4E2D\\u6587"}', encoding="utf-8")
             for opt in ("O0", "O2"):
                 out_bin = work_dir / f"json-processor-{opt}"
                 b = _run(
-                    [zil_exe, "build", str(json_entry), "-o", str(out_bin), "--opt", opt],
+                    [zil_exe, "build", str(json_project), "-o", str(out_bin), "--opt", opt],
                     env=env,
                     cwd=work_dir,
                 )
@@ -191,11 +205,11 @@ def verify_bundle(
                         f"json-processor run ({opt}) mismatch: rc={r.returncode} out={r.stdout!r} err={r.stderr!r}"
                     )
 
-            # 3. Build & execute standalone multi-module async-task-scheduler at O2.
-            async_entry = bundle_dir / "examples/everyday-apps/async-task-scheduler/main.zil"
+            # 3. Build & execute standalone multi-module async-task-scheduler project (`Zil.toml`) at O2.
+            async_project = bundle_dir / "examples/everyday-apps/async-task-scheduler"
             async_bin = work_dir / "async-scheduler-O2"
             ba = _run(
-                [zil_exe, "build", str(async_entry), "-o", str(async_bin), "--opt", "O2"],
+                [zil_exe, "build", str(async_project), "-o", str(async_bin), "--opt", "O2"],
                 env=env,
                 cwd=work_dir,
             )
@@ -204,7 +218,11 @@ def verify_bundle(
                 checks["async_task_scheduler_O2"] = {"status": "fail", "stage": "build"}
             else:
                 ra = _run([str(async_bin)], env=env, cwd=work_dir)
-                ok = ra.returncode == 0 and "SUMMARY" in ra.stdout and ra.stderr == ""
+                ok = (
+                    ra.returncode == 0
+                    and "SUMMARY completed=4 cancelled=1 " in ra.stdout
+                    and ra.stderr == ""
+                )
                 checks["async_task_scheduler_O2"] = {
                     "status": "pass" if ok else "fail",
                     "exit_code": ra.returncode,

@@ -24,7 +24,8 @@ class ReleasePackagingTests(unittest.TestCase):
             fake_bin.write_bytes(b"\x7fELFfake-zil-binary")
             fake_llvm_dir = root / "llvm-lib"
             fake_llvm_dir.mkdir()
-            (fake_llvm_dir / "libLLVM-23.so").write_bytes(b"\x7fELFfake-libllvm-23")
+            (fake_llvm_dir / "libLLVM.so.23.1").write_bytes(b"\x7fELFfake-libllvm-23")
+            (fake_llvm_dir / "libLLVM-23.so").symlink_to("libLLVM.so.23.1")
 
             out1 = root / "out1"
             out2 = root / "out2"
@@ -58,6 +59,7 @@ class ReleasePackagingTests(unittest.TestCase):
             self.assertEqual(errors, [])
             self.assertEqual(report["status"], "pass")
             self.assertGreater(report["checks"]["manifest_inventory"]["verified_files"], 20)
+            self.assertEqual(report["checks"]["manifest_inventory"]["verified_symlinks"], 1)
 
             # Tamper with SHA256SUMS and confirm fail-closed rejection.
             (out1 / "SHA256SUMS.txt").write_text(
