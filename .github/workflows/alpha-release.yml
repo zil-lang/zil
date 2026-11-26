@@ -90,7 +90,8 @@ jobs:
             --version "$RELEASE_NAME" \
             --source-commit "$COMMIT" \
             --source-tree "$TREE" \
-            --clang-bin "$ZIL_CLANG"
+            --clang-bin "$ZIL_CLANG" \
+            --lock-examples
           cp tools/release/verify_clean_install.py "$OUT_DIR/verify_clean_install.py"
           echo "RELEASE_NAME=$RELEASE_NAME" >> "$GITHUB_ENV"
       - name: Upload packaged release artifact

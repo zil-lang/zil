@@ -132,6 +132,7 @@ def package_release(
     source_commit: str,
     source_tree: str,
     clang_bin: str = "clang",
+    lock_examples: bool = False,
 ) -> dict[str, Any]:
     llvm_version = (repo / "tools/llvm/version.txt").read_text(encoding="utf-8").strip()
     parts = llvm_version.split(".")
@@ -185,6 +186,11 @@ def package_release(
                 shutil.copy2(src_top, stage / top_file)
 
         _copy_tree(repo / "examples/everyday-apps", stage / "examples/everyday-apps")
+
+        if lock_examples:
+            for app_dir in sorted((stage / "examples/everyday-apps").iterdir()):
+                if (app_dir / "Zil.toml").is_file():
+                    subprocess.run([str(wrapper_dst), "lock", str(app_dir)], check=True)
 
         # 4. Record exact file & symlink inventory before writing RELEASE-MANIFEST.json.
         files_inventory: list[dict[str, Any]] = []
@@ -268,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--source-tree", required=True)
     parser.add_argument("--clang-bin", default=os.environ.get("ZIL_CLANG", "clang"))
+    parser.add_argument("--lock-examples", action="store_true")
     args = parser.parse_args(argv)
 
     result = package_release(
@@ -279,6 +286,7 @@ def main(argv: list[str] | None = None) -> int:
         source_commit=args.source_commit,
         source_tree=args.source_tree,
         clang_bin=args.clang_bin,
+        lock_examples=args.lock_examples,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
