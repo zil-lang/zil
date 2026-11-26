@@ -277,6 +277,13 @@ pub fn query_path(doc: &JsonDocument, path: &[u8]) -> lexer.JsonError!i64 {
     return cur
 }
 
+fn hex_digit(nibble: u8) -> u8 {
+    if nibble < 10u8 {
+        return 48u8 + nibble
+    }
+    return 87u8 + nibble
+}
+
 fn write_escaped_string(out: ByteBuffer, bytes: &[u8]) -> lexer.JsonError!void {
     lexer.push_byte(out, 34u8)?
     var at: i64 = 0
@@ -296,6 +303,10 @@ fn write_escaped_string(out: ByteBuffer, bytes: &[u8]) -> lexer.JsonError!void {
             lexer.push_slice(out, "\\r")?
         } else if ch == 9u8 {
             lexer.push_slice(out, "\\t")?
+        } else if ch < 32u8 {
+            lexer.push_slice(out, "\\u00")?
+            lexer.push_byte(out, hex_digit(ch / 16u8))?
+            lexer.push_byte(out, hex_digit(ch % 16u8))?
         } else {
             lexer.push_byte(out, ch)?
         }

@@ -79,7 +79,7 @@ fn server_worker(port_cell: &AtomicI32) -> i32 {
             // Publish bound ephemeral port to client with Release ordering.
             atomic_store_ordered(port_cell, port, MemoryOrder.Release)
 
-            let expected_requests: i32 = 5
+            let expected_requests: i32 = 11
             var handled: i32 = 0
             while handled < expected_requests {
                 match listener.accept() {
@@ -211,6 +211,30 @@ fn run_client_suite(port: i32) -> i32 {
     )
     if r_echo != 0 { return r_echo }
 
+    let r_echo_empty = send_http_and_verify(
+        port,
+        "GET /echo?a=1&msg=&b=2",
+        "GET",
+        "/echo?a=1&msg=&b=2",
+        "",
+        200,
+        "OK",
+        "echo:"
+    )
+    if r_echo_empty != 0 { return r_echo_empty }
+
+    let r_echo_missing = send_http_and_verify(
+        port,
+        "GET /echo",
+        "GET",
+        "/echo",
+        "",
+        400,
+        "Bad Request",
+        "missing msg"
+    )
+    if r_echo_missing != 0 { return r_echo_missing }
+
     let r_upper = send_http_and_verify(
         port,
         "POST /upper",
@@ -245,6 +269,46 @@ fn run_client_suite(port: i32) -> i32 {
     )
     if r_bad != 0 { return r_bad }
 
+    let r_bad_cl = send_raw_and_verify(
+        port,
+        "BAD_CL",
+        "POST /upper HTTP/1.1\r\nHost: localhost\r\nContent-Length: 10\r\n\r\nshort",
+        400,
+        "Bad Request",
+        "bad request"
+    )
+    if r_bad_cl != 0 { return r_bad_cl }
+
+    let r_bad_dup_cl = send_raw_and_verify(
+        port,
+        "BAD_DUP_CL",
+        "POST /upper HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nhi",
+        400,
+        "Bad Request",
+        "bad request"
+    )
+    if r_bad_dup_cl != 0 { return r_bad_dup_cl }
+
+    let r_bad_ver = send_raw_and_verify(
+        port,
+        "BAD_VER",
+        "GET /health HTTP/1.0\r\nHost: localhost\r\n\r\n",
+        400,
+        "Bad Request",
+        "bad request"
+    )
+    if r_bad_ver != 0 { return r_bad_ver }
+
+    let r_bad_hdr = send_raw_and_verify(
+        port,
+        "BAD_HDR",
+        "GET /health HTTP/1.1\r\nBrokenHeaderWithoutColon\r\n\r\n",
+        400,
+        "Bad Request",
+        "bad request"
+    )
+    if r_bad_hdr != 0 { return r_bad_hdr }
+
     return 0
 }
 
@@ -276,6 +340,6 @@ fn main() -> i32 {
     if rc != 0 { return rc }
 
     match io.print("SERVED ") { .ok(_) => {}, .err(_) => { return 8 } }
-    match io.println_i64(5) { .ok(_) => {}, .err(_) => { return 8 } }
+    match io.println_i64(11) { .ok(_) => {}, .err(_) => { return 8 } }
     return 0
 }

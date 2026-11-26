@@ -403,6 +403,59 @@ fn everyday_app_csv_processor_dual_backend() {
         let (code, _out, err) = run_cli(exe, &["bad-cmd", input_str, "amount"]);
         assert_eq!(code, 2, "{label} bad args should exit 2");
         assert!(!err.is_empty());
+
+        // 6. RFC 4180 boundaries: embedded newlines inside quotes, empty fields, trailing empty
+        // field, CRLF/LF mix, and input without a trailing newline.
+        let rfc_csv = work.join(format!("rfc4180-{label}.csv"));
+        std::fs::write(
+            &rfc_csv,
+            "k,note,v\r\n,\",\",10\r\n\"multi\nline\",\"a\"\"b\",20\nlast,,",
+        )
+        .expect("write rfc4180 csv");
+        let rfc_out = work.join(format!("rfc4180-out-{label}.csv"));
+        let rfc_csv_str = rfc_csv.to_str().expect("utf8 path");
+        let rfc_out_str = rfc_out.to_str().expect("utf8 path");
+        let (code, out, err) = run_cli(exe, &["normalize", rfc_csv_str, rfc_out_str]);
+        assert_eq!(code, 0, "{label} rfc4180 normalize failed: stderr={err}");
+        assert!(out.is_empty());
+        assert!(err.is_empty());
+        assert_eq!(
+            std::fs::read_to_string(&rfc_out).expect("read rfc4180 normalized"),
+            "k,note,v\n,\",\",10\n\"multi\nline\",\"a\"\"b\",20\nlast,,\n",
+            "{label} rfc4180 normalized CSV mismatch"
+        );
+
+        let stray_quote = work.join(format!("stray-quote-{label}.csv"));
+        std::fs::write(&stray_quote, "a,b\nfoo\"bar,1\n").expect("write stray_quote.csv");
+        let (code, _out, err) = run_cli(
+            exe,
+            &[
+                "normalize",
+                stray_quote.to_str().expect("utf8 path"),
+                untouched_str,
+            ],
+        );
+        assert_eq!(
+            code, 1,
+            "{label} stray quote in unquoted field should exit 1"
+        );
+        assert!(!err.is_empty());
+
+        let after_quote = work.join(format!("after-quote-{label}.csv"));
+        std::fs::write(&after_quote, "a,b\n\"ok\"trailing,1\n").expect("write after_quote.csv");
+        let (code, _out, err) = run_cli(
+            exe,
+            &[
+                "normalize",
+                after_quote.to_str().expect("utf8 path"),
+                untouched_str,
+            ],
+        );
+        assert_eq!(
+            code, 1,
+            "{label} trailing char after closing quote should exit 1"
+        );
+        assert!(!err.is_empty());
     }
 
     // Paired nearest safety-negative control: returning a dangling reference to a local CsvRow buffer.
@@ -449,6 +502,7 @@ fn everyday_app_json_processor_dual_backend() {
   "version": -42,
   "ratio": 3.14,
   "greeting": "line1\n\t\"caf\u00e9\"\\ok",
+  "unicode": "\u4E2D\u6587\uD83D\uDE00\uD83C\uDF89\u001f",
   "items": [
     { "id": 10, "tags": ["alpha", "beta"] },
     { "id": 20, "tags": [] }
@@ -470,6 +524,21 @@ fn everyday_app_json_processor_dual_backend() {
     let leading_zero_json = work.join("leading_zero.json");
     std::fs::write(&leading_zero_json, r#"{"n": 01}"#).expect("write leading_zero.json");
 
+    let lone_high_surrogate_json = work.join("lone_high_surrogate.json");
+    std::fs::write(&lone_high_surrogate_json, r#"{"bad": "\uD83D"}"#)
+        .expect("write lone_high_surrogate.json");
+
+    let high_plus_bmp_json = work.join("high_plus_bmp.json");
+    std::fs::write(&high_plus_bmp_json, r#"{"bad": "\uD83D\u0041"}"#)
+        .expect("write high_plus_bmp.json");
+
+    let lone_low_surrogate_json = work.join("lone_low_surrogate.json");
+    std::fs::write(&lone_low_surrogate_json, r#"{"bad": "\uDE00"}"#)
+        .expect("write lone_low_surrogate.json");
+
+    let raw_control_json = work.join("raw_control.json");
+    std::fs::write(&raw_control_json, "{\"bad\": \"a\x01b\"}").expect("write raw_control.json");
+
     let binaries = build_project_all_backends(
         "examples/everyday-apps/json-processor",
         &work,
@@ -481,8 +550,12 @@ fn everyday_app_json_processor_dual_backend() {
     let unterminated_str = unterminated_json.to_str().expect("utf8 path");
     let trailing_comma_str = trailing_comma_json.to_str().expect("utf8 path");
     let leading_zero_str = leading_zero_json.to_str().expect("utf8 path");
+    let lone_high_str = lone_high_surrogate_json.to_str().expect("utf8 path");
+    let high_plus_bmp_str = high_plus_bmp_json.to_str().expect("utf8 path");
+    let lone_low_str = lone_low_surrogate_json.to_str().expect("utf8 path");
+    let raw_control_str = raw_control_json.to_str().expect("utf8 path");
 
-    let expected_canonical = "{\"service\":\"zil-core\",\"active\":true,\"retired\":false,\"note\":null,\"version\":-42,\"ratio\":3.14,\"greeting\":\"line1\\n\\t\\\"café\\\"\\\\ok\",\"items\":[{\"id\":10,\"tags\":[\"alpha\",\"beta\"]},{\"id\":20,\"tags\":[]}]}";
+    let expected_canonical = "{\"service\":\"zil-core\",\"active\":true,\"retired\":false,\"note\":null,\"version\":-42,\"ratio\":3.14,\"greeting\":\"line1\\n\\t\\\"café\\\"\\\\ok\",\"unicode\":\"中文😀🎉\\u001f\",\"items\":[{\"id\":10,\"tags\":[\"alpha\",\"beta\"]},{\"id\":20,\"tags\":[]}]}";
 
     for (label, exe) in &binaries {
         // 1. validate
@@ -491,7 +564,7 @@ fn everyday_app_json_processor_dual_backend() {
         assert!(err.is_empty());
         assert_eq!(out, "VALID\n");
 
-        // 2. format to file and verify deterministic round-trip
+        // 2. format to file and verify deterministic round-trip (including UTF-16 surrogate pairs & control-char escaping)
         let roundtrip_one = work.join(format!("roundtrip-one-{label}.json"));
         let roundtrip_two = work.join(format!("roundtrip-two-{label}.json"));
         let rt1_str = roundtrip_one.to_str().expect("utf8 path");
@@ -517,7 +590,7 @@ fn everyday_app_json_processor_dual_backend() {
             "{label} round-trip serialization must be byte-identical"
         );
 
-        // 3. query nested paths
+        // 3. query nested paths including UTF-16 surrogate-decoded supplementary Unicode
         let (code, out, err) = run_cli(exe, &["query", sample_str, "items.0.tags.1"]);
         assert_eq!(code, 0, "{label} query items.0.tags.1 failed: stderr={err}");
         assert!(err.is_empty());
@@ -533,12 +606,17 @@ fn everyday_app_json_processor_dual_backend() {
         assert!(err.is_empty(), "{label} query greeting stderr: {err}");
         assert_eq!(out, "\"line1\\n\\t\\\"café\\\"\\\\ok\"\n");
 
+        let (code, out, err) = run_cli(exe, &["query", sample_str, "unicode"]);
+        assert_eq!(code, 0);
+        assert!(err.is_empty(), "{label} query unicode stderr: {err}");
+        assert_eq!(out, "\"中文😀🎉\\u001f\"\n");
+
         let (code, out, err) = run_cli(exe, &["query", sample_str, "."]);
         assert_eq!(code, 0);
         assert!(err.is_empty(), "{label} query root stderr: {err}");
         assert_eq!(out, format!("{expected_canonical}\n"));
 
-        // 4. Reject invalid JSON inputs cleanly without creating output files.
+        // 4. Reject invalid JSON inputs (including lone/mismatched UTF-16 surrogates & raw control chars) cleanly without creating output files.
         let untouched = work.join(format!("bad-out-{label}.json"));
         let untouched_str = untouched.to_str().expect("utf8 path");
         for (case_name, bad_path) in [
@@ -546,6 +624,10 @@ fn everyday_app_json_processor_dual_backend() {
             ("unterminated", unterminated_str),
             ("trailing-comma", trailing_comma_str),
             ("leading-zero", leading_zero_str),
+            ("lone-high-surrogate", lone_high_str),
+            ("high-plus-bmp", high_plus_bmp_str),
+            ("lone-low-surrogate", lone_low_str),
+            ("raw-control-char", raw_control_str),
         ] {
             let (code, _out, err) = run_cli(exe, &["format", bad_path, untouched_str]);
             assert_eq!(code, 1, "{label} {case_name} should exit 1");
