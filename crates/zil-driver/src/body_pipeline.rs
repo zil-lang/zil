@@ -380,7 +380,6 @@ fn main() -> i32 {
         assert_eq!(err.phase, Phase::Ct);
     }
 
-    #[cfg(not(target_os = "windows"))]
     #[test]
     fn native_o0_and_o2_execute_store_lifo_drop_bytes_mutex_and_thread_scope() {
         let dir =
@@ -469,7 +468,10 @@ fn main() -> i32 {
 "#;
 
         for (label, opt) in [("O0", Optimization::O0), ("O2", Optimization::O2)] {
-            let exe = dir.join(format!("store_native_{label}"));
+            let exe = dir.join(format!(
+                "store_native_{label}{}",
+                std::env::consts::EXE_SUFFIX
+            ));
             build_body_source_native(
                 "store_native.zil",
                 zil_src,
