@@ -1,0 +1,140 @@
+name: Windows x64 native verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'crates/zil-base/**'
+      - 'crates/zil-backend-llvm/**'
+      - 'crates/zil-driver/**'
+      - 'crates/zil-cli/**'
+      - 'crates/zil-llvm-api/**'
+      - '.github/workflows/windows-native.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'crates/zil-base/**'
+      - 'crates/zil-backend-llvm/**'
+      - 'crates/zil-driver/**'
+      - 'crates/zil-cli/**'
+      - 'crates/zil-llvm-api/**'
+      - '.github/workflows/windows-native.yml'
+permissions:
+  contents: read
+concurrency:
+  group: zil-windows-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-x64-bringup:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CARGO_BUILD_JOBS: '4'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TERM_COLOR: 'always'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Cache Cargo registry and Windows build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ${{ runner.temp }}/target-win64
+          key: zil-cargo-win64-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            zil-cargo-win64-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+            zil-cargo-win64-v1-
+      - name: Verify Rust 1.100.0 and Clang on Windows x64
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          "CARGO_TARGET_DIR=$env:RUNNER_TEMP\target-win64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          rustup toolchain install 1.100.0 --profile minimal
+          rustc -vV
+          if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
+            $llvmBin = "C:\Program Files\LLVM\bin"
+            if (Test-Path "$llvmBin\clang.exe") {
+              $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              $env:PATH = "$llvmBin;$env:PATH"
+            }
+          }
+          clang --version
+      - name: Build native zil.exe (Clang backend)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cargo build --locked -p zil-cli --no-default-features
+          $zil = "$env:CARGO_TARGET_DIR\debug\zil.exe"
+          & $zil version
+      - name: Run Windows x64 driver unit & pipeline tests
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cargo test --locked -p zil-driver --no-default-features --lib
+          cargo test --locked -p zil-driver --no-default-features --test win64_pipeline_native
+      - name: End-to-end native zil.exe check/build/run/test smoke on Windows x64
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zil = "$env:CARGO_TARGET_DIR\debug\zil.exe"
+          $work = Join-Path $env:RUNNER_TEMP "zil-win64-smoke"
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+
+          $hello = Join-Path $work "hello.zil"
+          @"
+          extern "C" fn putchar(c: i32) -> i32;
+
+          fn main() -> i32 {
+              unsafe {
+                  let _ = putchar(87)
+                  let _ = putchar(73)
+                  let _ = putchar(78)
+                  let _ = putchar(54)
+                  let _ = putchar(52)
+                  let _ = putchar(10)
+              }
+              return 0
+          }
+          "@ | Set-Content -Path $hello -Encoding utf8
+
+          & $zil check $hello
+          $out = & $zil run $hello
+          if ($LASTEXITCODE -ne 0) { throw "zil run failed with exit code $LASTEXITCODE" }
+          if ($out -notmatch "WIN64") { throw "unexpected stdout: $out" }
+
+          $exe = Join-Path $work "hello_o2.exe"
+          & $zil build $hello --opt O2 -o $exe
+          if (-not (Test-Path $exe)) { throw "expected $exe to exist" }
+          $out2 = & $exe
+          if ($LASTEXITCODE -ne 0) { throw "hello_o2.exe failed with exit code $LASTEXITCODE" }
+          if ($out2 -notmatch "WIN64") { throw "unexpected O2 stdout: $out2" }
+
+          # Exercise native zil test with a Zil.toml project on Windows.
+          $proj = Join-Path $work "proj"
+          New-Item -ItemType Directory -Force -Path (Join-Path $proj "src") | Out-Null
+          @"
+          [package]
+          root = "src/main.zil"
+          "@ | Set-Content -Path (Join-Path $proj "Zil.toml") -Encoding utf8
+          @"
+          fn add(a: i32, b: i32) -> i32 { return a + b }
+
+          #[test]
+          fn test_add() -> i32 {
+              if add(20, 22) == 42 { return 0 }
+              return 1
+          }
+
+          fn main() -> i32 { return 0 }
+          "@ | Set-Content -Path (Join-Path $proj "src\main.zil") -Encoding utf8
+          & $zil lock $proj
+          if ($LASTEXITCODE -ne 0) { throw "zil lock failed with exit code $LASTEXITCODE" }
+          & $zil test $proj
+          if ($LASTEXITCODE -ne 0) { throw "zil test failed with exit code $LASTEXITCODE" }

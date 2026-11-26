@@ -249,6 +249,8 @@ pub fn build_body_source_native(
             output,
             optimization,
             backend: zil_backend_llvm::NativeBackend::Clang,
+            target: zil_base::TargetProfile::host_llvm(),
+            windows: None,
             clang: None,
             extra_c_sources,
             emit_c_main: true,
@@ -336,7 +338,11 @@ fn main() -> i32 {
 "#;
 
         for (label, opt) in [("o0", Optimization::O0), ("o2", Optimization::O2)] {
-            let bin = dir.join(format!("app_{label}"));
+            let bin = dir.join(if cfg!(windows) {
+                format!("app_{label}.exe")
+            } else {
+                format!("app_{label}")
+            });
             build_body_source_native(
                 "native_cleanup",
                 zil_src,
@@ -374,6 +380,7 @@ fn main() -> i32 {
         assert_eq!(err.phase, Phase::Ct);
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn native_o0_and_o2_execute_store_lifo_drop_bytes_mutex_and_thread_scope() {
         let dir =

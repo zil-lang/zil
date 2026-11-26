@@ -1483,4 +1483,63 @@ entry:
             assert!(!obj.bytes.is_empty());
         }
     }
+
+    #[test]
+    fn win64_msvc_structured_module_passes_preflight_and_emits_amd64_coff() {
+        let ir = r#"; ZIL Verified Body IR -> LLVM 23 IR
+target triple = "x86_64-pc-windows-msvc"
+
+declare ptr @calloc(i64, i64) nobuiltin
+declare void @free(ptr) nobuiltin
+declare ptr @_errno()
+@__zil_current_task = linkonce_odr thread_local global ptr null
+@__zil_task_cancel_trap = linkonce_odr thread_local global i1 false
+@zil_process_argc = linkonce_odr global i32 0
+@zil_process_argv = linkonce_odr global ptr null
+
+define internal i32 @zil_glibc_errno_exchange(i32 %next) {
+entry:
+  %p = call ptr @_errno()
+  %old = load i32, ptr %p
+  store i32 %next, ptr %p
+  ret i32 %old
+}
+
+define i32 @main(i32 %argc, ptr %argv) {
+entry:
+  store i32 %argc, ptr @zil_process_argc
+  store ptr %argv, ptr @zil_process_argv
+  %prev = call i32 @zil_glibc_errno_exchange(i32 0)
+  ret i32 %prev
+}
+"#;
+        let triple = "x86_64-pc-windows-msvc";
+        let module = build_structured_module(ir, triple, "win64-w1-coff")
+            .expect("structured module build should succeed for Win64 MSVC IR");
+        zil_llvm_api::validate_module(&module)
+            .expect("Win64 MSVC structured module should pass zil-llvm-api preflight");
+
+        #[cfg(feature = "llvm-api")]
+        {
+            for opt in [
+                zil_llvm_api::Optimization::O0,
+                zil_llvm_api::Optimization::O2,
+            ] {
+                let obj = zil_llvm_api::compile_module(
+                    &module,
+                    &zil_llvm_api::Config {
+                        triple,
+                        optimization: opt,
+                    },
+                    &|| false,
+                )
+                .expect("structured compile_module should emit AMD64 COFF object");
+                assert!(
+                    obj.bytes.starts_with(b"\x64\x86"),
+                    "expected AMD64 COFF magic 0x8664"
+                );
+                assert_eq!(obj.receipt.triple, triple);
+            }
+        }
+    }
 }
