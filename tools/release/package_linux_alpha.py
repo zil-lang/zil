@@ -107,6 +107,11 @@ def _create_deterministic_tar_gz(stage_root: Path, bundle_name: str, out_archive
                         info.type = tarfile.DIRTYPE
                         info.mode = 0o755
                         tf.addfile(info)
+                    elif stat.S_ISLNK(st.st_mode):
+                        info.type = tarfile.SYMTYPE
+                        info.mode = 0o777
+                        info.linkname = os.readlink(full)
+                        tf.addfile(info)
                     elif stat.S_ISREG(st.st_mode):
                         info.type = tarfile.REGTYPE
                         info.mode = 0o755 if (st.st_mode & 0o111) else 0o644
@@ -129,9 +134,16 @@ def package_release(
     clang_bin: str = "clang",
 ) -> dict[str, Any]:
     llvm_version = (repo / "tools/llvm/version.txt").read_text(encoding="utf-8").strip()
-    llvm_major = llvm_version.split(".")[0]
-    llvm_dso_name = f"libLLVM-{llvm_major}.so"
-    llvm_dso_src = (llvm_lib_dir / llvm_dso_name).resolve(strict=True)
+    parts = llvm_version.split(".")
+    llvm_major, llvm_minor = parts[0], parts[1]
+    llvm_soname = f"libLLVM.so.{llvm_major}.{llvm_minor}"
+    llvm_link_name = f"libLLVM-{llvm_major}.so"
+    soname_candidate = llvm_lib_dir / llvm_soname
+    link_candidate = llvm_lib_dir / llvm_link_name
+    if soname_candidate.exists():
+        llvm_dso_src = soname_candidate.resolve(strict=True)
+    else:
+        llvm_dso_src = link_candidate.resolve(strict=True)
     zil_bin = zil_bin.resolve(strict=True)
 
     bundle_name = f"zil-{version}-linux-x86_64"
@@ -153,10 +165,12 @@ def package_release(
         wrapper_dst.write_text(WRAPPER_SCRIPT, encoding="utf-8")
         os.chmod(wrapper_dst, 0o755)
 
-        # 2. Bundle pinned libLLVM shared library so `zil` works out-of-the-box.
-        llvm_dst = stage / "lib" / llvm_dso_name
+        # 2. Bundle pinned libLLVM shared library under its runtime ELF SONAME
+        # (`libLLVM.so.<major>.<minor>`) plus compatibility symlink `libLLVM-<major>.so`.
+        llvm_dst = stage / "lib" / llvm_soname
         shutil.copy2(llvm_dso_src, llvm_dst)
         os.chmod(llvm_dst, 0o644)
+        (stage / "lib" / llvm_link_name).symlink_to(llvm_soname)
 
         # 3. Bundle docs, license, and the 8 everyday multi-module ZIL apps.
         for doc_rel in ("docs/guide/build.md", "docs/guide/supported-language.md"):
@@ -172,21 +186,25 @@ def package_release(
 
         _copy_tree(repo / "examples/everyday-apps", stage / "examples/everyday-apps")
 
-        # 4. Record exact file inventory and SHA-256 hashes before writing RELEASE-MANIFEST.json.
+        # 4. Record exact file & symlink inventory before writing RELEASE-MANIFEST.json.
         files_inventory: list[dict[str, Any]] = []
+        symlinks_inventory: list[dict[str, str]] = []
         for root, dirs, files in os.walk(stage):
             dirs.sort()
             files.sort()
             for name in files:
                 p = Path(root) / name
                 rel = p.relative_to(stage).as_posix()
-                files_inventory.append(
-                    {
-                        "path": rel,
-                        "bytes": p.stat().st_size,
-                        "sha256": sha256_file(p),
-                    }
-                )
+                if p.is_symlink():
+                    symlinks_inventory.append({"path": rel, "target": os.readlink(p)})
+                else:
+                    files_inventory.append(
+                        {
+                            "path": rel,
+                            "bytes": p.stat().st_size,
+                            "sha256": sha256_file(p),
+                        }
+                    )
 
         manifest: dict[str, Any] = {
             "schema_version": 1,
@@ -198,7 +216,8 @@ def package_release(
             "source_tree": source_tree,
             "toolchain": {
                 "llvm_version": llvm_version,
-                "llvm_dso": f"lib/{llvm_dso_name}",
+                "llvm_dso": f"lib/{llvm_soname}",
+                "llvm_dso_link": f"lib/{llvm_link_name}",
                 "llvm_dso_sha256": sha256_file(llvm_dst),
                 "rustc_banner": _cmd_banner(["rustc", "--version"]),
                 "clang_banner": _cmd_banner([clang_bin, "--version"]),
@@ -209,6 +228,7 @@ def package_release(
                 "System shared libraries: libzstd1, libxml2, zlib1g",
             ],
             "files": files_inventory,
+            "symlinks": symlinks_inventory,
         }
 
         manifest_bytes = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
