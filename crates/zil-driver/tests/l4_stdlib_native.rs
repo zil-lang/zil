@@ -63,7 +63,7 @@ fn build_and_run_dual(
 ) -> (i32, Vec<u8>) {
     let mut expected: Option<(i32, Vec<u8>)> = None;
     for (label, backend, opt) in dual_configs() {
-        let exe = dir.join(format!("bin-{tag}-{label}"));
+        let exe = dir.join(format!("bin-{tag}-{label}{}", std::env::consts::EXE_SUFFIX));
         let mut session = CompilationSession::new();
         let opts = CompileOptions {
             stop_after: Stage::Build,

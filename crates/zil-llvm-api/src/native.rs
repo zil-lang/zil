@@ -243,6 +243,55 @@ pub(super) fn runtime_library() -> Result<std::path::PathBuf, Error> {
     })
 }
 
+#[cfg(target_os = "windows")]
+pub(super) fn runtime_library() -> Result<std::path::PathBuf, Error> {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::OsStringExt;
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetModuleHandleW(module_name: *const u16) -> Handle;
+        fn GetProcAddress(module: Handle, proc_name: *const c_char) -> *const c_void;
+        fn GetModuleFileNameW(module: Handle, filename: *mut u16, size: u32) -> u32;
+    }
+
+    // Query the already-loaded LLVM-C.dll directly (avoiding GetModuleHandleExW
+    // FROM_ADDRESS, which on PE/MSVC can resolve to the executable's IAT thunk).
+    let dll_name: Vec<u16> = "LLVM-C.dll\0".encode_utf16().collect();
+    // SAFETY: dll_name is NUL-terminated UTF-16; GetModuleHandleW does not alter refcount.
+    let module = unsafe { GetModuleHandleW(dll_name.as_ptr()) };
+    if module.is_null() {
+        return Err(error(
+            ErrorKind::Unavailable,
+            "cannot identify loaded LLVM-C.dll module handle",
+        ));
+    }
+    // Confirm the loaded LLVM-C.dll actually exports LLVMGetVersion.
+    if unsafe { GetProcAddress(module, c"LLVMGetVersion".as_ptr()) }.is_null() {
+        return Err(error(
+            ErrorKind::Unavailable,
+            "loaded LLVM-C.dll does not export LLVMGetVersion",
+        ));
+    }
+
+    let mut buf = vec![0u16; 32768];
+    // SAFETY: buf is writable for buf.len() UTF-16 code units.
+    let len = unsafe { GetModuleFileNameW(module, buf.as_mut_ptr(), buf.len() as u32) } as usize;
+    if len == 0 || len >= buf.len() {
+        return Err(error(
+            ErrorKind::Unavailable,
+            "cannot query loaded LLVM-C.dll path",
+        ));
+    }
+    let path = std::path::PathBuf::from(OsString::from_wide(&buf[..len]));
+    std::fs::canonicalize(&path).map_err(|e| {
+        error(
+            ErrorKind::Unavailable,
+            format!("cannot canonicalize loaded LLVM-C.dll path: {e}"),
+        )
+    })
+}
+
 fn compile_input(
     input: Input<'_>,
     config: &Config<'_>,

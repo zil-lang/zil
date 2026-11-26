@@ -1,0 +1,17 @@
+{
+  "version": "23.1.4",
+  "url": "https://github.com/llvm/llvm-project/releases/download/llvmorg-23.1.4/clang+llvm-23.1.4-x86_64-pc-windows-msvc.tar.zst",
+  "archive_bytes": 276626313,
+  "archive_sha256": "1a3f2f998e230b5791cc4e2bfe11a1f7c07fe42c96ff44f227c9db0bedfaf091",
+  "archive_root": "clang+llvm-23.1.4-x86_64-pc-windows-msvc",
+  "shared_library_origin": "upstream official Windows MSVC release built with -DLLVM_BUILD_LLVM_C_DYLIB=ON (bin/LLVM-C.dll + lib/LLVM-C.lib)",
+  "required_files": [
+    "bin/LLVM-C.dll",
+    "lib/LLVM-C.lib",
+    "bin/clang.exe",
+    "bin/lld-link.exe"
+  ],
+  "resource_dirs": [
+    "lib/clang/23"
+  ]
+}

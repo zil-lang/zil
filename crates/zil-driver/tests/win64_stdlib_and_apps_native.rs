@@ -366,7 +366,16 @@ fn win64_native_std_time_env_float_binary_io_and_windows_paths() {
     let entry = dir.join("std_surface.zil");
     std::fs::write(&entry, WIN64_STD_SURFACE_PROGRAM).expect("write std_surface.zil");
 
-    for (label, opt) in [("O0", Optimization::O0), ("O2", Optimization::O2)] {
+    let mut configs = vec![
+        ("clang-o0", NativeBackend::Clang, Optimization::O0),
+        ("clang-o2", NativeBackend::Clang, Optimization::O2),
+    ];
+    if cfg!(feature = "llvm-api") {
+        configs.push(("llvmapi-o0", NativeBackend::LlvmApi, Optimization::O0));
+        configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
+    }
+
+    for (label, backend, opt) in configs {
         let exe = dir.join(format!("std_surface_{label}.exe"));
         let mut session = CompilationSession::new();
         let report = session.compile_path(
@@ -374,7 +383,7 @@ fn win64_native_std_time_env_float_binary_io_and_windows_paths() {
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization: opt,
-                backend: NativeBackend::Clang,
+                backend,
                 output: Some(exe.clone()),
                 codegen: CodegenOptions { units: 1, jobs: 1 },
                 ..CompileOptions::default()

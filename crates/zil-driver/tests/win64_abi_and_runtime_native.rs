@@ -454,13 +454,21 @@ mod native_windows {
         clang_override: Option<PathBuf>,
     ) -> (i32, String) {
         let mut expected: Option<(i32, String)> = None;
-        for (label, opt) in [("o0", Optimization::O0), ("o2", Optimization::O2)] {
+        let mut configs = vec![
+            ("clang-o0", NativeBackend::Clang, Optimization::O0),
+            ("clang-o2", NativeBackend::Clang, Optimization::O2),
+        ];
+        if cfg!(feature = "llvm-api") {
+            configs.push(("llvmapi-o0", NativeBackend::LlvmApi, Optimization::O0));
+            configs.push(("llvmapi-o2", NativeBackend::LlvmApi, Optimization::O2));
+        }
+        for (label, backend, opt) in configs {
             let exe = dir.join(format!("bin-{label}.exe"));
             let mut session = CompilationSession::new();
             let opts = CompileOptions {
                 stop_after: Stage::Build,
                 optimization: opt,
-                backend: NativeBackend::Clang,
+                backend,
                 target: TargetProfile::windows_x64_llvm(),
                 clang: clang_override.clone(),
                 output: Some(exe.clone()),

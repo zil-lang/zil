@@ -86,7 +86,9 @@ fn main() -> i32 {
     )
     .unwrap();
     for opt in ["O0", "O2"] {
-        let exe = dir.0.join(format!("app_{opt}"));
+        let exe = dir
+            .0
+            .join(format!("app_{opt}{}", std::env::consts::EXE_SUFFIX));
         let build = Command::new(env!("CARGO_BIN_EXE_zil"))
             .args([
                 "build",

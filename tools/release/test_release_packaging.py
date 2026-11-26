@@ -11,7 +11,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import package_linux_alpha as packager  # noqa: E402
+import package_windows_alpha as win_packager  # noqa: E402
 import verify_clean_install as verifier  # noqa: E402
+import verify_clean_windows_install as win_verifier  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -69,6 +71,61 @@ class ReleasePackagingTests(unittest.TestCase):
             )
             bad_report, bad_errors = verifier.verify_bundle(
                 archive=out1 / "zil-alpha-linux-x86_64.tar.gz",
+                sha256sums=out1 / "SHA256SUMS.txt",
+                manifest_path=out1 / "RELEASE-MANIFEST.json",
+                run_compiler_checks=False,
+            )
+            self.assertEqual(bad_report["status"], "fail")
+            self.assertTrue(any("archive SHA-256 mismatch" in e for e in bad_errors))
+
+    def test_windows_deterministic_zip_packaging_and_tamper_detection(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake_exe = root / "zil.exe"
+            fake_exe.write_bytes(b"MZfake-zil-pe-binary")
+            fake_dll = root / "LLVM-C.dll"
+            fake_dll.write_bytes(b"MZfake-llvm-c-23-dll")
+
+            out1 = root / "win1"
+            out2 = root / "win2"
+            res1 = win_packager.package_windows_release(
+                repo=REPO_ROOT,
+                zil_exe=fake_exe,
+                llvm_dll=fake_dll,
+                out_dir=out1,
+                version="v1.0.0-alpha.1",
+                source_commit="c" * 40,
+                source_tree="d" * 40,
+            )
+            res2 = win_packager.package_windows_release(
+                repo=REPO_ROOT,
+                zil_exe=fake_exe,
+                llvm_dll=fake_dll,
+                out_dir=out2,
+                version="v1.0.0-alpha.1",
+                source_commit="c" * 40,
+                source_tree="d" * 40,
+            )
+            self.assertEqual(res1["archive_sha256"], res2["archive_sha256"])
+            self.assertEqual(res1["manifest_sha256"], res2["manifest_sha256"])
+
+            report, errors = win_verifier.verify_windows_bundle(
+                archive=out1 / "zil-v1.0.0-alpha.1-windows-x86_64.zip",
+                sha256sums=out1 / "SHA256SUMS.txt",
+                manifest_path=out1 / "RELEASE-MANIFEST.json",
+                run_compiler_checks=False,
+            )
+            self.assertEqual(errors, [])
+            self.assertEqual(report["status"], "pass")
+            self.assertGreater(report["checks"]["manifest_inventory"]["verified_files"], 20)
+
+            (out1 / "SHA256SUMS.txt").write_text(
+                "0" * 64 + "  zil-v1.0.0-alpha.1-windows-x86_64.zip\n"
+                + res1["manifest_sha256"] + "  RELEASE-MANIFEST.json\n",
+                encoding="utf-8",
+            )
+            bad_report, bad_errors = win_verifier.verify_windows_bundle(
+                archive=out1 / "zil-v1.0.0-alpha.1-windows-x86_64.zip",
                 sha256sums=out1 / "SHA256SUMS.txt",
                 manifest_path=out1 / "RELEASE-MANIFEST.json",
                 run_compiler_checks=False,

@@ -11,7 +11,11 @@ on:
       - 'crates/zil-llvm-api/**'
       - 'lib/std/**'
       - 'examples/everyday-apps/**'
+      - 'tools/llvm/**'
+      - 'tools/release/**'
+      - 'tools/ci/run_alpha_profile_suites.py'
       - '.github/workflows/windows-native.yml'
+      - '.github/workflows/windows-alpha-release.yml'
   pull_request:
     branches: [main]
     paths:
@@ -22,7 +26,11 @@ on:
       - 'crates/zil-llvm-api/**'
       - 'lib/std/**'
       - 'examples/everyday-apps/**'
+      - 'tools/llvm/**'
+      - 'tools/release/**'
+      - 'tools/ci/run_alpha_profile_suites.py'
       - '.github/workflows/windows-native.yml'
+      - '.github/workflows/windows-alpha-release.yml'
 permissions:
   contents: read
 concurrency:
@@ -31,7 +39,7 @@ concurrency:
 jobs:
   windows-x64-bringup:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       CARGO_BUILD_JOBS: '4'
       CARGO_PROFILE_TEST_DEBUG: '0'
@@ -43,6 +51,32 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+      - name: Cache pinned LLVM 23.1.4 Windows SDK
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/zil-llvm/23.1.4
+          key: zil-llvm-win64-v1-${{ hashFiles('tools/llvm/version.txt', 'tools/llvm/release-windows-x86_64.json', 'tools/llvm/install_windows.py') }}
+      - name: Install pinned LLVM 23.1.4 (LLVM-C.dll, LLVM-C.lib, clang.exe)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $llvmPrefix = Join-Path $env:USERPROFILE ".cache\zil-llvm\23.1.4"
+          if (-not (Test-Path (Join-Path $llvmPrefix "install-receipt.json"))) {
+            if (Test-Path $llvmPrefix) {
+              Remove-Item -Recurse -Force $llvmPrefix
+            }
+            python tools/llvm/install_windows.py --prefix $llvmPrefix
+          }
+          $llvmBin = Join-Path $llvmPrefix "bin"
+          $llvmLib = Join-Path $llvmPrefix "lib"
+          $clangExe = Join-Path $llvmBin "clang.exe"
+          if (-not (Test-Path (Join-Path $llvmBin "LLVM-C.dll"))) { throw "LLVM-C.dll missing" }
+          if (-not (Test-Path (Join-Path $llvmLib "LLVM-C.lib"))) { throw "LLVM-C.lib missing" }
+          if (-not (Test-Path $clangExe)) { throw "clang.exe missing" }
+          "ZIL_LLVM_LIB_DIR=$llvmLib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZIL_CLANG=$clangExe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Cache Cargo registry and Windows build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -51,51 +85,61 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             ${{ runner.temp }}/target-win64
-          key: zil-cargo-win64-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
+          key: zil-cargo-win64-v2-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-${{ github.sha }}
           restore-keys: |
-            zil-cargo-win64-v1-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
-            zil-cargo-win64-v1-
-      - name: Verify Rust 1.100.0 and Clang on Windows x64
+            zil-cargo-win64-v2-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock') }}-
+            zil-cargo-win64-v2-
+      - name: Verify Rust 1.100.0 and pinned LLVM 23.1.4 on Windows x64
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           "CARGO_TARGET_DIR=$env:RUNNER_TEMP\target-win64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           rustup toolchain install 1.100.0 --profile minimal
           rustc -vV
-          if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
-            $llvmBin = "C:\Program Files\LLVM\bin"
-            if (Test-Path "$llvmBin\clang.exe") {
-              $llvmBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-              $env:PATH = "$llvmBin;$env:PATH"
-            }
-          }
-          clang --version
-      - name: Build native zil.exe (Clang backend)
+          & $env:ZIL_CLANG --version
+      - name: Build native zil.exe with default LLVM C-API backend
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cargo build --locked -p zil-cli --no-default-features
+          $PSNativeCommandUseErrorActionPreference = $true
+          cargo build --locked -p zil-cli
           $zil = "$env:CARGO_TARGET_DIR\debug\zil.exe"
-          & $zil version
-      - name: Run Windows x64 backend, driver, ABI, concurrency/async, stdlib, and 8 everyday apps
+          $ver = (& $zil version | Out-String)
+          Write-Host $ver
+          if ($ver -notmatch "default backend: llvm-api") {
+            throw "expected default backend: llvm-api, got: $ver"
+          }
+      - name: Run Python release and acceptance harness unit tests on Windows
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cargo test --locked -p zil-backend-llvm --no-default-features
-          cargo test --locked -p zil-driver --no-default-features --lib
-          cargo test --locked -p zil-driver --no-default-features --test win64_pipeline_native
-          cargo test --locked -p zil-driver --no-default-features --test win64_abi_and_runtime_native
-          cargo test --locked -p zil-driver --no-default-features --test win64_concurrency_and_async_native
-          cargo test --locked -p zil-driver --no-default-features --test win64_stdlib_and_apps_native
-          cargo test --locked -p zil-driver --no-default-features --test stdlib_fs_and_path_native
-          cargo test --locked -p zil-driver --no-default-features --test stdlib_net_tcp_native
-          cargo test --locked -p zil-driver --no-default-features --test everyday_apps_core_native
-          cargo test --locked -p zil-driver --no-default-features --test everyday_apps_systems_native
-          cargo test --locked -p zil-driver --no-default-features --test everyday_app_async_scheduler_native
-      - name: End-to-end native zil.exe check/build/run/test smoke on Windows x64
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m unittest discover -s tools/release -p 'test_*.py' -v
+          python -m unittest tools/ci/test_alpha_acceptance_summary.py -v
+      - name: Run dual-backend (Clang + LLVM-C.dll) LLVM API, backend, driver, ABI, concurrency/async, stdlib, CLI, and 8 everyday apps
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          cargo test --locked -p zil-llvm-api --features native --lib --test structured_llvm_builder --test native_object_emission --test machine_preflight_and_builder --test llvm_builder_allocation_cleanup
+          cargo test --locked -p zil-backend-llvm --features llvm-api
+          cargo test --locked -p zil-driver --features llvm-api --lib
+          cargo test --locked -p zil-driver --features llvm-api --test win64_pipeline_native
+          cargo test --locked -p zil-driver --features llvm-api --test win64_abi_and_runtime_native
+          cargo test --locked -p zil-driver --features llvm-api --test win64_concurrency_and_async_native
+          cargo test --locked -p zil-driver --features llvm-api --test win64_stdlib_and_apps_native
+          cargo test --locked -p zil-driver --features llvm-api --test stdlib_fs_and_path_native
+          cargo test --locked -p zil-driver --features llvm-api --test stdlib_net_tcp_native
+          cargo test --locked -p zil-driver --features llvm-api --test everyday_apps_core_native
+          cargo test --locked -p zil-driver --features llvm-api --test everyday_apps_systems_native
+          cargo test --locked -p zil-driver --features llvm-api --test everyday_app_async_scheduler_native
+          cargo test --locked -p zil-cli --test backend_default --test single_pipeline_cli
+      - name: End-to-end native zil.exe check/build/run/lock/test smoke (LLVM-API default + Clang reference)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
           $zil = "$env:CARGO_TARGET_DIR\debug\zil.exe"
           $work = Join-Path $env:RUNNER_TEMP "zil-win64-smoke"
           New-Item -ItemType Directory -Force -Path $work | Out-Null
@@ -119,17 +163,20 @@ jobs:
 
           & $zil check $hello
           $out = & $zil run $hello
-          if ($LASTEXITCODE -ne 0) { throw "zil run failed with exit code $LASTEXITCODE" }
-          if ($out -notmatch "WIN64") { throw "unexpected stdout: $out" }
+          if ($out -notmatch "WIN64") { throw "unexpected stdout (llvm-api default): $out" }
 
-          $exe = Join-Path $work "hello_o2.exe"
-          & $zil build $hello --opt O2 -o $exe
-          if (-not (Test-Path $exe)) { throw "expected $exe to exist" }
-          $out2 = & $exe
-          if ($LASTEXITCODE -ne 0) { throw "hello_o2.exe failed with exit code $LASTEXITCODE" }
-          if ($out2 -notmatch "WIN64") { throw "unexpected O2 stdout: $out2" }
+          $exeApi = Join-Path $work "hello_api_o2.exe"
+          & $zil build $hello --opt O2 -o $exeApi
+          if (-not (Test-Path $exeApi)) { throw "expected $exeApi to exist" }
+          $outApi = & $exeApi
+          if ($outApi -notmatch "WIN64") { throw "unexpected llvm-api O2 stdout: $outApi" }
 
-          # Exercise native zil test with a Zil.toml project on Windows.
+          $exeClang = Join-Path $work "hello_clang_o2.exe"
+          & $zil build $hello --backend clang --opt O2 -o $exeClang
+          if (-not (Test-Path $exeClang)) { throw "expected $exeClang to exist" }
+          $outClang = & $exeClang
+          if ($outClang -notmatch "WIN64") { throw "unexpected clang O2 stdout: $outClang" }
+
           $proj = Join-Path $work "proj"
           New-Item -ItemType Directory -Force -Path (Join-Path $proj "src") | Out-Null
           @"
@@ -148,6 +195,4 @@ jobs:
           fn main() -> i32 { return 0 }
           "@ | Set-Content -Path (Join-Path $proj "src\main.zil") -Encoding utf8
           & $zil lock $proj
-          if ($LASTEXITCODE -ne 0) { throw "zil lock failed with exit code $LASTEXITCODE" }
           & $zil test $proj
-          if ($LASTEXITCODE -ne 0) { throw "zil test failed with exit code $LASTEXITCODE" }

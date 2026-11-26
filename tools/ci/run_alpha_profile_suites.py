@@ -14,6 +14,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -160,6 +161,133 @@ CAPABILITY_TARGETS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# Windows x64 dual-backend (`--features llvm-api`, Clang + LLVM-C.dll at O0/O2)
+# mapping covering all 8 everyday applications declared in
+# validation/language-alpha-profile.json and all 12 capabilities declared in
+# validation/language-release-gates.json without relying on ELF-only linker wraps
+# or POSIX pthread headers.
+WINDOWS_EVERYDAY_APP_TESTS: dict[str, tuple[str, str, list[str]]] = {
+    "text-stats-and-file-search": (
+        "zil-driver",
+        "everyday_apps_core_native",
+        ["everyday_app_text_stats_and_file_search_dual_backend"],
+    ),
+    "csv-processor": (
+        "zil-driver",
+        "everyday_apps_core_native",
+        ["everyday_app_csv_processor_dual_backend"],
+    ),
+    "json-processor": (
+        "zil-driver",
+        "everyday_apps_core_native",
+        ["everyday_app_json_processor_dual_backend"],
+    ),
+    "cli-todo-app": (
+        "zil-driver",
+        "everyday_apps_core_native",
+        ["everyday_app_cli_todo_app_dual_backend"],
+    ),
+    "http-mini-service-and-client": (
+        "zil-driver",
+        "everyday_apps_systems_native",
+        [
+            "http_mini_service_and_client_dual_backend_native",
+            "everyday_apps_paired_nearest_safety_negative_controls",
+        ],
+    ),
+    "file-batch-processor": (
+        "zil-driver",
+        "everyday_apps_systems_native",
+        [
+            "file_batch_processor_dual_backend_native",
+            "everyday_apps_paired_nearest_safety_negative_controls",
+        ],
+    ),
+    "graph-dependency-analyzer": (
+        "zil-driver",
+        "everyday_apps_systems_native",
+        [
+            "graph_dependency_analyzer_dual_backend_native",
+            "everyday_apps_paired_nearest_safety_negative_controls",
+        ],
+    ),
+    "async-task-scheduler": (
+        "zil-driver",
+        "everyday_app_async_scheduler_native",
+        [
+            "async_task_scheduler_demo_batch_and_cancel_stress_dual_backend_native",
+            "async_task_scheduler_paired_nearest_safety_negative_controls",
+        ],
+    ),
+}
+
+WINDOWS_CAPABILITY_TARGETS: dict[str, list[tuple[str, str]]] = {
+    "values-and-patterns": [
+        ("zil-driver", "l1_core_composition_native"),
+        ("zil-driver", "u2_anonymous_union_and_owned_sum_native"),
+        ("zil-driver", "u3_destructuring_and_partial_drop_native"),
+        ("zil-driver", "win64_abi_and_runtime_native"),
+    ],
+    "generic-libraries": [
+        ("zil-driver", "l1_generics_default_methods_native"),
+        ("zil-driver", "u4_traits_supertraits_and_assoc_native"),
+        ("zil-driver", "l4_iter_and_lending_native"),
+    ],
+    "ownership-composition": [
+        ("zil-driver", "l1_borrowed_ownership_native"),
+        ("zil-driver", "u5_field_borrows_and_closure_captures_native"),
+        ("zil-driver", "multi_input_borrows_and_generic_lending_native"),
+        ("zil-driver", "contract_state_protocol_native"),
+        ("zil-driver", "contract_replace_protocol_native"),
+        ("zil-driver", "contract_store_protocol_native"),
+        ("zil-driver", "contract_managed_and_nested_alias_native"),
+        ("zil-driver", "contract_projection_and_effects_native"),
+    ],
+    "dynamic-abstraction": [
+        ("zil-driver", "l2_borrowed_dyn_provider_native"),
+        ("zil-driver", "u6_dyn_ct_and_owning_std_native"),
+    ],
+    "resource-graphs": [
+        ("zil-driver", "u6_dyn_ct_and_owning_std_native"),
+        ("zil-driver", "everyday_apps_systems_native"),
+    ],
+    "async-ownership": [
+        ("zil-driver", "contract_task_registration_protocol_native"),
+        ("zil-driver", "contract_cancel_edge_protocol_native"),
+        ("zil-driver", "win64_concurrency_and_async_native"),
+    ],
+    "threads-and-synchronization": [
+        ("zil-driver", "l3_sync_atomics_and_mutex_native"),
+        ("zil-driver", "win64_concurrency_and_async_native"),
+    ],
+    "foreign-lifecycle": [
+        ("zil-driver", "l3_scoped_foreign_callback_native"),
+        ("zil-driver", "win64_abi_and_runtime_native"),
+        ("zil-driver", "win64_concurrency_and_async_native"),
+    ],
+    "standard-library": [
+        ("zil-driver", "l4_stdlib_native"),
+        ("zil-driver", "stdlib_fs_and_path_native"),
+        ("zil-driver", "stdlib_net_tcp_native"),
+        ("zil-driver", "win64_stdlib_and_apps_native"),
+    ],
+    "project-workflow": [
+        ("zil-cli", "single_pipeline_cli"),
+        ("zil-cli", "backend_default"),
+        ("zil-driver", "win64_pipeline_native"),
+    ],
+    "native-delivery": [
+        ("zil-driver", "alpha_everyday_ergonomics_native"),
+        ("zil-driver", "win64_pipeline_native"),
+        ("zil-driver", "win64_abi_and_runtime_native"),
+    ],
+    "release-acceptance": [
+        ("zil-driver", "l3_provenance_closure"),
+        ("zil-driver", "win64_concurrency_and_async_native"),
+        ("zil-driver", "win64_stdlib_and_apps_native"),
+    ],
+}
+
 TEST_LINE_RE = re.compile(r"^test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)\s*$")
 SUMMARY_LINE_RE = re.compile(
     r"^test result:\s+(ok|FAILED)\.\s+(\d+)\s+passed;\s+(\d+)\s+failed;\s+(\d+)\s+ignored;"
@@ -235,19 +363,45 @@ def _cargo_feature_args(pkg: str, llvm_api: bool) -> list[str]:
     return ["--no-default-features"]
 
 
-def _unique_targets_by_package() -> dict[str, list[str]]:
+def _resolve_platform(platform: str) -> str:
+    if platform == "auto":
+        return "windows" if os.name == "nt" else "linux"
+    if platform not in ("linux", "windows"):
+        raise ValueError(f"unsupported platform `{platform}`")
+    return platform
+
+
+def _platform_maps(
+    platform: str,
+) -> tuple[dict[str, tuple[str, str, list[str]]], dict[str, list[tuple[str, str]]]]:
+    resolved = _resolve_platform(platform)
+    if resolved == "windows":
+        return WINDOWS_EVERYDAY_APP_TESTS, WINDOWS_CAPABILITY_TARGETS
+    return EVERYDAY_APP_TESTS, CAPABILITY_TARGETS
+
+
+def _unique_targets_by_package(platform: str = "linux") -> dict[str, list[str]]:
+    app_tests, cap_targets = _platform_maps(platform)
     by_pkg: dict[str, set[str]] = {}
-    for pkg, target, _ in EVERYDAY_APP_TESTS.values():
+    for pkg, target, _ in app_tests.values():
         by_pkg.setdefault(pkg, set()).add(target)
-    for targets in CAPABILITY_TARGETS.values():
+    for targets in cap_targets.values():
         for pkg, target in targets:
             by_pkg.setdefault(pkg, set()).add(target)
     return {pkg: sorted(targets) for pkg, targets in sorted(by_pkg.items())}
 
 
-def _has_llvm_api_dso() -> bool:
+def _has_llvm_api_dso(platform: str = "auto") -> bool:
     libdir = os.environ.get("ZIL_LLVM_LIB_DIR", "")
-    return bool(libdir) and (Path(libdir) / "libLLVM-23.so").is_file()
+    if not libdir:
+        return False
+    resolved = _resolve_platform(platform)
+    if resolved == "windows":
+        lib_ok = (Path(libdir) / "LLVM-C.lib").is_file()
+        dll_next = (Path(libdir).parent / "bin" / "LLVM-C.dll").is_file()
+        dll_path = shutil.which("LLVM-C.dll") is not None
+        return lib_ok and (dll_next or dll_path)
+    return (Path(libdir) / "libLLVM-23.so").is_file()
 
 
 def _prebuild_targets(repo: Path, by_pkg: dict[str, list[str]], llvm_api: bool) -> None:
@@ -284,7 +438,10 @@ def build_receipts(
     source_tree: str,
     llvm_api: bool,
     target_results: dict[tuple[str, str], dict[str, Any]],
+    platform: str = "linux",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    resolved_platform = _resolve_platform(platform)
+    app_tests, cap_targets = _platform_maps(resolved_platform)
     profile = json.loads((repo / "validation/language-alpha-profile.json").read_text(encoding="utf-8"))
     gates = json.loads((repo / "validation/language-release-gates.json").read_text(encoding="utf-8"))
 
@@ -295,7 +452,7 @@ def build_receipts(
     app_entries: list[dict[str, Any]] = []
     apps_all_pass = True
     for app_id in declared_app_ids:
-        mapping = EVERYDAY_APP_TESTS.get(app_id)
+        mapping = app_tests.get(app_id)
         if mapping is None:
             apps_all_pass = False
             app_entries.append(
@@ -365,6 +522,7 @@ def build_receipts(
 
     everyday_apps_receipt = {
         "schema_version": 1,
+        "platform": resolved_platform,
         "source_commit": source_commit,
         "source_tree": source_tree,
         "llvm_api_enabled": llvm_api,
@@ -378,7 +536,7 @@ def build_receipts(
     cap_entries: list[dict[str, Any]] = []
     caps_all_pass = True
     for cap_id in declared_cap_ids:
-        targets = CAPABILITY_TARGETS.get(cap_id, [])
+        targets = cap_targets.get(cap_id, [])
         if not targets:
             caps_all_pass = False
             cap_entries.append(
@@ -437,6 +595,7 @@ def build_receipts(
 
     capabilities_receipt = {
         "schema_version": 1,
+        "platform": resolved_platform,
         "source_commit": source_commit,
         "source_tree": source_tree,
         "llvm_api_enabled": llvm_api,
@@ -456,21 +615,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--source-tree", required=True)
     parser.add_argument(
+        "--platform",
+        choices=["auto", "linux", "windows"],
+        default="auto",
+        help="Target host platform suite selection (default: auto).",
+    )
+    parser.add_argument(
         "--allow-clang-only",
         action="store_true",
-        help="Allow local dry-run without libLLVM-23.so (still produces status=fail for acceptance).",
+        help="Allow local dry-run without LLVM C-API DSO/DLL (still produces status=fail for acceptance).",
     )
     args = parser.parse_args(argv)
 
     repo = args.repo.resolve()
-    llvm_api = _has_llvm_api_dso()
+    platform = _resolve_platform(args.platform)
+    llvm_api = _has_llvm_api_dso(platform)
     if not llvm_api and not args.allow_clang_only:
+        expected_lib = (
+            "ZIL_LLVM_LIB_DIR/LLVM-C.lib and LLVM-C.dll"
+            if platform == "windows"
+            else "ZIL_LLVM_LIB_DIR/libLLVM-23.so"
+        )
         sys.stderr.write(
-            "ERROR: ZIL_LLVM_LIB_DIR/libLLVM-23.so is required for dual-backend Alpha acceptance.\n"
+            f"ERROR: {expected_lib} is required for dual-backend Alpha acceptance on {platform}.\n"
         )
         return 1
 
-    by_pkg = _unique_targets_by_package()
+    by_pkg = _unique_targets_by_package(platform)
     _prebuild_targets(repo, by_pkg, llvm_api)
 
     target_results: dict[tuple[str, str], dict[str, Any]] = {}
@@ -484,6 +655,7 @@ def main(argv: list[str] | None = None) -> int:
         source_tree=args.source_tree,
         llvm_api=llvm_api,
         target_results=target_results,
+        platform=platform,
     )
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -497,6 +669,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         json.dumps(
             {
+                "platform": platform,
                 "everyday_apps": f"{apps_receipt['passed_count']}/{apps_receipt['required_count']} ({apps_receipt['status']})",
                 "capabilities": f"{caps_receipt['passed_count']}/{caps_receipt['required_count']} ({caps_receipt['status']})",
                 "llvm_api_enabled": llvm_api,

@@ -8,6 +8,14 @@ use std::{
 };
 use zil_llvm_api::{Config, Optimization, compile_module, model::*};
 static NEXT: AtomicUsize = AtomicUsize::new(0);
+fn host_triple() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "x86_64-pc-windows-msvc"
+    } else {
+        "x86_64-unknown-linux-gnu"
+    }
+}
+
 fn run(module: &Module, optimization: Optimization) -> Output {
     let path = std::env::temp_dir().join(format!(
         "zil-native-object-emission-{}-{}",
@@ -22,28 +30,37 @@ fn run(module: &Module, optimization: Optimization) -> Output {
         }
     }
     let _cleanup = Cleanup(path.clone());
+    let triple = host_triple();
+    let mut host_module = module.clone();
+    host_module.triple = triple.into();
     let object = compile_module(
-        module,
+        &host_module,
         &Config {
-            triple: "x86_64-unknown-linux-gnu",
+            triple,
             optimization,
         },
         &|| false,
     )
     .unwrap();
-    fs::write(path.join("unit.o"), object.bytes).unwrap();
-    let link = Command::new(std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into()))
-        .arg(path.join("unit.o"))
-        .arg("-o")
-        .arg(path.join("program"))
-        .output()
-        .unwrap();
+    let obj_path = path.join(if cfg!(target_os = "windows") {
+        "unit.obj"
+    } else {
+        "unit.o"
+    });
+    let exe_path = path.join(format!("program{}", std::env::consts::EXE_SUFFIX));
+    fs::write(&obj_path, object.bytes).unwrap();
+    let mut cmd = Command::new(std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into()));
+    cmd.arg(&obj_path).arg("-o").arg(&exe_path);
+    if cfg!(target_os = "windows") {
+        cmd.arg("-llegacy_stdio_definitions");
+    }
+    let link = cmd.output().unwrap();
     assert!(
         link.status.success(),
         "{}",
         String::from_utf8_lossy(&link.stderr)
     );
-    Command::new(path.join("program")).output().unwrap()
+    Command::new(&exe_path).output().unwrap()
 }
 #[test]
 fn reused_direct_call_type_keeps_narrow_attributes_and_function_local_scopes() {
@@ -184,7 +201,16 @@ fn cached_variadic_function_type_preserves_fixed_and_extra_arguments() {
     for opt in [Optimization::O0, Optimization::O2] {
         let out = run(&module, opt);
         assert!(out.status.success());
-        assert_eq!(out.stdout, b"42\n");
+        let expected: &[u8] = if cfg!(target_os = "windows") {
+            b"42\r\n"
+        } else {
+            b"42\n"
+        };
+        assert!(
+            out.stdout == b"42\n" || out.stdout == expected,
+            "unexpected printf stdout: {:?}",
+            out.stdout
+        );
         assert!(out.stderr.is_empty());
     }
 }

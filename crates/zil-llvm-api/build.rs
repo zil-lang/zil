@@ -36,6 +36,11 @@ fn main() {
                 std::path::Path::new(&path).display()
             );
         }
-        println!("cargo:rustc-link-lib=dylib=LLVM-{}", components[0]);
+        let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+        if target_os == "windows" {
+            println!("cargo:rustc-link-lib=dylib=LLVM-C");
+        } else {
+            println!("cargo:rustc-link-lib=dylib=LLVM-{}", components[0]);
+        }
     }
 }

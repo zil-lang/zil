@@ -33,7 +33,9 @@ fn build_and_run(backend: Option<&str>) {
         "clang"
     });
     for optimization in ["O0", "O2"] {
-        let output = dir.0.join(optimization);
+        let output = dir
+            .0
+            .join(format!("{optimization}{}", std::env::consts::EXE_SUFFIX));
         let mut command = Command::new(env!("CARGO_BIN_EXE_zil"));
         command
             .arg("build")
@@ -88,7 +90,9 @@ fn version_names_the_actual_default() {
 fn reference_only_build_rejects_api_without_overwriting_an_old_output() {
     let dir = Scratch::new();
     let source = dir.0.join("main.zil");
-    let output = dir.0.join("program");
+    let output = dir
+        .0
+        .join(format!("program{}", std::env::consts::EXE_SUFFIX));
     fs::write(&source, "fn main() -> i32 { return 17; }\n").unwrap();
     fs::write(&output, b"existing-output").unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_zil"))

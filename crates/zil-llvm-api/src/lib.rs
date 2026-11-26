@@ -187,7 +187,7 @@ pub fn compile_module_with_function_merging(
 /// Runtime checks and the resolved LLVM library for a trusted local cache.
 /// This does not create a module or bypass per-request language verification.
 pub fn cache_runtime(config: &Config<'_>) -> Result<(String, std::path::PathBuf), Error> {
-    #[cfg(all(feature = "native", target_os = "linux"))]
+    #[cfg(all(feature = "native", any(target_os = "linux", target_os = "windows")))]
     {
         let v = native::check_config(config)?;
         Ok((
@@ -195,12 +195,12 @@ pub fn cache_runtime(config: &Config<'_>) -> Result<(String, std::path::PathBuf)
             native::runtime_library()?,
         ))
     }
-    #[cfg(not(all(feature = "native", target_os = "linux")))]
+    #[cfg(not(all(feature = "native", any(target_os = "linux", target_os = "windows"))))]
     {
         let _ = config;
         Err(Error {
             kind: ErrorKind::Unavailable,
-            message: "local object cache currently requires a Linux LLVM API host".into(),
+            message: "local object cache requires a Linux or Windows LLVM API host".into(),
         })
     }
 }
