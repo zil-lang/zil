@@ -20,7 +20,7 @@ fn has_drive_prefix(path: &[u8]) -> bool {
 }
 
 fn is_unc_prefix(path: &[u8]) -> bool {
-    return path.len() >= 2 && is_sep(path[0]) && is_sep(path[1])
+    return path.len() >= 3 && is_sep(path[0]) && is_sep(path[1]) && !is_sep(path[2])
 }
 
 fn is_absolute(path: &[u8]) -> bool {

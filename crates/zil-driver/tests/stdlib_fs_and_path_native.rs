@@ -101,6 +101,22 @@ fn std_fs_dir_metadata_rename_and_read_dir_execute_natively() {
     let work_root = dir.join("work");
     let work_root_str = work_root.to_str().expect("utf8 path").replace('\\', "/");
 
+    let long_name = if cfg!(target_os = "windows") {
+        "long_entry_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789"
+    } else {
+        "long_entry_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_012345"
+    };
+    let dev_null_check = if cfg!(unix) {
+        r#"
+    // Special device file (/dev/null) is neither regular file nor directory.
+    let dev_null_meta = fs.metadata("/dev/null")?
+    if dev_null_meta.is_dir || dev_null_meta.is_file { return 34 }
+    if fs.is_dir("/dev/null") || fs.is_file("/dev/null") { return 35 }
+"#
+    } else {
+        ""
+    };
+
     let src = format!(
         r#"
 import std.fs
@@ -173,20 +189,15 @@ fn main() -> io.Error!i32 {{
         .err(_) => {{}}
     }}
 
-    // Create additional entries including dotfile, a 248-byte filename (reclen >= 256), and a subdirectory.
+    // Create additional entries including dotfile, a long filename, and a subdirectory.
     let f_dot = path.join(bytes_view(nested_clean), ".hidden")?
     fs.write_bytes(bytes_view(f_dot), "dot")?
-    let long_name = "long_entry_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_0123456789_012345"
+    let long_name = "{long_name}"
     let f_long = path.join(bytes_view(nested_clean), long_name)?
     fs.write_bytes(bytes_view(f_long), "long")?
     let sub_dir = path.join(bytes_view(nested_clean), "sub_dir_long_name_0123456789")?
     fs.mkdir(bytes_view(sub_dir))?
-
-    // Special device file (/dev/null) is neither regular file nor directory.
-    let dev_null_meta = fs.metadata("/dev/null")?
-    if dev_null_meta.is_dir || dev_null_meta.is_file {{ return 34 }}
-    if fs.is_dir("/dev/null") || fs.is_file("/dev/null") {{ return 35 }}
-
+{dev_null_check}
     // 5. read_dir returns exact entries and skips "." / "..".
     let entries = fs.read_dir(bytes_view(nested_clean))?
     if store_len(entries) != 5 {{ return 18 }}
