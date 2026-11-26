@@ -610,11 +610,11 @@ int32_t sync_closes(void) {
         let _ = std::fs::remove_dir_all(&dir);
 
         // Also run the repo's foreign-scoped-callback fixtures natively on Windows x64.
-        let root = repo_root().join("tests/foreign-scoped-callback");
+        let root = repo_root().join("tests/foreign-scoped-callback/direct");
         let dir1 = temp_dir("scoped-cb-ok");
         let (code1, _) = build_and_run_o0_o2(
             &dir1,
-            &root.join("direct-ok.zil"),
+            &root.join("direct.zil"),
             &[root.join("driver.c")],
             None,
         );
