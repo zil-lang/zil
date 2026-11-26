@@ -165,6 +165,18 @@ jobs:
             --out="$RUNNER_TEMP/roam-task-out" \
             --jobs=2 | tee "$RECEIPTS/roam-task-stdout.json"
           cp "$RUNNER_TEMP/roam-task-out/report.json" "$RECEIPTS/roam-task-report.json"
+      - name: Run 8 everyday apps and 12 basic-language capability suites (Clang + LLVM API O0/O2)
+        shell: bash
+        run: |
+          set -euo pipefail
+          RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
+          COMMIT="$(cat "$RECEIPTS/commit.txt")"
+          TREE="$(cat "$RECEIPTS/source-tree.txt")"
+          python3 tools/ci/run_alpha_profile_suites.py \
+            --repo . \
+            --out-dir "$RECEIPTS" \
+            --source-commit "$COMMIT" \
+            --source-tree "$TREE"
       - name: Test Alpha acceptance summary verifier
         if: ${{ always() }}
         shell: bash
@@ -176,6 +188,7 @@ jobs:
           set -euo pipefail
           RECEIPTS="$RUNNER_TEMP/acceptance-receipts"
           python3 tools/ci/alpha_acceptance_summary.py \
+            --repo . \
             --receipts-dir "$RECEIPTS" \
             --out-json "$RECEIPTS/alpha-acceptance-summary.json" \
             --out-md "$RECEIPTS/alpha-acceptance-summary.md"
