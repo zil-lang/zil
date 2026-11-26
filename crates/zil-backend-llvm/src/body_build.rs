@@ -22,6 +22,13 @@ pub struct BodyBuildOptions {
     pub codegen_units: usize,
     pub codegen_jobs: usize,
     pub object_cache: Option<PathBuf>,
+    /// Maximum on-disk byte budget for `object_cache` (`None` = unlimited).
+    /// When exceeded after new misses, oldest entries by mtime (excluding active
+    /// objects of the current build) are evicted down to an 80% watermark.
+    pub object_cache_max_bytes: Option<u64>,
+    /// Whether `NativeBackend::LlvmApi` should write the diagnostic `<output>.ll`
+    /// text dump to disk. Disabling it avoids multi-MB IR text I/O on cached builds.
+    pub emit_ir_file: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -33,6 +40,9 @@ pub struct BodyBuildOutput {
     pub actual_units: usize,
     pub cache_hits: usize,
     pub cache_misses: usize,
+    pub cache_evicted_entries: usize,
+    pub cache_evicted_bytes: u64,
+    pub cache_evict_ns: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +104,7 @@ fn cache_hit_receipt_json(triple: &str, opt_flag: &str) -> String {
 #[cfg(feature = "llvm-api")]
 fn unit_cache_key(triple: &str, opt_flag: &str, unit_ir: &str) -> String {
     let mut h = zil_base::FingerprintBuilder::new();
-    h.update(b"zil-obj-cache-v1\0");
+    h.update(b"zil-obj-cache-v2\0");
     h.update(env!("CARGO_PKG_VERSION").as_bytes());
     h.update(b"\0");
     h.update(triple.as_bytes());
@@ -103,6 +113,72 @@ fn unit_cache_key(triple: &str, opt_flag: &str, unit_ir: &str) -> String {
     h.update(b"\0");
     h.update(unit_ir.as_bytes());
     h.digest().to_hex()
+}
+
+#[cfg(feature = "llvm-api")]
+fn touch_cache_mtime(path: &Path) {
+    if let Ok(file) = fs::OpenOptions::new().append(true).open(path) {
+        let _ = file.set_modified(std::time::SystemTime::now());
+    }
+}
+
+#[cfg(feature = "llvm-api")]
+fn enforce_object_cache_budget(
+    cache_dir: &Path,
+    max_bytes: u64,
+    obj_ext: &str,
+    active_paths: &std::collections::HashSet<PathBuf>,
+) -> (usize, u64, u64) {
+    let start = std::time::Instant::now();
+    let suffix = format!(".{obj_ext}");
+    let Ok(read_dir) = fs::read_dir(cache_dir) else {
+        return (0, 0, start.elapsed().as_nanos() as u64);
+    };
+    let mut total_bytes = 0u64;
+    let mut candidates: Vec<(std::time::SystemTime, u64, PathBuf)> = Vec::new();
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if !name.ends_with(&suffix) {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+        if !meta.is_file() {
+            continue;
+        }
+        let sz = meta.len();
+        total_bytes = total_bytes.saturating_add(sz);
+        if !active_paths.contains(&path) {
+            let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
+            candidates.push((mtime, sz, path));
+        }
+    }
+    if total_bytes <= max_bytes {
+        return (0, 0, start.elapsed().as_nanos() as u64);
+    }
+    let watermark = (max_bytes.saturating_mul(4)) / 5;
+    candidates.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.2.cmp(&b.2)));
+    let mut evicted_entries = 0usize;
+    let mut evicted_bytes = 0u64;
+    for (_, sz, path) in candidates {
+        if total_bytes <= watermark {
+            break;
+        }
+        if fs::remove_file(&path).is_ok() {
+            total_bytes = total_bytes.saturating_sub(sz);
+            evicted_entries += 1;
+            evicted_bytes = evicted_bytes.saturating_add(sz);
+        }
+    }
+    (
+        evicted_entries,
+        evicted_bytes,
+        start.elapsed().as_nanos() as u64,
+    )
 }
 
 fn run_checked_command(mut cmd: Command, label: &str, tool: &Path) -> Result<(), BodyBuildError> {
@@ -232,13 +308,19 @@ pub fn build_verified_body(
                     triple,
                 )?;
                 let actual_units = unit_irs.len();
-                let ir = if actual_units == 1 {
-                    unit_irs[0].clone()
+                let ir = if options.emit_ir_file {
+                    let text = if actual_units == 1 {
+                        unit_irs[0].clone()
+                    } else {
+                        unit_irs.join("\n; --- unit boundary ---\n")
+                    };
+                    fs::write(&ir_path, &text).map_err(|e| {
+                        BodyBuildError::new(format!("failed to write LLVM IR: {e}"))
+                    })?;
+                    text
                 } else {
-                    unit_irs.join("\n; --- unit boundary ---\n")
+                    String::new()
                 };
-                fs::write(&ir_path, &ir)
-                    .map_err(|e| BodyBuildError::new(format!("failed to write LLVM IR: {e}")))?;
 
                 let cache_dir = options.object_cache.as_deref();
                 if let Some(dir) = cache_dir {
@@ -257,6 +339,9 @@ pub fn build_verified_body(
                 let jobs = options.codegen_jobs.clamp(1, actual_units);
 
                 struct UnitCompiled {
+                    /// Ready-to-link cached object path (zero-copy when `cache_dir` is enabled).
+                    cached_path: Option<PathBuf>,
+                    /// In-memory bytes when `cache_dir` is disabled (or fallback).
                     bytes: Vec<u8>,
                     report: String,
                     cache_hit: bool,
@@ -286,11 +371,12 @@ pub fn build_verified_body(
                                     dir.join(format!("{key}.{obj_ext}"))
                                 });
                                 let compiled = if let Some(ref cp) = cache_path
-                                    && let Ok(bytes) = fs::read(cp)
-                                    && !bytes.is_empty()
+                                    && cp.metadata().is_ok_and(|m| m.is_file() && m.len() > 0)
                                 {
+                                    touch_cache_mtime(cp);
                                     Ok(UnitCompiled {
-                                        bytes,
+                                        cached_path: Some(cp.clone()),
+                                        bytes: Vec::new(),
                                         report: cache_hit_receipt_json(triple, opt_flag),
                                         cache_hit: true,
                                     })
@@ -313,16 +399,25 @@ pub fn build_verified_body(
                                         .map_err(|e| format!("zil-llvm-api unit {idx} failed: {e}"))
                                     })
                                     .map(|object| {
+                                        let mut linked_cache_path = None;
                                         if let Some(ref cp) = cache_path {
                                             let tmp = cp.with_extension(format!(
                                                 "{obj_ext}.tmp.{pid}.{idx}"
                                             ));
-                                            if fs::write(&tmp, &object.bytes).is_ok() {
-                                                let _ = fs::rename(&tmp, cp);
+                                            if fs::write(&tmp, &object.bytes).is_ok()
+                                                && fs::rename(&tmp, cp).is_ok()
+                                            {
+                                                linked_cache_path = Some(cp.clone());
                                             }
                                         }
+                                        let bytes = if linked_cache_path.is_some() {
+                                            Vec::new()
+                                        } else {
+                                            object.bytes
+                                        };
                                         UnitCompiled {
-                                            bytes: object.bytes,
+                                            cached_path: linked_cache_path,
+                                            bytes,
                                             report: receipt_to_json(&object.receipt),
                                             cache_hit: false,
                                         }
@@ -337,6 +432,8 @@ pub fn build_verified_body(
                 });
 
                 let mut obj_paths = Vec::with_capacity(actual_units);
+                let mut temp_obj_paths = Vec::new();
+                let mut active_cache_paths = std::collections::HashSet::new();
                 let mut object_reports = Vec::with_capacity(actual_units);
                 let mut cache_hits = 0usize;
                 let mut cache_misses = 0usize;
@@ -356,18 +453,24 @@ pub fn build_verified_body(
                     } else if cache_dir.is_some() {
                         cache_misses += 1;
                     }
-                    let obj_path = if actual_units == 1 {
-                        PathBuf::from(format!("{}.{obj_ext}", options.output.display()))
+                    if let Some(cp) = unit.cached_path {
+                        active_cache_paths.insert(cp.clone());
+                        obj_paths.push(cp);
                     } else {
-                        PathBuf::from(format!("{}.u{idx}.{obj_ext}", options.output.display()))
-                    };
-                    fs::write(&obj_path, &unit.bytes).map_err(|e| {
-                        BodyBuildError::new(format!(
-                            "failed to write object file {}: {e}",
-                            obj_path.display()
-                        ))
-                    })?;
-                    obj_paths.push(obj_path);
+                        let obj_path = if actual_units == 1 {
+                            PathBuf::from(format!("{}.{obj_ext}", options.output.display()))
+                        } else {
+                            PathBuf::from(format!("{}.u{idx}.{obj_ext}", options.output.display()))
+                        };
+                        fs::write(&obj_path, &unit.bytes).map_err(|e| {
+                            BodyBuildError::new(format!(
+                                "failed to write object file {}: {e}",
+                                obj_path.display()
+                            ))
+                        })?;
+                        temp_obj_paths.push(obj_path.clone());
+                        obj_paths.push(obj_path);
+                    }
                     object_reports.push(unit.report);
                 }
 
@@ -409,6 +512,19 @@ pub fn build_verified_body(
                     run_checked_command(cmd, "linker", &clang)?;
                     commands.push(argv);
                 }
+                for tmp_obj in temp_obj_paths {
+                    let _ = fs::remove_file(tmp_obj);
+                }
+                let (cache_evicted_entries, cache_evicted_bytes, cache_evict_ns) = if cache_misses
+                    > 0
+                    && let Some(dir) = cache_dir
+                    && let Some(max_bytes) = options.object_cache_max_bytes
+                    && max_bytes > 0
+                {
+                    enforce_object_cache_budget(dir, max_bytes, obj_ext, &active_cache_paths)
+                } else {
+                    (0, 0, 0)
+                };
                 Ok(BodyBuildOutput {
                     ir,
                     ir_path,
@@ -417,6 +533,9 @@ pub fn build_verified_body(
                     actual_units,
                     cache_hits,
                     cache_misses,
+                    cache_evicted_entries,
+                    cache_evicted_bytes,
+                    cache_evict_ns,
                 })
             }
             #[cfg(not(feature = "llvm-api"))]
@@ -519,6 +638,9 @@ pub fn build_verified_body(
                 actual_units: 1,
                 cache_hits: 0,
                 cache_misses: 0,
+                cache_evicted_entries: 0,
+                cache_evicted_bytes: 0,
+                cache_evict_ns: 0,
             })
         }
     }

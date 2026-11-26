@@ -165,6 +165,8 @@ pub struct CompileOptions {
     pub cache_dir: Option<PathBuf>,
     pub semantic_cache: Option<PathBuf>,
     pub object_cache: Option<PathBuf>,
+    /// Maximum byte budget for `object_cache` (`None` = unlimited; default 256 MiB).
+    pub object_cache_max_bytes: Option<u64>,
     pub clang: Option<PathBuf>,
     pub extra_c_sources: Vec<PathBuf>,
     pub optimization: Optimization,
@@ -196,6 +198,7 @@ impl Default for CompileOptions {
             cache_dir: None,
             semantic_cache: None,
             object_cache: None,
+            object_cache_max_bytes: Some(256 * 1024 * 1024),
             clang: None,
             extra_c_sources: Vec::new(),
             optimization: Optimization::O0,
@@ -853,12 +856,19 @@ impl CompilationSession {
                 codegen_units: options.codegen.units,
                 codegen_jobs: options.codegen.jobs,
                 object_cache: options.object_cache.clone(),
+                object_cache_max_bytes: options.object_cache_max_bytes,
+                emit_ir_file: options.emit_dir.is_some() || options.object_cache.is_none(),
             },
         ) {
             Ok(built) => {
                 report.phase = Phase::Codegen;
                 report.commands = built.commands;
-                report.artifacts.insert("llvm".into(), built.ir_path);
+                if options.emit_dir.is_some()
+                    || options.object_cache.is_none()
+                    || options.backend == NativeBackend::Clang
+                {
+                    report.artifacts.insert("llvm".into(), built.ir_path);
+                }
                 report.artifacts.insert("executable".into(), out_path);
                 if options.object_cache.is_some() {
                     report.disk_cache = if built.cache_misses == 0 && built.cache_hits > 0 {
@@ -1203,12 +1213,19 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                         codegen_units: options.codegen.units,
                         codegen_jobs: options.codegen.jobs,
                         object_cache: options.object_cache.clone(),
+                        object_cache_max_bytes: options.object_cache_max_bytes,
+                        emit_ir_file: options.emit_dir.is_some() || options.object_cache.is_none(),
                     },
                 ) {
                     Ok(built) => {
                         report.phase = Phase::Codegen;
                         report.commands = built.commands;
-                        report.artifacts.insert("llvm".into(), built.ir_path);
+                        if options.emit_dir.is_some()
+                            || options.object_cache.is_none()
+                            || options.backend == NativeBackend::Clang
+                        {
+                            report.artifacts.insert("llvm".into(), built.ir_path);
+                        }
                         report.artifacts.insert("executable".into(), out_path);
                         if options.object_cache.is_some() {
                             report.disk_cache = if built.cache_misses == 0 && built.cache_hits > 0 {

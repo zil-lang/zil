@@ -146,18 +146,17 @@ pub fn emit_verified_body_units_with_entry_for_target(
 
     let target_entry = entry_name.unwrap_or("main");
     let custom_entry = target_entry != "main";
+    let syms = compute_stable_fn_symbols(module);
+    let static_syms = compute_stable_static_symbols(module);
     let mut main_fn: Option<(FnId, String, TyId)> = None;
-    let mut syms = Vec::with_capacity(fn_count);
     for (idx, func) in module.functions.iter().enumerate() {
         let fn_id = FnId::from_index(idx);
-        let sym = fn_symbol(fn_id, func);
         if (func.name == target_entry || func.name.ends_with(&format!(".{target_entry}")))
             && func.sig.params.is_empty()
             && func.sig.role == FnRole::Normal
         {
-            main_fn = Some((fn_id, sym.clone(), func.sig.result));
+            main_fn = Some((fn_id, syms[idx].clone(), func.sig.result));
         }
-        syms.push(sym);
     }
 
     let prune_exe = emit_c_main && main_fn.is_some();
@@ -657,18 +656,6 @@ fail:\n\
         "@__zil_fmt_i64 = private unnamed_addr constant [6 x i8] c\"%lld\\0A\\00\", align 1\n\n",
     );
 
-    for (idx, bytes) in module.statics.iter().enumerate() {
-        let escaped = escape_llvm_bytes(bytes);
-        let _ = writeln!(
-            header,
-            "@__zil_str_{idx} = private unnamed_addr constant [{} x i8] c\"{escaped}\", align 1",
-            bytes.len()
-        );
-    }
-    if !module.statics.is_empty() {
-        header.push('\n');
-    }
-
     let mut foreign_header = String::new();
     let mut emitted_foreigns = std::collections::BTreeSet::new();
     for f in &module.foreigns {
@@ -777,86 +764,98 @@ fail:\n\
 
     let mut unit_of_fn = vec![0usize; fn_count];
     if actual_units > 1 {
-        let mut reach_ord = 0usize;
+        // Group reachable functions by source module so all functions of one module
+        // share a CGU and contiguous modules occupy contiguous CGUs.
+        // Place the entry module first so `main` stays in unit 0.
+        let main_mod_key = main_fn
+            .as_ref()
+            .map(|(id, _, _)| fn_module_key(&module.functions[id.index()].name));
+        let mut other_mods: Vec<&str> = Vec::new();
+        let mut seen_mods: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        if let Some(mk) = main_mod_key {
+            seen_mods.insert(mk);
+        }
         for idx in 0..fn_count {
             if reach.fns[idx] {
-                unit_of_fn[idx] = reach_ord % actual_units;
-                reach_ord += 1;
+                let mk = fn_module_key(&module.functions[idx].name);
+                if seen_mods.insert(mk) {
+                    other_mods.push(mk);
+                }
+            }
+        }
+        other_mods.sort_by(|a, b| natural_key_cmp(a, b));
+        let mut mod_to_ord: std::collections::HashMap<&str, usize> =
+            std::collections::HashMap::with_capacity(other_mods.len() + 1);
+        let mut mod_count = 0usize;
+        if let Some(mk) = main_mod_key {
+            mod_to_ord.insert(mk, 0);
+            mod_count = 1;
+        }
+        for mk in other_mods {
+            mod_to_ord.insert(mk, mod_count);
+            mod_count += 1;
+        }
+        if mod_count >= actual_units {
+            for idx in 0..fn_count {
+                if reach.fns[idx] {
+                    let mk = fn_module_key(&module.functions[idx].name);
+                    let mord = mod_to_ord[mk];
+                    unit_of_fn[idx] = (mord * actual_units) / mod_count;
+                }
+            }
+        } else {
+            let mut reach_ord = 0usize;
+            for idx in 0..fn_count {
+                if reach.fns[idx] {
+                    unit_of_fn[idx] = reach_ord % actual_units;
+                    reach_ord += 1;
+                }
             }
         }
     }
 
+    let fn_cfg = FnEmitConfig {
+        is_windows,
+        internalize: single_exe,
+        emit_cancel_clear: reach.uses_tasks,
+        syms: &syms,
+        static_syms: &static_syms,
+    };
+
     let mut units = Vec::with_capacity(actual_units);
     for unit_idx in 0..actual_units {
-        let mut out =
-            String::with_capacity(header.len() + runtime_defs.len() + foreign_header.len() + 4096);
-        out.push_str(&header);
-        if unit_idx == 0 {
-            out.push_str(&runtime_defs);
-        } else {
-            out.push_str(&runtime_decls);
-        }
-        out.push_str(&foreign_header);
+        let mut defs_buf = String::with_capacity(4096);
+        let mut refs = UnitRefs::default();
 
-        // Emit declarations for reachable functions owned by other units.
-        if actual_units > 1 {
-            for (idx, func) in module.functions.iter().enumerate() {
-                if reach.fns[idx] && unit_of_fn[idx] != unit_idx {
-                    emit_function_decl(module, func, &syms[idx], &mut out)?;
-                }
-            }
-            if unit_idx != 0 {
-                for (i, dimpl) in module.dyn_impls.iter().enumerate() {
-                    if !reach.dyn_impls[i] {
-                        continue;
-                    }
-                    let n = dimpl.methods.len() + 1;
-                    let _ = writeln!(out, "@__zil_vtable_{i} = external constant [{n} x ptr]");
-                }
-            }
-            out.push('\n');
-        }
-
-        let fn_cfg = FnEmitConfig {
-            is_windows,
-            internalize: single_exe,
-            emit_cancel_clear: reach.uses_tasks,
-        };
-        // Emit definitions for reachable functions owned by this unit.
+        // 1. Emit definitions owned by this unit first, recording exact symbol references.
         for (idx, func) in module.functions.iter().enumerate() {
             if reach.fns[idx] && unit_of_fn[idx] == unit_idx {
                 emit_function(
                     module,
                     FnId::from_index(idx),
                     func,
-                    &syms[idx],
                     fn_cfg,
-                    &mut out,
+                    &mut refs,
+                    &mut defs_buf,
                 )?;
-                out.push('\n');
+                defs_buf.push('\n');
             }
         }
 
         // Emit dyn Trait vtables, drop shims, and slot thunks in unit 0.
         if unit_idx == 0 && !module.dyn_impls.is_empty() {
-            emit_dyn_vtables(
-                module,
-                &syms,
-                is_windows,
-                single_exe,
-                &reach.dyn_impls,
-                &mut out,
-            )?;
+            emit_dyn_vtables(module, fn_cfg, &reach.dyn_impls, &mut refs, &mut defs_buf)?;
         }
 
         // Emit C `main()` wrapper in unit 0.
         if unit_idx == 0
             && emit_c_main
-            && let Some((_, ref sym, res_ty)) = main_fn
+            && let Some((main_id, ref sym, res_ty)) = main_fn
         {
+            refs.fns.push(main_id.index());
             let ret = llvm_ty(&module.tys, res_ty)?;
             let mut main_extra_defs = String::new();
-            out.push_str(
+            defs_buf.push_str(
                 "define i32 @main(i32 %argc, ptr %argv) {\nentry:\n  store i32 %argc, ptr @zil_process_argc\n  store ptr %argv, ptr @zil_process_argv\n",
             );
             if let Some(TyKind::ErrorUnion { ok, err }) = module.tys.get(res_ty) {
@@ -864,39 +863,41 @@ fail:\n\
                 let err_ty = *err;
                 let ok_llvm = llvm_ty(&module.tys, ok_ty)?;
                 let ret_storage = llvm_storage_ty(&module.tys, res_ty)?;
-                let _ = writeln!(out, "  %r_slot = alloca {ret_storage}");
-                let _ = writeln!(out, "  %r = call {ret} @{sym}()");
-                let _ = writeln!(out, "  store {ret} %r, ptr %r_slot");
-                let _ = writeln!(out, "  %tag = extractvalue {ret} %r, 0");
-                out.push_str("  br i1 %tag, label %ok_bb, label %err_bb\n");
-                out.push_str("ok_bb:\n");
+                let _ = writeln!(defs_buf, "  %r_slot = alloca {ret_storage}");
+                let _ = writeln!(defs_buf, "  %r = call {ret} @{sym}()");
+                let _ = writeln!(defs_buf, "  store {ret} %r, ptr %r_slot");
+                let _ = writeln!(defs_buf, "  %tag = extractvalue {ret} %r, 0");
+                defs_buf.push_str("  br i1 %tag, label %ok_bb, label %err_bb\n");
+                defs_buf.push_str("ok_bb:\n");
                 if ok_llvm == "void" {
-                    out.push_str("  ret i32 0\n");
+                    defs_buf.push_str("  ret i32 0\n");
                 } else if ok_llvm == "i32" {
-                    let _ = writeln!(out, "  %v = extractvalue {ret} %r, 1");
+                    let _ = writeln!(defs_buf, "  %v = extractvalue {ret} %r, 1");
                     if custom_entry {
-                        out.push_str("  %ext = sext i32 %v to i64\n");
-                        out.push_str(
+                        defs_buf.push_str("  %ext = sext i32 %v to i64\n");
+                        defs_buf.push_str(
                             "  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %ext)\n",
                         );
-                        out.push_str("  ret i32 0\n");
+                        defs_buf.push_str("  ret i32 0\n");
                     } else {
-                        out.push_str("  ret i32 %v\n");
+                        defs_buf.push_str("  ret i32 %v\n");
                     }
                 } else if ok_llvm == "i64" {
-                    let _ = writeln!(out, "  %v = extractvalue {ret} %r, 1");
+                    let _ = writeln!(defs_buf, "  %v = extractvalue {ret} %r, 1");
                     if custom_entry {
-                        out.push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %v)\n");
-                        out.push_str("  ret i32 0\n");
+                        defs_buf.push_str(
+                            "  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %v)\n",
+                        );
+                        defs_buf.push_str("  ret i32 0\n");
                     } else {
-                        out.push_str("  %t = trunc i64 %v to i32\n  ret i32 %t\n");
+                        defs_buf.push_str("  %t = trunc i64 %v to i32\n  ret i32 %t\n");
                     }
                 } else {
-                    out.push_str("  ret i32 0\n");
+                    defs_buf.push_str("  ret i32 0\n");
                 }
-                out.push_str("err_bb:\n");
+                defs_buf.push_str("err_bb:\n");
                 let _ = writeln!(
-                    out,
+                    defs_buf,
                     "  %err_ptr = getelementptr inbounds {ret_storage}, ptr %r_slot, i32 0, i32 2"
                 );
                 let empty_body = Body {
@@ -916,7 +917,10 @@ fail:\n\
                         body: &empty_body,
                         is_windows,
                         emit_cancel_clear: false,
-                        out: &mut out,
+                        syms: &syms,
+                        static_syms: &static_syms,
+                        refs: &mut refs,
+                        out: &mut defs_buf,
                         entry_allocas: None,
                         extra_defs: String::new(),
                         tmp: 0,
@@ -924,48 +928,191 @@ fail:\n\
                     emitter.emit_drop_ptr("%err_ptr", err_ty)?;
                     main_extra_defs = emitter.extra_defs;
                 }
-                out.push_str("  ret i32 1\n");
+                defs_buf.push_str("  ret i32 1\n");
             } else if ret == "void" {
-                let _ = writeln!(out, "  call void @{sym}()");
-                out.push_str("  ret i32 0\n");
+                let _ = writeln!(defs_buf, "  call void @{sym}()");
+                defs_buf.push_str("  ret i32 0\n");
             } else if ret == "i32" {
-                let _ = writeln!(out, "  %r = call i32 @{sym}()");
+                let _ = writeln!(defs_buf, "  %r = call i32 @{sym}()");
                 if custom_entry {
-                    out.push_str("  %ext = sext i32 %r to i64\n");
-                    out.push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %ext)\n");
-                    out.push_str("  ret i32 0\n");
+                    defs_buf.push_str("  %ext = sext i32 %r to i64\n");
+                    defs_buf
+                        .push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %ext)\n");
+                    defs_buf.push_str("  ret i32 0\n");
                 } else {
-                    out.push_str("  ret i32 %r\n");
+                    defs_buf.push_str("  ret i32 %r\n");
                 }
             } else if ret == "i64" {
-                let _ = writeln!(out, "  %r = call i64 @{sym}()");
+                let _ = writeln!(defs_buf, "  %r = call i64 @{sym}()");
                 if custom_entry {
-                    out.push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %r)\n");
-                    out.push_str("  ret i32 0\n");
+                    defs_buf
+                        .push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %r)\n");
+                    defs_buf.push_str("  ret i32 0\n");
                 } else {
-                    out.push_str("  %t = trunc i64 %r to i32\n  ret i32 %t\n");
+                    defs_buf.push_str("  %t = trunc i64 %r to i32\n  ret i32 %t\n");
                 }
             } else if ret == "i1" {
-                let _ = writeln!(out, "  %r = call i1 @{sym}()");
-                out.push_str("  %t = zext i1 %r to i32\n  ret i32 %t\n");
+                let _ = writeln!(defs_buf, "  %r = call i1 @{sym}()");
+                defs_buf.push_str("  %t = zext i1 %r to i32\n  ret i32 %t\n");
             } else {
-                let _ = writeln!(out, "  %r = call {ret} @{sym}()");
-                out.push_str("  ret i32 0\n");
+                let _ = writeln!(defs_buf, "  %r = call {ret} @{sym}()");
+                defs_buf.push_str("  ret i32 0\n");
             }
-            out.push_str("}\n");
+            defs_buf.push_str("}\n");
             if !main_extra_defs.is_empty() {
-                out.push_str(&main_extra_defs);
+                defs_buf.push_str(&main_extra_defs);
             }
         }
 
+        // 2. Assemble unit with minimal referenced statics and minimal cross-unit decls.
+        let mut out = String::with_capacity(
+            header.len() + runtime_defs.len() + foreign_header.len() + defs_buf.len() + 512,
+        );
+        out.push_str(&header);
+        if !refs.statics.is_empty() {
+            refs.statics.sort_unstable();
+            refs.statics.dedup();
+            let mut emitted_static_syms = std::collections::HashSet::new();
+            for &sidx in &refs.statics {
+                let ssym = &static_syms[sidx];
+                if emitted_static_syms.insert(ssym.as_str()) {
+                    let bytes = &module.statics[sidx];
+                    let escaped = escape_llvm_bytes(bytes);
+                    let _ = writeln!(
+                        out,
+                        "@{ssym} = private unnamed_addr constant [{} x i8] c\"{escaped}\", align 1",
+                        bytes.len()
+                    );
+                }
+            }
+            out.push('\n');
+        }
+        if unit_idx == 0 {
+            out.push_str(&runtime_defs);
+        } else {
+            out.push_str(&runtime_decls);
+        }
+        out.push_str(&foreign_header);
+
+        if actual_units > 1 {
+            refs.fns.sort_unstable();
+            refs.fns.dedup();
+            let mut wrote_decl = false;
+            for &idx in &refs.fns {
+                if reach.fns[idx] && unit_of_fn[idx] != unit_idx {
+                    emit_function_decl(module, &module.functions[idx], &syms[idx], &mut out)?;
+                    wrote_decl = true;
+                }
+            }
+            if unit_idx != 0 && !refs.dyns.is_empty() {
+                refs.dyns.sort_unstable();
+                refs.dyns.dedup();
+                for &i in &refs.dyns {
+                    if !reach.dyn_impls[i] {
+                        continue;
+                    }
+                    let n = module.dyn_impls[i].methods.len() + 1;
+                    let _ = writeln!(out, "@__zil_vtable_{i} = external constant [{n} x ptr]");
+                    wrote_decl = true;
+                }
+            }
+            if wrote_decl {
+                out.push('\n');
+            }
+        }
+
+        out.push_str(&defs_buf);
         units.push(out);
     }
 
     Ok(units)
 }
 
-fn fn_symbol(id: FnId, f: &Function) -> String {
-    format!("__zil_fn_{}_{}", id.0, sanitize_symbol(&f.name))
+#[derive(Default)]
+struct UnitRefs {
+    fns: Vec<usize>,
+    dyns: Vec<usize>,
+    statics: Vec<usize>,
+}
+
+fn fn_module_key(name: &str) -> &str {
+    let base = name.split(".__closure_").next().unwrap_or(name);
+    base.rsplit_once('.').map_or("", |(m, _)| m)
+}
+
+fn natural_key_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    let (ab, bb) = (a.as_bytes(), b.as_bytes());
+    let (mut i, mut j) = (0usize, 0usize);
+    while i < ab.len() && j < bb.len() {
+        if ab[i].is_ascii_digit() && bb[j].is_ascii_digit() {
+            let i0 = i;
+            while i < ab.len() && ab[i].is_ascii_digit() {
+                i += 1;
+            }
+            let j0 = j;
+            while j < bb.len() && bb[j].is_ascii_digit() {
+                j += 1;
+            }
+            let na = &ab[i0..i];
+            let nb = &bb[j0..j];
+            let ta = na
+                .iter()
+                .position(|&c| c != b'0')
+                .map_or(&[][..], |p| &na[p..]);
+            let tb = nb
+                .iter()
+                .position(|&c| c != b'0')
+                .map_or(&[][..], |p| &nb[p..]);
+            let ord = ta.len().cmp(&tb.len()).then_with(|| ta.cmp(tb));
+            if ord != std::cmp::Ordering::Equal {
+                return ord;
+            }
+        } else {
+            let ord = ab[i].cmp(&bb[j]);
+            if ord != std::cmp::Ordering::Equal {
+                return ord;
+            }
+            i += 1;
+            j += 1;
+        }
+    }
+    ab.len().cmp(&bb.len()).then_with(|| a.cmp(b))
+}
+
+fn compute_stable_fn_symbols(module: &Module) -> Vec<String> {
+    let mut sanitized_names: Vec<String> = Vec::with_capacity(module.functions.len());
+    let mut counts: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::with_capacity(module.functions.len());
+    for f in &module.functions {
+        let s = sanitize_symbol(&f.name);
+        *counts.entry(s.clone()).or_insert(0) += 1;
+        sanitized_names.push(s);
+    }
+    let mut seen: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut out = Vec::with_capacity(module.functions.len());
+    for s in sanitized_names {
+        let total = counts[&s];
+        if total == 1 {
+            out.push(format!("__zil_fn_{s}"));
+        } else {
+            let ord = seen.entry(s.clone()).or_insert(0);
+            let cur = *ord;
+            *ord += 1;
+            out.push(format!("__zil_fn_{s}_{cur}"));
+        }
+    }
+    out
+}
+
+fn compute_stable_static_symbols(module: &Module) -> Vec<String> {
+    module
+        .statics
+        .iter()
+        .map(|bytes| {
+            let hex = zil_base::Fingerprint::of(bytes).to_hex();
+            format!("__zil_str_{}", &hex[..16])
+        })
+        .collect()
 }
 
 fn sanitize_symbol(s: &str) -> String {
@@ -1131,6 +1278,9 @@ struct FnEmitter<'a> {
     body: &'a Body,
     is_windows: bool,
     emit_cancel_clear: bool,
+    syms: &'a [String],
+    static_syms: &'a [String],
+    refs: &'a mut UnitRefs,
     out: &'a mut String,
     entry_allocas: Option<&'a mut String>,
     extra_defs: String,
@@ -1138,6 +1288,21 @@ struct FnEmitter<'a> {
 }
 
 impl<'a> FnEmitter<'a> {
+    fn use_fn(&mut self, fid: FnId) -> &'a str {
+        self.refs.fns.push(fid.index());
+        &self.syms[fid.index()]
+    }
+
+    fn use_static(&mut self, idx: usize) -> &'a str {
+        self.refs.statics.push(idx);
+        &self.static_syms[idx]
+    }
+
+    fn use_vtable(&mut self, vt_idx: usize) -> usize {
+        self.refs.dyns.push(vt_idx);
+        vt_idx
+    }
+
     fn fresh(&mut self) -> String {
         let id = self.tmp;
         self.tmp += 1;
@@ -1511,8 +1676,7 @@ impl<'a> FnEmitter<'a> {
                 match self.tys().get(inner).cloned() {
                     Some(TyKind::Adt { adt, .. }) => {
                         if let Some(drop_fn_id) = self.module.drop_fn(adt) {
-                            let sym =
-                                fn_symbol(drop_fn_id, &self.module.functions[drop_fn_id.index()]);
+                            let sym = self.use_fn(drop_fn_id);
                             let _ = writeln!(self.out, "  call void @{sym}(ptr {handle})");
                         }
                     }
@@ -2380,7 +2544,7 @@ impl<'a> FnEmitter<'a> {
                 Ok(())
             }
             Rvalue::FnRef(fid) => {
-                let sym = fn_symbol(*fid, &self.module.functions[fid.index()]);
+                let sym = self.use_fn(*fid);
                 let _ = writeln!(self.out, "  store ptr @{sym}, ptr {d_ptr}");
                 Ok(())
             }
@@ -2391,11 +2555,11 @@ impl<'a> FnEmitter<'a> {
             }
             Rvalue::StaticUtf(sid) => {
                 let len = self.module.statics[sid.index()].len();
+                let ssym = self.use_static(sid.index());
                 let s0 = self.fresh();
                 let _ = writeln!(
                     self.out,
-                    "  {s0} = insertvalue {{ ptr, i64 }} undef, ptr @__zil_str_{}, 0",
-                    sid.0
+                    "  {s0} = insertvalue {{ ptr, i64 }} undef, ptr @{ssym}, 0"
                 );
                 let s1 = self.fresh();
                 let _ = writeln!(
@@ -2490,7 +2654,7 @@ impl<'a> FnEmitter<'a> {
                                 arg_strs.push(format!("{lt} {v}"));
                             }
                         }
-                        let sym = fn_symbol(*fid, &self.module.functions[fid.index()]);
+                        let sym = self.use_fn(*fid);
                         if d_llvm == "void" {
                             let _ =
                                 writeln!(self.out, "  call void @{sym}({})", arg_strs.join(", "));
@@ -2563,7 +2727,7 @@ impl<'a> FnEmitter<'a> {
                             .position(|f| f.body.closure == Some(*def))
                             .map(FnId::from_index)
                             .ok_or_else(|| BodyEmitError::new("closure body function missing"))?;
-                        let sym = fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]);
+                        let sym = self.use_fn(c_fn_id).to_owned();
                         let mut arg_strs = vec![format!("ptr {env_ptr}")];
                         for a in args {
                             let (v, lt, _) = self.emit_operand(a)?;
@@ -3464,7 +3628,7 @@ impl<'a> FnEmitter<'a> {
                     .position(|f| f.body.closure == Some(*def))
                     .map(FnId::from_index)
                     .ok_or_else(|| BodyEmitError::new("ThreadScope closure body missing"))?;
-                let sym = fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]);
+                let sym = self.use_fn(c_fn_id).to_owned();
 
                 let cell_stor = if cell_lt == "void" { "i8" } else { &cell_lt };
                 let ctx_ty = format!("{{ ptr, {cell_stor}, {r1_stor} }}");
@@ -4858,6 +5022,7 @@ impl<'a> FnEmitter<'a> {
                     self.out,
                     "  {fat1} = insertvalue {{ ptr, ptr }} undef, ptr {mem}, 0"
                 );
+                let vt_idx = self.use_vtable(vt_idx);
                 let _ = writeln!(
                     self.out,
                     "  {fat2} = insertvalue {{ ptr, ptr }} {fat1}, ptr @__zil_vtable_{vt_idx}, 1"
@@ -4909,7 +5074,7 @@ impl<'a> FnEmitter<'a> {
                             .ok_or_else(|| {
                                 BodyEmitError::new("RegistrationStart closure body missing")
                             })?;
-                        Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]))
+                        Some(self.use_fn(c_fn_id).to_owned())
                     }
                     Some(TyKind::FnPtr { .. }) => None,
                     _ => {
@@ -5135,7 +5300,7 @@ reject:\n\
                             .ok_or_else(|| {
                                 BodyEmitError::new("AsyncRegistrationStart closure body missing")
                             })?;
-                        Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]))
+                        Some(self.use_fn(c_fn_id).to_owned())
                     }
                     Some(TyKind::FnPtr { .. }) => None,
                     _ => {
@@ -5408,7 +5573,7 @@ reject:\n\
                             .ok_or_else(|| {
                                 BodyEmitError::new("ScopedCallback callback closure body missing")
                             })?;
-                        Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()]))
+                        Some(self.use_fn(c_fn_id).to_owned())
                     }
                     Some(TyKind::FnPtr { .. }) => None,
                     _ => {
@@ -5477,10 +5642,7 @@ reject:\n\
                             .tys()
                             .closure(*def)
                             .is_some_and(|c| c.kind == zil_ir::body::ClosureKind::FnOnce);
-                        (
-                            Some(fn_symbol(c_fn_id, &self.module.functions[c_fn_id.index()])),
-                            is_once,
-                        )
+                        (Some(self.use_fn(c_fn_id).to_owned()), is_once)
                     }
                     Some(TyKind::FnPtr { .. }) => (None, false),
                     _ => {
@@ -5608,20 +5770,23 @@ fn emit_function_decl(
 }
 
 #[derive(Clone, Copy)]
-struct FnEmitConfig {
+struct FnEmitConfig<'a> {
     is_windows: bool,
     internalize: bool,
     emit_cancel_clear: bool,
+    syms: &'a [String],
+    static_syms: &'a [String],
 }
 
 fn emit_function(
     module: &Module,
     fn_id: FnId,
     func: &Function,
-    sym: &str,
-    cfg: FnEmitConfig,
+    cfg: FnEmitConfig<'_>,
+    refs: &mut UnitRefs,
     out: &mut String,
 ) -> Result<(), BodyEmitError> {
+    let sym = &cfg.syms[fn_id.index()];
     let is_windows = cfg.is_windows;
     let internalize = cfg.internalize;
     let emit_cancel_clear = cfg.emit_cancel_clear;
@@ -5663,6 +5828,9 @@ fn emit_function(
             body: &func.body,
             is_windows,
             emit_cancel_clear,
+            syms: cfg.syms,
+            static_syms: cfg.static_syms,
+            refs,
             out: &mut body_out,
             entry_allocas: Some(&mut entry_allocas),
             extra_defs: String::new(),
@@ -5691,10 +5859,9 @@ fn emit_block(emitter: &mut FnEmitter<'_>, bi: usize, block: &Block) -> Result<(
 
 fn emit_dyn_vtables(
     module: &Module,
-    syms: &[String],
-    is_windows: bool,
-    internalize: bool,
+    cfg: FnEmitConfig<'_>,
     reachable_dyn_impls: &[bool],
+    refs: &mut UnitRefs,
     out: &mut String,
 ) -> Result<(), BodyEmitError> {
     let empty_body = Body {
@@ -5707,7 +5874,7 @@ fn emit_dyn_vtables(
         drop_flags: Vec::new(),
         param_env: zil_ir::body::ParamEnv::default(),
     };
-    let vtable_linkage = if internalize { "internal " } else { "" };
+    let vtable_linkage = if cfg.internalize { "internal " } else { "" };
     for (idx, dimpl) in module.dyn_impls.iter().enumerate() {
         if !reachable_dyn_impls.get(idx).copied().unwrap_or(true) {
             continue;
@@ -5725,8 +5892,11 @@ fn emit_dyn_vtables(
                 module,
                 fn_id: FnId(0),
                 body: &empty_body,
-                is_windows,
+                is_windows: cfg.is_windows,
                 emit_cancel_clear: false,
+                syms: cfg.syms,
+                static_syms: cfg.static_syms,
+                refs,
                 out,
                 entry_allocas: None,
                 extra_defs: String::new(),
@@ -5747,8 +5917,9 @@ fn emit_dyn_vtables(
         entries.push(format!("ptr @{drop_sym}"));
         let concrete_llvm = llvm_ty(&module.tys, dimpl.concrete_ty)?;
         for (slot_idx, (slot, &fn_id)) in def.slots.iter().zip(&dimpl.methods).enumerate() {
+            refs.fns.push(fn_id.index());
             let thunk_sym = format!("__zil_dyn_slot_{idx}_{slot_idx}");
-            let target_sym = &syms[fn_id.index()];
+            let target_sym = &cfg.syms[fn_id.index()];
             let ret_llvm = llvm_ty(&module.tys, slot.result)?;
             let mut thunk_params = vec!["ptr %data".to_string()];
             let mut call_args = Vec::with_capacity(1 + slot.params.len());

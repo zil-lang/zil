@@ -258,6 +258,8 @@ pub fn build_body_source_native(
             codegen_units: 1,
             codegen_jobs: 1,
             object_cache: None,
+            object_cache_max_bytes: None,
+            emit_ir_file: true,
         },
     )
     .map(|o| o.ir)
