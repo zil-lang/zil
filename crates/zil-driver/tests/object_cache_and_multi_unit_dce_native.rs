@@ -1432,3 +1432,165 @@ fn parallel_frontend_emit_and_lld_linker_end_to_end() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[cfg(feature = "llvm-api")]
+#[test]
+fn generics_monomorphization_cgu_sharding_and_link_skip_self_healing() {
+    use std::process::Command;
+    use zil_base::ResultCategory;
+    use zil_driver::{
+        CodegenOptions, CompileOptions, NativeBackend, Optimization, Stage, compile_path,
+    };
+
+    let dir = std::env::temp_dir().join(format!("zil_p6_mono_linkskip_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let cache_dir = dir.join("obj_cache");
+    let exe_path = dir.join(format!("app{}", std::env::consts::EXE_SUFFIX));
+
+    std::fs::write(
+        dir.join("core_gen.zil"),
+        "pub trait Reducer {\n\
+         \tfn reduce(self: &Self, acc: i64) -> i64;\n\
+         }\n\
+         pub fn identity<T: Value>(v: T) -> T {\n\
+         \treturn v\n\
+         }\n\
+         pub fn apply_pair<A: Value, B: Value>(a: A, b: B) -> (B, A) {\n\
+         \treturn (b, a)\n\
+         }\n",
+    )
+    .expect("write core_gen");
+
+    let write_mod = |i: usize, salt: i64| {
+        std::fs::write(
+            dir.join(format!("g{i}.zil")),
+            format!(
+                "import core_gen;\n\
+                 pub struct Rec{i} {{ a: i64, b: i64 }}\n\
+                 impl core_gen.Reducer for Rec{i} {{\n\
+                 \tfn reduce(self: &Self, acc: i64) -> i64 {{\n\
+                 \t\treturn acc + self.a + self.b + {}\n\
+                 \t}}\n\
+                 }}\n\
+                 pub fn run(x: i64) -> i64 {{\n\
+                 \tlet r = core_gen.identity::<Rec{i}>(Rec{i} {{ a: x + {i}, b: x }})\n\
+                 \tlet (k, r2) = core_gen.apply_pair::<Rec{i}, i64>(r, x + {salt})\n\
+                 \treturn r2.reduce(k)\n\
+                 }}\n",
+                (i as i64) + 1 + salt
+            ),
+        )
+        .expect("write generic module");
+    };
+
+    let mut imports = String::from("import core_gen;\n");
+    let mut calls = String::new();
+    for i in 0..20 {
+        write_mod(i, 0);
+        imports.push_str(&format!("import g{i};\n"));
+        calls.push_str(&format!("    acc = g{i}.run(acc % 97);\n"));
+    }
+    std::fs::write(
+        dir.join("main.zil"),
+        format!(
+            "{imports}\nfn main() -> i64 {{\n    var acc: i64 = 1;\n{calls}    return acc % 100;\n}}\n"
+        ),
+    )
+    .expect("write main");
+
+    let opts = CompileOptions {
+        stop_after: Stage::Build,
+        optimization: Optimization::O0,
+        backend: NativeBackend::LlvmApi,
+        output: Some(exe_path.clone()),
+        codegen: CodegenOptions { units: 8, jobs: 4 },
+        object_cache: Some(cache_dir.clone()),
+        ..CompileOptions::default()
+    };
+
+    // 1. Cold build: links fresh (`link_skipped == false`).
+    let cold = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        cold.status,
+        ResultCategory::Success,
+        "{:?}",
+        cold.diagnostics
+    );
+    assert_eq!(cold.verification_runs, 1);
+    let cold_cg = cold.native_codegen.as_ref().unwrap();
+    assert_eq!(cold_cg.cache_misses, 8);
+    assert!(!cold_cg.link_skipped, "cold build must link fresh");
+    let expected_code = Command::new(&exe_path).output().unwrap().status.code();
+    assert!(expected_code.is_some());
+
+    // 2. Warm no-op rebuild: 8/8 object cache hits AND `link_skipped == true`!
+    let warm = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        warm.status,
+        ResultCategory::Success,
+        "{:?}",
+        warm.diagnostics
+    );
+    assert_eq!(warm.verification_runs, 1);
+    let warm_cg = warm.native_codegen.as_ref().unwrap();
+    assert_eq!(warm_cg.cache_hits, 8);
+    assert_eq!(warm_cg.cache_misses, 0);
+    assert!(
+        warm_cg.link_skipped,
+        "warm no-op build with intact output must skip redundant link"
+    );
+    assert_eq!(
+        Command::new(&exe_path).output().unwrap().status.code(),
+        expected_code
+    );
+
+    // 3. Tamper output binary: next warm build detects SHA-256 mismatch and relinks cleanly!
+    std::fs::write(&exe_path, b"corrupted binary payload").expect("tamper output");
+    let healed_tamper = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(healed_tamper.status, ResultCategory::Success);
+    assert_eq!(healed_tamper.verification_runs, 1);
+    let ht_cg = healed_tamper.native_codegen.as_ref().unwrap();
+    assert_eq!(ht_cg.cache_hits, 8);
+    assert!(
+        !ht_cg.link_skipped,
+        "tampered output executable must trigger fresh link"
+    );
+    assert_eq!(
+        Command::new(&exe_path).output().unwrap().status.code(),
+        expected_code
+    );
+
+    // 4. Delete output binary: next warm build detects missing output and relinks cleanly!
+    std::fs::remove_file(&exe_path).expect("delete output");
+    let healed_del = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(healed_del.status, ResultCategory::Success);
+    assert!(!healed_del.native_codegen.as_ref().unwrap().link_skipped);
+    assert_eq!(
+        Command::new(&exe_path).output().unwrap().status.code(),
+        expected_code
+    );
+
+    // 5. Edit ONLY `g0.zil`'s trait impl body: ONLY `g0`'s single CGU bucket may recompile!
+    //    All 19 other trait impls + all 40 monomorphized instances of core_gen.{identity,apply_pair}
+    //    must hit the object cache (7/8 CGU cache hits)!
+    write_mod(0, 5);
+    let edited = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        edited.status,
+        ResultCategory::Success,
+        "{:?}",
+        edited.diagnostics
+    );
+    assert_eq!(edited.verification_runs, 1);
+    let ed_cg = edited.native_codegen.as_ref().unwrap();
+    assert_eq!(
+        ed_cg.cache_hits, 7,
+        "editing g0 trait impl must recompile only g0's single CGU (expected 7/8 hits, got {}/8)",
+        ed_cg.cache_hits
+    );
+    assert_eq!(ed_cg.cache_misses, 1);
+    assert!(!ed_cg.link_skipped, "edited build must relink");
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

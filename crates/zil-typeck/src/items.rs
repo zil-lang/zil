@@ -4686,6 +4686,16 @@ fn collect_trait_impl<'a>(
         types.error()
     });
     let trait_name = items.traits[trait_ref.0 as usize].name.clone();
+    let impl_target_label = if let TyData::Adt { adt, .. } = types.data(target) {
+        items.adts[adt.0 as usize].name.clone()
+    } else {
+        let mod_path = &items.modules[mid.0 as usize].path;
+        if mod_path.is_empty() {
+            format!("{target:?}")
+        } else {
+            format!("{mod_path}.{target:?}")
+        }
+    };
     let trait_assoc_names = items.traits[trait_ref.0 as usize].assoc_types.clone();
     let mut assoc_types = Vec::new();
     let mut methods = Vec::new();
@@ -4817,7 +4827,7 @@ fn collect_trait_impl<'a>(
                 let fn_ref = FnRef(items.fns.len() as u32);
                 items.fns.push(FnDecl {
                     module: mid,
-                    name: format!("{trait_name}::{}", f.name),
+                    name: format!("{impl_target_label}::{trait_name}::{}", f.name),
                     generics: fn_generics,
                     region_params: fn_lifetimes,
                     params,
@@ -4901,7 +4911,7 @@ fn collect_trait_impl<'a>(
         let fn_ref = FnRef(items.fns.len() as u32);
         items.fns.push(FnDecl {
             module: trait_module,
-            name: format!("{trait_name}::{mname}"),
+            name: format!("{impl_target_label}::{trait_name}::{mname}"),
             generics: fn_generics,
             region_params: fn_regions,
             params,

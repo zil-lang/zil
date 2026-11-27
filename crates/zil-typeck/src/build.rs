@@ -270,7 +270,7 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         let id = FnId::from_index(self.module.functions.len());
         let mut name = decl.name.clone();
         if !args.is_empty() {
-            name.push_str(&format!("::<#{}>", self.instances.len()));
+            name.push_str(&format_mono_args_tag(self.types, self.items, &args));
         }
         let region_params = (decl.region_params.len() as u32).max(max_region_param_count(
             &self.module.tys,
@@ -3953,5 +3953,272 @@ pub fn eval_ct_type_expr<'a>(
             diags.push(d);
             None
         }
+    }
+}
+
+/// Formats a deterministic, order-independent, bounded-length canonical tag for
+/// a generic function's concrete type arguments (e.g. `::<g0.Rec0__h0123456789abcdef>`).
+fn format_mono_args_tag(types: &Types, items: &Items<'_>, args: &[Ty]) -> String {
+    let mut canonical = String::with_capacity(64);
+    for (idx, &arg) in args.iter().enumerate() {
+        if idx > 0 {
+            canonical.push(',');
+        }
+        format_mono_ty(types, items, arg, &mut canonical, 0);
+    }
+    let hex = zil_base::Fingerprint::of(canonical.as_bytes()).to_hex();
+    // Keep a short readable prefix (bounded to 40 chars) plus a 64-bit SHA-256
+    // suffix so LLVM/COFF/ELF symbol names stay compact and collision-free.
+    let mut prefix = String::with_capacity(40);
+    for ch in canonical.chars() {
+        if prefix.len() >= 40 {
+            break;
+        }
+        if ch.is_ascii_alphanumeric() || ch == '_' || ch == '.' {
+            prefix.push(ch);
+        } else {
+            prefix.push('_');
+        }
+    }
+    format!("::<{prefix}__h{}>", &hex[..16])
+}
+
+fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, depth: u8) {
+    if depth > 16 {
+        out.push_str("...");
+        return;
+    }
+    match types.data(ty) {
+        TyData::Unit => out.push_str("unit"),
+        TyData::Bool => out.push_str("bool"),
+        TyData::Never => out.push_str("never"),
+        TyData::Int(i) => out.push_str(&format!("{i:?}")),
+        TyData::Float(f) => out.push_str(&format!("{f:?}")),
+        TyData::Adt { adt, args, regions } => {
+            out.push_str(&items.adt(*adt).name);
+            if !args.is_empty() || !regions.is_empty() {
+                out.push('<');
+                for (i, r) in regions.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    match r {
+                        Some(id) => out.push_str(&format!("'r{id}")),
+                        None => out.push_str("'_"),
+                    }
+                }
+                for (i, a) in args.iter().enumerate() {
+                    if i > 0 || !regions.is_empty() {
+                        out.push(',');
+                    }
+                    format_mono_ty(types, items, *a, out, depth + 1);
+                }
+                out.push('>');
+            }
+        }
+        TyData::Tuple(elems) => {
+            out.push_str("tup(");
+            for (i, e) in elems.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                format_mono_ty(types, items, *e, out, depth + 1);
+            }
+            out.push(')');
+        }
+        TyData::Union(elems) => {
+            out.push_str("union(");
+            for (i, e) in elems.iter().enumerate() {
+                if i > 0 {
+                    out.push('|');
+                }
+                format_mono_ty(types, items, *e, out, depth + 1);
+            }
+            out.push(')');
+        }
+        TyData::Array { element, length } => {
+            out.push_str("arr[");
+            format_mono_ty(types, items, *element, out, depth + 1);
+            out.push_str(&format!(";{length}]"));
+        }
+        TyData::Slice(elem) => {
+            out.push_str("slice[");
+            format_mono_ty(types, items, *elem, out, depth + 1);
+            out.push(']');
+        }
+        TyData::Ref {
+            region,
+            mutable,
+            pointee,
+        } => {
+            out.push('&');
+            if let Some(r) = region {
+                out.push_str(&format!("r{r}_"));
+            }
+            if *mutable {
+                out.push_str("mut_");
+            }
+            format_mono_ty(types, items, *pointee, out, depth + 1);
+        }
+        TyData::Managed(inner) => {
+            out.push_str("Managed<");
+            format_mono_ty(types, items, *inner, out, depth + 1);
+            out.push('>');
+        }
+        TyData::Desc(inner) => {
+            out.push_str("Desc<");
+            format_mono_ty(types, items, *inner, out, depth + 1);
+            out.push('>');
+        }
+        TyData::Opaque(op) => match op {
+            OpaqueKind::ByteBuffer => out.push_str("ByteBuffer"),
+            OpaqueKind::OwnedStore(e) => {
+                out.push_str("OwnedStore<");
+                format_mono_ty(types, items, *e, out, depth + 1);
+                out.push('>');
+            }
+            OpaqueKind::Mutex(e) => {
+                out.push_str("Mutex<");
+                format_mono_ty(types, items, *e, out, depth + 1);
+                out.push('>');
+            }
+            OpaqueKind::MutexGuard(e) => {
+                out.push_str("MutexGuard<");
+                format_mono_ty(types, items, *e, out, depth + 1);
+                out.push('>');
+            }
+            OpaqueKind::Task { result, context } => {
+                out.push_str("Task<");
+                format_mono_ty(types, items, *result, out, depth + 1);
+                if let Some(ctx) = context {
+                    out.push(',');
+                    format_mono_ty(types, items, *ctx, out, depth + 1);
+                }
+                out.push('>');
+            }
+            OpaqueKind::Registration(e) => {
+                out.push_str("Registration<");
+                format_mono_ty(types, items, *e, out, depth + 1);
+                out.push('>');
+            }
+            OpaqueKind::AsyncRegistration(e) => {
+                out.push_str("AsyncRegistration<");
+                format_mono_ty(types, items, *e, out, depth + 1);
+                out.push('>');
+            }
+            OpaqueKind::ForeignHandle => out.push_str("ForeignHandle"),
+            OpaqueKind::ForeignCallback { params, result } => {
+                out.push_str("ForeignCallback(");
+                for (i, p) in params.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    format_mono_ty(types, items, *p, out, depth + 1);
+                }
+                out.push_str(")->");
+                format_mono_ty(types, items, *result, out, depth + 1);
+            }
+            OpaqueKind::SyncCell(k) => out.push_str(&format!("SyncCell<{k:?}>")),
+        },
+        TyData::ErrorUnion { ok, err } => {
+            out.push_str("err(");
+            format_mono_ty(types, items, *err, out, depth + 1);
+            out.push('!');
+            format_mono_ty(types, items, *ok, out, depth + 1);
+            out.push(')');
+        }
+        TyData::FnPtr { params, result } => {
+            out.push_str("fn(");
+            for (i, p) in params.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                format_mono_ty(types, items, *p, out, depth + 1);
+            }
+            out.push_str(")->");
+            format_mono_ty(types, items, *result, out, depth + 1);
+        }
+        TyData::Closure {
+            owner,
+            id,
+            owner_args,
+            kind,
+            ..
+        } => {
+            out.push_str(&format!(
+                "cl({}#{}#{:?}",
+                items.func(*owner).name,
+                id.0,
+                kind
+            ));
+            for a in owner_args {
+                out.push(',');
+                format_mono_ty(types, items, *a, out, depth + 1);
+            }
+            out.push(')');
+        }
+        TyData::ImplCallable {
+            owner,
+            owner_args,
+            kind,
+            ..
+        } => {
+            out.push_str(&format!("impl_fn({}#{:?}", items.func(*owner).name, kind));
+            for a in owner_args {
+                out.push(',');
+                format_mono_ty(types, items, *a, out, depth + 1);
+            }
+            out.push(')');
+        }
+        TyData::Dyn {
+            trait_ref,
+            trait_args,
+            ..
+        } => {
+            out.push_str("dyn<");
+            out.push_str(&items.traits[trait_ref.0 as usize].name);
+            for a in trait_args {
+                out.push(',');
+                format_mono_ty(types, items, *a, out, depth + 1);
+            }
+            out.push('>');
+        }
+        TyData::OwnedDyn {
+            trait_ref,
+            trait_args,
+            context,
+            ..
+        } => {
+            out.push_str("OwnedDyn<");
+            out.push_str(&items.traits[trait_ref.0 as usize].name);
+            for a in trait_args {
+                out.push(',');
+                format_mono_ty(types, items, *a, out, depth + 1);
+            }
+            if let Some(ctx) = context {
+                out.push(';');
+                format_mono_ty(types, items, *ctx, out, depth + 1);
+            }
+            out.push('>');
+        }
+        TyData::Param(p) => out.push_str(&format!("P{p}")),
+        TyData::SelfParam => out.push_str("Self"),
+        TyData::Assoc { base, name, .. } => {
+            format_mono_ty(types, items, *base, out, depth + 1);
+            out.push('.');
+            out.push_str(name);
+        }
+        TyData::ArrayConst { element, length } => {
+            out.push_str("arrc[");
+            format_mono_ty(types, items, *element, out, depth + 1);
+            out.push(';');
+            format_mono_ty(types, items, *length, out, depth + 1);
+            out.push(']');
+        }
+        TyData::ConstParam(p) => out.push_str(&format!("CP{p}")),
+        TyData::ConstU32(v) => out.push_str(&format!("C{v}")),
+        TyData::Type => out.push_str("Type"),
+        TyData::Var(v) => out.push_str(&format!("{v:?}")),
+        TyData::Error => out.push_str("Err"),
     }
 }

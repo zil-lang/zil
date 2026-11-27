@@ -87,12 +87,13 @@ pub struct CodegenSummary {
     pub cache_evict_ns: u64,
     pub emit_ns: u64,
     pub link_ns: u64,
+    pub link_skipped: bool,
 }
 
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"cache_hits\":{},\"cache_misses\":{},\"cache_evicted_entries\":{},\"cache_evicted_bytes\":{},\"cache_evict_ns\":{},\"emit_ns\":{},\"link_ns\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"cache_hits\":{},\"cache_misses\":{},\"cache_evicted_entries\":{},\"cache_evicted_bytes\":{},\"cache_evict_ns\":{},\"emit_ns\":{},\"link_ns\":{},\"link_skipped\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.requested_units,
@@ -108,6 +109,7 @@ impl CodegenSummary {
             self.cache_evict_ns,
             self.emit_ns,
             self.link_ns,
+            self.link_skipped,
         )
     }
 }

@@ -47,6 +47,7 @@ pub struct BodyBuildOutput {
     pub cache_evict_ns: u64,
     pub emit_ns: u64,
     pub link_ns: u64,
+    pub link_skipped: bool,
 }
 
 /// Locates the bundled LLVM `ld.lld` sitting next to `clang` (without
@@ -72,6 +73,95 @@ fn resolve_sibling_lld(clang: &Path) -> Option<PathBuf> {
         }
     }
     None
+}
+
+#[cfg(feature = "llvm-api")]
+fn link_meta_path(cache_dir: &Path, output: &Path) -> PathBuf {
+    let out_hash = sha256_hex(output.to_string_lossy().as_bytes());
+    cache_dir.join(format!(".link.{}.meta", &out_hash[..24]))
+}
+
+#[cfg(feature = "llvm-api")]
+fn compute_link_key(
+    triple: &str,
+    opt_flag: &str,
+    clang: &Path,
+    lld_path: Option<&Path>,
+    windows: Option<&WindowsLinkOptions>,
+    unit_keys: &[String],
+) -> String {
+    let mut h = zil_base::FingerprintBuilder::new();
+    h.update(b"zil-link-v1\0");
+    h.update(zil_llvm_api::LLVM_VERSION.as_bytes());
+    h.update(b"\0");
+    h.update(triple.as_bytes());
+    h.update(b"\0");
+    h.update(opt_flag.as_bytes());
+    h.update(b"\0");
+    h.update(clang.to_string_lossy().as_bytes());
+    h.update(b"\0");
+    if let Some(lld) = lld_path {
+        h.update(lld.to_string_lossy().as_bytes());
+    }
+    h.update(b"\0");
+    if let Some(w) = windows {
+        h.update(w.linker.to_string_lossy().as_bytes());
+        h.update(b"\0");
+        for lib in &w.import_libraries {
+            h.update(lib.to_string_lossy().as_bytes());
+            h.update(b"\0");
+        }
+    }
+    h.update((unit_keys.len() as u64).to_le_bytes().as_slice());
+    for k in unit_keys {
+        h.update(k.as_bytes());
+        h.update(b"\0");
+    }
+    h.digest().to_hex()
+}
+
+#[cfg(feature = "llvm-api")]
+fn try_reuse_linked_output(cache_dir: &Path, output: &Path, expected_link_key: &str) -> bool {
+    let meta_path = link_meta_path(cache_dir, output);
+    let Ok(meta_txt) = fs::read_to_string(&meta_path) else {
+        return false;
+    };
+    let mut recorded_key = None;
+    let mut recorded_sha = None;
+    for line in meta_txt.lines() {
+        if let Some(v) = line.strip_prefix("link_key=") {
+            recorded_key = Some(v.trim());
+        } else if let Some(v) = line.strip_prefix("output_sha256=") {
+            recorded_sha = Some(v.trim());
+        }
+    }
+    if recorded_key != Some(expected_link_key) {
+        return false;
+    }
+    let Some(expected_sha) = recorded_sha else {
+        return false;
+    };
+    let Ok(bytes) = fs::read(output) else {
+        return false;
+    };
+    !bytes.is_empty() && sha256_hex(&bytes) == expected_sha
+}
+
+#[cfg(feature = "llvm-api")]
+fn record_linked_output(cache_dir: &Path, output: &Path, link_key: &str, pid: u32, stage_seq: u64) {
+    let Ok(bytes) = fs::read(output) else {
+        return;
+    };
+    if bytes.is_empty() {
+        return;
+    }
+    let out_sha = sha256_hex(&bytes);
+    let meta_path = link_meta_path(cache_dir, output);
+    let tmp_path = cache_dir.join(format!(".link.tmp.{pid}.{stage_seq}"));
+    let content = format!("link_key={link_key}\noutput_sha256={out_sha}\n");
+    if fs::write(&tmp_path, content).is_ok() && fs::rename(&tmp_path, &meta_path).is_err() {
+        let _ = fs::remove_file(&tmp_path);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -568,6 +658,8 @@ pub fn build_verified_body(
                 let jobs = options.codegen_jobs.clamp(1, actual_units);
 
                 struct UnitCompiled {
+                    /// Canonical cache key when `cache_dir` is enabled.
+                    cache_key: Option<String>,
                     /// Canonical cache entry path in `cache_dir` (for active-set protection during LRU).
                     cache_entry_path: Option<PathBuf>,
                     /// Private hard-linked/staged object path safe from concurrent cross-process eviction.
@@ -635,6 +727,7 @@ pub fn build_verified_body(
                                             if verified_ok {
                                                 touch_cache_mtime(cp);
                                                 hit_unit = Some(UnitCompiled {
+                                                    cache_key: Some(key.clone()),
                                                     cache_entry_path: Some(cp.clone()),
                                                     staged_path: Some(staged.clone()),
                                                     bytes: Vec::new(),
@@ -681,9 +774,11 @@ pub fn build_verified_body(
                                     .map(|object| {
                                         let mut cache_entry_path = None;
                                         let mut staged_path = None;
+                                        let mut unit_key_owned = None;
                                         if let (Some((key, cp, mp)), Some(staged)) =
                                             (cache_info.as_ref(), staged_target.as_ref())
                                         {
+                                            unit_key_owned = Some(key.clone());
                                             let obj_sha = sha256_hex(&object.bytes);
                                             let meta_text = format_cache_meta(
                                                 key,
@@ -735,6 +830,7 @@ pub fn build_verified_body(
                                             object.bytes
                                         };
                                         UnitCompiled {
+                                            cache_key: unit_key_owned,
                                             cache_entry_path,
                                             staged_path,
                                             bytes,
@@ -754,6 +850,7 @@ pub fn build_verified_body(
                 let mut obj_paths = Vec::with_capacity(actual_units);
                 let mut temp_obj_paths = Vec::new();
                 let mut active_cache_paths = std::collections::HashSet::new();
+                let mut unit_cache_keys = Vec::with_capacity(actual_units);
                 let mut object_reports = Vec::with_capacity(actual_units);
                 let mut cache_hits = 0usize;
                 let mut cache_misses = 0usize;
@@ -772,6 +869,9 @@ pub fn build_verified_body(
                         cache_hits += 1;
                     } else if cache_dir.is_some() {
                         cache_misses += 1;
+                    }
+                    if let Some(k) = unit.cache_key {
+                        unit_cache_keys.push(k);
                     }
                     if let Some(cp) = unit.cache_entry_path {
                         active_cache_paths.insert(cp);
@@ -796,52 +896,86 @@ pub fn build_verified_body(
                     object_reports.push(unit.report);
                 }
 
+                let resolved_lld = if !is_windows && !triple.contains("apple") {
+                    resolve_sibling_lld(&clang)
+                } else {
+                    None
+                };
+                let link_key = if cache_dir.is_some()
+                    && options.extra_c_sources.is_empty()
+                    && unit_cache_keys.len() == actual_units
+                {
+                    Some(compute_link_key(
+                        triple,
+                        opt_flag,
+                        &clang,
+                        resolved_lld.as_deref(),
+                        if is_windows {
+                            options.windows.as_ref()
+                        } else {
+                            None
+                        },
+                        &unit_cache_keys,
+                    ))
+                } else {
+                    None
+                };
+
                 let mut commands = Vec::new();
                 let link_started = std::time::Instant::now();
-                if is_windows && let Some(windows) = &options.windows {
-                    link_windows_lld(
-                        &clang,
-                        &target_flag,
-                        opt_flag,
-                        obj_paths,
-                        options,
-                        windows,
-                        &mut commands,
-                    )?;
+                let mut link_skipped = false;
+                if let (Some(dir), Some(lk)) = (cache_dir, link_key.as_deref())
+                    && cache_misses == 0
+                    && cache_hits == actual_units
+                    && try_reuse_linked_output(dir, &options.output, lk)
+                {
+                    link_skipped = true;
                 } else {
-                    let mut cmd = Command::new(&clang);
-                    let mut argv = vec![
-                        clang.display().to_string(),
-                        target_flag.clone(),
-                        opt_flag.into(),
-                    ];
-                    cmd.arg(&target_flag).arg(opt_flag);
-                    if !is_windows
-                        && !triple.contains("apple")
-                        && let Some(lld_path) = resolve_sibling_lld(&clang)
-                    {
-                        let ld_flag = format!("--ld-path={}", lld_path.display());
-                        cmd.arg(&ld_flag);
-                        argv.push(ld_flag);
+                    if is_windows && let Some(windows) = &options.windows {
+                        link_windows_lld(
+                            &clang,
+                            &target_flag,
+                            opt_flag,
+                            obj_paths,
+                            options,
+                            windows,
+                            &mut commands,
+                        )?;
+                    } else {
+                        let mut cmd = Command::new(&clang);
+                        let mut argv = vec![
+                            clang.display().to_string(),
+                            target_flag.clone(),
+                            opt_flag.into(),
+                        ];
+                        cmd.arg(&target_flag).arg(opt_flag);
+                        if let Some(lld_path) = &resolved_lld {
+                            let ld_flag = format!("--ld-path={}", lld_path.display());
+                            cmd.arg(&ld_flag);
+                            argv.push(ld_flag);
+                        }
+                        for obj_path in &obj_paths {
+                            cmd.arg(obj_path);
+                            argv.push(obj_path.display().to_string());
+                        }
+                        for c_src in &options.extra_c_sources {
+                            cmd.arg(c_src);
+                            argv.push(c_src.display().to_string());
+                        }
+                        cmd.arg("-o").arg(&options.output);
+                        argv.push("-o".into());
+                        argv.push(options.output.display().to_string());
+                        if is_windows {
+                            cmd.arg("-llegacy_stdio_definitions").arg("-lws2_32");
+                            argv.push("-llegacy_stdio_definitions".into());
+                            argv.push("-lws2_32".into());
+                        }
+                        run_checked_command(cmd, "linker", &clang)?;
+                        commands.push(argv);
                     }
-                    for obj_path in &obj_paths {
-                        cmd.arg(obj_path);
-                        argv.push(obj_path.display().to_string());
+                    if let (Some(dir), Some(lk)) = (cache_dir, link_key.as_deref()) {
+                        record_linked_output(dir, &options.output, lk, pid, stage_seq);
                     }
-                    for c_src in &options.extra_c_sources {
-                        cmd.arg(c_src);
-                        argv.push(c_src.display().to_string());
-                    }
-                    cmd.arg("-o").arg(&options.output);
-                    argv.push("-o".into());
-                    argv.push(options.output.display().to_string());
-                    if is_windows {
-                        cmd.arg("-llegacy_stdio_definitions").arg("-lws2_32");
-                        argv.push("-llegacy_stdio_definitions".into());
-                        argv.push("-lws2_32".into());
-                    }
-                    run_checked_command(cmd, "linker", &clang)?;
-                    commands.push(argv);
                 }
                 let link_ns = link_started.elapsed().as_nanos() as u64;
                 // Release our private hard-link staging directory immediately after linking.
@@ -872,6 +1006,7 @@ pub fn build_verified_body(
                     cache_evict_ns,
                     emit_ns,
                     link_ns,
+                    link_skipped,
                 })
             }
             #[cfg(not(feature = "llvm-api"))]
@@ -991,6 +1126,7 @@ pub fn build_verified_body(
                 cache_evict_ns: 0,
                 emit_ns,
                 link_ns,
+                link_skipped: false,
             })
         }
     }
