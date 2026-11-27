@@ -764,22 +764,21 @@ fail:\n\
 
     let mut unit_of_fn = vec![0usize; fn_count];
     if actual_units > 1 {
-        // Assign each reachable module to a CGU using a stable hash of its module key
-        // (independent of global module count or import order) so inserting, deleting,
-        // or renaming a module only invalidates its own bucket(s) and direct callers.
-        // Keep the entry module dedicated to unit 0 alongside the C `main` wrapper.
+        // Assign CGUs deterministically by module key (multi-module) or canonical function
+        // symbol (single-module), independent of module count, function count, or import
+        // order. Never fall back to global function-index round-robin when mod_count < actual_units.
         let main_mod_key = main_fn
             .as_ref()
             .map(|(id, _, _)| fn_module_key(&module.functions[id.index()].name));
+        let main_fn_idx = main_fn.as_ref().map(|(id, _, _)| id.index());
         let mut seen_mods: std::collections::HashSet<&str> = std::collections::HashSet::new();
         for idx in 0..fn_count {
             if reach.fns[idx] {
                 seen_mods.insert(fn_module_key(&module.functions[idx].name));
             }
         }
-        let mod_count = seen_mods.len();
-        if mod_count >= actual_units {
-            let worker_buckets = actual_units - 1;
+        let worker_buckets = actual_units - 1;
+        if seen_mods.len() > 1 {
             for idx in 0..fn_count {
                 if reach.fns[idx] {
                     let mk = fn_module_key(&module.functions[idx].name);
@@ -791,11 +790,14 @@ fail:\n\
                 }
             }
         } else {
-            let mut reach_ord = 0usize;
             for idx in 0..fn_count {
                 if reach.fns[idx] {
-                    unit_of_fn[idx] = reach_ord % actual_units;
-                    reach_ord += 1;
+                    if main_fn_idx == Some(idx) {
+                        unit_of_fn[idx] = 0;
+                    } else {
+                        unit_of_fn[idx] =
+                            1 + ((stable_module_hash(&syms[idx]) as usize) % worker_buckets);
+                    }
                 }
             }
         }
@@ -1083,7 +1085,7 @@ fn compute_stable_static_symbols(module: &Module) -> Vec<String> {
         .iter()
         .map(|bytes| {
             let hex = zil_base::Fingerprint::of(bytes).to_hex();
-            format!("__zil_str_{}", &hex[..16])
+            format!("__zil_str_{hex}")
         })
         .collect()
 }

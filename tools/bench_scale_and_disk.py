@@ -333,10 +333,14 @@ def run_scale_suite(
     scales: list[int],
     opt: str,
     jobs: int,
+    samples: int,
     extra_flags: list[str],
     env: dict[str, str],
 ) -> dict[str, object]:
-    print(f"\n================ EXPERIMENT A: MULTI-POINT CONCURRENT EDITS ({opt}, jobs={jobs}) ================")
+    n_samples = max(1, samples)
+    print(
+        f"\n================ EXPERIMENT A: MULTI-POINT CONCURRENT EDITS ({opt}, jobs={jobs}, samples={n_samples}) ================"
+    )
     out_data: dict[str, object] = {}
     for n_mods in scales:
         cgu = 16 if n_mods <= 100 else (32 if n_mods <= 500 else 64)
@@ -352,37 +356,52 @@ def run_scale_suite(
             r_out_dir.mkdir()
             tmp_json = td / "out.json"
 
-            print(f"\n--- {n_mods} modules (CGU={cgu}, opt={opt}, debuginfo=0) ---")
+            print(f"\n--- {n_mods} modules (CGU={cgu}, opt={opt}, debuginfo=0, zil_jobs={jobs}, samples={n_samples}) ---")
             print(
                 f"{'Scenario':<28} | {'ZIL ms':>8} {'Rust ms':>8} {'Z/R':>6} | "
                 f"{'Recomp':>7} {'Miss%':>6} | {'RSS Z/R MB':>12} | {'Cache Z/R':>17} | {'Total Z/R':>17}"
             )
             print("-" * 130)
 
-            def measure(label: str) -> None:
-                zr = run_zil_build(
-                    zil_bin, zdir / "main.zil", z_out_dir / "app", z_cache,
-                    opt=opt, cgu=cgu, jobs=jobs, tmp_json=tmp_json, env=env, extra_flags=extra_flags,
-                )
-                rr = run_rust_build(
-                    rustc_bin, rdir / "main.rs", r_out_dir / "app", r_inc,
-                    opt=opt, cgu=cgu, tmp_json=tmp_json, env=env,
-                )
+            def measure_samples(label: str, mutate_fn) -> None:
+                z_runs, r_runs = [], []
+                for s_idx in range(n_samples):
+                    mutate_fn(s_idx)
+                    zr = run_zil_build(
+                        zil_bin, zdir / "main.zil", z_out_dir / "app", z_cache,
+                        opt=opt, cgu=cgu, jobs=jobs, tmp_json=tmp_json, env=env, extra_flags=extra_flags,
+                    )
+                    rr = run_rust_build(
+                        rustc_bin, rdir / "main.rs", r_out_dir / "app", r_inc,
+                        opt=opt, cgu=cgu, tmp_json=tmp_json, env=env,
+                    )
+                    z_runs.append(zr)
+                    r_runs.append(rr)
+                z_med_ms = statistics.median(float(x["ms"]) for x in z_runs)
+                r_med_ms = statistics.median(float(x["ms"]) for x in r_runs)
+                z_rss_med = statistics.median(float(x["rss_mb"]) for x in z_runs)
+                r_rss_med = statistics.median(float(x["rss_mb"]) for x in r_runs)
+                last_z = z_runs[-1]
                 zc_b, zc_f = dir_stats(z_cache)
                 rc_b, rc_f = dir_stats(r_inc)
                 zt_b, _ = dir_stats(z_out_dir)
                 rt_b, _ = dir_stats(r_out_dir)
-                ratio = float(zr["ms"]) / float(rr["ms"])
+                ratio = z_med_ms / r_med_ms
                 print(
-                    f"{label:<28} | {zr['ms']:8.1f} {rr['ms']:8.1f} {ratio:5.2f}x | "
-                    f"{zr['misses']:2d}/{zr['units']:<4d} {zr['miss_pct']:5.1f}% | "
-                    f"{zr['rss_mb']:5.1f}/{rr['rss_mb']:<6.1f} | "
+                    f"{label:<28} | {z_med_ms:8.1f} {r_med_ms:8.1f} {ratio:5.2f}x | "
+                    f"{last_z['misses']:2d}/{last_z['units']:<4d} {last_z['miss_pct']:5.1f}% | "
+                    f"{z_rss_med:5.1f}/{r_rss_med:<6.1f} | "
                     f"{fmt_mb(zc_b)}/{fmt_mb(rc_b)} | {fmt_mb(zt_b)}/{fmt_mb(rt_b)}"
                 )
                 rows.append({
                     "scenario": label,
-                    "zil": zr,
-                    "rust": rr,
+                    "samples": n_samples,
+                    "zil_median_ms": round(z_med_ms, 2),
+                    "rust_median_ms": round(r_med_ms, 2),
+                    "zil_raw_ms": [x["ms"] for x in z_runs],
+                    "rust_raw_ms": [x["ms"] for x in r_runs],
+                    "zil_last": last_z,
+                    "rust_last": r_runs[-1],
                     "ratio_z_over_r": round(ratio, 3),
                     "disk_bytes": {
                         "zil_cache": zc_b,
@@ -394,50 +413,97 @@ def run_scale_suite(
                     },
                 })
 
-            measure("1. cold_build")
-            measure("2. warm_noop")
-            (zdir / "m0.zil").write_text(zil_module_src(0, salt=1))
-            (rdir / "m0.rs").write_text(rust_module_src(0, salt=1))
-            measure("3a. priv_edit_1_body")
-            (zdir / "m0.zil").write_text(zil_module_src(0, salt=2, extra_helper=True))
-            (rdir / "m0.rs").write_text(rust_module_src(0, salt=2, extra_helper=True))
-            measure("3b. priv_edit_1_add_fn")
-            # 3c. Insert brand-new module imported by main
-            (zdir / "m_extra.zil").write_text("pub fn compute(x: i64) -> i64 {\n  return x + 19;\n}\n")
-            (rdir / "m_extra.rs").write_text("pub fn compute(x: i64) -> i64 {\n  x + 19\n}\n")
-            write_mains(zdir, rdir, n_mods, extra_mod="m_extra")
-            measure("3c. add_new_module")
-            # 3d. Remove the newly added module
-            write_mains(zdir, rdir, n_mods)
-            measure("3d. remove_module")
-            (zdir / "m0.zil").write_text(zil_module_src(0, salt=3))
-            (rdir / "m0.rs").write_text(rust_module_src(0, salt=3))
+            def cold_mutate(s_idx: int) -> None:
+                if s_idx > 0:
+                    shutil.rmtree(z_cache, ignore_errors=True)
+                    shutil.rmtree(r_inc, ignore_errors=True)
+
+            measure_samples("1. cold_build", cold_mutate)
+            measure_samples("2. warm_noop", lambda _: None)
+
+            def priv_body(s_idx: int) -> None:
+                (zdir / "m0.zil").write_text(zil_module_src(0, salt=10 + s_idx))
+                (rdir / "m0.rs").write_text(rust_module_src(0, salt=10 + s_idx))
+
+            measure_samples("3a. priv_edit_1_body", priv_body)
+
+            def priv_add_fn(s_idx: int) -> None:
+                (zdir / "m0.zil").write_text(zil_module_src(0, salt=50 + s_idx, extra_helper=True))
+                (rdir / "m0.rs").write_text(rust_module_src(0, salt=50 + s_idx, extra_helper=True))
+
+            measure_samples("3b. priv_edit_1_add_fn", priv_add_fn)
+
+            def add_mod(s_idx: int) -> None:
+                mod_name = f"m_extra_{s_idx}"
+                (zdir / f"{mod_name}.zil").write_text(
+                    f"pub fn compute(x: i64) -> i64 {{\n  return x + {19 + s_idx};\n}}\n"
+                )
+                (rdir / f"{mod_name}.rs").write_text(
+                    f"pub fn compute(x: i64) -> i64 {{\n  x + {19 + s_idx}\n}}\n"
+                )
+                write_mains(zdir, rdir, n_mods, extra_mod=mod_name)
+
+            measure_samples("3c. add_new_module", add_mod)
+
+            def rem_mod(s_idx: int) -> None:
+                if s_idx > 0:
+                    add_mod(s_idx)
+                    run_zil_build(
+                        zil_bin, zdir / "main.zil", z_out_dir / "app", z_cache,
+                        opt=opt, cgu=cgu, jobs=jobs, tmp_json=tmp_json, env=env, extra_flags=extra_flags,
+                    )
+                    run_rust_build(
+                        rustc_bin, rdir / "main.rs", r_out_dir / "app", r_inc,
+                        opt=opt, cgu=cgu, tmp_json=tmp_json, env=env,
+                    )
+                write_mains(zdir, rdir, n_mods)
+
+            measure_samples("3d. remove_module", rem_mod)
+
             k10 = max(1, n_mods // 10)
-            for m in range(k10):
-                (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=11))
-                (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=11))
-            measure("4a. priv_edit_10%_clustered")
-            rng = random.Random(42)
-            for m in rng.sample(range(n_mods), k10):
-                (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=12))
-                (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=12))
-            measure("4b. priv_edit_10%_scattered")
             k30 = max(1, (n_mods * 3) // 10)
-            for m in range(k30):
-                (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=21))
-                (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=21))
-            measure("5a. priv_edit_30%_clustered")
-            for m in rng.sample(range(n_mods), k30):
-                (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=22))
-                (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=22))
-            measure("5b. priv_edit_30%_scattered")
-            (zdir / "m9.zil").write_text(zil_module_src(9, salt=99, extra_param=True))
-            (rdir / "m9.rs").write_text(rust_module_src(9, salt=99, extra_param=True))
-            write_mains(zdir, rdir, n_mods, iface_tail=9)
-            measure("6. public_iface_edit")
+
+            def edit_10_clust(s_idx: int) -> None:
+                for m in range(k10):
+                    (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=100 + s_idx))
+                    (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=100 + s_idx))
+
+            measure_samples("4a. priv_edit_10%_clustered", edit_10_clust)
+
+            def edit_10_scat(s_idx: int) -> None:
+                rng = random.Random(42 + s_idx)
+                for m in rng.sample(range(n_mods), k10):
+                    (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=200 + s_idx))
+                    (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=200 + s_idx))
+
+            measure_samples("4b. priv_edit_10%_scattered", edit_10_scat)
+
+            def edit_30_clust(s_idx: int) -> None:
+                for m in range(k30):
+                    (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=300 + s_idx))
+                    (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=300 + s_idx))
+
+            measure_samples("5a. priv_edit_30%_clustered", edit_30_clust)
+
+            def edit_30_scat(s_idx: int) -> None:
+                rng = random.Random(142 + s_idx)
+                for m in rng.sample(range(n_mods), k30):
+                    (zdir / f"m{m}.zil").write_text(zil_module_src(m, salt=400 + s_idx))
+                    (rdir / f"m{m}.rs").write_text(rust_module_src(m, salt=400 + s_idx))
+
+            measure_samples("5b. priv_edit_30%_scattered", edit_30_scat)
+
+            def iface_edit(s_idx: int) -> None:
+                extra_p = (s_idx % 2) == 0
+                (zdir / "m9.zil").write_text(zil_module_src(9, salt=500 + s_idx, extra_param=extra_p))
+                (rdir / "m9.rs").write_text(rust_module_src(9, salt=500 + s_idx, extra_param=extra_p))
+                write_mains(zdir, rdir, n_mods, iface_tail=(9 if extra_p else None))
+
+            measure_samples("6. public_iface_edit", iface_edit)
 
             out_data[str(n_mods)] = {
                 "cgu": cgu,
+                "samples": n_samples,
                 "rows": rows,
                 "end_zil_manifest_count": len(dir_manifest(z_out_dir)),
                 "end_rust_manifest_count": len(dir_manifest(r_out_dir)),
@@ -452,13 +518,14 @@ def run_multi_round_disk_suite(
     rounds: int,
     opt: str,
     jobs: int,
+    modes: list[str],
     extra_flags: list[str],
     env: dict[str, str],
 ) -> dict[str, object]:
-    print(f"\n================ EXPERIMENT B: {rounds}-ROUND DISK GROWTH ({n_mods} mods, {opt}, CGU=16) ================")
-    cgu = 16
+    cgu = 16 if n_mods <= 100 else (32 if n_mods <= 500 else 64)
+    print(f"\n================ EXPERIMENT B: {rounds}-ROUND DISK GROWTH ({n_mods} mods, {opt}, CGU={cgu}, jobs={jobs}) ================")
     summary: dict[str, object] = {}
-    for mode in ["noop", "edit_1pct_clustered", "edit_10pct_clustered", "edit_30pct_clustered"]:
+    for mode in modes:
         with tempfile.TemporaryDirectory(prefix=f"zil_disk_{mode}_") as td_s:
             td = Path(td_s)
             zdir, rdir = generate_projects(td, n_mods)
@@ -482,16 +549,20 @@ def run_multi_round_disk_suite(
             rc0, rcf0 = dir_stats(r_inc)
 
             z_ms_list, r_ms_list, z_hit_pcts = [], [], []
+            k1 = max(1, n_mods // 100)
+            k10 = max(1, n_mods // 10)
+            k30 = max(1, (n_mods * 3) // 10)
+            stride = max(1, n_mods // 10)
             for rd in range(1, rounds + 1):
                 if mode == "edit_1pct_clustered":
-                    start = (rd % 10) * 10
-                    mods = [start]
+                    start = (rd % 10) * stride
+                    mods = list(range(start, min(start + k1, n_mods)))
                 elif mode == "edit_10pct_clustered":
-                    start = (rd % 10) * 10
-                    mods = list(range(start, min(start + 10, n_mods)))
+                    start = (rd % 10) * stride
+                    mods = list(range(start, min(start + k10, n_mods)))
                 elif mode == "edit_30pct_clustered":
-                    start = (rd % 7) * 10
-                    mods = list(range(start, min(start + 30, n_mods)))
+                    start = (rd % 7) * stride
+                    mods = list(range(start, min(start + k30, n_mods)))
                 else:
                     mods = []
                 for m in mods:
@@ -548,7 +619,7 @@ def run_eviction_suite(
     max_mb: int,
     env: dict[str, str],
 ) -> dict[str, object]:
-    cgu = 16 if n_mods <= 100 else 32
+    cgu = 16 if n_mods <= 100 else (32 if n_mods <= 500 else 64)
     print(
         f"\n================ EXPERIMENT C: BOUNDED CACHE EVICTION ({n_mods} mods, {rounds} rds, 30% edits, {opt}, CGU={cgu}, cap={max_mb}MB) ================"
     )
@@ -729,14 +800,22 @@ def collect_metadata(zil_bin: Path, rustc_bin: Path, env: dict[str, str]) -> dic
 
 
 def main() -> None:
+    default_jobs = max(1, os.cpu_count() or 2)
     ap = argparse.ArgumentParser(description="ZIL vs rustc large-project edit, disk, LRU & multi-process benchmark")
     ap.add_argument("--zil", required=True, help="Path to release zil binary")
     ap.add_argument("--rustc", default=shutil.which("rustc") or "rustc", help="Path to rustc binary")
     ap.add_argument("--llvm-dir", default="/home/antigravity/.cache/zil-llvm/23.1.4", help="LLVM install prefix")
     ap.add_argument("--scales", default="100,500,1000", help="Comma-separated module counts for Experiment A")
     ap.add_argument("--opt", default="O0", choices=["O0", "O2"])
-    ap.add_argument("--jobs", type=int, default=4)
+    ap.add_argument("--jobs", type=int, default=default_jobs, help=f"ZIL codegen jobs (default: CPU count = {default_jobs})")
+    ap.add_argument("--samples", type=int, default=1, help="Paired repetitions per Experiment A scenario (median reported)")
     ap.add_argument("--rounds", type=int, default=100)
+    ap.add_argument("--disk-mods", type=int, default=100, help="Module count for Experiment B multi-round disk suite")
+    ap.add_argument(
+        "--disk-modes",
+        default="noop,edit_1pct_clustered,edit_10pct_clustered,edit_30pct_clustered",
+        help="Comma-separated modes for Experiment B",
+    )
     ap.add_argument("--skip-scale", action="store_true")
     ap.add_argument("--skip-disk", action="store_true")
     ap.add_argument("--with-eviction", action="store_true")
@@ -756,15 +835,23 @@ def main() -> None:
     llvm_dir = Path(args.llvm_dir) if args.llvm_dir else None
     env = build_env(llvm_dir)
     meta = collect_metadata(zil_bin, rustc_bin, env)
-    print(f"Toolchain: {meta['zil_version']} | {meta['rustc_version']} | CPUs={meta['cpu_count']} | {meta['platform']}")
+    meta["zil_codegen_jobs"] = args.jobs
+    meta["rustc_default_threads"] = os.cpu_count()
+    print(
+        f"Toolchain: {meta['zil_version']} | {meta['rustc_version']} | "
+        f"CPUs={meta['cpu_count']} (zil_jobs={args.jobs}, rustc_default={meta['rustc_default_threads']}) | {meta['platform']}"
+    )
 
     report: dict[str, object] = {"metadata": meta, "args": vars(args)}
     if not args.skip_scale:
         scales = [int(x) for x in args.scales.split(",") if x.strip()]
-        report["experiment_a_scale"] = run_scale_suite(zil_bin, rustc_bin, scales, args.opt, args.jobs, args.extra, env)
+        report["experiment_a_scale"] = run_scale_suite(
+            zil_bin, rustc_bin, scales, args.opt, args.jobs, args.samples, args.extra, env
+        )
     if not args.skip_disk:
+        modes = [m.strip() for m in args.disk_modes.split(",") if m.strip()]
         report["experiment_b_disk"] = run_multi_round_disk_suite(
-            zil_bin, rustc_bin, 100, args.rounds, args.opt, args.jobs, args.extra, env
+            zil_bin, rustc_bin, args.disk_mods, args.rounds, args.opt, args.jobs, modes, args.extra, env
         )
     if args.with_eviction:
         report["experiment_c_eviction"] = run_eviction_suite(

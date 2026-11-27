@@ -510,6 +510,28 @@ pub fn main() -> i32 { return helper_a(1) + helper_b(2); }
     );
     assert_eq!(count_hits(&compile_path(&src_path, &opts)), 2);
 
+    // 5. Tamper `abi=` (backend codegen ABI version) in `.meta` -> must reject hit, recompile & heal.
+    let meta_txt_abi = std::fs::read_to_string(&target_meta).expect("read meta for abi tamper");
+    assert!(
+        meta_txt_abi.contains("abi="),
+        ".meta must record OBJECT_CACHE_CODEGEN_ABI: {meta_txt_abi}"
+    );
+    let tampered_abi = meta_txt_abi
+        .lines()
+        .map(|l| if l.starts_with("abi=") { "abi=999" } else { l })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    std::fs::write(&target_meta, tampered_abi).expect("write tampered abi meta");
+    let healed4 = compile_path(&src_path, &opts);
+    assert_eq!(healed4.status, ResultCategory::Success);
+    assert_eq!(
+        count_hits(&healed4),
+        1,
+        "mismatched codegen ABI metadata must invalidate entry"
+    );
+    assert_eq!(count_hits(&compile_path(&src_path, &opts)), 2);
+
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -811,14 +833,17 @@ fn multi_process_shared_cache_concurrent_builds_and_eviction_stress() {
         CodegenOptions, CompileOptions, NativeBackend, Optimization, Stage, compile_path,
     };
 
-    // Child worker mode: run 5 rounds of mutating a 6-module project sharing the parent's
-    // cache directory under a 1-byte soft budget (forcing concurrent eviction on every build).
+    // Child worker mode:
+    //   spec = "<worker_id>|<work_dir>|<cache_dir>|<budget_bytes>|<rounds>|<shared_only>"
     if let Ok(spec) = std::env::var("ZIL_SHARED_CACHE_WORKER_SPEC") {
         let parts: Vec<&str> = spec.split('|').collect();
-        assert_eq!(parts.len(), 3, "invalid worker spec: {spec}");
+        assert_eq!(parts.len(), 6, "invalid worker spec: {spec}");
         let worker_id: i32 = parts[0].parse().expect("worker id");
         let work_dir = std::path::PathBuf::from(parts[1]);
         let cache_dir = std::path::PathBuf::from(parts[2]);
+        let budget_bytes: u64 = parts[3].parse().expect("budget bytes");
+        let rounds: i32 = parts[4].parse().expect("rounds");
+        let shared_only: bool = parts[5] == "1";
         std::fs::create_dir_all(&work_dir).expect("create worker dir");
         let exe_path = work_dir.join(if cfg!(windows) { "app.exe" } else { "app" });
 
@@ -836,14 +861,18 @@ fn multi_process_shared_cache_concurrent_builds_and_eviction_stress() {
             output: Some(exe_path.clone()),
             optimization: Optimization::O0,
             object_cache: Some(cache_dir),
-            // 1-byte soft budget forces every worker to run LRU eviction after every single build!
-            object_cache_max_bytes: Some(1),
+            object_cache_max_bytes: Some(budget_bytes),
             codegen: CodegenOptions { units: 4, jobs: 2 },
             ..CompileOptions::default()
         };
-        for round in 0..5 {
-            // Mutate worker-private module each round to trigger misses + concurrent evictions.
-            let salt = worker_id * 10 + round;
+        for round in 0..rounds {
+            // In `shared_only` race mode, all 4 workers build the exact same sources
+            // simultaneously to exercise concurrent first-time publish of identical keys.
+            let salt = if shared_only {
+                42
+            } else {
+                worker_id * 10 + round
+            };
             std::fs::write(
                 work_dir.join("m_priv.zil"),
                 format!("pub fn g(x: i32) -> i32 {{ return x + {salt}; }}\n"),
@@ -873,36 +902,46 @@ fn multi_process_shared_cache_concurrent_builds_and_eviction_stress() {
         return;
     }
 
-    // Parent coordinator: spawn 4 independent OS child processes sharing one cache directory.
+    // Parent coordinator:
+    // Phase 1: 4 independent OS child processes sharing one cache under 1-byte eviction stress.
     let dir = std::env::temp_dir().join(format!("zil_mp_cache_stress_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let cache_dir = dir.join("shared_cache");
     std::fs::create_dir_all(&cache_dir).expect("create shared cache dir");
     let exe = std::env::current_exe().expect("current test binary");
 
-    let mut children = Vec::new();
-    for worker_id in 0..4 {
-        let work_dir = dir.join(format!("worker_{worker_id}"));
-        let spec = format!("{worker_id}|{}|{}", work_dir.display(), cache_dir.display());
-        let child = Command::new(&exe)
-            .arg("--exact")
-            .arg("multi_process_shared_cache_concurrent_builds_and_eviction_stress")
-            .arg("--nocapture")
-            .env("ZIL_SHARED_CACHE_WORKER_SPEC", spec)
-            .spawn()
-            .expect("spawn concurrent worker process");
-        children.push((worker_id, child));
-    }
+    let run_wave =
+        |prefix: &str, cdir: &std::path::Path, budget: u64, rounds: i32, shared: bool| {
+            let mut children = Vec::new();
+            for worker_id in 0..4 {
+                let work_dir = dir.join(format!("{prefix}_{worker_id}"));
+                let spec = format!(
+                    "{worker_id}|{}|{}|{budget}|{rounds}|{}",
+                    work_dir.display(),
+                    cdir.display(),
+                    if shared { 1 } else { 0 }
+                );
+                let child = Command::new(&exe)
+                    .arg("--exact")
+                    .arg("multi_process_shared_cache_concurrent_builds_and_eviction_stress")
+                    .arg("--nocapture")
+                    .env("ZIL_SHARED_CACHE_WORKER_SPEC", spec)
+                    .spawn()
+                    .expect("spawn concurrent worker process");
+                children.push((worker_id, child));
+            }
+            for (worker_id, mut child) in children {
+                let status = child.wait().expect("wait worker");
+                assert!(
+                    status.success(),
+                    "concurrent worker process {prefix}_{worker_id} failed with {status}"
+                );
+            }
+        };
 
-    for (worker_id, mut child) in children {
-        let status = child.wait().expect("wait worker");
-        assert!(
-            status.success(),
-            "concurrent worker process {worker_id} failed with {status}"
-        );
-    }
+    run_wave("evict_worker", &cache_dir, 1, 5, false);
 
-    // Ensure no `.stage-*` directory leaked after all 4 processes exited.
+    // Ensure no `.stage-*` directory leaked after eviction stress.
     let leaked_stages: Vec<_> = std::fs::read_dir(&cache_dir)
         .expect("read shared cache")
         .filter_map(|e| e.ok())
@@ -910,9 +949,239 @@ fn multi_process_shared_cache_concurrent_builds_and_eviction_stress() {
         .collect();
     assert!(
         leaked_stages.is_empty(),
-        "staging dirs leaked after multi-process builds: {:?}",
+        "staging dirs leaked after multi-process eviction builds: {:?}",
         leaked_stages
     );
 
+    // Phase 2: 4 independent OS processes simultaneously race to publish the exact same
+    // cold cache keys into a normally budgeted shared cache, followed by a fresh warm rebuild
+    // asserting 4/4 (100%) cache hits (eventual consistency under concurrent publish).
+    let warm_cache_dir = dir.join("shared_race_publish_cache");
+    std::fs::create_dir_all(&warm_cache_dir).expect("create warm cache dir");
+    run_wave("race_worker", &warm_cache_dir, 64 * 1024 * 1024, 1, true);
+
+    let warm_work = dir.join("race_worker_0");
+    let warm_exe = warm_work.join(if cfg!(windows) { "app.exe" } else { "app" });
+    let warm_opts = CompileOptions {
+        backend: NativeBackend::LlvmApi,
+        stop_after: Stage::Build,
+        output: Some(warm_exe),
+        optimization: Optimization::O0,
+        object_cache: Some(warm_cache_dir),
+        object_cache_max_bytes: Some(64 * 1024 * 1024),
+        codegen: CodegenOptions { units: 4, jobs: 2 },
+        ..CompileOptions::default()
+    };
+    let warm = compile_path(&warm_work.join("main.zil"), &warm_opts);
+    assert_eq!(
+        warm.status,
+        ResultCategory::Success,
+        "{:?}",
+        warm.diagnostics
+    );
+    assert_eq!(warm.verification_runs, 1);
+    let warm_hits = warm
+        .native_codegen
+        .as_ref()
+        .unwrap()
+        .object_reports
+        .iter()
+        .filter(|r| r.contains("\"object-cache-hit\""))
+        .count();
+    assert_eq!(
+        warm_hits, 4,
+        "post-concurrent-publish warm rebuild must hit 4/4 cached units"
+    );
+
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[cfg(feature = "llvm-api")]
+#[test]
+fn small_module_count_below_cgu_count_stays_stable_across_add_delete_and_import_reorder() {
+    use std::process::Command;
+    use zil_base::ResultCategory;
+    use zil_driver::{
+        CodegenOptions, CompileOptions, NativeBackend, Optimization, Stage, compile_path,
+    };
+
+    let dir = std::env::temp_dir().join(format!("zil_small_mod_cgu_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let cache_dir = dir.join("objcache");
+    let exe_path = dir.join(if cfg!(windows) { "app.exe" } else { "app" });
+
+    // Each module has 3 reachable functions so even 3 modules have 9 >= 8 functions,
+    // exercising `mod_count (3..5) < actual_units (8)` directly.
+    let write_mod = |name: &str, base: i32| {
+        let src = format!(
+            "fn h1(x: i32) -> i32 {{ return x + {base}; }}\n\
+             fn h2(x: i32) -> i32 {{ return h1(x) + {}; }}\n\
+             pub fn calc(x: i32) -> i32 {{ return h2(x) + 1; }}\n",
+            base + 1
+        );
+        std::fs::write(dir.join(format!("{name}.zil")), src).expect("write module");
+    };
+    let write_main = |imports: &[&str], calls: &[&str]| {
+        let mut s = String::new();
+        for m in imports {
+            s.push_str(&format!("import {m};\n"));
+        }
+        s.push_str("fn m_h1(x: i32) -> i32 { return x + 1; }\n");
+        s.push_str("fn m_h2(x: i32) -> i32 { return m_h1(x) + 2; }\n");
+        s.push_str("pub fn main() -> i32 {\n  var sum: i32 = m_h2(0);\n");
+        for m in calls {
+            s.push_str(&format!("  sum = sum + {m}.calc(1);\n"));
+        }
+        s.push_str("  return sum % 120;\n}\n");
+        std::fs::write(dir.join("main.zil"), s).expect("write main");
+    };
+
+    write_mod("alpha", 10);
+    write_mod("beta", 20);
+    write_main(&["alpha", "beta"], &["alpha", "beta"]);
+
+    let opts = CompileOptions {
+        backend: NativeBackend::LlvmApi,
+        stop_after: Stage::Build,
+        output: Some(exe_path.clone()),
+        optimization: Optimization::O0,
+        object_cache: Some(cache_dir.clone()),
+        codegen: CodegenOptions { units: 8, jobs: 2 },
+        ..CompileOptions::default()
+    };
+    let count_hits = |rep: &zil_driver::CompileReport| -> usize {
+        rep.native_codegen
+            .as_ref()
+            .expect("native_codegen")
+            .object_reports
+            .iter()
+            .filter(|r| r.contains("\"object-cache-hit\""))
+            .count()
+    };
+
+    // 1. Cold build: 3 modules (`main`, `alpha`, `beta`), 8 CGUs.
+    // The 5 empty buckets share identical minimal IR and deduplicate in the cache automatically.
+    let cold = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        cold.status,
+        ResultCategory::Success,
+        "{:?}",
+        cold.diagnostics
+    );
+    assert_eq!(cold.native_codegen.as_ref().unwrap().actual_units, 8);
+    assert!(
+        count_hits(&cold) < 8,
+        "cold build must compile active module units"
+    );
+    assert!(
+        Command::new(&exe_path).output().unwrap().status.success()
+            || Command::new(&exe_path)
+                .output()
+                .unwrap()
+                .status
+                .code()
+                .is_some()
+    );
+
+    // 2. Reorder imports in `main.zil` (`beta` before `alpha`) -> all 7 non-main CGUs stay cached!
+    write_main(&["beta", "alpha"], &["alpha", "beta"]);
+    let reordered = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        reordered.status,
+        ResultCategory::Success,
+        "{:?}",
+        reordered.diagnostics
+    );
+    assert_eq!(reordered.verification_runs, 1);
+    assert!(
+        count_hits(&reordered) >= 7,
+        "reordering imports with 3 modules / 8 CGUs must preserve >= 7/8 hits, got {}/8",
+        count_hits(&reordered)
+    );
+
+    // 3. Insert 4th module `gamma` (`mod_count = 4 < 8`) -> at most unit 0 + bucket(`gamma`) miss (>= 6/8 hits!).
+    write_mod("gamma", 30);
+    write_main(&["beta", "gamma", "alpha"], &["alpha", "beta", "gamma"]);
+    let added1 = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        added1.status,
+        ResultCategory::Success,
+        "{:?}",
+        added1.diagnostics
+    );
+    assert!(
+        count_hits(&added1) >= 6,
+        "inserting 4th module with 8 CGUs must preserve >= 6/8 hits, got {}/8",
+        count_hits(&added1)
+    );
+
+    // 4. Insert 5th module `delta` at front (`mod_count = 5 < 8`) -> >= 6/8 hits!
+    write_mod("delta", 40);
+    write_main(
+        &["delta", "beta", "gamma", "alpha"],
+        &["alpha", "beta", "gamma", "delta"],
+    );
+    let added2 = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        added2.status,
+        ResultCategory::Success,
+        "{:?}",
+        added2.diagnostics
+    );
+    assert!(
+        count_hits(&added2) >= 6,
+        "inserting 5th module at front with 8 CGUs must preserve >= 6/8 hits, got {}/8",
+        count_hits(&added2)
+    );
+
+    // 5. Delete `alpha` (`mod_count = 4 < 8`) -> >= 6/8 hits!
+    write_main(&["delta", "beta", "gamma"], &["beta", "gamma", "delta"]);
+    let deleted = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        deleted.status,
+        ResultCategory::Success,
+        "{:?}",
+        deleted.diagnostics
+    );
+    assert!(
+        count_hits(&deleted) >= 6,
+        "deleting module with 8 CGUs must preserve >= 6/8 hits, got {}/8",
+        count_hits(&deleted)
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn static_string_symbols_use_full_sha256_hex_without_truncation() {
+    let src = r#"
+pub fn main() -> i32 {
+    let a: &[u8] = "alpha_payload";
+    let b: &[u8] = "beta_payload";
+    return i32(a.len() + b.len());
+}
+"#;
+    let verified = verify_body_program(&[("full_sha_str.zil", src)]).expect("program must verify");
+    let units = emit_verified_body_units_for_target(&verified, true, 1, "x86_64-unknown-linux-gnu")
+        .expect("IR emission must succeed");
+    let ir = &units[0];
+    let mut found = 0usize;
+    for line in ir.lines() {
+        if let Some(rest) = line.strip_prefix("@__zil_str_")
+            && let Some((hex, _)) = rest.split_once(' ')
+        {
+            assert_eq!(
+                hex.len(),
+                64,
+                "static string symbol must use full 64-hex-char SHA-256, got {hex}"
+            );
+            assert!(hex.bytes().all(|b| b.is_ascii_hexdigit()));
+            found += 1;
+        }
+    }
+    assert!(
+        found >= 2,
+        "expected at least 2 full SHA-256 static string symbols, found {found}"
+    );
 }
