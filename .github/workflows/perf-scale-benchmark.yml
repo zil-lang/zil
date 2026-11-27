@@ -80,6 +80,7 @@ jobs:
               --samples "${{ inputs.samples }}" \
               --skip-disk \
               --with-multiprocess \
+              --with-generics \
               --json-out "$OUT/scale_o0.json"
 
             python3 tools/bench_scale_and_disk.py \
@@ -89,6 +90,7 @@ jobs:
               --opt O2 \
               --samples "${{ inputs.samples }}" \
               --skip-disk \
+              --with-generics \
               --json-out "$OUT/scale_o2.json"
 
             python3 tools/bench_scale_and_disk.py \

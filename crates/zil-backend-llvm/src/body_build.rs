@@ -45,6 +45,33 @@ pub struct BodyBuildOutput {
     pub cache_evicted_entries: usize,
     pub cache_evicted_bytes: u64,
     pub cache_evict_ns: u64,
+    pub emit_ns: u64,
+    pub link_ns: u64,
+}
+
+/// Locates the bundled LLVM `ld.lld` sitting next to `clang` (without
+/// canonicalizing the symlink so multicall `lld` keeps `argv[0] = ld.lld`).
+fn resolve_sibling_lld(clang: &Path) -> Option<PathBuf> {
+    if let Some(parent) = clang.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        let candidate = parent.join("ld.lld");
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        return None;
+    }
+    let path_env = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path_env) {
+        if dir.join(clang).is_file() {
+            let candidate = dir.join("ld.lld");
+            if candidate.is_file() {
+                return Some(candidate);
+            }
+            return None;
+        }
+    }
+    None
 }
 
 #[derive(Clone, Debug)]
@@ -466,6 +493,11 @@ pub fn build_verified_body(
     let clang = options
         .clang
         .clone()
+        .or_else(|| {
+            std::env::var_os("ZIL_CLANG")
+                .filter(|v| !v.is_empty())
+                .map(PathBuf::from)
+        })
         .unwrap_or_else(|| PathBuf::from("clang"));
     let target_flag = format!("--target={triple}");
     let opt_flag = match options.optimization {
@@ -478,6 +510,7 @@ pub fn build_verified_body(
             #[cfg(feature = "llvm-api")]
             {
                 let requested = options.codegen_units.max(1);
+                let emit_started = std::time::Instant::now();
                 let unit_irs = emit_verified_body_units_with_entry_for_target(
                     verified,
                     options.emit_c_main,
@@ -485,6 +518,7 @@ pub fn build_verified_body(
                     entry,
                     triple,
                 )?;
+                let emit_ns = emit_started.elapsed().as_nanos() as u64;
                 let actual_units = unit_irs.len();
                 let ir = if options.emit_ir_file {
                     let text = if actual_units == 1 {
@@ -763,6 +797,7 @@ pub fn build_verified_body(
                 }
 
                 let mut commands = Vec::new();
+                let link_started = std::time::Instant::now();
                 if is_windows && let Some(windows) = &options.windows {
                     link_windows_lld(
                         &clang,
@@ -781,6 +816,14 @@ pub fn build_verified_body(
                         opt_flag.into(),
                     ];
                     cmd.arg(&target_flag).arg(opt_flag);
+                    if !is_windows
+                        && !triple.contains("apple")
+                        && let Some(lld_path) = resolve_sibling_lld(&clang)
+                    {
+                        let ld_flag = format!("--ld-path={}", lld_path.display());
+                        cmd.arg(&ld_flag);
+                        argv.push(ld_flag);
+                    }
                     for obj_path in &obj_paths {
                         cmd.arg(obj_path);
                         argv.push(obj_path.display().to_string());
@@ -800,6 +843,7 @@ pub fn build_verified_body(
                     run_checked_command(cmd, "linker", &clang)?;
                     commands.push(argv);
                 }
+                let link_ns = link_started.elapsed().as_nanos() as u64;
                 // Release our private hard-link staging directory immediately after linking.
                 drop(stage_guard);
                 for tmp_obj in temp_obj_paths {
@@ -826,6 +870,8 @@ pub fn build_verified_body(
                     cache_evicted_entries,
                     cache_evicted_bytes,
                     cache_evict_ns,
+                    emit_ns,
+                    link_ns,
                 })
             }
             #[cfg(not(feature = "llvm-api"))]
@@ -837,6 +883,7 @@ pub fn build_verified_body(
             }
         }
         NativeBackend::Clang => {
+            let emit_started = std::time::Instant::now();
             let ir = emit_verified_body_units_with_entry_for_target(
                 verified,
                 options.emit_c_main,
@@ -846,9 +893,11 @@ pub fn build_verified_body(
             )?
             .pop()
             .unwrap_or_default();
+            let emit_ns = emit_started.elapsed().as_nanos() as u64;
             fs::write(&ir_path, &ir)
                 .map_err(|e| BodyBuildError::new(format!("failed to write LLVM IR: {e}")))?;
             let mut commands = Vec::new();
+            let link_started = std::time::Instant::now();
             if is_windows && let Some(windows) = &options.windows {
                 let obj_path = PathBuf::from(format!("{}.{obj_ext}", options.output.display()));
                 let mut compile_cmd = Command::new(&clang);
@@ -898,6 +947,14 @@ pub fn build_verified_body(
                     .arg("ir")
                     .arg(opt_flag)
                     .arg(&ir_path);
+                if !is_windows
+                    && !triple.contains("apple")
+                    && let Some(lld_path) = resolve_sibling_lld(&clang)
+                {
+                    let ld_flag = format!("--ld-path={}", lld_path.display());
+                    cmd.arg(&ld_flag);
+                    argv.push(ld_flag);
+                }
                 for c_src in &options.extra_c_sources {
                     cmd.arg("-x").arg("c").arg(c_src);
                     argv.push("-x".into());
@@ -920,6 +977,7 @@ pub fn build_verified_body(
                 run_checked_command(cmd, "clang", &clang)?;
                 commands.push(argv);
             }
+            let link_ns = link_started.elapsed().as_nanos() as u64;
             Ok(BodyBuildOutput {
                 ir,
                 ir_path,
@@ -931,6 +989,8 @@ pub fn build_verified_body(
                 cache_evicted_entries: 0,
                 cache_evicted_bytes: 0,
                 cache_evict_ns: 0,
+                emit_ns,
+                link_ns,
             })
         }
     }

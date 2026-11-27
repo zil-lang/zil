@@ -799,6 +799,173 @@ def run_multiprocess_suite(
         }
 
 
+def run_generics_suite(
+    zil_bin: Path,
+    rustc_bin: Path,
+    n_mods: int,
+    opt: str,
+    jobs: int,
+    samples: int,
+    env: dict[str, str],
+) -> dict[str, object]:
+    """Experiment E: Generics + ADT + Trait monomorphization across N modules (cold, warm, 1-edit)."""
+    cgu = 16 if n_mods <= 100 else 32
+    r_opt = "0" if opt == "O0" else "2"
+    print(f"\n================ EXPERIMENT E: GENERICS + ADT + TRAIT MONOMORPHIZATION ({n_mods} mods, {opt}, CGU={cgu}, jobs={jobs}, samples={samples}) ================")
+    with tempfile.TemporaryDirectory(prefix="zil_gen_bench_") as td:
+        root = Path(td)
+        gz = root / "gen_zil"
+        gr = root / "gen_rs"
+        gz.mkdir()
+        gr.mkdir()
+        (gz / "core_gen.zil").write_text(
+            "pub trait Reducer {\n"
+            "    fn reduce(self: &Self, acc: i64) -> i64;\n"
+            "}\n"
+            "pub fn apply_pair<A: Value, B: Value>(a: A, b: B) -> (B, A) {\n"
+            "    return (b, a)\n"
+            "}\n"
+            "pub fn identity<T: Value>(v: T) -> T {\n"
+            "    return v\n"
+            "}\n"
+        )
+        (gr / "core_gen.rs").write_text(
+            "pub trait Reducer {\n"
+            "    fn reduce(&self, acc: i64) -> i64;\n"
+            "}\n"
+            "#[inline(never)]\n"
+            "pub fn apply_pair<A, B>(a: A, b: B) -> (B, A) { (b, a) }\n"
+            "#[inline(never)]\n"
+            "pub fn identity<T>(v: T) -> T { v }\n"
+        )
+
+        def write_mod(i: int, salt: int = 0) -> None:
+            (gz / f"g{i}.zil").write_text(
+                f"import core_gen;\n"
+                f"pub struct Rec{i} {{ a: i64, b: i64, c: i64 }}\n"
+                f"impl core_gen.Reducer for Rec{i} {{\n"
+                f"    fn reduce(self: &Self, acc: i64) -> i64 {{\n"
+                f"        return acc + self.a * 3 + self.b + self.c + {i + 1 + salt}\n"
+                f"    }}\n"
+                f"}}\n"
+                f"pub fn run(x: i64) -> i64 {{\n"
+                f"    let r = core_gen.identity::<Rec{i}>(Rec{i} {{ a: x + {i + salt}, b: x * 2, c: {(i % 19) + 1} }})\n"
+                f"    let p = core_gen.apply_pair::<Rec{i}, i64>(r, x + {i + 7})\n"
+                f"    let (k, r2) = p\n"
+                f"    return r2.reduce(k)\n"
+                f"}}\n"
+            )
+            (gr / f"g{i}.rs").write_text(
+                f"use crate::core_gen::{{Reducer, apply_pair, identity}};\n"
+                f"pub struct Rec{i} {{ pub a: i64, pub b: i64, pub c: i64 }}\n"
+                f"impl Reducer for Rec{i} {{\n"
+                f"    #[inline(never)]\n"
+                f"    fn reduce(&self, acc: i64) -> i64 {{\n"
+                f"        acc.wrapping_add(self.a.wrapping_mul(3)).wrapping_add(self.b).wrapping_add(self.c).wrapping_add({i + 1 + salt})\n"
+                f"    }}\n"
+                f"}}\n"
+                f"#[inline(never)]\n"
+                f"pub fn run(x: i64) -> i64 {{\n"
+                f"    let r = identity::<Rec{i}>(Rec{i} {{ a: x.wrapping_add({i + salt}), b: x.wrapping_mul(2), c: {(i % 19) + 1} }});\n"
+                f"    let (k, r2) = apply_pair::<Rec{i}, i64>(r, x.wrapping_add({i + 7}));\n"
+                f"    r2.reduce(k)\n"
+                f"}}\n"
+            )
+
+        z_imps, z_calls = ["import core_gen;"], []
+        r_mods, r_calls = ["mod core_gen;"], []
+        for i in range(n_mods):
+            write_mod(i, salt=0)
+            z_imps.append(f"import g{i};")
+            z_calls.append(f"    acc = g{i}.run(acc % 997);")
+            r_mods.append(f"mod g{i};")
+            r_calls.append(f"    acc = g{i}::run(acc % 997);")
+        (gz / "main.zil").write_text(
+            "\n".join(z_imps) + "\n\nfn main() -> i64 {\n    var acc: i64 = 1;\n" + "\n".join(z_calls) + "\n    return acc % 100;\n}\n"
+        )
+        (gr / "main.rs").write_text(
+            "\n".join(r_mods) + "\n\nfn main() {\n    let mut acc: i64 = 1;\n" + "\n".join(r_calls) + "\n    std::process::exit((acc % 100) as i32);\n}\n"
+        )
+
+        z_cache = root / "z_cache"
+        z_out = root / "z_app"
+        r_inc = root / "r_inc"
+        r_out = root / "r_app"
+        tmp_out = root / "cmd.out"
+
+        def run_zil() -> dict[str, object]:
+            return run_zil_build(
+                zil_bin, gz / "main.zil", z_out, z_cache,
+                opt=opt, cgu=cgu, jobs=jobs, tmp_json=tmp_out, env=env,
+            )
+
+        def run_rust() -> dict[str, object]:
+            return run_rust_build(
+                rustc_bin, gr / "main.rs", r_out, r_inc,
+                opt=opt, cgu=cgu, tmp_json=tmp_out, env=env,
+            )
+
+        # Cold build
+        cold_z_ms, cold_r_ms = [], []
+        last_z, last_r = {}, {}
+        for _ in range(samples):
+            shutil.rmtree(z_cache, ignore_errors=True)
+            shutil.rmtree(r_inc, ignore_errors=True)
+            last_z = run_zil()
+            last_r = run_rust()
+            cold_z_ms.append(float(last_z["ms"]))
+            cold_r_ms.append(float(last_r["ms"]))
+        z_rc = subprocess.run([str(z_out)]).returncode
+        r_rc = subprocess.run([str(r_out)]).returncode
+        if z_rc != r_rc:
+            raise RuntimeError(f"generics exit code mismatch: zil={z_rc} vs rust={r_rc}")
+
+        # Warm no-op
+        warm_z_ms, warm_r_ms = [], []
+        for _ in range(samples):
+            last_z = run_zil()
+            last_r = run_rust()
+            warm_z_ms.append(float(last_z["ms"]))
+            warm_r_ms.append(float(last_r["ms"]))
+
+        # Single-module private edit
+        edit_z_ms, edit_r_ms = [], []
+        for rep in range(samples):
+            write_mod(0, salt=rep + 1)
+            last_z = run_zil()
+            last_r = run_rust()
+            edit_z_ms.append(float(last_z["ms"]))
+            edit_r_ms.append(float(last_r["ms"]))
+
+        rows = []
+        for name, zs, rs in [
+            ("1. cold_build", cold_z_ms, cold_r_ms),
+            ("2. warm_noop", warm_z_ms, warm_r_ms),
+            ("3. priv_edit_1_mod", edit_z_ms, edit_r_ms),
+        ]:
+            zm = statistics.median(zs)
+            rm = statistics.median(rs)
+            ratio = zm / rm if rm > 0 else 0.0
+            print(f"  {name:<22} | ZIL={zm:6.1f}ms  Rust={rm:6.1f}ms  ({ratio:.2f}x)")
+            rows.append({
+                "scenario": name,
+                "zil_ms_median": round(zm, 2),
+                "rust_ms_median": round(rm, 2),
+                "ratio_zil_over_rust": round(ratio, 3),
+                "zil_samples_ms": [round(x, 2) for x in zs],
+                "rust_samples_ms": [round(x, 2) for x in rs],
+            })
+        return {
+            "modules": n_mods,
+            "opt": opt,
+            "cgu": cgu,
+            "jobs": jobs,
+            "samples": samples,
+            "verified_exit_code": z_rc,
+            "rows": rows,
+        }
+
+
 def collect_metadata(zil_bin: Path, rustc_bin: Path, env: dict[str, str]) -> dict[str, object]:
     def ver(cmd: list[str]) -> str:
         try:
@@ -847,6 +1014,8 @@ def main() -> None:
     ap.add_argument("--mp-rounds", type=int, default=8)
     ap.add_argument("--mp-mods", type=int, default=40)
     ap.add_argument("--mp-max-mb", type=int, default=1)
+    ap.add_argument("--with-generics", action="store_true", help="Run Experiment E generics/ADT/trait monomorphization suite")
+    ap.add_argument("--gen-mods", type=int, default=80, help="Module count for Experiment E")
     ap.add_argument("--extra", action="append", default=[])
     ap.add_argument("--json-out", help="Optional path to save structured JSON report")
     args = ap.parse_args()
@@ -885,6 +1054,10 @@ def main() -> None:
     if args.with_multiprocess:
         report["experiment_d_multiprocess"] = run_multiprocess_suite(
             zil_bin, args.mp_workers, args.mp_rounds, args.mp_mods, args.opt, args.mp_max_mb, env
+        )
+    if args.with_generics:
+        report["experiment_e_generics"] = run_generics_suite(
+            zil_bin, rustc_bin, args.gen_mods, args.opt, args.jobs, args.samples, env
         )
     if args.json_out:
         out_path = Path(args.json_out)

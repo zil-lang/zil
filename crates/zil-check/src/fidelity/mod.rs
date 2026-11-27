@@ -31,16 +31,21 @@ pub fn check_fidelity(
     let ast_selects = collect_ast_field_selects(sources);
     let ast_impl_methods = collect_ast_impl_methods(sources);
     let mut seen_fns = HashSet::with_capacity(source_map.functions.len());
-
     for fn_map in &source_map.functions {
+        if !seen_fns.insert(fn_map.function) {
+            return Err(FidelityError {
+                function: fn_map.function,
+                reason: "duplicate function entry in source map",
+            });
+        }
+    }
+
+    let check_one = |fn_map: &zil_ir::body::FunctionSourceMap| -> Result<(), FidelityError> {
         let fn_id = fn_map.function;
         let fail = |reason| FidelityError {
             function: fn_id,
             reason,
         };
-        if !seen_fns.insert(fn_id) {
-            return Err(fail("duplicate function entry in source map"));
-        }
         let Some(func) = module.functions.get(fn_id.index()) else {
             return Err(fail("source map references unknown function"));
         };
@@ -224,6 +229,55 @@ pub fn check_fidelity(
                 if !claimed_resource_ops.contains(&loc) {
                     return Err(fail("missing ResourceOp relation for IR Intrinsic call"));
                 }
+            }
+        }
+        Ok(())
+    };
+
+    let n = source_map.functions.len();
+    let workers = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .clamp(1, 16)
+        .min(n.max(1));
+    if workers <= 1 || n < 16 {
+        for fn_map in &source_map.functions {
+            check_one(fn_map)?;
+        }
+    } else {
+        use std::sync::Mutex;
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+        let next_idx = AtomicUsize::new(0);
+        let any_failed = AtomicBool::new(false);
+        let errors: Vec<Mutex<Option<FidelityError>>> = (0..n).map(|_| Mutex::new(None)).collect();
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| {
+                    loop {
+                        if any_failed.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let i = next_idx.fetch_add(1, Ordering::Relaxed);
+                        if i >= n {
+                            break;
+                        }
+                        if let Err(err) = check_one(&source_map.functions[i]) {
+                            any_failed.store(true, Ordering::Relaxed);
+                            if let Ok(mut guard) = errors[i].lock() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        if any_failed.load(Ordering::Relaxed) {
+            for (i, slot) in errors.into_iter().enumerate() {
+                if let Some(err) = slot.into_inner().ok().flatten() {
+                    return Err(err);
+                }
+                check_one(&source_map.functions[i])?;
             }
         }
     }
