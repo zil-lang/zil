@@ -1,10 +1,22 @@
 //! Trusted-local semantic candidate & per-function certificate cache helpers.
 //!
-//! All cached artifacts are strictly UNTRUSTED candidates: they can skip
-//! parsing, typeck, or fixed-point solving, but NEVER grant safety authority.
-//! Every build still executes fresh `zil_check::check_fidelity` and
-//! `zil_check::check_module` (`verification_runs == 1`) and transparently
-//! purges + rebuilds on any verification mismatch or corruption.
+//! ## Trust Boundary
+//! `--semantic-cache DIR` is an explicit **trusted-local build cache** (same
+//! trust boundary as `--object-cache DIR` and `rustc -C incremental=DIR`).
+//!
+//! - **What is always enforced fresh**: Every build still runs fresh
+//!   `zil_check::ct_original::verify_ct_original_definitions`,
+//!   `zil_check::check_fidelity`, and `zil_check::check_module`
+//!   (`verification_runs == 1`). Memory safety, borrow/protocol invariants,
+//!   structural AST-to-IR fidelity, and SHA-256 integrity envelopes are NEVER
+//!   bypassed; any corrupted or safety-invalid snapshot is purged and rebuilt.
+//! - **What is NOT claimed**: Because `check_fidelity` verifies structural and
+//!   resource/field/trait-impl fidelity rather than re-running full typeck and
+//!   lowering on every pure literal/expression, `--semantic-cache DIR` does NOT
+//!   defend against a local attacker with write access to the cache directory
+//!   who deliberately rewrites a pure constant (e.g., `return 1` -> `return 2`),
+//!   re-solves a valid safety certificate, and recomputes SHA-256. Keep cache
+//!   directories in trusted local storage.
 
 use std::collections::HashMap;
 use std::fs;
@@ -14,7 +26,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::SystemTime;
 use zil_base::{Fingerprint, FingerprintBuilder, Limits, TargetProfile};
 use zil_ir::body::{
-    Certificate, FunctionCertificate, Module, SourceMap, decode_semantic_candidate,
+    Certificate, FunctionCertificate, Module, SourceMap, WIRE_VERSION, decode_semantic_candidate,
     encode_semantic_candidate,
 };
 use zil_solve::{CertCacheKey, CertificateCache};
@@ -24,14 +36,43 @@ static SEM_TMP_SEQ: AtomicU64 = AtomicU64::new(1);
 const MAX_DISK_SEM_SNAPSHOTS: usize = 8;
 const MAX_MEM_FN_CERTS: usize = 4096;
 
-/// Canonical fingerprint of the complete source module graph, target, and limits.
+/// Explicit typeck/lowering semantic cache ABI version. Bump whenever typeck,
+/// lowering, or semantic-candidate representation changes even if `WIRE_VERSION`
+/// stays unchanged.
+pub const SEMANTIC_CACHE_ABI_VERSION: u32 = 1;
+
+/// Canonical fingerprint of the complete source module graph, compiler/ABI
+/// identity, target, and limits.
 pub(crate) fn program_semantic_key(
     modules: &[(&str, Fingerprint)],
     target: &TargetProfile,
     limits: &Limits,
 ) -> Fingerprint {
+    program_semantic_key_with_abi(
+        modules,
+        target,
+        limits,
+        SEMANTIC_CACHE_ABI_VERSION,
+        env!("CARGO_PKG_VERSION"),
+        WIRE_VERSION,
+    )
+}
+
+/// Parameterized key constructor used by cross-version invalidation tests.
+pub(crate) fn program_semantic_key_with_abi(
+    modules: &[(&str, Fingerprint)],
+    target: &TargetProfile,
+    limits: &Limits,
+    abi_version: u32,
+    compiler_version: &str,
+    wire_version: u32,
+) -> Fingerprint {
     let mut h = FingerprintBuilder::new();
-    h.update(b"zil-sem-cache-v1\0");
+    h.update(b"zil-sem-cache-v2\0");
+    h.update(&abi_version.to_le_bytes());
+    h.update(&wire_version.to_le_bytes());
+    h.update(compiler_version.as_bytes());
+    h.update(b"\0");
     h.update(target.triple.as_bytes());
     h.update(b"\0");
     h.update(&target.pointer_width.to_le_bytes());
@@ -163,5 +204,64 @@ impl CertificateCache for SessionCertCache<'_> {
             }
             guard.insert(key, cert.clone());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn semantic_key_invalidates_across_abi_compiler_and_wire_versions() {
+        let fp = Fingerprint::of(b"fn main() -> i32 { return 1; }\n");
+        let mods = [("main", fp)];
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+
+        let base = program_semantic_key_with_abi(
+            &mods,
+            &target,
+            &limits,
+            SEMANTIC_CACHE_ABI_VERSION,
+            "1.0.0-alpha.2",
+            WIRE_VERSION,
+        );
+        let bumped_abi = program_semantic_key_with_abi(
+            &mods,
+            &target,
+            &limits,
+            SEMANTIC_CACHE_ABI_VERSION + 1,
+            "1.0.0-alpha.2",
+            WIRE_VERSION,
+        );
+        let bumped_compiler = program_semantic_key_with_abi(
+            &mods,
+            &target,
+            &limits,
+            SEMANTIC_CACHE_ABI_VERSION,
+            "1.0.0-alpha.3",
+            WIRE_VERSION,
+        );
+        let bumped_wire = program_semantic_key_with_abi(
+            &mods,
+            &target,
+            &limits,
+            SEMANTIC_CACHE_ABI_VERSION,
+            "1.0.0-alpha.2",
+            WIRE_VERSION + 1,
+        );
+
+        assert_ne!(base, bumped_abi, "ABI bump must invalidate semantic key");
+        assert_ne!(
+            base, bumped_compiler,
+            "compiler version bump must invalidate semantic key"
+        );
+        assert_ne!(
+            base, bumped_wire,
+            "wire version bump must invalidate semantic key"
+        );
+        assert_ne!(bumped_abi, bumped_compiler);
+        assert_ne!(bumped_abi, bumped_wire);
+        assert_ne!(bumped_compiler, bumped_wire);
     }
 }

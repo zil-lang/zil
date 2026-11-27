@@ -3,6 +3,7 @@
 //! self-healing under mandatory fresh `zil-check` (`verification_runs == 1`), and
 //! large-project resident session incremental reuse.
 
+use std::fs;
 use std::path::PathBuf;
 use zil_base::{Phase, ResultCategory};
 use zil_driver::{
@@ -275,4 +276,147 @@ fn semantic_cache_and_object_cache_end_to_end_native_execution() {
     );
 
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn resident_parse_cache_distinguishes_identical_modules_by_file_and_module_id() {
+    let dir = make_temp_dir("ident_mods");
+    let identical_ok = "pub fn run() -> i32 { return 1; }\n";
+    fs::write(dir.join("a.zil"), identical_ok).unwrap();
+    fs::write(dir.join("b.zil"), identical_ok).unwrap();
+    fs::write(
+        dir.join("main.zil"),
+        "import a;\nimport b;\nfn main() -> i32 { return a.run() + b.run(); }\n",
+    )
+    .unwrap();
+
+    let mut session = CompilationSession::with_capacity(64);
+    let opts = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+
+    let r1 = session.compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(r1.status, ResultCategory::Success, "{:?}", r1.diagnostics);
+    assert_eq!(r1.verification_runs, 1);
+    // All 3 files (main, a, b) MUST occupy distinct parse cache entries even though a.zil and b.zil are byte-identical!
+    assert_eq!(
+        session.cached_query_count(),
+        3,
+        "identical modules with different FileId/ModuleId must not alias in parse cache"
+    );
+
+    // Now inject an identical type error into BOTH a.zil and b.zil and verify
+    // each diagnostic points to its own FileId/source file, never misattributed!
+    let identical_bad = "pub fn run() -> i32 { return true; }\n";
+    fs::write(dir.join("a.zil"), identical_bad).unwrap();
+    fs::write(dir.join("b.zil"), identical_bad).unwrap();
+    let r2 = session.compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(r2.status, ResultCategory::SafeReject);
+    let diag_files: std::collections::HashSet<String> = r2
+        .diagnostics
+        .iter()
+        .filter_map(|d| d.span.and_then(|s| r2.source_files.get(&s.file)))
+        .cloned()
+        .collect();
+    assert!(
+        diag_files.iter().any(|p| p.ends_with("a.zil"))
+            && diag_files.iter().any(|p| p.ends_with("b.zil")),
+        "expected distinct diagnostics for both a.zil and b.zil, got: {diag_files:?}"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn resident_parse_cache_respects_max_nodes_and_max_call_depth_changes() {
+    let dir = make_temp_dir("parse_limits");
+    // Deeply nested expression with enough AST nodes & nesting depth to trip tighter limits.
+    let src = "fn main() -> i32 {\n  let x: i32 = ((((((((1 + 2) + 3) + 4) + 5) + 6) + 7) + 8) + 9);\n  return x;\n}\n";
+    let main_path = dir.join("main.zil");
+    fs::write(&main_path, src).unwrap();
+
+    let mut session = CompilationSession::with_capacity(64);
+    let permissive = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let ok = session.compile_path(&main_path, &permissive);
+    assert_eq!(ok.status, ResultCategory::Success, "{:?}", ok.diagnostics);
+
+    // Same session, same file, tighter max_nodes -> MUST NOT return cached permissive AST!
+    let mut tight_nodes = permissive.clone();
+    tight_nodes.limits.max_nodes = 4;
+    let rej_nodes = session.compile_path(&main_path, &tight_nodes);
+    assert_ne!(
+        rej_nodes.status,
+        ResultCategory::Success,
+        "tighter max_nodes must bypass permissive cached AST and reject"
+    );
+
+    // Same session, same file, tighter max_call_depth -> MUST NOT return cached permissive AST!
+    let mut tight_depth = permissive.clone();
+    tight_depth.limits.max_call_depth = 3;
+    let rej_depth = session.compile_path(&main_path, &tight_depth);
+    assert_ne!(
+        rej_depth.status,
+        ResultCategory::Success,
+        "tighter max_call_depth must bypass permissive cached AST and reject"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn semantic_cache_rejects_rehashed_forged_certificate_and_heals() {
+    let dir = make_temp_dir("sem_rehash_forged");
+    let sem_dir = dir.join("sem_cache");
+    write_multi_module_project(&dir, 4, 0);
+
+    let opts = CompileOptions {
+        stop_after: Stage::Verify,
+        semantic_cache: Some(sem_dir.clone()),
+        ..CompileOptions::default()
+    };
+
+    let cold = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        cold.status,
+        ResultCategory::Success,
+        "{:?}",
+        cold.diagnostics
+    );
+
+    // Locate the cached .zsem, decode it, clear its safety certificate (invalid
+    // candidate), and RE-ENCODE with a brand-new VALID SHA-256 envelope!
+    let zsem_path = fs::read_dir(&sem_dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .find(|p| p.extension().is_some_and(|ext| ext == "zsem"))
+        .expect("expected .zsem snapshot");
+    let raw = fs::read(&zsem_path).unwrap();
+    let (module, smap, mut cert) =
+        zil_ir::body::decode_semantic_candidate(&raw).expect("decode valid zsem");
+    // Forge an invalid certificate while keeping the SHA-256 envelope valid.
+    cert.functions.clear();
+    let forged_valid_sha = zil_ir::body::encode_semantic_candidate(&module, &smap, &cert);
+    fs::write(&zsem_path, forged_valid_sha).unwrap();
+
+    // Even with a valid SHA-256 envelope, fresh check_module MUST reject the forged
+    // candidate, purge it, and cleanly rebuild from source (`cache_hit == false`).
+    let healed = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        healed.status,
+        ResultCategory::Success,
+        "{:?}",
+        healed.diagnostics
+    );
+    assert_eq!(healed.verification_runs, 1);
+    assert!(
+        !healed.cache_hit,
+        "forged certificate with valid SHA-256 must NOT be accepted as a cache hit"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
 }

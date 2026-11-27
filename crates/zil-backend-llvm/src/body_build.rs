@@ -82,6 +82,61 @@ fn link_meta_path(cache_dir: &Path, output: &Path) -> PathBuf {
 }
 
 #[cfg(feature = "llvm-api")]
+fn resolve_tool_path(tool: &Path) -> Option<PathBuf> {
+    if tool.components().count() > 1 || tool.is_absolute() {
+        return tool.exists().then(|| tool.to_path_buf());
+    }
+    let path_env = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&path_env) {
+        let candidate = dir.join(tool);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        #[cfg(windows)]
+        {
+            if candidate.extension().is_none() {
+                let with_exe = candidate.with_extension("exe");
+                if with_exe.is_file() {
+                    return Some(with_exe);
+                }
+            }
+        }
+    }
+    None
+}
+
+#[cfg(feature = "llvm-api")]
+fn update_tool_binary_identity(h: &mut zil_base::FingerprintBuilder, tool: &Path) {
+    h.update(tool.to_string_lossy().as_bytes());
+    h.update(b"\0");
+    let resolved = resolve_tool_path(tool);
+    let Some(path) = resolved else {
+        h.update(b"missing\0");
+        return;
+    };
+    let canonical = fs::canonicalize(&path).unwrap_or(path);
+    h.update(canonical.to_string_lossy().as_bytes());
+    h.update(b"\0");
+    let Ok(meta) = fs::metadata(&canonical) else {
+        h.update(b"nometa\0");
+        return;
+    };
+    h.update(&meta.len().to_le_bytes());
+    let mtime_nanos = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0u128, |d| d.as_nanos());
+    h.update(&mtime_nanos.to_le_bytes());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        h.update(&meta.dev().to_le_bytes());
+        h.update(&meta.ino().to_le_bytes());
+    }
+}
+
+#[cfg(feature = "llvm-api")]
 fn compute_link_key(
     triple: &str,
     opt_flag: &str,
@@ -91,25 +146,29 @@ fn compute_link_key(
     unit_keys: &[String],
 ) -> String {
     let mut h = zil_base::FingerprintBuilder::new();
-    h.update(b"zil-link-v1\0");
+    h.update(b"zil-link-v2\0");
+    h.update(env!("CARGO_PKG_VERSION").as_bytes());
+    h.update(b"\0");
+    h.update(&OBJECT_CACHE_CODEGEN_ABI.to_le_bytes());
     h.update(zil_llvm_api::LLVM_VERSION.as_bytes());
     h.update(b"\0");
     h.update(triple.as_bytes());
     h.update(b"\0");
     h.update(opt_flag.as_bytes());
     h.update(b"\0");
-    h.update(clang.to_string_lossy().as_bytes());
-    h.update(b"\0");
+    update_tool_binary_identity(&mut h, clang);
     if let Some(lld) = lld_path {
-        h.update(lld.to_string_lossy().as_bytes());
+        h.update(b"lld\0");
+        update_tool_binary_identity(&mut h, lld);
+    } else {
+        h.update(b"nolld\0");
     }
-    h.update(b"\0");
     if let Some(w) = windows {
-        h.update(w.linker.to_string_lossy().as_bytes());
-        h.update(b"\0");
+        h.update(b"win\0");
+        update_tool_binary_identity(&mut h, &w.linker);
+        h.update(&(w.import_libraries.len() as u64).to_le_bytes());
         for lib in &w.import_libraries {
-            h.update(lib.to_string_lossy().as_bytes());
-            h.update(b"\0");
+            update_tool_binary_identity(&mut h, lib);
         }
     }
     h.update((unit_keys.len() as u64).to_le_bytes().as_slice());
@@ -1135,4 +1194,66 @@ pub fn build_verified_body(
 /// Convenience helper for checking that `clang` is reachable.
 pub fn default_clang_path() -> &'static Path {
     Path::new("clang")
+}
+
+#[cfg(all(test, feature = "llvm-api"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn link_key_invalidates_when_tool_binary_at_same_path_changes() {
+        let dir = std::env::temp_dir().join(format!("zil_link_key_test_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("mkdir");
+        let fake_clang = dir.join("clang");
+        let fake_lld = dir.join("ld.lld");
+        fs::write(&fake_clang, b"clang-v1").expect("write clang v1");
+        fs::write(&fake_lld, b"lld-v1").expect("write lld v1");
+
+        let unit_keys = vec!["u0".to_string()];
+        let k1 = compute_link_key(
+            "x86_64-unknown-linux-gnu",
+            "-O0",
+            &fake_clang,
+            Some(&fake_lld),
+            None,
+            &unit_keys,
+        );
+        // Same binary on disk -> identical link key.
+        let k1_again = compute_link_key(
+            "x86_64-unknown-linux-gnu",
+            "-O0",
+            &fake_clang,
+            Some(&fake_lld),
+            None,
+            &unit_keys,
+        );
+        assert_eq!(k1, k1_again);
+
+        // Upgrade clang in place at the exact same path -> link key MUST change.
+        fs::write(&fake_clang, b"clang-v2-upgraded-binary").expect("write clang v2");
+        let k2 = compute_link_key(
+            "x86_64-unknown-linux-gnu",
+            "-O0",
+            &fake_clang,
+            Some(&fake_lld),
+            None,
+            &unit_keys,
+        );
+        assert_ne!(k1, k2, "in-place clang upgrade must invalidate link key");
+
+        // Upgrade ld.lld in place at the exact same path -> link key MUST change.
+        fs::write(&fake_lld, b"lld-v2-upgraded-binary").expect("write lld v2");
+        let k3 = compute_link_key(
+            "x86_64-unknown-linux-gnu",
+            "-O0",
+            &fake_clang,
+            Some(&fake_lld),
+            None,
+            &unit_keys,
+        );
+        assert_ne!(k2, k3, "in-place ld.lld upgrade must invalidate link key");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
