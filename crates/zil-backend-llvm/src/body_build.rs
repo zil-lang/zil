@@ -253,6 +253,19 @@ fn touch_cache_mtime(path: &Path) {
 }
 
 #[cfg(feature = "llvm-api")]
+fn should_scan_cache_budget(cache_dir: &Path, max_bytes: u64, cache_misses: usize) -> bool {
+    let budget_file = cache_dir.join(".budget");
+    let prev = fs::read_to_string(&budget_file)
+        .ok()
+        .and_then(|s| s.trim().parse::<u64>().ok());
+    let lowered = prev.is_none_or(|p| max_bytes < p);
+    if lowered || prev != Some(max_bytes) {
+        let _ = fs::write(&budget_file, max_bytes.to_string());
+    }
+    cache_misses > 0 || lowered
+}
+
+#[cfg(feature = "llvm-api")]
 fn enforce_object_cache_budget(
     cache_dir: &Path,
     max_bytes: u64,
@@ -266,15 +279,15 @@ fn enforce_object_cache_budget(
         return (0, 0, start.elapsed().as_nanos() as u64);
     };
     let now = std::time::SystemTime::now();
-    let mut total_bytes = 0u64;
-    let mut candidates: Vec<(std::time::SystemTime, u64, PathBuf, PathBuf)> = Vec::new();
-    let mut orphan_metas: Vec<PathBuf> = Vec::new();
+    let mut obj_entries: Vec<(String, std::time::SystemTime, u64, PathBuf)> = Vec::new();
+    let mut meta_map: std::collections::HashMap<String, (u64, std::time::SystemTime, PathBuf)> =
+        std::collections::HashMap::new();
     for entry in read_dir.flatten() {
         let path = entry.path();
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        // Never disturb per-build staging directories (`.stage-*`).
+        // Never disturb per-build staging directories (`.stage-*`) or `.budget`.
         if name.starts_with('.') {
             continue;
         }
@@ -284,44 +297,40 @@ fn enforce_object_cache_budget(
         if !meta.is_file() {
             continue;
         }
+        let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
         // Opportunistically sweep stale abandoned temp files (> 120s old).
         if name.contains(".tmp.") {
-            if let Ok(mtime) = meta.modified()
-                && now.duration_since(mtime).is_ok_and(|d| d.as_secs() > 120)
-            {
+            if now.duration_since(mtime).is_ok_and(|d| d.as_secs() > 120) {
                 let _ = fs::remove_file(&path);
             }
             continue;
         }
-        if name.ends_with(&meta_suffix) {
-            // Since `.meta` is published BEFORE `.o`, only sweep orphan `.meta` files
-            // older than 120s so we never disturb a concurrent in-flight publisher.
-            let paired_obj = path.with_extension("");
-            if !paired_obj.exists()
-                && meta
-                    .modified()
-                    .ok()
-                    .and_then(|m| now.duration_since(m).ok())
-                    .is_some_and(|d| d.as_secs() > 120)
-            {
-                orphan_metas.push(path);
-            }
-            continue;
-        }
-        if !name.ends_with(&obj_suffix) {
-            continue;
-        }
-        let meta_path = cache_meta_path(&path);
-        let meta_sz = fs::metadata(&meta_path).map(|m| m.len()).unwrap_or(0);
-        let entry_sz = meta.len().saturating_add(meta_sz);
-        total_bytes = total_bytes.saturating_add(entry_sz);
-        if !active_paths.contains(&path) {
-            let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
-            candidates.push((mtime, entry_sz, path, meta_path));
+        if let Some(stem) = name.strip_suffix(&meta_suffix) {
+            meta_map.insert(stem.to_owned(), (meta.len(), mtime, path));
+        } else if let Some(stem) = name.strip_suffix(&obj_suffix) {
+            obj_entries.push((stem.to_owned(), mtime, meta.len(), path));
         }
     }
-    for orphan in orphan_metas {
-        let _ = fs::remove_file(orphan);
+
+    let mut total_bytes = 0u64;
+    let mut candidates: Vec<(std::time::SystemTime, u64, PathBuf, Option<PathBuf>)> =
+        Vec::with_capacity(obj_entries.len());
+    for (stem, mtime, obj_sz, obj_path) in obj_entries {
+        let (meta_sz, meta_path) = match meta_map.remove(&stem) {
+            Some((sz, _, mp)) => (sz, Some(mp)),
+            None => (0, None),
+        };
+        let entry_sz = obj_sz.saturating_add(meta_sz);
+        total_bytes = total_bytes.saturating_add(entry_sz);
+        if !active_paths.contains(&obj_path) {
+            candidates.push((mtime, entry_sz, obj_path, meta_path));
+        }
+    }
+    // Sweep orphan `.meta` files left in `meta_map` only when older than 120s.
+    for (_, (_, mtime, mp)) in meta_map {
+        if now.duration_since(mtime).is_ok_and(|d| d.as_secs() > 120) {
+            let _ = fs::remove_file(mp);
+        }
     }
     if total_bytes <= max_bytes {
         return (0, 0, start.elapsed().as_nanos() as u64);
@@ -334,7 +343,9 @@ fn enforce_object_cache_budget(
         if total_bytes <= watermark {
             break;
         }
-        let _ = fs::remove_file(&meta_path);
+        if let Some(mp) = meta_path {
+            let _ = fs::remove_file(mp);
+        }
         if fs::remove_file(&obj_path).is_ok() {
             total_bytes = total_bytes.saturating_sub(entry_sz);
             evicted_entries += 1;
@@ -798,6 +809,7 @@ pub fn build_verified_body(
                     cache_dir
                     && let Some(max_bytes) = options.object_cache_max_bytes
                     && max_bytes > 0
+                    && should_scan_cache_budget(dir, max_bytes, cache_misses)
                 {
                     enforce_object_cache_budget(dir, max_bytes, obj_ext, &active_cache_paths)
                 } else {
