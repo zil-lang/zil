@@ -782,9 +782,16 @@ fail:\n\
         if seen_mods.len() > 1 {
             for idx in 0..fn_count {
                 if reach.fns[idx] {
-                    let mk = fn_module_key(&module.functions[idx].name);
-                    if main_mod_key == Some(mk) {
+                    let fn_name = &module.functions[idx].name;
+                    let mk = fn_module_key(fn_name);
+                    if main_mod_key == Some(mk) && !fn_name.contains("::<") {
                         unit_of_fn[idx] = 0;
+                    } else if fn_name.contains("::<") {
+                        // Distribute monomorphized generic instantiations across CGUs by
+                        // canonical instantiated symbol so all instantiations of a shared
+                        // generic helper do not collapse into one hot CGU bucket.
+                        unit_of_fn[idx] =
+                            1 + ((stable_module_hash(&syms[idx]) as usize) % worker_buckets);
                     } else {
                         unit_of_fn[idx] = 1 + ((stable_module_hash(mk) as usize) % worker_buckets);
                     }
@@ -1083,7 +1090,8 @@ struct UnitRefs {
 }
 
 fn fn_module_key(name: &str) -> &str {
-    let base = name.split(".__closure_").next().unwrap_or(name);
+    let head = name.split("::").next().unwrap_or(name);
+    let base = head.split(".__closure_").next().unwrap_or(head);
     base.rsplit_once('.').map_or("", |(m, _)| m)
 }
 

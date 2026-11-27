@@ -1092,6 +1092,7 @@ impl CompilationSession {
                     cache_evict_ns: built.cache_evict_ns,
                     emit_ns: built.emit_ns,
                     link_ns: built.link_ns,
+                    link_skipped: built.link_skipped,
                 });
             }
             Err(e) => {
@@ -1456,6 +1457,7 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                             cache_evict_ns: built.cache_evict_ns,
                             emit_ns: built.emit_ns,
                             link_ns: built.link_ns,
+                            link_skipped: built.link_skipped,
                         });
                     }
                     Err(e) => {
