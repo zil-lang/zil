@@ -966,6 +966,181 @@ def run_generics_suite(
         }
 
 
+def run_frontend_cache_suite(
+    zil_bin: Path,
+    rustc_bin: Path,
+    n_mods: int,
+    opt: str,
+    jobs: int,
+    samples: int,
+    env: dict[str, str],
+) -> dict[str, object]:
+    """Experiment F: large-project frontend incremental cache comparison
+    (plain CLI --object-cache vs CLI --semantic-cache vs --resident vs rustc).
+    """
+    cgu = 16
+    rs_opt = "0" if opt == "O0" else "2"
+    print(f"\n=== Experiment F: {n_mods} modules ({opt}, jobs={jobs}, samples={samples}) — Semantic Cache & Resident ===")
+    samples = max(1, samples)
+    res: dict[str, dict[str, list[float]]] = {
+        "rustc": {"cold": [], "warm": [], "priv_edit_1": []},
+        "zil_plain_cli": {"cold": [], "warm": [], "priv_edit_1": []},
+        "zil_semantic_cache": {"cold": [], "warm": [], "priv_edit_1": []},
+        "zil_resident": {"cold": [], "warm": [], "priv_edit_1": []},
+    }
+    sem_cache_bytes_last = 0
+    sem_cache_files_last = 0
+    checks: dict[str, object] = {}
+
+    for s in range(samples):
+        work = Path(tempfile.mkdtemp(prefix=f"zil_bench_f_{n_mods}_{s}_"))
+        try:
+            z_src, r_src = generate_projects(work, n_mods)
+            entry = z_src / "main.zil"
+            z_out = work / "z_app"
+
+            def run_zil(obj_cache: Path, sem_cache: Path | None = None) -> tuple[float, dict]:
+                cmd = [
+                    str(zil_bin), "build", str(entry),
+                    "--opt", opt, "--codegen-units", str(cgu), "--codegen-jobs", str(jobs),
+                    "--object-cache", str(obj_cache), "--json", "-o", str(z_out),
+                ]
+                if sem_cache is not None:
+                    cmd += ["--semantic-cache", str(sem_cache)]
+                t0 = time.perf_counter()
+                p = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                dt = (time.perf_counter() - t0) * 1000.0
+                if p.returncode != 0:
+                    raise RuntimeError(f"zil failed: {p.stderr}\n{p.stdout}")
+                return dt, json.loads(p.stdout)
+
+            # 1. Plain CLI (--object-cache)
+            oc1 = work / "oc1"
+            c1, _ = run_zil(oc1)
+            w1, jw1 = run_zil(oc1)
+            (z_src / "m500.zil").write_text(zil_module_src(500, salt=10 + s))
+            e1, _ = run_zil(oc1)
+            (z_src / "m500.zil").write_text(zil_module_src(500, salt=0))
+            res["zil_plain_cli"]["cold"].append(c1)
+            res["zil_plain_cli"]["warm"].append(w1)
+            res["zil_plain_cli"]["priv_edit_1"].append(e1)
+
+            # 2. CLI + --semantic-cache + --object-cache
+            oc2 = work / "oc2"
+            sc2 = work / "sc2"
+            c2, _ = run_zil(oc2, sc2)
+            w2, jw2 = run_zil(oc2, sc2)
+            (z_src / "m500.zil").write_text(zil_module_src(500, salt=20 + s))
+            e2, _ = run_zil(oc2, sc2)
+            (z_src / "m500.zil").write_text(zil_module_src(500, salt=0))
+            sem_cache_bytes_last, sem_cache_files_last = dir_stats(sc2)
+            res["zil_semantic_cache"]["cold"].append(c2)
+            res["zil_semantic_cache"]["warm"].append(w2)
+            res["zil_semantic_cache"]["priv_edit_1"].append(e2)
+
+            # 3. Resident session (--resident --resident-capacity 4096 --object-cache)
+            oc3 = work / "oc3"
+            proc = subprocess.Popen(
+                [
+                    str(zil_bin), "build", str(entry),
+                    "--opt", opt, "--codegen-units", str(cgu), "--codegen-jobs", str(jobs),
+                    "--object-cache", str(oc3), "-o", str(z_out),
+                    "--resident", "--resident-capacity", "4096", "--json",
+                ],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, env=env, bufsize=1,
+            )
+            assert proc.stdin is not None and proc.stdout is not None
+            ready = json.loads(proc.stdout.readline())
+            if not ready.get("ready"):
+                raise RuntimeError(f"resident not ready: {ready}")
+
+            def res_compile() -> tuple[float, dict]:
+                t0 = time.perf_counter()
+                proc.stdin.write("compile\n")
+                proc.stdin.flush()
+                line = proc.stdout.readline()
+                dt = (time.perf_counter() - t0) * 1000.0
+                j = json.loads(line)
+                rep = j.get("report", j)
+                if rep.get("status") != "Success":
+                    raise RuntimeError(f"resident compile failed: {rep.get('status')} {rep.get('diagnostics')}")
+                return dt, rep
+
+            rc, _ = res_compile()
+            rw, jrw = res_compile()
+            (z_src / "m500.zil").write_text(zil_module_src(500, salt=30 + s))
+            re1, _ = res_compile()
+            proc.stdin.write("quit\n")
+            proc.stdin.flush()
+            proc.wait(timeout=10)
+            res["zil_resident"]["cold"].append(rc)
+            res["zil_resident"]["warm"].append(rw)
+            res["zil_resident"]["priv_edit_1"].append(re1)
+
+            checks = {
+                "plain_warm_link_skipped": bool(jw1.get("native_codegen", {}).get("link_skipped")),
+                "sem_warm_cache_hit": bool(jw2.get("cache_hit")),
+                "sem_warm_verification_runs": int(jw2.get("verification_runs", 0)),
+                "sem_warm_link_skipped": bool(jw2.get("native_codegen", {}).get("link_skipped")),
+                "res_warm_cache_hit": bool(jrw.get("cache_hit")),
+                "res_warm_verification_runs": int(jrw.get("verification_runs", 0)),
+                "res_warm_link_skipped": bool(jrw.get("native_codegen", {}).get("link_skipped")),
+            }
+
+            # 4. Rust baseline
+            rs_out = work / "rs_app"
+            rs_inc = work / "rs_inc"
+
+            def run_rs() -> float:
+                cmd = [
+                    str(rustc_bin), str(r_src / "main.rs"), "-o", str(rs_out),
+                    "-C", f"opt-level={rs_opt}", "-C", "debuginfo=0",
+                    "-C", "overflow-checks=yes", "-C", "panic=abort",
+                    "-C", f"codegen-units={cgu}", "-C", f"incremental={rs_inc}",
+                ]
+                t0 = time.perf_counter()
+                p = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                dt = (time.perf_counter() - t0) * 1000.0
+                if p.returncode != 0:
+                    raise RuntimeError(f"rustc failed: {p.stderr}")
+                return dt
+
+            res["rustc"]["cold"].append(run_rs())
+            res["rustc"]["warm"].append(run_rs())
+            (r_src / "m500.rs").write_text(rust_module_src(500, salt=10 + s))
+            res["rustc"]["priv_edit_1"].append(run_rs())
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    summary: dict[str, dict[str, float]] = {}
+    for mode, buckets in res.items():
+        summary[mode] = {k: round(statistics.median(v), 2) for k, v in buckets.items()}
+
+    rs_m = summary["rustc"]
+    for mode in ("rustc", "zil_plain_cli", "zil_semantic_cache", "zil_resident"):
+        m = summary[mode]
+        if mode == "rustc":
+            print(f"  {mode:20s}: cold={m['cold']:6.1f}ms  warm={m['warm']:6.1f}ms  priv_edit_1={m['priv_edit_1']:6.1f}ms")
+        else:
+            print(
+                f"  {mode:20s}: cold={m['cold']:6.1f}ms ({m['cold']/rs_m['cold']:.2f}x)  "
+                f"warm={m['warm']:6.1f}ms ({m['warm']/rs_m['warm']:.2f}x)  "
+                f"priv_edit_1={m['priv_edit_1']:6.1f}ms ({m['priv_edit_1']/rs_m['priv_edit_1']:.2f}x)"
+            )
+    print(f"  semantic_cache disk: {fmt_mb(sem_cache_bytes_last)} ({sem_cache_files_last} files) | checks={checks}")
+    return {
+        "n_mods": n_mods,
+        "opt": opt,
+        "samples": samples,
+        "median_ms": summary,
+        "raw_ms": res,
+        "semantic_cache_bytes": sem_cache_bytes_last,
+        "semantic_cache_files": sem_cache_files_last,
+        "checks": checks,
+    }
+
+
 def collect_metadata(zil_bin: Path, rustc_bin: Path, env: dict[str, str]) -> dict[str, object]:
     def ver(cmd: list[str]) -> str:
         try:
@@ -1016,6 +1191,8 @@ def main() -> None:
     ap.add_argument("--mp-max-mb", type=int, default=1)
     ap.add_argument("--with-generics", action="store_true", help="Run Experiment E generics/ADT/trait monomorphization suite")
     ap.add_argument("--gen-mods", type=int, default=80, help="Module count for Experiment E")
+    ap.add_argument("--with-frontend-cache", action="store_true", help="Run Experiment F semantic-cache & resident session suite")
+    ap.add_argument("--fc-mods", type=int, default=1000, help="Module count for Experiment F")
     ap.add_argument("--extra", action="append", default=[])
     ap.add_argument("--json-out", help="Optional path to save structured JSON report")
     args = ap.parse_args()
@@ -1058,6 +1235,10 @@ def main() -> None:
     if args.with_generics:
         report["experiment_e_generics"] = run_generics_suite(
             zil_bin, rustc_bin, args.gen_mods, args.opt, args.jobs, args.samples, env
+        )
+    if args.with_frontend_cache:
+        report["experiment_f_frontend_cache"] = run_frontend_cache_suite(
+            zil_bin, rustc_bin, args.fc_mods, args.opt, args.jobs, args.samples, env
         )
     if args.json_out:
         out_path = Path(args.json_out)

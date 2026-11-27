@@ -19,17 +19,19 @@ use super::inst::{
     ResumeMode, Rvalue, ScopeExit, StateContractClause, Terminator, TrapKind, UnOp,
 };
 use super::place::{FieldRef, Place, PlaceRoot, Projection};
-use super::source_map::OpLocation;
+use super::source_map::{FunctionSourceMap, OpLocation, SourceMap, SourceRelation};
 use super::ty::{
     AdtDef, AdtKind, ClosureDef, ClosureKind, DynDef, DynSlotSig, FieldDef, FloatTy, GenericArgs,
     IntTy, Mutability, OpaqueTy, ParamEnv, Region, SyncCellKind, TyKind, TyTable, VariantDef,
 };
-use zil_base::{FileId, Span};
+use zil_base::{FileId, Fingerprint, NodeId, Span};
 
 const MODULE_MAGIC: &[u8; 4] = b"ZIRB";
 const CERT_MAGIC: &[u8; 4] = b"ZIRC";
+const SEM_MAGIC: &[u8; 4] = b"ZSEM";
+const FN_CERT_MAGIC: &[u8; 4] = b"ZIFC";
 const WIRE_VERSION: u32 = 1;
-const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
+const MAX_INPUT_BYTES: usize = 32 * 1024 * 1024;
 const MAX_SEQ_LEN: usize = 65_536;
 const MAX_STRING_BYTES: usize = 1024 * 1024;
 
@@ -240,6 +242,13 @@ impl<'a> Reader<'a> {
             return Err(WireError::SequenceTooLong(len));
         }
         Ok(self.take(len)?.to_vec())
+    }
+    fn blob_slice(&mut self) -> Result<&'a [u8], WireError> {
+        let len = self.u32()? as usize;
+        if len > MAX_INPUT_BYTES {
+            return Err(WireError::SequenceTooLong(len));
+        }
+        self.take(len)
     }
     fn string(&mut self) -> Result<String, WireError> {
         let bytes = self.byte_vec()?;
@@ -1511,62 +1520,7 @@ fn encode_function(w: &mut Writer, f: &Function) {
         ResumeMode::Local => 0,
         ResumeMode::Transfer => 1,
     });
-    w.vec(&f.sig.state_contracts, |w, c| match *c {
-        StateContractClause::RequiresState { param, states } => {
-            w.u8(0);
-            w.u32(param);
-            w.u64(states.0);
-        }
-        StateContractClause::ProvidesRetired { param } => {
-            w.u8(1);
-            w.u32(param);
-        }
-        StateContractClause::ProvidesOnPending { param, states } => {
-            w.u8(2);
-            w.u32(param);
-            w.u64(states.0);
-        }
-        StateContractClause::ProvidesOnReady { param, states } => {
-            w.u8(3);
-            w.u32(param);
-            w.u64(states.0);
-        }
-        StateContractClause::ProvidesState { param, states } => {
-            w.u8(4);
-            w.u32(param);
-            w.u64(states.0);
-        }
-        StateContractClause::ProvidesOnOk { param, states } => {
-            w.u8(5);
-            w.u32(param);
-            w.u64(states.0);
-        }
-        StateContractClause::ProvidesOnErr { param, states } => {
-            w.u8(6);
-            w.u32(param);
-            w.u64(states.0);
-        }
-        StateContractClause::RequiresApart { param_a, param_b } => {
-            w.u8(7);
-            w.u32(param_a);
-            w.u32(param_b);
-        }
-        StateContractClause::InvalidationUpperBound => {
-            w.u8(8);
-        }
-        StateContractClause::Invalidates { param, path } => {
-            w.u8(9);
-            w.u32(param);
-            w.u8(path.len);
-            for f in path.as_slice() {
-                w.u32(f.0);
-            }
-        }
-        StateContractClause::AllowsRollback { param } => {
-            w.u8(10);
-            w.u32(param);
-        }
-    });
+    w.vec(&f.sig.state_contracts, encode_state_contract_clause);
     w.u32(f.body.param_count);
     w.vec(&f.body.locals, |w, l| {
         w.u32(l.ty.0);
@@ -1862,4 +1816,362 @@ fn decode_fn_cert(r: &mut Reader<'_>) -> Result<FunctionCertificate, WireError> 
         function,
         invariants,
     })
+}
+
+// ---- source map & semantic candidate bundle --------------------------------
+
+fn encode_op_loc(w: &mut Writer, loc: OpLocation) {
+    w.u32(loc.block.0);
+    w.opt(loc.instruction.as_ref(), |w, i| w.u32(*i));
+}
+
+fn decode_op_loc(r: &mut Reader<'_>) -> Result<OpLocation, WireError> {
+    Ok(OpLocation {
+        block: BlockId(r.u32()?),
+        instruction: r.opt(Reader::u32)?,
+    })
+}
+
+fn encode_source_relation(w: &mut Writer, rel: &SourceRelation) {
+    match rel {
+        SourceRelation::Binding { node, local } => {
+            w.u8(0);
+            w.u32(node.0);
+            w.u32(local.0);
+        }
+        SourceRelation::FieldSelect { node, field, at } => {
+            w.u8(1);
+            w.u32(node.0);
+            w.u32(field.adt.0);
+            w.u32(field.variant.0);
+            w.u32(field.field.0);
+            w.u32(field.args.0);
+            encode_op_loc(w, *at);
+        }
+        SourceRelation::Evaluation { node, ordinal, at } => {
+            w.u8(2);
+            w.u32(node.0);
+            w.u32(*ordinal);
+            encode_op_loc(w, *at);
+        }
+        SourceRelation::ResourceOp { node, at } => {
+            w.u8(3);
+            w.u32(node.0);
+            encode_op_loc(w, *at);
+        }
+    }
+}
+
+fn decode_source_relation(r: &mut Reader<'_>) -> Result<SourceRelation, WireError> {
+    match r.u8()? {
+        0 => Ok(SourceRelation::Binding {
+            node: NodeId(r.u32()?),
+            local: Local(r.u32()?),
+        }),
+        1 => Ok(SourceRelation::FieldSelect {
+            node: NodeId(r.u32()?),
+            field: FieldRef {
+                adt: AdtId(r.u32()?),
+                variant: VariantIdx(r.u32()?),
+                field: FieldIdx(r.u32()?),
+                args: ArgsId(r.u32()?),
+            },
+            at: decode_op_loc(r)?,
+        }),
+        2 => Ok(SourceRelation::Evaluation {
+            node: NodeId(r.u32()?),
+            ordinal: r.u32()?,
+            at: decode_op_loc(r)?,
+        }),
+        3 => Ok(SourceRelation::ResourceOp {
+            node: NodeId(r.u32()?),
+            at: decode_op_loc(r)?,
+        }),
+        t => Err(WireError::InvalidTag("SourceRelation", t)),
+    }
+}
+
+fn encode_fn_source_map(w: &mut Writer, f: &FunctionSourceMap) {
+    w.u32(f.function.0);
+    w.u32(f.declaration.0);
+    w.vec(&f.relations, encode_source_relation);
+    w.vec(&f.spans, |w, (loc, sp)| {
+        encode_op_loc(w, *loc);
+        encode_span(w, *sp);
+    });
+}
+
+fn decode_fn_source_map(r: &mut Reader<'_>) -> Result<FunctionSourceMap, WireError> {
+    Ok(FunctionSourceMap {
+        function: FnId(r.u32()?),
+        declaration: NodeId(r.u32()?),
+        relations: r.vec(decode_source_relation)?,
+        spans: r.vec(|r| Ok((decode_op_loc(r)?, decode_span(r)?)))?,
+    })
+}
+
+/// Encodes an untrusted semantic candidate `(Module, SourceMap, Certificate)`
+/// with a leading SHA-256 integrity envelope. Decoding never grants safety
+/// authority; the caller must still execute fresh `zil-check` verification.
+pub fn encode_semantic_candidate(
+    module: &Module,
+    source_map: &SourceMap,
+    cert: &Certificate,
+) -> Vec<u8> {
+    let mod_bytes = encode_module(module);
+    let cert_bytes = encode_certificate(cert);
+    let mut out = Writer::default();
+    out.bytes(SEM_MAGIC);
+    out.u32(WIRE_VERSION);
+    let hash_pos = out.out.len();
+    out.bytes(&[0u8; 32]);
+    let payload_start = out.out.len();
+    out.byte_vec(&mod_bytes);
+    out.vec(&source_map.functions, encode_fn_source_map);
+    out.byte_vec(&cert_bytes);
+    let fp = Fingerprint::of(&out.out[payload_start..]);
+    out.out[hash_pos..hash_pos + 32].copy_from_slice(&fp.0);
+    out.out
+}
+
+/// Decodes and integrity-checks a semantic candidate bundle.
+pub fn decode_semantic_candidate(
+    bytes: &[u8],
+) -> Result<(Module, SourceMap, Certificate), WireError> {
+    let mut r = Reader::new(bytes)?;
+    r.expect_magic(SEM_MAGIC)?;
+    r.expect_version()?;
+    if r.data.len().saturating_sub(r.pos) < 32 {
+        return Err(WireError::UnexpectedEof);
+    }
+    let mut expected = [0u8; 32];
+    expected.copy_from_slice(&r.data[r.pos..r.pos + 32]);
+    r.pos += 32;
+    let payload_slice = &r.data[r.pos..];
+    if Fingerprint::of(payload_slice).0 != expected {
+        return Err(WireError::BadMagic);
+    }
+    let mod_bytes = r.blob_slice()?;
+    let module = decode_module(mod_bytes)?;
+    let functions = r.vec(decode_fn_source_map)?;
+    let cert_bytes = r.blob_slice()?;
+    let cert = decode_certificate(cert_bytes)?;
+    r.finish()?;
+    Ok((module, SourceMap { functions }, cert))
+}
+
+/// Encodes one untrusted candidate [`FunctionCertificate`] with SHA-256 envelope.
+pub fn encode_function_certificate(cert: &FunctionCertificate) -> Vec<u8> {
+    let mut payload = Writer::default();
+    encode_fn_cert(&mut payload, cert);
+    let fp = Fingerprint::of(&payload.out);
+    let mut out = Writer::default();
+    out.bytes(FN_CERT_MAGIC);
+    out.u32(WIRE_VERSION);
+    out.bytes(&fp.0);
+    out.bytes(&payload.out);
+    out.out
+}
+
+/// Decodes and integrity-checks one candidate [`FunctionCertificate`].
+pub fn decode_function_certificate(bytes: &[u8]) -> Result<FunctionCertificate, WireError> {
+    let mut r = Reader::new(bytes)?;
+    r.expect_magic(FN_CERT_MAGIC)?;
+    r.expect_version()?;
+    if r.data.len().saturating_sub(r.pos) < 32 {
+        return Err(WireError::UnexpectedEof);
+    }
+    let mut expected = [0u8; 32];
+    expected.copy_from_slice(&r.data[r.pos..r.pos + 32]);
+    r.pos += 32;
+    if Fingerprint::of(&r.data[r.pos..]).0 != expected {
+        return Err(WireError::BadMagic);
+    }
+    let cert = decode_fn_cert(&mut r)?;
+    r.finish()?;
+    Ok(cert)
+}
+
+fn encode_state_contract_clause(w: &mut Writer, c: &StateContractClause) {
+    match *c {
+        StateContractClause::RequiresState { param, states } => {
+            w.u8(0);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesRetired { param } => {
+            w.u8(1);
+            w.u32(param);
+        }
+        StateContractClause::ProvidesOnPending { param, states } => {
+            w.u8(2);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesOnReady { param, states } => {
+            w.u8(3);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesState { param, states } => {
+            w.u8(4);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesOnOk { param, states } => {
+            w.u8(5);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::ProvidesOnErr { param, states } => {
+            w.u8(6);
+            w.u32(param);
+            w.u64(states.0);
+        }
+        StateContractClause::RequiresApart { param_a, param_b } => {
+            w.u8(7);
+            w.u32(param_a);
+            w.u32(param_b);
+        }
+        StateContractClause::InvalidationUpperBound => {
+            w.u8(8);
+        }
+        StateContractClause::Invalidates { param, path } => {
+            w.u8(9);
+            w.u32(param);
+            w.u8(path.len);
+            for f in path.as_slice() {
+                w.u32(f.0);
+            }
+        }
+        StateContractClause::AllowsRollback { param } => {
+            w.u8(10);
+            w.u32(param);
+        }
+    }
+}
+
+/// Canonical SHA-256 fingerprint of a [`TyTable`].
+pub fn ty_table_fingerprint(tys: &TyTable) -> Fingerprint {
+    let mut w = Writer::default();
+    let parts = tys.raw_parts();
+    w.vec(parts.kinds, encode_ty_kind);
+    w.vec(parts.args, encode_generic_args);
+    w.vec(parts.adts, encode_adt_def);
+    w.vec(parts.closures, encode_closure_def);
+    w.vec(parts.dyns, encode_dyn_def);
+    Fingerprint::of(&w.out)
+}
+
+/// Canonical SHA-256 fingerprint of one [`Function`] (signature + body).
+pub fn function_fingerprint(func: &Function) -> Fingerprint {
+    let mut w = Writer::default();
+    encode_function(&mut w, func);
+    Fingerprint::of(&w.out)
+}
+
+/// Canonical SHA-256 fingerprint of one [`ForeignDecl`].
+pub fn foreign_decl_fingerprint(foreign: &ForeignDecl) -> Fingerprint {
+    let mut w = Writer::default();
+    encode_foreign_decl(&mut w, foreign);
+    Fingerprint::of(&w.out)
+}
+
+/// Canonical SHA-256 fingerprint of one [`FnSig`].
+pub fn fn_sig_fingerprint(sig: &FnSig) -> Fingerprint {
+    let mut w = Writer::default();
+    w.vec(&sig.params, |w, t| w.u32(t.0));
+    w.u32(sig.result.0);
+    w.u32(sig.type_params);
+    w.u32(sig.region_params);
+    match sig.role {
+        FnRole::Normal => w.u8(0),
+        FnRole::Drop(adt) => {
+            w.u8(1);
+            w.u32(adt.0);
+        }
+        FnRole::DynSlotImpl {
+            dyn_id,
+            concrete_ty,
+            slot,
+        } => {
+            w.u8(2);
+            w.u32(dyn_id.0);
+            w.u32(concrete_ty.0);
+            w.u32(slot);
+        }
+    }
+    w.u8(match sig.resume_mode {
+        ResumeMode::Local => 0,
+        ResumeMode::Transfer => 1,
+    });
+    w.vec(&sig.state_contracts, encode_state_contract_clause);
+    Fingerprint::of(&w.out)
+}
+
+/// Computes a canonical 32-byte cache key for solving `module.functions[fn_idx]`
+/// given the precomputed `TyTable` fingerprint `ty_fp` and `return_summaries`.
+/// Captures the function's own body/signature, `module.statics.len()`, and the
+/// exact signatures and return summaries of every direct/foreign callee it invokes.
+pub fn function_solve_cache_key(
+    module: &Module,
+    fn_idx: usize,
+    ty_fp: &[u8; 32],
+    return_summaries: &[super::inst::ReturnSummary],
+) -> [u8; 32] {
+    let func = &module.functions[fn_idx];
+    let mut w = Writer::default();
+    w.bytes(b"ZFNK");
+    w.u32(WIRE_VERSION);
+    w.bytes(ty_fp);
+    w.u32(module.statics.len() as u32);
+    encode_function(&mut w, func);
+    for block in &func.body.blocks {
+        if let Terminator::Call { callee, .. } = &block.terminator {
+            match callee {
+                Callee::Direct(cid) => {
+                    w.u8(1);
+                    w.u32(cid.0);
+                    if let Some(callee_fn) = module.functions.get(cid.index()) {
+                        w.bytes(&fn_sig_fingerprint(&callee_fn.sig).0);
+                    }
+                    if let Some(rs) = return_summaries.get(cid.index()) {
+                        w.opt(rs.closure.as_ref(), |w, c| w.u32(c.0));
+                        w.u64(rs.param_mask);
+                        w.u64(rs.capture_mask);
+                        w.vec(&rs.ret_field_param_masks, |w, m| w.u64(*m));
+                        w.u64(rs.mutating_params);
+                        w.u64(rs.mutating_captures);
+                        w.u64(rs.addr_store_params);
+                        w.u64(rs.addr_store_captures);
+                    }
+                }
+                Callee::Foreign(fid) => {
+                    w.u8(2);
+                    w.u32(fid.0);
+                    if let Some(fdecl) = module.foreigns.get(fid.index()) {
+                        w.bytes(&foreign_decl_fingerprint(fdecl).0);
+                    }
+                }
+                Callee::Closure { .. } => {
+                    // Closure bodies are referenced via ClosureId in return_summaries;
+                    // hash all closure summaries compactly when a closure call is present.
+                    w.u8(3);
+                    for rs in return_summaries {
+                        if let Some(cid) = rs.closure {
+                            w.u32(cid.0);
+                            w.u64(rs.param_mask);
+                            w.u64(rs.capture_mask);
+                            w.u64(rs.mutating_params);
+                            w.u64(rs.mutating_captures);
+                            w.u64(rs.addr_store_params);
+                            w.u64(rs.addr_store_captures);
+                        }
+                    }
+                }
+                Callee::Indirect(_) | Callee::DynSlot { .. } | Callee::Intrinsic(_) => {}
+            }
+        }
+    }
+    Fingerprint::of(&w.out).0
 }

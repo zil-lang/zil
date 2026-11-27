@@ -27,8 +27,42 @@ pub enum SolveError {
     },
 }
 
+/// Opaque 32-byte key identifying a function's exact solver input closure.
+pub type CertCacheKey = [u8; 32];
+
+/// Untrusted candidate certificate cache consulted by [`solve_module_with_cache`].
+/// Cached certificates grant ZERO safety authority and must always be verified
+/// fresh by `zil-check`.
+pub trait CertificateCache: Sync {
+    fn get(&self, key: CertCacheKey) -> Option<FunctionCertificate>;
+    fn put(&self, key: CertCacheKey, cert: &FunctionCertificate);
+}
+
+/// Seeds `cache` with candidate [`FunctionCertificate`] entries from an existing
+/// verified `(module, cert)` snapshot.
+pub fn seed_certificate_cache(module: &Module, cert: &Certificate, cache: &dyn CertificateCache) {
+    let ty_fp = zil_ir::body::ty_table_fingerprint(&module.tys).0;
+    let return_summaries = zil_semantics::compute_return_summaries(module);
+    for (fi, fc) in cert.functions.iter().enumerate() {
+        if fi < module.functions.len() {
+            let key = zil_ir::body::function_solve_cache_key(module, fi, &ty_fp, &return_summaries);
+            cache.put(key, fc);
+        }
+    }
+}
+
 /// Solves every function; the first failure of each function is reported.
 pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<SolveError>> {
+    solve_module_with_cache(module, budget, None).map(|(cert, _)| cert)
+}
+
+/// Solves every function, optionally reusing candidate [`FunctionCertificate`]s
+/// from `cache` for unchanged functions. Returns `(certificate, cache_hits)`.
+pub fn solve_module_with_cache(
+    module: &Module,
+    budget: Budget,
+    cache: Option<&dyn CertificateCache>,
+) -> Result<(Certificate, usize), Vec<SolveError>> {
     if let Err((function, reason)) = zil_semantics::check_dyn_impl_region_contract(module) {
         return Err(vec![SolveError::Violation {
             function,
@@ -51,6 +85,7 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
         static_count: module.statics.len(),
         return_summaries: Some(&return_summaries),
     };
+    let ty_fp = cache.map(|_| zil_ir::body::ty_table_fingerprint(&module.tys).0);
     let n = module.functions.len();
     let workers = std::thread::available_parallelism()
         .map(usize::from)
@@ -62,16 +97,33 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
         let mut remaining = budget.steps;
         let mut certificate = Certificate::default();
         let mut errors = Vec::new();
+        let mut cache_hits = 0usize;
         for (i, function) in module.functions.iter().enumerate() {
             let id = FnId::from_index(i);
+            let cache_key = cache.zip(ty_fp.as_ref()).map(|(_, fp)| {
+                zil_ir::body::function_solve_cache_key(module, i, fp, &return_summaries)
+            });
+            if let (Some(c), Some(key)) = (cache, cache_key)
+                && let Some(mut hit) = c.get(key)
+            {
+                hit.function = id;
+                certificate.functions.push(hit);
+                cache_hits += 1;
+                continue;
+            }
             let kernel = Kernel::new(&function.body, &module.tys, sigs);
             match solve_function(&kernel, id, &mut remaining) {
-                Ok(c) => certificate.functions.push(c),
+                Ok(cert) => {
+                    if let (Some(c), Some(key)) = (cache, cache_key) {
+                        c.put(key, &cert);
+                    }
+                    certificate.functions.push(cert);
+                }
                 Err(e) => errors.push(e),
             }
         }
         return if errors.is_empty() {
-            Ok(certificate)
+            Ok((certificate, cache_hits))
         } else {
             Err(errors)
         };
@@ -84,6 +136,7 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
         result: Result<FunctionCertificate, SolveError>,
         used: u64,
         budget_at_start: u64,
+        from_cache: bool,
     }
 
     let shared_budget = AtomicU64::new(budget.steps);
@@ -98,15 +151,35 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
                     if i >= n {
                         break;
                     }
+                    let id = FnId::from_index(i);
+                    let cache_key = cache.zip(ty_fp.as_ref()).map(|(_, fp)| {
+                        zil_ir::body::function_solve_cache_key(module, i, fp, &return_summaries)
+                    });
+                    if let (Some(c), Some(key)) = (cache, cache_key)
+                        && let Some(mut hit) = c.get(key)
+                    {
+                        hit.function = id;
+                        if let Ok(mut guard) = slots[i].lock() {
+                            *guard = Some(FnSlot {
+                                result: Ok(hit),
+                                used: 0,
+                                budget_at_start: budget.steps,
+                                from_cache: true,
+                            });
+                        }
+                        continue;
+                    }
                     let avail = shared_budget.load(Ordering::Relaxed);
                     if avail == 0 {
                         break;
                     }
-                    let id = FnId::from_index(i);
                     let kernel = Kernel::new(&module.functions[i].body, &module.tys, sigs);
                     let mut local_rem = avail;
                     let result = solve_function(&kernel, id, &mut local_rem);
                     let used = avail.saturating_sub(local_rem);
+                    if let (Ok(cert), Some(c), Some(key)) = (&result, cache, cache_key) {
+                        c.put(key, cert);
+                    }
                     let mut cur = shared_budget.load(Ordering::Relaxed);
                     while let Err(next) = shared_budget.compare_exchange_weak(
                         cur,
@@ -121,6 +194,7 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
                             result,
                             used,
                             budget_at_start: avail,
+                            from_cache: false,
                         });
                     }
                 }
@@ -135,6 +209,7 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
         functions: Vec::with_capacity(n),
     };
     let mut errors = Vec::new();
+    let mut cache_hits = 0usize;
     for (i, slot_mutex) in slots.into_iter().enumerate() {
         let id = FnId::from_index(i);
         let slot = slot_mutex.into_inner().ok().flatten();
@@ -142,9 +217,13 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
             Some(FnSlot {
                 result: Ok(cert),
                 used,
+                from_cache,
                 ..
             }) if used <= remaining => {
                 remaining -= used;
+                if from_cache {
+                    cache_hits += 1;
+                }
                 certificate.functions.push(cert);
             }
             Some(FnSlot {
@@ -173,7 +252,7 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
         }
     }
     if errors.is_empty() {
-        Ok(certificate)
+        Ok((certificate, cache_hits))
     } else {
         Err(errors)
     }
