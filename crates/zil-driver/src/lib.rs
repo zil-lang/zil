@@ -10,6 +10,7 @@
 pub mod body_pipeline;
 #[allow(dead_code)]
 mod project_manifest;
+mod semantic_cache;
 
 pub use body_pipeline::{BodyCompileError, build_body_source_native, verify_body_program};
 pub use project_manifest::ProjectManifest;
@@ -19,11 +20,11 @@ pub use zil_backend_llvm::{
 };
 pub use zil_db::CancellationToken;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fs::{self, File};
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use zil_backend_llvm::{BodyBuildOptions, build_verified_body};
 use zil_base::{
@@ -31,7 +32,7 @@ use zil_base::{
     SourceUnit, Span, TargetProfile, json_string,
 };
 use zil_check::{CheckBudget, check_fidelity, check_module};
-use zil_solve::{Budget as SolveBudget, solve_module};
+use zil_solve::{Budget as SolveBudget, CertCacheKey, solve_module, solve_module_with_cache};
 use zil_syntax::parse_with_limits;
 use zil_typeck::{Limits as TypeckLimits, ModuleInput, lower_program};
 
@@ -358,11 +359,22 @@ impl CompileReport {
     }
 }
 
-/// Bounded in-memory session caching only unverified parse snapshots.
-/// Verification always executes fresh through `zil-check`.
+struct SemanticSnapshot {
+    key: Fingerprint,
+    module: zil_ir::body::Module,
+    source_map: zil_ir::body::SourceMap,
+    cert: zil_ir::body::Certificate,
+}
+
+/// Bounded in-memory session caching only unverified parse snapshots and
+/// untrusted semantic/certificate candidates. Verification always executes
+/// fresh through `zil-check` (`verification_runs == 1`).
 pub struct CompilationSession {
     capacity: usize,
     parse_cache: HashMap<(Fingerprint, usize), Result<zil_syntax::ast::Module, Vec<Diagnostic>>>,
+    parse_order: VecDeque<(Fingerprint, usize)>,
+    semantic_snapshots: VecDeque<SemanticSnapshot>,
+    fn_cert_cache: RwLock<HashMap<CertCacheKey, zil_ir::body::FunctionCertificate>>,
 }
 
 impl Default for CompilationSession {
@@ -380,11 +392,31 @@ impl CompilationSession {
         Self {
             capacity: capacity.max(1),
             parse_cache: HashMap::new(),
+            parse_order: VecDeque::new(),
+            semantic_snapshots: VecDeque::new(),
+            fn_cert_cache: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Ephemeral one-shot session (`capacity = 0`) that skips retaining parsed
+    /// ASTs and in-RAM semantic snapshots after compilation returns.
+    fn ephemeral() -> Self {
+        Self {
+            capacity: 0,
+            parse_cache: HashMap::new(),
+            parse_order: VecDeque::new(),
+            semantic_snapshots: VecDeque::new(),
+            fn_cert_cache: RwLock::new(HashMap::new()),
         }
     }
 
     pub fn clear(&mut self) {
         self.parse_cache.clear();
+        self.parse_order.clear();
+        self.semantic_snapshots.clear();
+        if let Ok(mut guard) = self.fn_cert_cache.write() {
+            guard.clear();
+        }
     }
 
     pub fn cached_query_count(&self) -> usize {
@@ -393,6 +425,49 @@ impl CompilationSession {
 
     pub fn active_query_count(&self) -> usize {
         0
+    }
+
+    fn insert_parse_cache(
+        &mut self,
+        key: (Fingerprint, usize),
+        value: Result<zil_syntax::ast::Module, Vec<Diagnostic>>,
+    ) {
+        if self.capacity == 0 {
+            return;
+        }
+        if let std::collections::hash_map::Entry::Occupied(mut e) = self.parse_cache.entry(key) {
+            let _ = e.insert(value);
+            return;
+        }
+        while self.parse_cache.len() >= self.capacity {
+            if let Some(oldest) = self.parse_order.pop_front() {
+                self.parse_cache.remove(&oldest);
+            } else {
+                self.parse_cache.clear();
+                break;
+            }
+        }
+        self.parse_cache.insert(key, value);
+        self.parse_order.push_back(key);
+    }
+
+    fn store_semantic_snapshot(
+        &mut self,
+        key: Fingerprint,
+        module: zil_ir::body::Module,
+        source_map: zil_ir::body::SourceMap,
+        cert: zil_ir::body::Certificate,
+    ) {
+        self.semantic_snapshots.retain(|s| s.key != key);
+        while self.semantic_snapshots.len() >= 4 {
+            self.semantic_snapshots.pop_front();
+        }
+        self.semantic_snapshots.push_back(SemanticSnapshot {
+            key,
+            module,
+            source_map,
+            cert,
+        });
     }
 
     pub fn compile_path(&mut self, path: &Path, options: &CompileOptions) -> CompileReport {
@@ -460,10 +535,9 @@ impl CompilationSession {
             };
             observer(&ev);
             report.query_events.push(ev);
-            if self.parse_cache.len() >= self.capacity {
-                self.parse_cache.clear();
+            if self.capacity > 0 {
+                self.insert_parse_cache(cache_key, parsed.clone());
             }
-            self.parse_cache.insert(cache_key, parsed.clone());
             parsed
         }
     }
@@ -543,11 +617,13 @@ impl CompilationSession {
         // Recursively discover imported modules when compiling from a filesystem path.
         struct LoadedMod {
             logical_path: String,
+            fingerprint: Fingerprint,
             ast: zil_syntax::ast::Module,
             imports: Vec<(String, zil_check::ct_original::CtOriginalImportTarget)>,
         }
         let mut loaded: Vec<LoadedMod> = vec![LoadedMod {
             logical_path: String::new(),
+            fingerprint: source.fingerprint(),
             ast: entry_ast,
             imports: Vec::new(),
         }];
@@ -767,6 +843,7 @@ impl CompilationSession {
                     };
                     loaded.push(LoadedMod {
                         logical_path: logical,
+                        fingerprint: mod_unit.fingerprint(),
                         ast: mod_ast,
                         imports: Vec::new(),
                     });
@@ -848,10 +925,9 @@ impl CompilationSession {
                         };
                         observer(&ev);
                         report.query_events.push(ev);
-                        if self.parse_cache.len() >= self.capacity {
-                            self.parse_cache.clear();
+                        if self.capacity > 0 {
+                            self.insert_parse_cache(keys[i], res.clone());
                         }
-                        self.parse_cache.insert(keys[i], res.clone());
                         res
                     };
                     let mod_ast = match parsed {
@@ -866,6 +942,7 @@ impl CompilationSession {
                     };
                     loaded.push(LoadedMod {
                         logical_path: logical,
+                        fingerprint: keys[i].0,
                         ast: mod_ast,
                         imports: Vec::new(),
                     });
@@ -897,6 +974,7 @@ impl CompilationSession {
             }
         }
 
+        let ast_refs: Vec<&zil_syntax::ast::Module> = loaded.iter().map(|m| &m.ast).collect();
         let ct_import_vecs: Vec<Vec<zil_check::ct_original::CtOriginalImport<'_>>> = loaded
             .iter()
             .map(|m| {
@@ -932,81 +1010,243 @@ impl CompilationSession {
             return report;
         }
 
-        let mut ct = body_pipeline::InterpCtEvaluator;
-        let mod_inputs: Vec<ModuleInput<'_>> = loaded
+        let mod_fps: Vec<(&str, Fingerprint)> = loaded
             .iter()
-            .map(|m| ModuleInput {
-                path: m.logical_path.clone(),
-                ast: &m.ast,
-            })
+            .map(|m| (m.logical_path.as_str(), m.fingerprint))
             .collect();
-        let lowered = match lower_program(&mod_inputs, TypeckLimits::default(), Some(&mut ct)) {
-            Ok(l) => l,
-            Err(diags) => {
+        let program_sem_key =
+            semantic_cache::program_semantic_key(&mod_fps, &options.target, &options.limits);
+
+        // Fast-Path A: consult untrusted semantic candidate cache (in-memory session
+        // first, then explicit `--semantic-cache DIR`). Any cached candidate MUST
+        // pass fresh `verify_ct_original_definitions` (above), fresh `check_fidelity`,
+        // AND fresh `check_module` (`verification_runs == 1`); on any corruption or
+        // verification mismatch, purge and fall through to fresh build.
+        let mut verified_from_semantic_cache: Option<zil_check::VerifiedModule> = None;
+        if options.stop_after >= Stage::Verify {
+            let mem_candidate = self
+                .semantic_snapshots
+                .iter()
+                .find(|s| s.key == program_sem_key)
+                .map(|s| (s.module.clone(), s.source_map.clone(), s.cert.clone()));
+            let from_disk = mem_candidate.is_none();
+            let candidate = mem_candidate.or_else(|| {
+                options.semantic_cache.as_deref().and_then(|dir| {
+                    semantic_cache::read_disk_semantic_candidate(dir, program_sem_key)
+                })
+            });
+            if let Some((cand_mod, cand_smap, cand_cert)) = candidate {
+                let fidelity_ok = check_fidelity(&cand_mod, &cand_smap, &ast_refs).is_ok();
+                if fidelity_ok {
+                    match check_module(cand_mod, &cand_cert, CheckBudget { steps: 1_000_000 }) {
+                        Ok(v) => {
+                            if from_disk && self.capacity > 0 {
+                                self.store_semantic_snapshot(
+                                    program_sem_key,
+                                    v.module().clone(),
+                                    cand_smap,
+                                    cand_cert,
+                                );
+                            }
+                            let types_ev = QueryEvent {
+                                phase: Phase::Types,
+                                disposition: QueryDisposition::Reused,
+                            };
+                            observer(&types_ev);
+                            report.query_events.push(types_ev);
+                            let analyze_ev = QueryEvent {
+                                phase: Phase::Analyze,
+                                disposition: QueryDisposition::Reused,
+                            };
+                            observer(&analyze_ev);
+                            report.query_events.push(analyze_ev);
+                            report.cache_hit = true;
+                            verified_from_semantic_cache = Some(v);
+                        }
+                        Err(_) => {
+                            self.semantic_snapshots.retain(|s| s.key != program_sem_key);
+                            if let Some(dir) = options.semantic_cache.as_deref() {
+                                semantic_cache::remove_disk_semantic_candidate(
+                                    dir,
+                                    program_sem_key,
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    self.semantic_snapshots.retain(|s| s.key != program_sem_key);
+                    if let Some(dir) = options.semantic_cache.as_deref() {
+                        semantic_cache::remove_disk_semantic_candidate(dir, program_sem_key);
+                    }
+                }
+            }
+        }
+
+        let verified = if let Some(v) = verified_from_semantic_cache {
+            v
+        } else {
+            let mut ct = body_pipeline::InterpCtEvaluator;
+            let mod_inputs: Vec<ModuleInput<'_>> = loaded
+                .iter()
+                .map(|m| ModuleInput {
+                    path: m.logical_path.clone(),
+                    ast: &m.ast,
+                })
+                .collect();
+            let lowered = match lower_program(&mod_inputs, TypeckLimits::default(), Some(&mut ct)) {
+                Ok(l) => l,
+                Err(diags) => {
+                    report.phase = Phase::Types;
+                    report.status = highest_category(&diags);
+                    report.diagnostics = diags;
+                    report.seconds = start.elapsed().as_secs_f64();
+                    return report;
+                }
+            };
+
+            if options.stop_after <= Stage::Types {
                 report.phase = Phase::Types;
-                report.status = highest_category(&diags);
-                report.diagnostics = diags;
                 report.seconds = start.elapsed().as_secs_f64();
                 return report;
             }
-        };
 
-        if options.stop_after <= Stage::Types {
-            report.phase = Phase::Types;
-            report.seconds = start.elapsed().as_secs_f64();
-            return report;
-        }
-
-        let ast_refs: Vec<&zil_syntax::ast::Module> = loaded.iter().map(|m| &m.ast).collect();
-        if let Err(e) = check_fidelity(&lowered.module, &lowered.source_map, &ast_refs) {
-            report.phase = Phase::Verify;
-            report.status = ResultCategory::SafeReject;
-            report.diagnostics.push(Diagnostic::error(
-                Phase::Verify,
-                "E-SOURCE-FIDELITY",
-                None,
-                format!("fidelity check failed in {:?}: {}", e.function, e.reason),
-            ));
-            report.seconds = start.elapsed().as_secs_f64();
-            return report;
-        }
-
-        let cert = match solve_module(&lowered.module, SolveBudget { steps: 1_000_000 }) {
-            Ok(c) => c,
-            Err(e) => {
-                report.phase = Phase::Analyze;
-                report.status = ResultCategory::SafeReject;
-                report.diagnostics.push(Diagnostic::error(
-                    Phase::Analyze,
-                    "E-SAFETY-SOLVE",
-                    None,
-                    format!("solver rejected: {e:?}"),
-                ));
-                report.seconds = start.elapsed().as_secs_f64();
-                return report;
-            }
-        };
-
-        if options.stop_after <= Stage::Analyze {
-            report.phase = Phase::Analyze;
-            report.seconds = start.elapsed().as_secs_f64();
-            return report;
-        }
-
-        let verified = match check_module(lowered.module, &cert, CheckBudget { steps: 1_000_000 }) {
-            Ok(v) => v,
-            Err(e) => {
+            if let Err(e) = check_fidelity(&lowered.module, &lowered.source_map, &ast_refs) {
                 report.phase = Phase::Verify;
                 report.status = ResultCategory::SafeReject;
                 report.diagnostics.push(Diagnostic::error(
                     Phase::Verify,
-                    "E-SAFETY-CHECK",
+                    "E-SOURCE-FIDELITY",
                     None,
-                    format!("checker rejected: {e:?}"),
+                    format!("fidelity check failed in {:?}: {}", e.function, e.reason),
                 ));
                 report.seconds = start.elapsed().as_secs_f64();
                 return report;
             }
+
+            // Fast-Path B: in resident/reused sessions, consult in-RAM per-function
+            // candidate certificate cache during solving. Cached certificates are
+            // untrusted; if fresh `check_module` rejects when any cached cert was
+            // used, purge and re-solve cleanly without cache.
+            let cert_cache = semantic_cache::SessionCertCache::new(&self.fn_cert_cache);
+            let use_cert_cache = !self.semantic_snapshots.is_empty();
+            if use_cert_cache
+                && self.fn_cert_cache.read().is_ok_and(|g| g.is_empty())
+                && let Some(prev) = self.semantic_snapshots.back()
+            {
+                zil_solve::seed_certificate_cache(&prev.module, &prev.cert, &cert_cache);
+            }
+            let (mut cert, cert_hits) = match solve_module_with_cache(
+                &lowered.module,
+                SolveBudget { steps: 1_000_000 },
+                if use_cert_cache {
+                    Some(&cert_cache)
+                } else {
+                    None
+                },
+            ) {
+                Ok(pair) => pair,
+                Err(e) => {
+                    report.phase = Phase::Analyze;
+                    report.status = ResultCategory::SafeReject;
+                    report.diagnostics.push(Diagnostic::error(
+                        Phase::Analyze,
+                        "E-SAFETY-SOLVE",
+                        None,
+                        format!("solver rejected: {e:?}"),
+                    ));
+                    report.seconds = start.elapsed().as_secs_f64();
+                    return report;
+                }
+            };
+
+            if options.stop_after <= Stage::Analyze {
+                report.phase = Phase::Analyze;
+                report.seconds = start.elapsed().as_secs_f64();
+                return report;
+            }
+
+            let lowered_for_fallback = if cert_hits > 0 {
+                Some(lowered.module.clone())
+            } else {
+                None
+            };
+            let verified =
+                match check_module(lowered.module, &cert, CheckBudget { steps: 1_000_000 }) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        if let Some(fallback_mod) = lowered_for_fallback {
+                            cert_cache.purge_all();
+                            match solve_module(&fallback_mod, SolveBudget { steps: 1_000_000 }) {
+                                Ok(fresh_cert) => {
+                                    cert = fresh_cert;
+                                    match check_module(
+                                        fallback_mod,
+                                        &cert,
+                                        CheckBudget { steps: 1_000_000 },
+                                    ) {
+                                        Ok(v) => v,
+                                        Err(e2) => {
+                                            report.phase = Phase::Verify;
+                                            report.status = ResultCategory::SafeReject;
+                                            report.diagnostics.push(Diagnostic::error(
+                                                Phase::Verify,
+                                                "E-SAFETY-CHECK",
+                                                None,
+                                                format!("checker rejected: {e2:?}"),
+                                            ));
+                                            report.seconds = start.elapsed().as_secs_f64();
+                                            return report;
+                                        }
+                                    }
+                                }
+                                Err(se) => {
+                                    report.phase = Phase::Analyze;
+                                    report.status = ResultCategory::SafeReject;
+                                    report.diagnostics.push(Diagnostic::error(
+                                        Phase::Analyze,
+                                        "E-SAFETY-SOLVE",
+                                        None,
+                                        format!("solver rejected: {se:?}"),
+                                    ));
+                                    report.seconds = start.elapsed().as_secs_f64();
+                                    return report;
+                                }
+                            }
+                        } else {
+                            report.phase = Phase::Verify;
+                            report.status = ResultCategory::SafeReject;
+                            report.diagnostics.push(Diagnostic::error(
+                                Phase::Verify,
+                                "E-SAFETY-CHECK",
+                                None,
+                                format!("checker rejected: {e:?}"),
+                            ));
+                            report.seconds = start.elapsed().as_secs_f64();
+                            return report;
+                        }
+                    }
+                };
+
+            if let Some(dir) = options.semantic_cache.as_deref() {
+                semantic_cache::write_disk_semantic_candidate(
+                    dir,
+                    program_sem_key,
+                    verified.module(),
+                    &lowered.source_map,
+                    &cert,
+                );
+            }
+            // Populate in-memory session snapshot & function certs for subsequent
+            // resident/session compilations.
+            if self.capacity > 0 {
+                self.store_semantic_snapshot(
+                    program_sem_key,
+                    verified.module().clone(),
+                    lowered.source_map,
+                    cert,
+                );
+            }
+            verified
         };
         report.verification_runs = 1;
         let verify_ev = QueryEvent {
@@ -1344,11 +1584,11 @@ fn read_source_unit(
 }
 
 pub fn compile_source(source: &SourceUnit, options: &CompileOptions) -> CompileReport {
-    CompilationSession::new().compile_source_with_observer(source, options, &mut |_| {})
+    CompilationSession::ephemeral().compile_source_with_observer(source, options, &mut |_| {})
 }
 
 pub fn compile_path(path: &Path, options: &CompileOptions) -> CompileReport {
-    CompilationSession::new().compile_path(path, options)
+    CompilationSession::ephemeral().compile_path(path, options)
 }
 
 pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> CompileReport {

@@ -81,6 +81,7 @@ jobs:
               --skip-disk \
               --with-multiprocess \
               --with-generics \
+              --with-frontend-cache \
               --json-out "$OUT/scale_o0.json"
 
             python3 tools/bench_scale_and_disk.py \
