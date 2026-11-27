@@ -96,7 +96,8 @@ pub(crate) fn check_contracts(
         }
     }
 
-    for (fi, func) in module.functions.iter().enumerate() {
+    let check_one = |fi: usize| -> Result<(), CheckError> {
+        let func = &module.functions[fi];
         let fn_id = FnId::from_index(fi);
 
         // 1a. Verify `resume(transfer)` functions (and every suspending helper
@@ -188,6 +189,58 @@ pub(crate) fn check_contracts(
         });
         if !func.sig.state_contracts.is_empty() || calls_contracted_callee {
             verify_fn_state_contracts(module, fn_id, func, budget)?;
+        }
+        Ok(())
+    };
+
+    let n = module.functions.len();
+    let workers = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .clamp(1, 16)
+        .min(n.max(1));
+    if workers <= 1 || n < 16 {
+        for fi in 0..n {
+            check_one(fi)?;
+        }
+        return Ok(());
+    }
+
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    let next_idx = AtomicUsize::new(0);
+    let any_failed = AtomicBool::new(false);
+    let errors: Vec<Mutex<Option<CheckError>>> = (0..n).map(|_| Mutex::new(None)).collect();
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    if any_failed.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let fi = next_idx.fetch_add(1, Ordering::Relaxed);
+                    if fi >= n {
+                        break;
+                    }
+                    if let Err(err) = check_one(fi) {
+                        any_failed.store(true, Ordering::Relaxed);
+                        if let Ok(mut guard) = errors[fi].lock() {
+                            *guard = Some(err);
+                        }
+                    }
+                }
+            });
+        }
+    });
+    if any_failed.load(Ordering::Relaxed) {
+        // Re-check any skipped earlier function deterministically so the returned
+        // error is always the lowest-index failing function.
+        for (fi, slot) in errors.into_iter().enumerate() {
+            if let Some(err) = slot.into_inner().ok().flatten() {
+                return Err(err);
+            }
+            check_one(fi)?;
         }
     }
     Ok(())

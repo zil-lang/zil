@@ -94,22 +94,73 @@ fn value_to_ct(val: Value, span: Span) -> Result<CtValue, Diagnostic> {
 /// Parses, typechecks (with CT evaluation), solves, and independently verifies
 /// (both AST-backed fidelity and certificate soundness) a multi-module program.
 pub fn verify_body_program(sources: &[(&str, &str)]) -> Result<VerifiedModule, BodyCompileError> {
+    let workers = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .clamp(1, 16)
+        .min(sources.len().max(1));
     let mut parsed = Vec::with_capacity(sources.len());
-    for (i, (path, text)) in sources.iter().enumerate() {
-        let unit = SourceUnit {
-            file_id: FileId(i as u32),
-            module_id: ModuleId(i as u32),
-            path: format!("{path}.zil"),
-            text: (*text).to_string(),
-        };
-        let ast = zil_syntax::parse(&unit)
-            .into_result()
-            .map_err(|diags| BodyCompileError {
-                phase: Phase::Parse,
-                message: format!("parse failed with {} diagnostic(s)", diags.len()),
-                diagnostics: diags,
-            })?;
-        parsed.push((*path, ast));
+    if workers <= 1 || sources.len() < 8 {
+        for (i, (path, text)) in sources.iter().enumerate() {
+            let unit = SourceUnit {
+                file_id: FileId(i as u32),
+                module_id: ModuleId(i as u32),
+                path: format!("{path}.zil"),
+                text: (*text).to_string(),
+            };
+            let ast = zil_syntax::parse(&unit)
+                .into_result()
+                .map_err(|diags| BodyCompileError {
+                    phase: Phase::Parse,
+                    message: format!("parse failed with {} diagnostic(s)", diags.len()),
+                    diagnostics: diags,
+                })?;
+            parsed.push((*path, ast));
+        }
+    } else {
+        use std::sync::Mutex;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        type ParsedModResult = Result<zil_syntax::ast::Module, Vec<Diagnostic>>;
+        let n = sources.len();
+        let next = AtomicUsize::new(0);
+        let slots: Vec<Mutex<Option<ParsedModResult>>> = (0..n).map(|_| Mutex::new(None)).collect();
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| {
+                    loop {
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        if i >= n {
+                            break;
+                        }
+                        let (path, text) = sources[i];
+                        let unit = SourceUnit {
+                            file_id: FileId(i as u32),
+                            module_id: ModuleId(i as u32),
+                            path: format!("{path}.zil"),
+                            text: text.to_string(),
+                        };
+                        let res = zil_syntax::parse(&unit).into_result();
+                        if let Ok(mut guard) = slots[i].lock() {
+                            *guard = Some(res);
+                        }
+                    }
+                });
+            }
+        });
+        for (i, slot) in slots.into_iter().enumerate() {
+            let ast = slot
+                .into_inner()
+                .ok()
+                .flatten()
+                .expect("parsed slot")
+                .map_err(|diags| BodyCompileError {
+                    phase: Phase::Parse,
+                    message: format!("parse failed with {} diagnostic(s)", diags.len()),
+                    diagnostics: diags,
+                })?;
+            parsed.push((sources[i].0, ast));
+        }
     }
     let inputs: Vec<ModuleInput<'_>> = parsed
         .iter()

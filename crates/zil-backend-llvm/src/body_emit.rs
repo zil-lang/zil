@@ -822,8 +822,7 @@ fail:\n\
         list.sort_by(|&a, &b| syms[a].cmp(&syms[b]));
     }
 
-    let mut units = Vec::with_capacity(actual_units);
-    for (unit_idx, unit_fns) in unit_fn_lists.iter().enumerate() {
+    let emit_unit = |unit_idx: usize, unit_fns: &[usize]| -> Result<String, BodyEmitError> {
         let mut defs_buf = String::with_capacity(4096);
         let mut refs = UnitRefs::default();
 
@@ -1021,7 +1020,56 @@ fail:\n\
         }
 
         out.push_str(&defs_buf);
-        units.push(out);
+        Ok(out)
+    };
+
+    let workers = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .clamp(1, 16)
+        .min(actual_units);
+    let mut units = Vec::with_capacity(actual_units);
+    if workers <= 1 || actual_units <= 2 {
+        for (unit_idx, unit_fns) in unit_fn_lists.iter().enumerate() {
+            units.push(emit_unit(unit_idx, unit_fns)?);
+        }
+    } else {
+        use std::sync::Mutex;
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+        let next_idx = AtomicUsize::new(0);
+        let any_failed = AtomicBool::new(false);
+        let slots: Vec<Mutex<Option<Result<String, BodyEmitError>>>> =
+            (0..actual_units).map(|_| Mutex::new(None)).collect();
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| {
+                    loop {
+                        if any_failed.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        let unit_idx = next_idx.fetch_add(1, Ordering::Relaxed);
+                        if unit_idx >= actual_units {
+                            break;
+                        }
+                        let res = emit_unit(unit_idx, &unit_fn_lists[unit_idx]);
+                        if res.is_err() {
+                            any_failed.store(true, Ordering::Relaxed);
+                        }
+                        if let Ok(mut guard) = slots[unit_idx].lock() {
+                            *guard = Some(res);
+                        }
+                    }
+                });
+            }
+        });
+        for (unit_idx, slot) in slots.into_iter().enumerate() {
+            match slot.into_inner().ok().flatten() {
+                Some(Ok(ir)) => units.push(ir),
+                Some(Err(err)) => return Err(err),
+                None => units.push(emit_unit(unit_idx, &unit_fn_lists[unit_idx])?),
+            }
+        }
     }
 
     Ok(units)

@@ -1325,3 +1325,110 @@ fn cgu_buckets_stay_stable_across_fn_count_threshold_and_dead_fns() {
 
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[cfg(feature = "llvm-api")]
+#[test]
+fn parallel_frontend_emit_and_lld_linker_end_to_end() {
+    #[cfg(target_os = "linux")]
+    use std::path::PathBuf;
+    use std::process::Command;
+    use zil_base::ResultCategory;
+    use zil_driver::{
+        CodegenOptions, CompileOptions, NativeBackend, Optimization, Stage, compile_path,
+    };
+
+    let dir = std::env::temp_dir().join(format!("zil_p5_parallel_lld_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let cache_dir = dir.join("obj_cache");
+    let exe_path = dir.join(format!("app{}", std::env::consts::EXE_SUFFIX));
+
+    // 24 modules (> 16 function threshold for parallel solve/check/fidelity/contracts
+    // and > 8 frontier threshold for parallel read+parse), compiled into 8 CGUs.
+    let mut imports = String::new();
+    let mut body = String::from("fn main() -> i32 {\n    var acc: i32 = 0;\n");
+    let mut expected: i32 = 0;
+    for i in 0..24 {
+        let val = i + 1;
+        expected += val;
+        std::fs::write(
+            dir.join(format!("m{i}.zil")),
+            format!(
+                "fn priv_{i}(x: i32) -> i32 {{ return x + {val}; }}\npub fn compute(x: i32) -> i32 {{ return priv_{i}(x); }}\n"
+            ),
+        )
+        .expect("write module");
+        imports.push_str(&format!("import m{i};\n"));
+        body.push_str(&format!("    acc = m{i}.compute(acc);\n"));
+    }
+    body.push_str("    return acc % 100;\n}\n");
+    std::fs::write(dir.join("main.zil"), format!("{imports}\n{body}")).expect("write main");
+
+    let opts = CompileOptions {
+        stop_after: Stage::Build,
+        optimization: Optimization::O0,
+        backend: NativeBackend::LlvmApi,
+        output: Some(exe_path.clone()),
+        codegen: CodegenOptions { units: 8, jobs: 4 },
+        object_cache: Some(cache_dir.clone()),
+        ..CompileOptions::default()
+    };
+
+    let cold = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        cold.status,
+        ResultCategory::Success,
+        "{:?}",
+        cold.diagnostics
+    );
+    assert_eq!(cold.verification_runs, 1);
+    let cold_cg = cold.native_codegen.as_ref().expect("codegen summary");
+    assert_eq!(cold_cg.actual_units, 8);
+    assert_eq!(cold_cg.cache_misses, 8);
+    assert!(cold_cg.emit_ns > 0, "expected positive emit_ns");
+    assert!(cold_cg.link_ns > 0, "expected positive link_ns");
+
+    // On Linux with bundled sibling `ld.lld` next to `ZIL_CLANG`, verify `--ld-path=` was selected.
+    #[cfg(target_os = "linux")]
+    if let Some(clang_path) = opts
+        .clang
+        .clone()
+        .or_else(|| std::env::var_os("ZIL_CLANG").map(PathBuf::from))
+        && clang_path
+            .parent()
+            .is_some_and(|p| p.join("ld.lld").is_file())
+    {
+        assert!(
+            cold.commands.iter().any(|argv| argv
+                .iter()
+                .any(|a| a.starts_with("--ld-path=") && a.ends_with("ld.lld"))),
+            "expected sibling ld.lld selection in link commands: {:?}",
+            cold.commands
+        );
+    }
+
+    let out = Command::new(&exe_path).output().expect("run built binary");
+    assert_eq!(out.status.code(), Some(expected % 100));
+
+    // Warm rebuild hits 8/8 cached units with verification_runs == 1.
+    let warm = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        warm.status,
+        ResultCategory::Success,
+        "{:?}",
+        warm.diagnostics
+    );
+    assert_eq!(warm.verification_runs, 1);
+    assert_eq!(warm.native_codegen.as_ref().unwrap().cache_hits, 8);
+
+    // Deterministic parallel parse error: introduce a syntax error in m17 and verify clean SafeReject.
+    std::fs::write(dir.join("m17.zil"), "pub fn compute( -> i32 {\n").expect("write broken m17");
+    let broken = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(broken.status, ResultCategory::SafeReject);
+    assert!(
+        !broken.diagnostics.is_empty(),
+        "expected parse diagnostics for broken m17"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
+}

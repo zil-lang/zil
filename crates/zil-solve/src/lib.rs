@@ -51,15 +51,125 @@ pub fn solve_module(module: &Module, budget: Budget) -> Result<Certificate, Vec<
         static_count: module.statics.len(),
         return_summaries: Some(&return_summaries),
     };
+    let n = module.functions.len();
+    let workers = std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .clamp(1, 16)
+        .min(n.max(1));
+
+    if workers <= 1 || n < 16 {
+        let mut remaining = budget.steps;
+        let mut certificate = Certificate::default();
+        let mut errors = Vec::new();
+        for (i, function) in module.functions.iter().enumerate() {
+            let id = FnId::from_index(i);
+            let kernel = Kernel::new(&function.body, &module.tys, sigs);
+            match solve_function(&kernel, id, &mut remaining) {
+                Ok(c) => certificate.functions.push(c),
+                Err(e) => errors.push(e),
+            }
+        }
+        return if errors.is_empty() {
+            Ok(certificate)
+        } else {
+            Err(errors)
+        };
+    }
+
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+
+    struct FnSlot {
+        result: Result<FunctionCertificate, SolveError>,
+        used: u64,
+        budget_at_start: u64,
+    }
+
+    let shared_budget = AtomicU64::new(budget.steps);
+    let next_idx = AtomicUsize::new(0);
+    let slots: Vec<Mutex<Option<FnSlot>>> = (0..n).map(|_| Mutex::new(None)).collect();
+
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let i = next_idx.fetch_add(1, Ordering::Relaxed);
+                    if i >= n {
+                        break;
+                    }
+                    let avail = shared_budget.load(Ordering::Relaxed);
+                    if avail == 0 {
+                        break;
+                    }
+                    let id = FnId::from_index(i);
+                    let kernel = Kernel::new(&module.functions[i].body, &module.tys, sigs);
+                    let mut local_rem = avail;
+                    let result = solve_function(&kernel, id, &mut local_rem);
+                    let used = avail.saturating_sub(local_rem);
+                    let mut cur = shared_budget.load(Ordering::Relaxed);
+                    while let Err(next) = shared_budget.compare_exchange_weak(
+                        cur,
+                        cur.saturating_sub(used),
+                        Ordering::Relaxed,
+                        Ordering::Relaxed,
+                    ) {
+                        cur = next;
+                    }
+                    if let Ok(mut guard) = slots[i].lock() {
+                        *guard = Some(FnSlot {
+                            result,
+                            used,
+                            budget_at_start: avail,
+                        });
+                    }
+                }
+            });
+        }
+    });
+
+    // Deterministic replay in exact `FnId` order so certificates, diagnostics,
+    // and budget exhaustion match sequential execution bit-for-bit.
     let mut remaining = budget.steps;
-    let mut certificate = Certificate::default();
+    let mut certificate = Certificate {
+        functions: Vec::with_capacity(n),
+    };
     let mut errors = Vec::new();
-    for (i, function) in module.functions.iter().enumerate() {
+    for (i, slot_mutex) in slots.into_iter().enumerate() {
         let id = FnId::from_index(i);
-        let kernel = Kernel::new(&function.body, &module.tys, sigs);
-        match solve_function(&kernel, id, &mut remaining) {
-            Ok(c) => certificate.functions.push(c),
-            Err(e) => errors.push(e),
+        let slot = slot_mutex.into_inner().ok().flatten();
+        match slot {
+            Some(FnSlot {
+                result: Ok(cert),
+                used,
+                ..
+            }) if used <= remaining => {
+                remaining -= used;
+                certificate.functions.push(cert);
+            }
+            Some(FnSlot {
+                result: Err(e @ SolveError::Violation { .. }),
+                used,
+                ..
+            }) if used <= remaining => {
+                remaining -= used;
+                errors.push(e);
+            }
+            Some(FnSlot {
+                result: Err(SolveError::ResourceLimit { function }),
+                budget_at_start,
+                ..
+            }) if budget_at_start >= remaining => {
+                remaining = 0;
+                errors.push(SolveError::ResourceLimit { function });
+            }
+            _ => {
+                let kernel = Kernel::new(&module.functions[i].body, &module.tys, sigs);
+                match solve_function(&kernel, id, &mut remaining) {
+                    Ok(c) => certificate.functions.push(c),
+                    Err(e) => errors.push(e),
+                }
+            }
         }
     }
     if errors.is_empty() {

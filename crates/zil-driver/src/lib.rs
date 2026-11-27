@@ -554,124 +554,323 @@ impl CompilationSession {
         let mut by_logical: HashMap<String, ModuleId> = HashMap::new();
         by_logical.insert(String::new(), ModuleId(0));
 
-        let mut idx = 0;
-        while idx < loaded.len() {
-            let raw_imports: Vec<(Vec<String>, String, Span)> = loaded[idx]
-                .ast
-                .items
-                .iter()
-                .filter_map(|item| {
-                    if let zil_syntax::ast::ItemKind::Import(imp) = &item.kind {
-                        let alias = imp
-                            .alias
-                            .clone()
-                            .or_else(|| imp.path.last().cloned())
-                            .unwrap_or_default();
-                        Some((imp.path.clone(), alias, item.span))
-                    } else {
-                        None
+        enum PendingSource {
+            Embedded(SourceUnit),
+            File {
+                path: PathBuf,
+                file_id: FileId,
+                module_id: ModuleId,
+            },
+        }
+        struct PendingLoad {
+            logical: String,
+            source: PendingSource,
+        }
+
+        let parse_workers = std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1)
+            .clamp(1, 16);
+
+        let mut frontier_start = 0usize;
+        while frontier_start < loaded.len() {
+            let frontier_end = loaded.len();
+            let mut pending: Vec<PendingLoad> = Vec::new();
+            for idx in frontier_start..frontier_end {
+                let raw_imports: Vec<(Vec<String>, String, Span)> = loaded[idx]
+                    .ast
+                    .items
+                    .iter()
+                    .filter_map(|item| {
+                        if let zil_syntax::ast::ItemKind::Import(imp) = &item.kind {
+                            let alias = imp
+                                .alias
+                                .clone()
+                                .or_else(|| imp.path.last().cloned())
+                                .unwrap_or_default();
+                            Some((imp.path.clone(), alias, item.span))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let mut edges = Vec::with_capacity(raw_imports.len());
+                for (imp_path, alias, imp_span) in raw_imports {
+                    if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "meta" {
+                        edges.push((alias, zil_check::ct_original::CtOriginalImportTarget::Meta));
+                        continue;
                     }
-                })
-                .collect();
-            let mut edges = Vec::with_capacity(raw_imports.len());
-            for (imp_path, alias, imp_span) in raw_imports {
-                if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "meta" {
-                    edges.push((alias, zil_check::ct_original::CtOriginalImportTarget::Meta));
-                    continue;
-                }
-                if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "syntax" {
-                    edges.push((
-                        alias,
-                        zil_check::ct_original::CtOriginalImportTarget::Syntax,
-                    ));
-                    continue;
-                }
-                let logical = imp_path.join(".");
-                if let Some(&mid) = by_logical.get(&logical) {
+                    if imp_path.len() == 2 && imp_path[0] == "std" && imp_path[1] == "syntax" {
+                        edges.push((
+                            alias,
+                            zil_check::ct_original::CtOriginalImportTarget::Syntax,
+                        ));
+                        continue;
+                    }
+                    let logical = imp_path.join(".");
+                    if let Some(&mid) = by_logical.get(&logical) {
+                        edges.push((
+                            alias,
+                            zil_check::ct_original::CtOriginalImportTarget::Module(mid),
+                        ));
+                        continue;
+                    }
+                    let next_id = (loaded.len() + pending.len()) as u32;
+                    let pending_src = if imp_path.first().map(String::as_str) == Some("std") {
+                        if let Some((virtual_path, text)) =
+                            embedded_std_source(&imp_path[1..], &options.target)
+                        {
+                            if text.len() > options.limits.max_source_bytes {
+                                report.phase = Phase::Parse;
+                                report.status = ResultCategory::ResourceLimit;
+                                report.diagnostics = vec![Diagnostic::limit(
+                                    Phase::Parse,
+                                    "source exceeds max_source_bytes limit",
+                                    None,
+                                )];
+                                report.seconds = start.elapsed().as_secs_f64();
+                                return report;
+                            }
+                            PendingSource::Embedded(SourceUnit::new(
+                                FileId(next_id),
+                                ModuleId(next_id),
+                                virtual_path,
+                                text.to_string(),
+                            ))
+                        } else {
+                            // Leave unresolved for typeck to report a clean E-NAME-UNRESOLVED.
+                            continue;
+                        }
+                    } else if let Some(root_dir) = search_root {
+                        let Some(mod_file) =
+                            project::resolve_file_module(root_dir, &imp_path, imp_span).ok()
+                        else {
+                            // Leave unresolved for typeck to report a clean E-NAME-UNRESOLVED.
+                            continue;
+                        };
+                        PendingSource::File {
+                            path: mod_file,
+                            file_id: FileId(next_id),
+                            module_id: ModuleId(next_id),
+                        }
+                    } else {
+                        continue;
+                    };
+                    let mid = ModuleId(next_id);
+                    by_logical.insert(logical.clone(), mid);
+                    pending.push(PendingLoad {
+                        logical,
+                        source: pending_src,
+                    });
                     edges.push((
                         alias,
                         zil_check::ct_original::CtOriginalImportTarget::Module(mid),
                     ));
-                    continue;
                 }
-                let next_id = loaded.len() as u32;
-                let mod_unit = if imp_path.first().map(String::as_str) == Some("std") {
-                    if let Some((virtual_path, text)) =
-                        embedded_std_source(&imp_path[1..], &options.target)
-                    {
-                        if text.len() > options.limits.max_source_bytes {
-                            report.phase = Phase::Parse;
-                            report.status = ResultCategory::ResourceLimit;
-                            report.diagnostics = vec![Diagnostic::limit(
-                                Phase::Parse,
-                                "source exceeds max_source_bytes limit",
-                                None,
-                            )];
-                            report.seconds = start.elapsed().as_secs_f64();
-                            return report;
-                        }
-                        SourceUnit::new(
-                            FileId(next_id),
-                            ModuleId(next_id),
-                            virtual_path,
-                            text.to_string(),
-                        )
-                    } else {
-                        // Leave unresolved for typeck to report a clean E-NAME-UNRESOLVED.
-                        continue;
-                    }
-                } else if let Some(root_dir) = search_root {
-                    let Some(mod_file) =
-                        project::resolve_file_module(root_dir, &imp_path, imp_span).ok()
-                    else {
-                        // Leave unresolved for typeck to report a clean E-NAME-UNRESOLVED.
-                        continue;
+                loaded[idx].imports = edges;
+            }
+            frontier_start = frontier_end;
+
+            if pending.is_empty() {
+                break;
+            }
+
+            // Phase A: read source units (parallelized when batch is large).
+            let mut read_results: Vec<Result<SourceUnit, Diagnostic>> =
+                Vec::with_capacity(pending.len());
+            if parse_workers <= 1 || pending.len() < 8 {
+                for item in &pending {
+                    let res = match &item.source {
+                        PendingSource::Embedded(u) => Ok(u.clone()),
+                        PendingSource::File {
+                            path,
+                            file_id,
+                            module_id,
+                        } => read_source_unit(path, *file_id, *module_id, &options.limits),
                     };
-                    match read_source_unit(
-                        &mod_file,
-                        FileId(next_id),
-                        ModuleId(next_id),
-                        &options.limits,
-                    ) {
-                        Ok(u) => u,
-                        Err(diag) => {
-                            report.phase = diag.phase;
-                            report.status = diag.category;
-                            report.diagnostics = vec![diag];
-                            report.seconds = start.elapsed().as_secs_f64();
-                            return report;
-                        }
+                    read_results.push(res);
+                }
+            } else {
+                use std::sync::Mutex;
+                use std::sync::atomic::{AtomicUsize, Ordering};
+
+                let n = pending.len();
+                let next = AtomicUsize::new(0);
+                let slots: Vec<Mutex<Option<Result<SourceUnit, Diagnostic>>>> =
+                    (0..n).map(|_| Mutex::new(None)).collect();
+                let w = parse_workers.min(n);
+                std::thread::scope(|scope| {
+                    for _ in 0..w {
+                        scope.spawn(|| {
+                            loop {
+                                let i = next.fetch_add(1, Ordering::Relaxed);
+                                if i >= n {
+                                    break;
+                                }
+                                let res = match &pending[i].source {
+                                    PendingSource::Embedded(u) => Ok(u.clone()),
+                                    PendingSource::File {
+                                        path,
+                                        file_id,
+                                        module_id,
+                                    } => read_source_unit(
+                                        path,
+                                        *file_id,
+                                        *module_id,
+                                        &options.limits,
+                                    ),
+                                };
+                                if let Ok(mut guard) = slots[i].lock() {
+                                    *guard = Some(res);
+                                }
+                            }
+                        });
                     }
-                } else {
-                    continue;
-                };
-                report
-                    .source_files
-                    .insert(mod_unit.file_id, mod_unit.path.clone());
-                let mod_ast = match self.parse_cached(&mod_unit, options, &mut report, observer) {
-                    Ok(ast) => ast,
-                    Err(diags) => {
-                        report.phase = Phase::Parse;
-                        report.status = highest_category(&diags);
-                        report.diagnostics = diags;
+                });
+                for slot in slots {
+                    if let Some(res) = slot.into_inner().ok().flatten() {
+                        read_results.push(res);
+                    }
+                }
+            }
+
+            let mut units: Vec<(String, SourceUnit)> = Vec::with_capacity(pending.len());
+            for (item, res) in pending.into_iter().zip(read_results) {
+                match res {
+                    Ok(u) => units.push((item.logical, u)),
+                    Err(diag) => {
+                        report.phase = diag.phase;
+                        report.status = diag.category;
+                        report.diagnostics = vec![diag];
                         report.seconds = start.elapsed().as_secs_f64();
                         return report;
                     }
-                };
-                let mid = ModuleId(next_id);
-                by_logical.insert(logical.clone(), mid);
-                loaded.push(LoadedMod {
-                    logical_path: logical,
-                    ast: mod_ast,
-                    imports: Vec::new(),
-                });
-                edges.push((
-                    alias,
-                    zil_check::ct_original::CtOriginalImportTarget::Module(mid),
-                ));
+                }
             }
-            loaded[idx].imports = edges;
-            idx += 1;
+
+            // Phase B: parse all uncached source units (parallelized when batch is large).
+            if parse_workers <= 1 || units.len() < 8 {
+                for (logical, mod_unit) in units {
+                    report
+                        .source_files
+                        .insert(mod_unit.file_id, mod_unit.path.clone());
+                    let mod_ast = match self.parse_cached(&mod_unit, options, &mut report, observer)
+                    {
+                        Ok(ast) => ast,
+                        Err(diags) => {
+                            report.phase = Phase::Parse;
+                            report.status = highest_category(&diags);
+                            report.diagnostics = diags;
+                            report.seconds = start.elapsed().as_secs_f64();
+                            return report;
+                        }
+                    };
+                    loaded.push(LoadedMod {
+                        logical_path: logical,
+                        ast: mod_ast,
+                        imports: Vec::new(),
+                    });
+                }
+            } else {
+                use std::sync::Mutex;
+                use std::sync::atomic::{AtomicUsize, Ordering};
+
+                type ParsedModResult = Result<zil_syntax::ast::Module, Vec<Diagnostic>>;
+
+                let n = units.len();
+                let mut keys: Vec<(Fingerprint, usize)> = Vec::with_capacity(n);
+                let mut cached_hits: Vec<Option<ParsedModResult>> = Vec::with_capacity(n);
+                let mut miss_indices: Vec<usize> = Vec::new();
+                for (i, (_, u)) in units.iter().enumerate() {
+                    let key = (u.fingerprint(), options.limits.max_tokens);
+                    keys.push(key);
+                    if let Some(hit) = self.parse_cache.get(&key) {
+                        cached_hits.push(Some(hit.clone()));
+                    } else {
+                        cached_hits.push(None);
+                        miss_indices.push(i);
+                    }
+                }
+
+                let mut parsed_misses: Vec<Option<ParsedModResult>> =
+                    vec![None; miss_indices.len()];
+                if !miss_indices.is_empty() {
+                    let m = miss_indices.len();
+                    let next = AtomicUsize::new(0);
+                    let slots: Vec<Mutex<Option<ParsedModResult>>> =
+                        (0..m).map(|_| Mutex::new(None)).collect();
+                    let w = parse_workers.min(m);
+                    std::thread::scope(|scope| {
+                        for _ in 0..w {
+                            scope.spawn(|| {
+                                loop {
+                                    let pos = next.fetch_add(1, Ordering::Relaxed);
+                                    if pos >= m {
+                                        break;
+                                    }
+                                    let u = &units[miss_indices[pos]].1;
+                                    let parsed =
+                                        parse_with_limits(u, &options.limits).into_result();
+                                    if let Ok(mut guard) = slots[pos].lock() {
+                                        *guard = Some(parsed);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                    for (pos, slot) in slots.into_iter().enumerate() {
+                        parsed_misses[pos] = slot.into_inner().ok().flatten();
+                    }
+                }
+
+                let mut miss_cursor = 0usize;
+                for (i, (logical, mod_unit)) in units.into_iter().enumerate() {
+                    report
+                        .source_files
+                        .insert(mod_unit.file_id, mod_unit.path.clone());
+                    let parsed = if let Some(hit) = cached_hits[i].take() {
+                        let ev = QueryEvent {
+                            phase: Phase::Parse,
+                            disposition: QueryDisposition::Reused,
+                        };
+                        observer(&ev);
+                        report.query_events.push(ev);
+                        report.cache_hit = true;
+                        hit
+                    } else {
+                        let res = parsed_misses[miss_cursor].take().unwrap_or_else(|| {
+                            parse_with_limits(&mod_unit, &options.limits).into_result()
+                        });
+                        miss_cursor += 1;
+                        let ev = QueryEvent {
+                            phase: Phase::Parse,
+                            disposition: QueryDisposition::Executed,
+                        };
+                        observer(&ev);
+                        report.query_events.push(ev);
+                        if self.parse_cache.len() >= self.capacity {
+                            self.parse_cache.clear();
+                        }
+                        self.parse_cache.insert(keys[i], res.clone());
+                        res
+                    };
+                    let mod_ast = match parsed {
+                        Ok(ast) => ast,
+                        Err(diags) => {
+                            report.phase = Phase::Parse;
+                            report.status = highest_category(&diags);
+                            report.diagnostics = diags;
+                            report.seconds = start.elapsed().as_secs_f64();
+                            return report;
+                        }
+                    };
+                    loaded.push(LoadedMod {
+                        logical_path: logical,
+                        ast: mod_ast,
+                        imports: Vec::new(),
+                    });
+                }
+            }
         }
 
         // Reject user declarations of reserved built-in type family `Option`.
@@ -891,6 +1090,8 @@ impl CompilationSession {
                     cache_evicted_entries: built.cache_evicted_entries,
                     cache_evicted_bytes: built.cache_evicted_bytes,
                     cache_evict_ns: built.cache_evict_ns,
+                    emit_ns: built.emit_ns,
+                    link_ns: built.link_ns,
                 });
             }
             Err(e) => {
@@ -1253,6 +1454,8 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                             cache_evicted_entries: built.cache_evicted_entries,
                             cache_evicted_bytes: built.cache_evicted_bytes,
                             cache_evict_ns: built.cache_evict_ns,
+                            emit_ns: built.emit_ns,
+                            link_ns: built.link_ns,
                         });
                     }
                     Err(e) => {
