@@ -4689,11 +4689,12 @@ fn collect_trait_impl<'a>(
     let impl_target_label = if let TyData::Adt { adt, .. } = types.data(target) {
         items.adts[adt.0 as usize].name.clone()
     } else {
+        let ty_label = crate::build::format_canonical_ty_label(types, items, target);
         let mod_path = &items.modules[mid.0 as usize].path;
         if mod_path.is_empty() {
-            format!("{target:?}")
+            ty_label
         } else {
-            format!("{mod_path}.{target:?}")
+            format!("{mod_path}.{ty_label}")
         }
     };
     let trait_assoc_names = items.traits[trait_ref.0 as usize].assoc_types.clone();

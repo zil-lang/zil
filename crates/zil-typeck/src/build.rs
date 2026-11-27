@@ -3958,19 +3958,30 @@ pub fn eval_ct_type_expr<'a>(
 
 /// Formats a deterministic, order-independent, bounded-length canonical tag for
 /// a generic function's concrete type arguments (e.g. `::<g0.Rec0__h0123456789abcdef>`).
-fn format_mono_args_tag(types: &Types, items: &Items<'_>, args: &[Ty]) -> String {
-    let mut canonical = String::with_capacity(64);
+///
+/// The 64-bit SHA-256 suffix is computed over the COMPLETE untruncated type
+/// structure (never stopping at depth 16); only the short human-readable prefix
+/// is bounded for symbol compactness.
+pub(crate) fn format_mono_args_tag(types: &Types, items: &Items<'_>, args: &[Ty]) -> String {
+    let mut hasher = zil_base::FingerprintBuilder::new();
+    hasher.update(b"zil-mono-args-v1\0");
+    hasher.update(&(args.len() as u64).to_le_bytes());
+    for &arg in args {
+        hash_canonical_ty(types, items, arg, &mut hasher, 0);
+    }
+    let hex = hasher.digest().to_hex();
+
+    let mut display = String::with_capacity(64);
     for (idx, &arg) in args.iter().enumerate() {
         if idx > 0 {
-            canonical.push(',');
+            display.push(',');
         }
-        format_mono_ty(types, items, arg, &mut canonical, 0);
+        format_mono_ty(types, items, arg, &mut display, 0, 8);
     }
-    let hex = zil_base::Fingerprint::of(canonical.as_bytes()).to_hex();
-    // Keep a short readable prefix (bounded to 40 chars) plus a 64-bit SHA-256
-    // suffix so LLVM/COFF/ELF symbol names stay compact and collision-free.
+    // Keep a short readable prefix (bounded to 40 chars) plus the full-structure
+    // 64-bit SHA-256 suffix so LLVM/COFF/ELF symbol names stay compact and collision-free.
     let mut prefix = String::with_capacity(40);
-    for ch in canonical.chars() {
+    for ch in display.chars() {
         if prefix.len() >= 40 {
             break;
         }
@@ -3983,8 +3994,309 @@ fn format_mono_args_tag(types: &Types, items: &Items<'_>, args: &[Ty]) -> String
     format!("::<{prefix}__h{}>", &hex[..16])
 }
 
-fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, depth: u8) {
-    if depth > 16 {
+/// Formats an order-independent canonical symbol label for any concrete type
+/// (used for non-ADT trait impl method names so interner `Ty(N)` IDs never leak).
+pub(crate) fn format_canonical_ty_label(types: &Types, items: &Items<'_>, ty: Ty) -> String {
+    let mut display = String::with_capacity(32);
+    format_mono_ty(types, items, ty, &mut display, 0, 8);
+    let mut hasher = zil_base::FingerprintBuilder::new();
+    hasher.update(b"zil-impl-target-v1\0");
+    hash_canonical_ty(types, items, ty, &mut hasher, 0);
+    let hex = hasher.digest().to_hex();
+    let mut clean = String::with_capacity(display.len().min(32));
+    for ch in display.chars() {
+        if clean.len() >= 32 {
+            break;
+        }
+        if ch.is_ascii_alphanumeric() || ch == '_' || ch == '.' {
+            clean.push(ch);
+        } else {
+            clean.push('_');
+        }
+    }
+    if display.len() <= 32
+        && display
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+    {
+        clean
+    } else {
+        format!("{clean}__h{}", &hex[..12])
+    }
+}
+
+fn hash_canonical_ty(
+    types: &Types,
+    items: &Items<'_>,
+    ty: Ty,
+    h: &mut zil_base::FingerprintBuilder,
+    depth: u16,
+) {
+    // Generous structural ceiling (never truncates normal or deep generic chains).
+    if depth >= 1024 {
+        h.update(&[0xff]);
+        return;
+    }
+    let next = depth + 1;
+    match types.data(ty) {
+        TyData::Unit => h.update(&[1]),
+        TyData::Bool => h.update(&[2]),
+        TyData::Never => h.update(&[3]),
+        TyData::Int(i) => {
+            h.update(&[4]);
+            h.update(format!("{i:?}").as_bytes());
+            h.update(&[0]);
+        }
+        TyData::Float(f) => {
+            h.update(&[5]);
+            h.update(format!("{f:?}").as_bytes());
+            h.update(&[0]);
+        }
+        TyData::Adt { adt, args, regions } => {
+            h.update(&[6]);
+            let name = &items.adt(*adt).name;
+            h.update(&(name.len() as u32).to_le_bytes());
+            h.update(name.as_bytes());
+            h.update(&(regions.len() as u32).to_le_bytes());
+            for r in regions {
+                match r {
+                    Some(id) => {
+                        h.update(&[1]);
+                        h.update(&id.to_le_bytes());
+                    }
+                    None => h.update(&[0]),
+                }
+            }
+            h.update(&(args.len() as u32).to_le_bytes());
+            for a in args {
+                hash_canonical_ty(types, items, *a, h, next);
+            }
+        }
+        TyData::Tuple(elems) => {
+            h.update(&[7]);
+            h.update(&(elems.len() as u32).to_le_bytes());
+            for e in elems {
+                hash_canonical_ty(types, items, *e, h, next);
+            }
+        }
+        TyData::Union(elems) => {
+            h.update(&[8]);
+            h.update(&(elems.len() as u32).to_le_bytes());
+            for e in elems {
+                hash_canonical_ty(types, items, *e, h, next);
+            }
+        }
+        TyData::Array { element, length } => {
+            h.update(&[9]);
+            h.update(&length.to_le_bytes());
+            hash_canonical_ty(types, items, *element, h, next);
+        }
+        TyData::Slice(elem) => {
+            h.update(&[10]);
+            hash_canonical_ty(types, items, *elem, h, next);
+        }
+        TyData::Ref {
+            region,
+            mutable,
+            pointee,
+        } => {
+            h.update(&[11, u8::from(*mutable)]);
+            match region {
+                Some(r) => {
+                    h.update(&[1]);
+                    h.update(&r.to_le_bytes());
+                }
+                None => h.update(&[0]),
+            }
+            hash_canonical_ty(types, items, *pointee, h, next);
+        }
+        TyData::Managed(inner) => {
+            h.update(&[12]);
+            hash_canonical_ty(types, items, *inner, h, next);
+        }
+        TyData::Desc(inner) => {
+            h.update(&[13]);
+            hash_canonical_ty(types, items, *inner, h, next);
+        }
+        TyData::Opaque(op) => {
+            h.update(&[14]);
+            match op {
+                OpaqueKind::ByteBuffer => h.update(&[1]),
+                OpaqueKind::OwnedStore(e) => {
+                    h.update(&[2]);
+                    hash_canonical_ty(types, items, *e, h, next);
+                }
+                OpaqueKind::Mutex(e) => {
+                    h.update(&[3]);
+                    hash_canonical_ty(types, items, *e, h, next);
+                }
+                OpaqueKind::MutexGuard(e) => {
+                    h.update(&[4]);
+                    hash_canonical_ty(types, items, *e, h, next);
+                }
+                OpaqueKind::Task { result, context } => {
+                    h.update(&[5]);
+                    hash_canonical_ty(types, items, *result, h, next);
+                    match context {
+                        Some(ctx) => {
+                            h.update(&[1]);
+                            hash_canonical_ty(types, items, *ctx, h, next);
+                        }
+                        None => h.update(&[0]),
+                    }
+                }
+                OpaqueKind::Registration(e) => {
+                    h.update(&[6]);
+                    hash_canonical_ty(types, items, *e, h, next);
+                }
+                OpaqueKind::AsyncRegistration(e) => {
+                    h.update(&[7]);
+                    hash_canonical_ty(types, items, *e, h, next);
+                }
+                OpaqueKind::ForeignHandle => h.update(&[8]),
+                OpaqueKind::ForeignCallback { params, result } => {
+                    h.update(&[9]);
+                    h.update(&(params.len() as u32).to_le_bytes());
+                    for p in params {
+                        hash_canonical_ty(types, items, *p, h, next);
+                    }
+                    hash_canonical_ty(types, items, *result, h, next);
+                }
+                OpaqueKind::SyncCell(k) => {
+                    h.update(&[10]);
+                    h.update(format!("{k:?}").as_bytes());
+                    h.update(&[0]);
+                }
+            }
+        }
+        TyData::ErrorUnion { ok, err } => {
+            h.update(&[15]);
+            hash_canonical_ty(types, items, *err, h, next);
+            hash_canonical_ty(types, items, *ok, h, next);
+        }
+        TyData::FnPtr { params, result } => {
+            h.update(&[16]);
+            h.update(&(params.len() as u32).to_le_bytes());
+            for p in params {
+                hash_canonical_ty(types, items, *p, h, next);
+            }
+            hash_canonical_ty(types, items, *result, h, next);
+        }
+        TyData::Closure {
+            owner,
+            id,
+            owner_args,
+            kind,
+            ..
+        } => {
+            h.update(&[17]);
+            let name = &items.func(*owner).name;
+            h.update(&(name.len() as u32).to_le_bytes());
+            h.update(name.as_bytes());
+            h.update(&id.0.to_le_bytes());
+            h.update(format!("{kind:?}").as_bytes());
+            h.update(&[0]);
+            h.update(&(owner_args.len() as u32).to_le_bytes());
+            for a in owner_args {
+                hash_canonical_ty(types, items, *a, h, next);
+            }
+        }
+        TyData::ImplCallable {
+            owner,
+            owner_args,
+            kind,
+            ..
+        } => {
+            h.update(&[18]);
+            let name = &items.func(*owner).name;
+            h.update(&(name.len() as u32).to_le_bytes());
+            h.update(name.as_bytes());
+            h.update(format!("{kind:?}").as_bytes());
+            h.update(&[0]);
+            h.update(&(owner_args.len() as u32).to_le_bytes());
+            for a in owner_args {
+                hash_canonical_ty(types, items, *a, h, next);
+            }
+        }
+        TyData::Dyn {
+            trait_ref,
+            trait_args,
+            ..
+        } => {
+            h.update(&[19]);
+            let name = &items.traits[trait_ref.0 as usize].name;
+            h.update(&(name.len() as u32).to_le_bytes());
+            h.update(name.as_bytes());
+            h.update(&(trait_args.len() as u32).to_le_bytes());
+            for a in trait_args {
+                hash_canonical_ty(types, items, *a, h, next);
+            }
+        }
+        TyData::OwnedDyn {
+            trait_ref,
+            trait_args,
+            context,
+            ..
+        } => {
+            h.update(&[20]);
+            let name = &items.traits[trait_ref.0 as usize].name;
+            h.update(&(name.len() as u32).to_le_bytes());
+            h.update(name.as_bytes());
+            h.update(&(trait_args.len() as u32).to_le_bytes());
+            for a in trait_args {
+                hash_canonical_ty(types, items, *a, h, next);
+            }
+            match context {
+                Some(ctx) => {
+                    h.update(&[1]);
+                    hash_canonical_ty(types, items, *ctx, h, next);
+                }
+                None => h.update(&[0]),
+            }
+        }
+        TyData::Param(p) => {
+            h.update(&[21]);
+            h.update(&p.to_le_bytes());
+        }
+        TyData::SelfParam => h.update(&[22]),
+        TyData::Assoc { base, name, .. } => {
+            h.update(&[23]);
+            hash_canonical_ty(types, items, *base, h, next);
+            h.update(&(name.len() as u32).to_le_bytes());
+            h.update(name.as_bytes());
+        }
+        TyData::ArrayConst { element, length } => {
+            h.update(&[24]);
+            hash_canonical_ty(types, items, *element, h, next);
+            hash_canonical_ty(types, items, *length, h, next);
+        }
+        TyData::ConstParam(p) => {
+            h.update(&[25]);
+            h.update(&p.to_le_bytes());
+        }
+        TyData::ConstU32(v) => {
+            h.update(&[26]);
+            h.update(&v.to_le_bytes());
+        }
+        TyData::Type => h.update(&[27]),
+        TyData::Var(v) => {
+            h.update(&[28]);
+            h.update(format!("{v:?}").as_bytes());
+            h.update(&[0]);
+        }
+        TyData::Error => h.update(&[29]),
+    }
+}
+
+fn format_mono_ty(
+    types: &Types,
+    items: &Items<'_>,
+    ty: Ty,
+    out: &mut String,
+    depth: u8,
+    max_depth: u8,
+) {
+    if depth > max_depth {
         out.push_str("...");
         return;
     }
@@ -4011,7 +4323,7 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
                     if i > 0 || !regions.is_empty() {
                         out.push(',');
                     }
-                    format_mono_ty(types, items, *a, out, depth + 1);
+                    format_mono_ty(types, items, *a, out, depth + 1, max_depth);
                 }
                 out.push('>');
             }
@@ -4022,7 +4334,7 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
                 if i > 0 {
                     out.push(',');
                 }
-                format_mono_ty(types, items, *e, out, depth + 1);
+                format_mono_ty(types, items, *e, out, depth + 1, max_depth);
             }
             out.push(')');
         }
@@ -4032,18 +4344,18 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
                 if i > 0 {
                     out.push('|');
                 }
-                format_mono_ty(types, items, *e, out, depth + 1);
+                format_mono_ty(types, items, *e, out, depth + 1, max_depth);
             }
             out.push(')');
         }
         TyData::Array { element, length } => {
             out.push_str("arr[");
-            format_mono_ty(types, items, *element, out, depth + 1);
+            format_mono_ty(types, items, *element, out, depth + 1, max_depth);
             out.push_str(&format!(";{length}]"));
         }
         TyData::Slice(elem) => {
             out.push_str("slice[");
-            format_mono_ty(types, items, *elem, out, depth + 1);
+            format_mono_ty(types, items, *elem, out, depth + 1, max_depth);
             out.push(']');
         }
         TyData::Ref {
@@ -4058,52 +4370,52 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
             if *mutable {
                 out.push_str("mut_");
             }
-            format_mono_ty(types, items, *pointee, out, depth + 1);
+            format_mono_ty(types, items, *pointee, out, depth + 1, max_depth);
         }
         TyData::Managed(inner) => {
             out.push_str("Managed<");
-            format_mono_ty(types, items, *inner, out, depth + 1);
+            format_mono_ty(types, items, *inner, out, depth + 1, max_depth);
             out.push('>');
         }
         TyData::Desc(inner) => {
             out.push_str("Desc<");
-            format_mono_ty(types, items, *inner, out, depth + 1);
+            format_mono_ty(types, items, *inner, out, depth + 1, max_depth);
             out.push('>');
         }
         TyData::Opaque(op) => match op {
             OpaqueKind::ByteBuffer => out.push_str("ByteBuffer"),
             OpaqueKind::OwnedStore(e) => {
                 out.push_str("OwnedStore<");
-                format_mono_ty(types, items, *e, out, depth + 1);
+                format_mono_ty(types, items, *e, out, depth + 1, max_depth);
                 out.push('>');
             }
             OpaqueKind::Mutex(e) => {
                 out.push_str("Mutex<");
-                format_mono_ty(types, items, *e, out, depth + 1);
+                format_mono_ty(types, items, *e, out, depth + 1, max_depth);
                 out.push('>');
             }
             OpaqueKind::MutexGuard(e) => {
                 out.push_str("MutexGuard<");
-                format_mono_ty(types, items, *e, out, depth + 1);
+                format_mono_ty(types, items, *e, out, depth + 1, max_depth);
                 out.push('>');
             }
             OpaqueKind::Task { result, context } => {
                 out.push_str("Task<");
-                format_mono_ty(types, items, *result, out, depth + 1);
+                format_mono_ty(types, items, *result, out, depth + 1, max_depth);
                 if let Some(ctx) = context {
                     out.push(',');
-                    format_mono_ty(types, items, *ctx, out, depth + 1);
+                    format_mono_ty(types, items, *ctx, out, depth + 1, max_depth);
                 }
                 out.push('>');
             }
             OpaqueKind::Registration(e) => {
                 out.push_str("Registration<");
-                format_mono_ty(types, items, *e, out, depth + 1);
+                format_mono_ty(types, items, *e, out, depth + 1, max_depth);
                 out.push('>');
             }
             OpaqueKind::AsyncRegistration(e) => {
                 out.push_str("AsyncRegistration<");
-                format_mono_ty(types, items, *e, out, depth + 1);
+                format_mono_ty(types, items, *e, out, depth + 1, max_depth);
                 out.push('>');
             }
             OpaqueKind::ForeignHandle => out.push_str("ForeignHandle"),
@@ -4113,18 +4425,18 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
                     if i > 0 {
                         out.push(',');
                     }
-                    format_mono_ty(types, items, *p, out, depth + 1);
+                    format_mono_ty(types, items, *p, out, depth + 1, max_depth);
                 }
                 out.push_str(")->");
-                format_mono_ty(types, items, *result, out, depth + 1);
+                format_mono_ty(types, items, *result, out, depth + 1, max_depth);
             }
             OpaqueKind::SyncCell(k) => out.push_str(&format!("SyncCell<{k:?}>")),
         },
         TyData::ErrorUnion { ok, err } => {
             out.push_str("err(");
-            format_mono_ty(types, items, *err, out, depth + 1);
+            format_mono_ty(types, items, *err, out, depth + 1, max_depth);
             out.push('!');
-            format_mono_ty(types, items, *ok, out, depth + 1);
+            format_mono_ty(types, items, *ok, out, depth + 1, max_depth);
             out.push(')');
         }
         TyData::FnPtr { params, result } => {
@@ -4133,10 +4445,10 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
                 if i > 0 {
                     out.push(',');
                 }
-                format_mono_ty(types, items, *p, out, depth + 1);
+                format_mono_ty(types, items, *p, out, depth + 1, max_depth);
             }
             out.push_str(")->");
-            format_mono_ty(types, items, *result, out, depth + 1);
+            format_mono_ty(types, items, *result, out, depth + 1, max_depth);
         }
         TyData::Closure {
             owner,
@@ -4153,7 +4465,7 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
             ));
             for a in owner_args {
                 out.push(',');
-                format_mono_ty(types, items, *a, out, depth + 1);
+                format_mono_ty(types, items, *a, out, depth + 1, max_depth);
             }
             out.push(')');
         }
@@ -4166,7 +4478,7 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
             out.push_str(&format!("impl_fn({}#{:?}", items.func(*owner).name, kind));
             for a in owner_args {
                 out.push(',');
-                format_mono_ty(types, items, *a, out, depth + 1);
+                format_mono_ty(types, items, *a, out, depth + 1, max_depth);
             }
             out.push(')');
         }
@@ -4179,7 +4491,7 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
             out.push_str(&items.traits[trait_ref.0 as usize].name);
             for a in trait_args {
                 out.push(',');
-                format_mono_ty(types, items, *a, out, depth + 1);
+                format_mono_ty(types, items, *a, out, depth + 1, max_depth);
             }
             out.push('>');
         }
@@ -4193,26 +4505,26 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
             out.push_str(&items.traits[trait_ref.0 as usize].name);
             for a in trait_args {
                 out.push(',');
-                format_mono_ty(types, items, *a, out, depth + 1);
+                format_mono_ty(types, items, *a, out, depth + 1, max_depth);
             }
             if let Some(ctx) = context {
                 out.push(';');
-                format_mono_ty(types, items, *ctx, out, depth + 1);
+                format_mono_ty(types, items, *ctx, out, depth + 1, max_depth);
             }
             out.push('>');
         }
         TyData::Param(p) => out.push_str(&format!("P{p}")),
         TyData::SelfParam => out.push_str("Self"),
         TyData::Assoc { base, name, .. } => {
-            format_mono_ty(types, items, *base, out, depth + 1);
+            format_mono_ty(types, items, *base, out, depth + 1, max_depth);
             out.push('.');
             out.push_str(name);
         }
         TyData::ArrayConst { element, length } => {
             out.push_str("arrc[");
-            format_mono_ty(types, items, *element, out, depth + 1);
+            format_mono_ty(types, items, *element, out, depth + 1, max_depth);
             out.push(';');
-            format_mono_ty(types, items, *length, out, depth + 1);
+            format_mono_ty(types, items, *length, out, depth + 1, max_depth);
             out.push(']');
         }
         TyData::ConstParam(p) => out.push_str(&format!("CP{p}")),
@@ -4220,5 +4532,98 @@ fn format_mono_ty(types: &Types, items: &Items<'_>, ty: Ty, out: &mut String, de
         TyData::Type => out.push_str("Type"),
         TyData::Var(v) => out.push_str(&format!("{v:?}")),
         TyData::Error => out.push_str("Err"),
+    }
+}
+
+#[cfg(test)]
+mod mono_naming_tests {
+    use super::*;
+    use crate::ModuleInput;
+
+    #[test]
+    fn deep_nested_generics_beyond_depth_16_produce_distinct_mono_tags() {
+        let mut types = Types::default();
+        let items = Items {
+            modules: Vec::new(),
+            mod_by_path: HashMap::new(),
+            fns: Vec::new(),
+            adts: Vec::new(),
+            foreigns: Vec::new(),
+            traits: Vec::new(),
+            trait_impls: Vec::new(),
+            inherent_impls: Vec::new(),
+            adt_kinds: Vec::new(),
+            consts: Vec::new(),
+        };
+        let mut t_a = types.intern(TyData::Int(IntTy::I32));
+        let mut t_b = types.intern(TyData::Int(IntTy::I64));
+        for _ in 0..20 {
+            t_a = types.intern(TyData::Tuple(vec![t_a]));
+            t_b = types.intern(TyData::Tuple(vec![t_b]));
+        }
+        let tag_a = format_mono_args_tag(&types, &items, &[t_a]);
+        let tag_b = format_mono_args_tag(&types, &items, &[t_b]);
+        assert_ne!(
+            tag_a, tag_b,
+            "types differing only at depth 20 must hash to distinct mono tags"
+        );
+    }
+
+    #[test]
+    fn non_adt_trait_impl_uses_canonical_type_name_not_ty_debug_id() {
+        let src = r#"
+trait Marker {
+  fn tag(self: Self) -> i32;
+}
+impl Marker for i64 {
+  fn tag(self: i64) -> i32 { return 7; }
+}
+impl Marker for bool {
+  fn tag(self: bool) -> i32 { return 9; }
+}
+fn main() -> i32 {
+  let x: i64 = 1;
+  let b: bool = true;
+  return x.tag() + b.tag();
+}
+"#;
+        let unit =
+            zil_base::SourceUnit::new(zil_base::FileId(0), zil_base::ModuleId(0), "main.zil", src);
+        let ast = zil_syntax::parse(&unit).into_result().expect("parse");
+        let lowered = crate::lower_program(
+            &[ModuleInput {
+                path: "main".to_string(),
+                ast: &ast,
+            }],
+            crate::Limits::default(),
+            None,
+        )
+        .expect("lower");
+        let impl_names: Vec<&str> = lowered
+            .module
+            .functions
+            .iter()
+            .map(|f| f.name.as_str())
+            .filter(|n| n.contains("Marker::tag"))
+            .collect();
+        assert_eq!(
+            impl_names.len(),
+            2,
+            "expected 2 trait impls: {impl_names:?}"
+        );
+        for name in &impl_names {
+            assert!(
+                !name.contains("Ty("),
+                "non-ADT trait impl name must not leak internal Ty(N) ID: {name}"
+            );
+        }
+        assert!(
+            impl_names.iter().any(|n| n.contains("I64")),
+            "expected canonical I64 impl name: {impl_names:?}"
+        );
+        assert!(
+            impl_names.iter().any(|n| n.contains("bool")),
+            "expected canonical bool impl name: {impl_names:?}"
+        );
     }
 }

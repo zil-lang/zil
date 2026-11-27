@@ -366,13 +366,39 @@ struct SemanticSnapshot {
     cert: zil_ir::body::Certificate,
 }
 
-/// Bounded in-memory session caching only unverified parse snapshots and
-/// untrusted semantic/certificate candidates. Verification always executes
-/// fresh through `zil-check` (`verification_runs == 1`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ParseCacheKey {
+    text_fp: Fingerprint,
+    file_id: FileId,
+    module_id: ModuleId,
+    max_source_bytes: usize,
+    max_tokens: usize,
+    max_nodes: usize,
+    max_call_depth: usize,
+}
+
+impl ParseCacheKey {
+    fn from_source(source: &SourceUnit, limits: &zil_base::Limits) -> Self {
+        Self {
+            text_fp: source.fingerprint(),
+            file_id: source.file_id,
+            module_id: source.module_id,
+            max_source_bytes: limits.max_source_bytes,
+            max_tokens: limits.max_tokens,
+            max_nodes: limits.max_nodes,
+            max_call_depth: limits.max_call_depth,
+        }
+    }
+}
+
+/// Bounded in-memory session caching parse snapshots (keyed by source content,
+/// `FileId`, `ModuleId`, and all parser limits) and trusted-local semantic /
+/// certificate candidates. Fresh verification (`verify_ct_original_definitions`,
+/// `check_fidelity`, and `check_module`, `verification_runs == 1`) always runs.
 pub struct CompilationSession {
     capacity: usize,
-    parse_cache: HashMap<(Fingerprint, usize), Result<zil_syntax::ast::Module, Vec<Diagnostic>>>,
-    parse_order: VecDeque<(Fingerprint, usize)>,
+    parse_cache: HashMap<ParseCacheKey, Result<zil_syntax::ast::Module, Vec<Diagnostic>>>,
+    parse_order: VecDeque<ParseCacheKey>,
     semantic_snapshots: VecDeque<SemanticSnapshot>,
     fn_cert_cache: RwLock<HashMap<CertCacheKey, zil_ir::body::FunctionCertificate>>,
 }
@@ -429,7 +455,7 @@ impl CompilationSession {
 
     fn insert_parse_cache(
         &mut self,
-        key: (Fingerprint, usize),
+        key: ParseCacheKey,
         value: Result<zil_syntax::ast::Module, Vec<Diagnostic>>,
     ) {
         if self.capacity == 0 {
@@ -517,7 +543,7 @@ impl CompilationSession {
         report: &mut CompileReport,
         observer: &mut dyn FnMut(&QueryEvent),
     ) -> Result<zil_syntax::ast::Module, Vec<Diagnostic>> {
-        let cache_key = (source.fingerprint(), options.limits.max_tokens);
+        let cache_key = ParseCacheKey::from_source(source, &options.limits);
         if let Some(cached) = self.parse_cache.get(&cache_key) {
             let ev = QueryEvent {
                 phase: Phase::Parse,
@@ -855,11 +881,11 @@ impl CompilationSession {
                 type ParsedModResult = Result<zil_syntax::ast::Module, Vec<Diagnostic>>;
 
                 let n = units.len();
-                let mut keys: Vec<(Fingerprint, usize)> = Vec::with_capacity(n);
+                let mut keys: Vec<ParseCacheKey> = Vec::with_capacity(n);
                 let mut cached_hits: Vec<Option<ParsedModResult>> = Vec::with_capacity(n);
                 let mut miss_indices: Vec<usize> = Vec::new();
                 for (i, (_, u)) in units.iter().enumerate() {
-                    let key = (u.fingerprint(), options.limits.max_tokens);
+                    let key = ParseCacheKey::from_source(u, &options.limits);
                     keys.push(key);
                     if let Some(hit) = self.parse_cache.get(&key) {
                         cached_hits.push(Some(hit.clone()));
@@ -942,7 +968,7 @@ impl CompilationSession {
                     };
                     loaded.push(LoadedMod {
                         logical_path: logical,
-                        fingerprint: keys[i].0,
+                        fingerprint: keys[i].text_fp,
                         ast: mod_ast,
                         imports: Vec::new(),
                     });
