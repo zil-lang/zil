@@ -126,10 +126,17 @@ fn sha256_hex(bytes: &[u8]) -> String {
     h.digest().to_hex()
 }
 
+/// Explicit backend codegen ABI version bound into object-cache keys and `.meta`
+/// sidecars. Bump whenever `body_structured`, `zil-llvm-api` builder lowering, or
+/// machine object emission changes in a way that can alter output bytes for identical IR.
+pub const OBJECT_CACHE_CODEGEN_ABI: u32 = 1;
+
 #[cfg(feature = "llvm-api")]
 fn unit_cache_key(triple: &str, obj_ext: &str, pipeline: &str, unit_ir: &str) -> String {
     let mut h = zil_base::FingerprintBuilder::new();
-    h.update(b"zil-obj-cache-v3\0");
+    h.update(b"zil-obj-cache-v4\0");
+    h.update(OBJECT_CACHE_CODEGEN_ABI.to_le_bytes().as_slice());
+    h.update(b"\0");
     h.update(env!("CARGO_PKG_VERSION").as_bytes());
     h.update(b"\0");
     h.update(zil_llvm_api::LLVM_VERSION.as_bytes());
@@ -159,7 +166,7 @@ fn format_cache_meta(
     pipeline: &str,
 ) -> String {
     format!(
-        "v3\nkey={key}\nlen={len}\nsha256={obj_sha256}\nllvm={llvm_version}\ntriple={triple}\npipeline={pipeline}\n"
+        "v4\nabi={OBJECT_CACHE_CODEGEN_ABI}\nkey={key}\nlen={len}\nsha256={obj_sha256}\nllvm={llvm_version}\ntriple={triple}\npipeline={pipeline}\n"
     )
 }
 
@@ -185,9 +192,10 @@ fn verify_cache_integrity(
     expected_pipeline: &str,
 ) -> bool {
     let mut lines = meta_text.lines();
-    if lines.next() != Some("v3") {
+    if lines.next() != Some("v4") {
         return false;
     }
+    let mut abi = None;
     let mut key = None;
     let mut len = None;
     let mut digest = None;
@@ -197,6 +205,7 @@ fn verify_cache_integrity(
     for line in lines {
         if let Some((k, v)) = line.split_once('=') {
             match k {
+                "abi" => abi = v.parse::<u32>().ok(),
                 "key" => key = Some(v),
                 "len" => len = v.parse::<usize>().ok(),
                 "sha256" => digest = Some(v),
@@ -207,7 +216,8 @@ fn verify_cache_integrity(
             }
         }
     }
-    if key != Some(expected_key)
+    if abi != Some(OBJECT_CACHE_CODEGEN_ABI)
+        || key != Some(expected_key)
         || llvm != Some(expected_llvm)
         || triple != Some(expected_triple)
         || pipeline != Some(expected_pipeline)
@@ -284,8 +294,16 @@ fn enforce_object_cache_budget(
             continue;
         }
         if name.ends_with(&meta_suffix) {
+            // Since `.meta` is published BEFORE `.o`, only sweep orphan `.meta` files
+            // older than 120s so we never disturb a concurrent in-flight publisher.
             let paired_obj = path.with_extension("");
-            if !paired_obj.exists() {
+            if !paired_obj.exists()
+                && meta
+                    .modified()
+                    .ok()
+                    .and_then(|m| now.duration_since(m).ok())
+                    .is_some_and(|d| d.as_secs() > 120)
+            {
                 orphan_metas.push(path);
             }
             continue;
@@ -644,14 +662,17 @@ pub fn build_verified_body(
                                                 if stage_object_snapshot(&tmp_obj, staged).is_ok() {
                                                     staged_path = Some(staged.clone());
                                                 }
-                                                if fs::rename(&tmp_obj, cp).is_ok() {
-                                                    if fs::write(&tmp_meta, &meta_text).is_ok() {
-                                                        if fs::rename(&tmp_meta, mp).is_err() {
-                                                            let _ = fs::remove_file(&tmp_meta);
-                                                        }
-                                                    } else {
-                                                        let _ = fs::remove_file(&tmp_meta);
-                                                    }
+                                                // Publish `.meta` BEFORE `.o` so concurrent readers never
+                                                // observe an object file whose paired `.meta` is missing.
+                                                let meta_published =
+                                                    fs::write(&tmp_meta, &meta_text).is_ok()
+                                                        && fs::rename(&tmp_meta, mp).is_ok();
+                                                if !meta_published {
+                                                    let _ = fs::remove_file(&tmp_meta);
+                                                }
+                                                if meta_published
+                                                    && fs::rename(&tmp_obj, cp).is_ok()
+                                                {
                                                     cache_entry_path = Some(cp.clone());
                                                 } else {
                                                     let _ = fs::remove_file(&tmp_obj);
