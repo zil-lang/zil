@@ -80,12 +80,17 @@ pub struct CodegenSummary {
     pub actual_units: usize,
     pub jobs: usize,
     pub fallback: Option<String>,
+    pub cache_hits: usize,
+    pub cache_misses: usize,
+    pub cache_evicted_entries: usize,
+    pub cache_evicted_bytes: u64,
+    pub cache_evict_ns: u64,
 }
 
 impl CodegenSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"backend\":{},\"object_reports\":[{}],\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{}}}",
+            "{{\"backend\":{},\"object_reports\":[{}],\"requested_units\":{},\"actual_units\":{},\"jobs\":{},\"fallback\":{},\"cache_hits\":{},\"cache_misses\":{},\"cache_evicted_entries\":{},\"cache_evicted_bytes\":{},\"cache_evict_ns\":{}}}",
             zil_base::json_string(self.backend.name()),
             self.object_reports.join(","),
             self.requested_units,
@@ -94,6 +99,11 @@ impl CodegenSummary {
             self.fallback
                 .as_ref()
                 .map_or_else(|| "null".into(), |s| zil_base::json_string(s)),
+            self.cache_hits,
+            self.cache_misses,
+            self.cache_evicted_entries,
+            self.cache_evicted_bytes,
+            self.cache_evict_ns,
         )
     }
 }

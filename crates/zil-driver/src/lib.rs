@@ -165,7 +165,7 @@ pub struct CompileOptions {
     pub cache_dir: Option<PathBuf>,
     pub semantic_cache: Option<PathBuf>,
     pub object_cache: Option<PathBuf>,
-    /// Best-effort soft byte budget for `object_cache` (`None` = unlimited; default 256 MiB).
+    /// Best-effort soft byte budget for `object_cache` (`None` = unlimited; default 32 MiB).
     /// Active objects required by the current build are never evicted, so cache size may exceed
     /// the budget when the active working set itself is larger than the budget.
     pub object_cache_max_bytes: Option<u64>,
@@ -200,7 +200,7 @@ impl Default for CompileOptions {
             cache_dir: None,
             semantic_cache: None,
             object_cache: None,
-            object_cache_max_bytes: Some(256 * 1024 * 1024),
+            object_cache_max_bytes: Some(32 * 1024 * 1024),
             clang: None,
             extra_c_sources: Vec::new(),
             optimization: Optimization::O0,
@@ -886,6 +886,11 @@ impl CompilationSession {
                     actual_units: built.actual_units,
                     jobs: options.codegen.jobs,
                     fallback: None,
+                    cache_hits: built.cache_hits,
+                    cache_misses: built.cache_misses,
+                    cache_evicted_entries: built.cache_evicted_entries,
+                    cache_evicted_bytes: built.cache_evicted_bytes,
+                    cache_evict_ns: built.cache_evict_ns,
                 });
             }
             Err(e) => {
@@ -1243,6 +1248,11 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
                             actual_units: built.actual_units,
                             jobs: options.codegen.jobs,
                             fallback: None,
+                            cache_hits: built.cache_hits,
+                            cache_misses: built.cache_misses,
+                            cache_evicted_entries: built.cache_evicted_entries,
+                            cache_evicted_bytes: built.cache_evicted_bytes,
+                            cache_evict_ns: built.cache_evict_ns,
                         });
                     }
                     Err(e) => {

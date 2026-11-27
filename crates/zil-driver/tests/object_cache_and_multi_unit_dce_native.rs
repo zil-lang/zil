@@ -770,6 +770,16 @@ fn soft_budget_smaller_than_active_working_set_preserves_active_and_evicts_stale
         "{:?}",
         tiny.diagnostics
     );
+    let tiny_cg = tiny.native_codegen.as_ref().expect("native_codegen");
+    assert!(
+        tiny_cg.cache_evicted_entries >= 3,
+        "expected >= 3 stale objects evicted, got {}",
+        tiny_cg.cache_evicted_entries
+    );
+    assert!(
+        tiny_cg.cache_evicted_bytes > 0,
+        "expected non-zero evicted bytes"
+    );
     assert_eq!(
         Command::new(&exe_path).output().unwrap().status.code(),
         Some(8)
@@ -1184,4 +1194,134 @@ pub fn main() -> i32 {
         found >= 2,
         "expected at least 2 full SHA-256 static string symbols, found {found}"
     );
+}
+
+#[cfg(feature = "llvm-api")]
+#[test]
+fn cgu_buckets_stay_stable_across_fn_count_threshold_and_dead_fns() {
+    use std::process::Command;
+    use zil_base::ResultCategory;
+    use zil_driver::{
+        CodegenOptions, CompileOptions, NativeBackend, Optimization, Stage, compile_path,
+    };
+
+    let dir = std::env::temp_dir().join(format!("zil_fn_thresh_cgu_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let cache_dir = dir.join("objcache");
+    let exe_path = dir.join(if cfg!(windows) { "app.exe" } else { "app" });
+
+    // Start with ONLY 3 modules and 3 functions total (`fn_count = 3 < requested_units = 8`)!
+    std::fs::write(
+        dir.join("alpha.zil"),
+        "pub fn calc(x: i32) -> i32 { return x + 10; }\n",
+    )
+    .expect("write alpha");
+    std::fs::write(
+        dir.join("beta.zil"),
+        "pub fn calc(x: i32) -> i32 { return x + 20; }\n",
+    )
+    .expect("write beta");
+    std::fs::write(
+        dir.join("main.zil"),
+        "import alpha;\nimport beta;\npub fn main() -> i32 { return alpha.calc(1) + beta.calc(2); }\n",
+    )
+    .expect("write main");
+
+    let opts = CompileOptions {
+        backend: NativeBackend::LlvmApi,
+        stop_after: Stage::Build,
+        output: Some(exe_path.clone()),
+        optimization: Optimization::O0,
+        object_cache: Some(cache_dir.clone()),
+        codegen: CodegenOptions { units: 8, jobs: 2 },
+        ..CompileOptions::default()
+    };
+
+    // 1. Cold build with `fn_count = 3 < requested_units = 8`.
+    let cold = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        cold.status,
+        ResultCategory::Success,
+        "{:?}",
+        cold.diagnostics
+    );
+    assert_eq!(cold.native_codegen.as_ref().unwrap().actual_units, 8);
+    assert_eq!(
+        Command::new(&exe_path).output().unwrap().status.code(),
+        Some(33)
+    );
+
+    // 2. Add 6 UNREACHABLE dead functions inside `alpha.zil` so `fn_count` crosses 3 -> 9 (> 8).
+    //    Because bucket count depends strictly on `requested_units` and dead fns are DCE'd,
+    //    ALL 8/8 CGUs MUST hit cache!
+    let mut alpha_dead = String::from("pub fn calc(x: i32) -> i32 { return x + 10; }\n");
+    for i in 0..6 {
+        alpha_dead.push_str(&format!(
+            "fn dead_unused_{i}(x: i32) -> i32 {{ return x + {}; }}\n",
+            100 + i
+        ));
+    }
+    std::fs::write(dir.join("alpha.zil"), alpha_dead).expect("write alpha with dead fns");
+    let after_dead = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        after_dead.status,
+        ResultCategory::Success,
+        "{:?}",
+        after_dead.diagnostics
+    );
+    assert_eq!(after_dead.verification_runs, 1);
+    assert_eq!(
+        after_dead.native_codegen.as_ref().unwrap().cache_hits,
+        8,
+        "adding unreachable functions crossing fn_count=8 must preserve 8/8 cache hits"
+    );
+
+    // 3. Add 6 REACHABLE private helper functions inside `alpha.zil` (crossing fn_count = 3 -> 9).
+    //    ONLY `alpha`'s single CGU bucket may recompile; the other 7/8 CGUs (including `main`
+    //    and `beta`) MUST hit cache!
+    let mut alpha_live = String::new();
+    for i in 0..6 {
+        alpha_live.push_str(&format!(
+            "fn live_h_{i}(x: i32) -> i32 {{ return x + {}; }}\n",
+            i + 1
+        ));
+    }
+    alpha_live.push_str(
+        "pub fn calc(x: i32) -> i32 { return x + 10 + live_h_0(0) + live_h_1(0) + live_h_2(0) + live_h_3(0) + live_h_4(0) + live_h_5(0); }\n",
+    );
+    std::fs::write(dir.join("alpha.zil"), alpha_live).expect("write alpha with live fns");
+    let after_live = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(
+        after_live.status,
+        ResultCategory::Success,
+        "{:?}",
+        after_live.diagnostics
+    );
+    assert_eq!(after_live.verification_runs, 1);
+    assert_eq!(
+        after_live.native_codegen.as_ref().unwrap().cache_hits,
+        7,
+        "adding reachable fns in alpha crossing fn_count=8 must preserve 7/8 cache hits"
+    );
+    assert_eq!(
+        Command::new(&exe_path).output().unwrap().status.code(),
+        Some(54)
+    );
+
+    // 4. Remove the dead/extra helpers back down below fn_count=8 (`9 -> 3`): hits 8/8 (cached v1!).
+    std::fs::write(
+        dir.join("alpha.zil"),
+        "pub fn calc(x: i32) -> i32 { return x + 10; }\n",
+    )
+    .expect("restore alpha");
+    let restored = compile_path(&dir.join("main.zil"), &opts);
+    assert_eq!(restored.status, ResultCategory::Success);
+    assert_eq!(
+        restored.native_codegen.as_ref().unwrap().cache_hits,
+        8,
+        "shrinking fn_count back below requested_units must hit 8/8 cached units"
+    );
+
+    let _ = std::fs::remove_dir_all(&dir);
 }

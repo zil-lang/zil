@@ -262,9 +262,13 @@ def run_zil_build(
         cmd.extend(extra_flags)
     dt_ms, rss_kib, rep = timed_wait_json(cmd, tmp_json, env)
     hits, misses, total_units = 0, 0, 0
+    evicted_entries, evicted_bytes, evict_ns = 0, 0, 0
     if rep and rep.get("native_codegen"):
         nc = rep["native_codegen"]
         total_units = nc.get("actual_units", 0)
+        evicted_entries = int(nc.get("cache_evicted_entries", 0) or 0)
+        evicted_bytes = int(nc.get("cache_evicted_bytes", 0) or 0)
+        evict_ns = int(nc.get("cache_evict_ns", 0) or 0)
         for obj_s in nc.get("object_reports", []):
             is_hit = (
                 obj_s.get("input_kind") == "object-cache-hit"
@@ -283,6 +287,9 @@ def run_zil_build(
         "hits": hits,
         "misses": misses,
         "miss_pct": round(miss_rate, 2),
+        "cache_evicted_entries": evicted_entries,
+        "cache_evicted_bytes": evicted_bytes,
+        "cache_evict_ns": evict_ns,
         "disk_cache": rep.get("disk_cache") if rep else None,
         "verification_runs": rep.get("verification_runs") if rep else None,
     }
@@ -616,23 +623,23 @@ def run_eviction_suite(
     rounds: int,
     opt: str,
     jobs: int,
-    max_mb: int,
+    budgets_mb: list[int],
     env: dict[str, str],
 ) -> dict[str, object]:
     cgu = 16 if n_mods <= 100 else (32 if n_mods <= 500 else 64)
+    budget_desc = ",".join(f"{b}MB" if b > 0 else "uncapped" for b in budgets_mb)
     print(
-        f"\n================ EXPERIMENT C: BOUNDED CACHE EVICTION ({n_mods} mods, {rounds} rds, 30% edits, {opt}, CGU={cgu}, cap={max_mb}MB) ================"
+        f"\n================ EXPERIMENT C: BOUNDED CACHE EVICTION ({n_mods} mods, {rounds} rds, 30% edits, {opt}, CGU={cgu}, budgets=[{budget_desc}]) ================"
     )
     out: dict[str, object] = {}
     with tempfile.TemporaryDirectory(prefix=f"zil_evict_{n_mods}_") as td_s:
         td = Path(td_s)
         zdir, _ = generate_projects(td, n_mods)
         tmp_json = td / "out.json"
-        for label, extra_flags in [
-            ("uncapped (0MB)", ["--object-cache-max-mb", "0"]),
-            (f"bounded ({max_mb}MB LRU)", ["--object-cache-max-mb", str(max_mb)]),
-        ]:
-            z_out_dir = td / f"out_{label.split()[0]}"
+        for idx_b, cap_mb in enumerate(budgets_mb):
+            label = "uncapped (0MB)" if cap_mb == 0 else f"soft-LRU ({cap_mb}MB)"
+            extra_flags = ["--object-cache-max-mb", str(cap_mb)]
+            z_out_dir = td / f"out_b{idx_b}_{cap_mb}"
             z_cache = z_out_dir / "objcache"
             z_out_dir.mkdir(parents=True, exist_ok=True)
             for m in range(n_mods):
@@ -642,8 +649,10 @@ def run_eviction_suite(
                 opt=opt, cgu=cgu, jobs=jobs, tmp_json=tmp_json, env=env, extra_flags=extra_flags,
             )
             peak_cache_b = 0
-            evict_events = 0
-            prev_files = dir_stats(z_cache)[1]
+            evict_rounds = 0
+            evicted_entries_total = 0
+            evicted_bytes_total = 0
+            evict_ns_total = 0
             ms_all, ms_first, ms_last, hit_last = [], [], [], []
             k30 = max(1, (n_mods * 3) // 10)
             window = min(20, max(1, rounds // 3))
@@ -656,12 +665,15 @@ def run_eviction_suite(
                     zil_bin, zdir / "main.zil", z_out_dir / "app", z_cache,
                     opt=opt, cgu=cgu, jobs=jobs, tmp_json=tmp_json, env=env, extra_flags=extra_flags,
                 )
-                cb, cf = dir_stats(z_cache)
+                cb, _ = dir_stats(z_cache)
                 if cb > peak_cache_b:
                     peak_cache_b = cb
-                if cf < prev_files:
-                    evict_events += 1
-                prev_files = cf
+                ev_n = int(zr["cache_evicted_entries"])
+                if ev_n > 0:
+                    evict_rounds += 1
+                    evicted_entries_total += ev_n
+                    evicted_bytes_total += int(zr["cache_evicted_bytes"])
+                evict_ns_total += int(zr["cache_evict_ns"])
                 ms_val = float(zr["ms"])
                 ms_all.append(ms_val)
                 if rd <= window:
@@ -676,19 +688,24 @@ def run_eviction_suite(
             end_cb, end_cf = dir_stats(z_cache)
             end_tot, _ = dir_stats(z_out_dir)
             p95 = sorted(ms_all)[int(len(ms_all) * 0.95)]
+            evict_ms_total = evict_ns_total / 1e6
             print(
-                f"  {label:<20} | endCache={fmt_mb(end_cb)}({end_cf:4d}f) peak={fmt_mb(peak_cache_b)} "
-                f"tot={fmt_mb(end_tot)} | evicts={evict_events:2d} | "
-                f"first={statistics.median(ms_first):5.1f}ms last={statistics.median(ms_last):5.1f}ms "
-                f"p95={p95:5.1f}ms | last_hit={statistics.mean(hit_last):5.1f}% | "
+                f"  {label:<18} | end={fmt_mb(end_cb)}({end_cf:5d}f) peak={fmt_mb(peak_cache_b)} "
+                f"tot={fmt_mb(end_tot)} | evict={evicted_entries_total:4d} objs/{evict_rounds:2d} rds "
+                f"({evicted_bytes_total/(1024*1024):5.1f}MB, {evict_ms_total:5.1f}ms) | "
+                f"last={statistics.median(ms_last):5.1f}ms p95={p95:5.1f}ms | "
                 f"post_warm={warm['ms']:5.1f}ms (hit={100.0 - float(warm['miss_pct']):5.1f}%)"
             )
             out[label] = {
+                "budget_mb": cap_mb,
                 "end_cache_bytes": end_cb,
                 "end_cache_files": end_cf,
                 "peak_cache_bytes": peak_cache_b,
                 "end_total_bytes": end_tot,
-                "evict_events": evict_events,
+                "evict_rounds": evict_rounds,
+                "evicted_entries_total": evicted_entries_total,
+                "evicted_bytes_total": evicted_bytes_total,
+                "evict_ms_total": round(evict_ms_total, 2),
                 "first_median_ms": round(statistics.median(ms_first), 2),
                 "last_median_ms": round(statistics.median(ms_last), 2),
                 "p95_ms": round(p95, 2),
@@ -821,6 +838,10 @@ def main() -> None:
     ap.add_argument("--with-eviction", action="store_true")
     ap.add_argument("--evict-mods", type=int, default=100)
     ap.add_argument("--evict-max-mb", type=int, default=1)
+    ap.add_argument(
+        "--evict-budgets",
+        help="Optional comma-separated MB budgets for Experiment C (e.g. '0,16,32,64,128'); overrides --evict-max-mb",
+    )
     ap.add_argument("--with-multiprocess", action="store_true")
     ap.add_argument("--mp-workers", type=int, default=4)
     ap.add_argument("--mp-rounds", type=int, default=8)
@@ -854,8 +875,12 @@ def main() -> None:
             zil_bin, rustc_bin, args.disk_mods, args.rounds, args.opt, args.jobs, modes, args.extra, env
         )
     if args.with_eviction:
+        if args.evict_budgets:
+            budgets = [int(x) for x in args.evict_budgets.split(",") if x.strip()]
+        else:
+            budgets = [0, args.evict_max_mb]
         report["experiment_c_eviction"] = run_eviction_suite(
-            zil_bin, args.evict_mods, args.rounds, args.opt, args.jobs, args.evict_max_mb, env
+            zil_bin, args.evict_mods, args.rounds, args.opt, args.jobs, budgets, env
         )
     if args.with_multiprocess:
         report["experiment_d_multiprocess"] = run_multiprocess_suite(

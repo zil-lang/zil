@@ -55,12 +55,13 @@ pub fn emit_verified_body_for_target(
     Ok(units.pop().unwrap_or_default())
 }
 
-/// Partitions `verified` into `actual_units = requested_units.clamp(1, fn_count.max(1))`
+/// Partitions `verified` into `actual_units = requested_units.max(1)`
 /// independent LLVM 23 IR modules suitable for parallel per-unit object generation.
 ///
-/// Every unit defines its assigned functions (`fn_idx % actual_units == unit_idx`),
-/// emits external `declare` prototypes for functions assigned to other units, and
-/// emits `private` static byte constants so units link without symbol collisions.
+/// The CGU bucket space depends strictly on `requested_units` (never on total function
+/// count or unreachable dead functions) so adding/removing functions or modules never
+/// shifts existing modules' bucket assignments. Every unit emits only its referenced
+/// external `declare` prototypes and `private` SHA-256 static byte constants.
 /// The C `main()` wrapper (when requested) is emitted in unit 0.
 pub fn emit_verified_body_units(
     verified: &VerifiedModule,
@@ -103,7 +104,7 @@ pub fn emit_verified_body_units_with_entry_for_target(
     let module = verified.module();
     let is_windows = target_triple.contains("windows");
     let fn_count = module.functions.len();
-    let actual_units = requested_units.clamp(1, fn_count.max(1));
+    let actual_units = requested_units.max(1);
 
     // Precompute header (target triple, runtime decls, named types, private statics).
     let mut header = String::with_capacity(2048);

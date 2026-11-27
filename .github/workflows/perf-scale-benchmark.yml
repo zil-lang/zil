@@ -1,0 +1,112 @@
+name: Scale & Disk Benchmark (Manual)
+on:
+  workflow_dispatch:
+    inputs:
+      scales:
+        description: 'Comma-separated module counts for Experiment A'
+        required: false
+        default: '100,500,1000'
+      samples:
+        description: 'Paired samples per Experiment A scenario (median reported)'
+        required: false
+        default: '5'
+      disk_mods:
+        description: 'Module count for Experiment B/C multi-round disk & eviction'
+        required: false
+        default: '1000'
+      rounds:
+        description: 'Rounds for Experiment B/C'
+        required: false
+        default: '100'
+      evict_budgets:
+        description: 'Comma-separated MB budgets for Experiment C (0=uncapped)'
+        required: false
+        default: '0,16,32,64'
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Cache LLVM 23.1.4 runtime prefix
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/zil-llvm/23.1.4
+          key: zil-llvm-runtime-v1-${{ hashFiles('tools/llvm/release-linux-x86_64.json', 'tools/llvm/install.py') }}
+      - name: Install pinned LLVM 23.1.4 toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          LLVM_PREFIX="$HOME/.cache/zil-llvm/23.1.4"
+          if [ ! -f "$LLVM_PREFIX/install-receipt.json" ]; then
+            sudo apt-get update
+            sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+            rm -rf "$LLVM_PREFIX"
+            mkdir -p "$(dirname "$LLVM_PREFIX")"
+            python3 tools/llvm/install.py --prefix "$LLVM_PREFIX"
+            rm -f "$LLVM_PREFIX"/lib/libLLVM*.a
+          fi
+          echo "ZIL_CLANG=$LLVM_PREFIX/bin/clang" >> "$GITHUB_ENV"
+          echo "ZIL_LLVM_LIB_DIR=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$LLVM_PREFIX/lib" >> "$GITHUB_ENV"
+          echo "$LLVM_PREFIX/bin" >> "$GITHUB_PATH"
+      - name: Build release zil binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/target"
+          cargo build --locked --release -p zil-cli --features llvm-api
+          echo "ZIL_BIN=$RUNNER_TEMP/target/release/zil" >> "$GITHUB_ENV"
+      - name: Run O0, O2, Disk/LRU, and Multi-Process Benchmarks
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/perf-scale-artifacts"
+          mkdir -p "$OUT"
+          {
+            echo "Commit: ${{ github.sha }}"
+            python3 tools/bench_scale_and_disk.py \
+              --zil "$ZIL_BIN" \
+              --llvm-dir "$HOME/.cache/zil-llvm/23.1.4" \
+              --scales "${{ inputs.scales }}" \
+              --opt O0 \
+              --samples "${{ inputs.samples }}" \
+              --skip-disk \
+              --with-multiprocess \
+              --json-out "$OUT/scale_o0.json"
+
+            python3 tools/bench_scale_and_disk.py \
+              --zil "$ZIL_BIN" \
+              --llvm-dir "$HOME/.cache/zil-llvm/23.1.4" \
+              --scales "${{ inputs.scales }}" \
+              --opt O2 \
+              --samples "${{ inputs.samples }}" \
+              --skip-disk \
+              --json-out "$OUT/scale_o2.json"
+
+            python3 tools/bench_scale_and_disk.py \
+              --zil "$ZIL_BIN" \
+              --llvm-dir "$HOME/.cache/zil-llvm/23.1.4" \
+              --opt O0 \
+              --rounds "${{ inputs.rounds }}" \
+              --skip-scale \
+              --disk-mods "${{ inputs.disk_mods }}" \
+              --disk-modes edit_30pct_clustered \
+              --with-eviction \
+              --evict-mods "${{ inputs.disk_mods }}" \
+              --evict-budgets "${{ inputs.evict_budgets }}" \
+              --json-out "$OUT/disk_and_lru.json"
+          } | tee "$OUT/benchmark.log"
+      - name: Upload raw benchmark JSON artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-scale-benchmark-${{ github.sha }}
+          path: ${{ runner.temp }}/perf-scale-artifacts/
+          retention-days: 30
