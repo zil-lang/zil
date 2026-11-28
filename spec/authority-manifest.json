@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "rule_version": "ZIL-LANG-1.5",
+  "purpose": "Single machine-readable authority manifest separating language specification, compiler contracts, and validation contracts; tools/update-indexes.py and tools/check-plan.py derive normative_hash from this manifest.",
+  "tiers": {
+    "language_spec": [
+      "_zil_design.md",
+      "spec/README.md",
+      "spec/authority-manifest.json",
+      "spec/grammar.ebnf",
+      "spec/attributes.json",
+      "spec/diagnostics.json",
+      "spec/affine-mutex.md",
+      "spec/closure-receiver-borrows.md",
+      "spec/dyn-implementation-witnesses.md",
+      "spec/error-union-construction.md",
+      "spec/mutable-stored-holder.md",
+      "spec/ordinary-store-ownership.md",
+      "spec/ordinary-values-and-cleanup.md",
+      "spec/owned-dyn-storage.md",
+      "spec/pod-store-elements.md",
+      "spec/reserved-module-trait-names.md",
+      "spec/returned-capture-provenance.md",
+      "spec/semantic-scopes.md",
+      "spec/shared-dyn-dispatch.md",
+      "spec/store-growth.md",
+      "spec/task-owned-aggregates.md",
+      "spec/threaded-foreign-registration.md",
+      "spec/trait-method-lending.md"
+    ],
+    "compiler_contracts": [
+      "docs/architecture/compiler.md",
+      "policy/dependencies.json",
+      "spec/analysis-inventory-sharing.md",
+      "spec/interfaces.json",
+      "spec/semantic-kernel.md",
+      "spec/source-lowering.md"
+    ],
+    "validation_contracts": [
+      "validation/product-gates.json"
+    ]
+  }
+}

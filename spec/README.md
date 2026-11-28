@@ -13,16 +13,17 @@
 3. **产品验收与符合性（Validation & Conformance）**：[`validation/product-gates.json`](../validation/product-gates.json) 与 [`conformance/`](../conformance/index.json) 管理量化验收门槛与源码符合性用例，不替代语言规范正文。
 4. **说明性与指南文档（Decisions & Guides）**：[`docs/decisions/`](../docs/decisions/README.md) 与 [`docs/guide/`](../docs/guide/quickstart.md) 为非规范性说明与使用文档，不具有覆盖规范的效力。
 
-`data/normative-inputs.json`（由 `python3 tools/update-indexes.py` 维护）锁定核心规范与机器合同文件的 `normative_hash`。
+[`authority-manifest.json`](authority-manifest.json) 是机器可读的唯一权威文件清单（区分 `language_spec`、`compiler_contracts`、`validation_contracts` 三类）；`python3 tools/update-indexes.py` 从该清单确定性生成 [`data/normative-inputs.json`](../data/normative-inputs.json)（含分类哈希与总 `normative_hash`），并强制校验其与 [`interfaces.json`](interfaces.json) 的 `normative_inputs` 及本页索引严格一致。
 
 ---
 
 ## 一、语言规范机器可读附件（Language Normative Attachments）
 
-纳入 `normative_hash`，直接定义源语言文法、属性注册表与稳定诊断码。
+归属 `language_spec` 并纳入 `normative_hash`，直接定义源语言文法、属性注册表、权威清单与稳定诊断码。
 
 | 文件 | 权威范围 |
 | --- | --- |
+| [`authority-manifest.json`](authority-manifest.json) | 唯一机器可读权威文件清单（语言规范 / 编译器合同 / 验证合同三类划分） |
 | [`grammar.ebnf`](grammar.ebnf) | `ZIL-LANG-1.5` 规范性源语言文法产生式与词法终结符索引 |
 | [`attributes.json`](attributes.json) | 内建 `#[...]` 属性注册表、合法目标、消费阶段与重复规则 |
 | [`diagnostics.json`](diagnostics.json) | 稳定诊断码注册表与阶段/规范规则 ID 映射 |
@@ -31,7 +32,7 @@
 
 ## 二、编译器阶段与中段架构合同（Compiler Stage Contracts）
 
-纳入 `normative_hash`（其中 `analysis-inventory-sharing.md` 为中段共享表示细则），约束编译器内部架构，不改变源语言语义。
+归属 `compiler_contracts` 并全部纳入 `normative_hash`，约束编译器内部架构，不改变源语言语义。
 
 | 文件 | 合同范围 |
 | --- | --- |
@@ -44,7 +45,7 @@
 
 ## 三、主规范具名引用的语言细则附件（Referenced Language Sub-Specs）
 
-由 [`_zil_design.md`](../_zil_design.md) 正文显式引用，补充特定语言特性在细粒度边界下的行为与拒绝条件：
+归属 `language_spec` 并全部纳入 `normative_hash`，由 [`_zil_design.md`](../_zil_design.md) 正文显式引用，补充特定语言特性在细粒度边界下的行为与拒绝条件：
 
 | 文件 | 所属主规范规则 | 主题 |
 | --- | --- | --- |
