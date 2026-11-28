@@ -1076,6 +1076,7 @@ impl CompilationSession {
         // candidate MUST pass fresh `verify_ct_original_definitions` (above), fresh
         // `check_fidelity`, AND fresh `check_module` (`verification_runs == 1`).
         let mut verified_from_semantic_cache: Option<zil_check::VerifiedModule> = None;
+        let mut semantic_cache_poisoned = false;
         if options.stop_after >= Stage::Verify {
             let mem_candidate = self
                 .semantic_snapshots
@@ -1131,19 +1132,29 @@ impl CompilationSession {
                             verified_from_semantic_cache = Some(v);
                         }
                         Err(_) => {
-                            self.semantic_snapshots.retain(|s| s.key != program_sem_key);
+                            semantic_cache_poisoned = true;
+                            self.semantic_snapshots.retain(|s| {
+                                s.key != program_sem_key && s.scope_key != inc_scope_key
+                            });
                             if let Some(dir) = options.semantic_cache.as_deref() {
                                 semantic_cache::remove_disk_semantic_candidate(
                                     dir,
                                     program_sem_key,
                                 );
+                                semantic_cache::remove_disk_incremental_baseline(
+                                    dir,
+                                    inc_scope_key,
+                                );
                             }
                         }
                     }
                 } else {
-                    self.semantic_snapshots.retain(|s| s.key != program_sem_key);
+                    semantic_cache_poisoned = true;
+                    self.semantic_snapshots
+                        .retain(|s| s.key != program_sem_key && s.scope_key != inc_scope_key);
                     if let Some(dir) = options.semantic_cache.as_deref() {
                         semantic_cache::remove_disk_semantic_candidate(dir, program_sem_key);
+                        semantic_cache::remove_disk_incremental_baseline(dir, inc_scope_key);
                     }
                 }
             }
@@ -1195,25 +1206,33 @@ impl CompilationSession {
             };
 
             // Fast-Path B: look for an incremental baseline (in-RAM session first,
-            // then disk `base-<scope>.zbase` when `--semantic-cache DIR` is active).
-            let mem_baseline = self
-                .semantic_snapshots
-                .iter()
-                .rev()
-                .find(|s| s.scope_key == inc_scope_key && !s.dep_records.is_empty())
-                .map(|s| {
-                    (
-                        s.dep_records.clone(),
-                        s.module.clone(),
-                        s.source_map.clone(),
-                        s.cert.clone(),
-                    )
-                });
-            let baseline = mem_baseline.or_else(|| {
-                options.semantic_cache.as_deref().and_then(|dir| {
-                    semantic_cache::read_disk_incremental_baseline(dir, inc_scope_key)
+            // then disk `base-<scope>.zbase` when `--semantic-cache DIR` is active),
+            // unless Fast-Path A just detected a tampered/forged candidate.
+            let mem_baseline = if semantic_cache_poisoned {
+                None
+            } else {
+                self.semantic_snapshots
+                    .iter()
+                    .rev()
+                    .find(|s| s.scope_key == inc_scope_key && !s.dep_records.is_empty())
+                    .map(|s| {
+                        (
+                            s.dep_records.clone(),
+                            s.module.clone(),
+                            s.source_map.clone(),
+                            s.cert.clone(),
+                        )
+                    })
+            };
+            let baseline = if semantic_cache_poisoned {
+                None
+            } else {
+                mem_baseline.or_else(|| {
+                    options.semantic_cache.as_deref().and_then(|dir| {
+                        semantic_cache::read_disk_incremental_baseline(dir, inc_scope_key)
+                    })
                 })
-            });
+            };
 
             let mut used_incremental = false;
             let mut lowered =
