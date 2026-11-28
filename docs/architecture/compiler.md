@@ -80,10 +80,10 @@ Syntax → CoreAST → TypedCFG / Body IR → 候选证书（Solve） → Verifi
 查询演进目标为：文件 `Parse` → 声明形状与导出 → 单项类型/合同 → 递归 SCC → 单函数候选/核验 → 实例/LIR/CGU。当前已实现：
 
 - **常驻 AST 解析缓存**：`CompilationSession` 以完整 `ParseCacheKey { text_fp, file_id, module_id, max_source_bytes, max_tokens, max_nodes, max_call_depth }` 为键，避免同文本不同文件/模块身份串用或放宽限额误命中；一次性 CLI 使用 `CompilationSession::ephemeral()`（`capacity = 0`）避免多余 AST/IR 克隆。
-- **可信本地语义候选缓存（`--semantic-cache DIR`）与常驻会话（`--resident`）**：
-  - 缓存键（`zil-sem-cache-v2`）绑定显式 `SEMANTIC_CACHE_ABI_VERSION`、`CARGO_PKG_VERSION`、`WIRE_VERSION`、`TargetProfile`、`Limits` 与完整模块源图指纹，以 `ZSEM` + SHA-256 封装保存整程序 `(Module, SourceMap, Certificate)` 候选（滚动上限 8 份快照）；常驻会话额外维护内存逐函数 `CertificateCache` 复用未变函数的 Solve 证书。
-  - **严格信任边界**：`--semantic-cache DIR` 与 `--object-cache DIR`、`rustc -C incremental` 属于同一**可信本地构建缓存**模型。每次命中仍强制执行新鲜 `verify_ct_original_definitions`、`check_fidelity` 与 `check_module`（`verification_runs == 1`），绝不绕过内存/借用/协议安全验证；损坏或无效证书候选自动清除并回退完整重建。因 `check_fidelity` 不重跑全部纯常量表达式类型检查，不得将该目录暴露给不可信远端写入者。
-- **下一阶段目标**：在现有整程序语义快照与逐函数 Solve 证书复用基础上，推进按模块导出签名指纹驱动的**模块级增量 `typeck`**。
+- **可信本地语义候选缓存（`--semantic-cache DIR`）与模块级增量 `typeck`（`ZBAS` + `FnRemapper`）**：
+  - **整程序快照（`zil-sem-cache-v2`，`ZSEM`）**：绑定显式 `SEMANTIC_CACHE_ABI_VERSION = 2`、`CARGO_PKG_VERSION`、`WIRE_VERSION`、`TargetProfile`、`Limits` 与完整模块源图指纹，以 SHA-256 封装保存整程序 `(Module, SourceMap, Certificate)` 候选（滚动上限 8 份快照）。
+  - **导出签名依赖图与跨编辑增量基线（`ZBAS`）**：对每模块计算与行号/字节偏移无关的导出签名指纹 `export_sig_fp`、全局 trait/impl/extern 一致性指纹 `global_coherence_fp` 与传递导入接口指纹 `dep_iface_fp`；未变模块通过事务性 `FnRemapper` 直接把基线的 Body IR、`FunctionSourceMap` 与候选 `FunctionCertificate` 重映射到当前 `Module`（免疫增删函数引发的 `FnId`/`TyTable` 偏移），在常驻会话（`--resident`）与一次性 CLI（`--semantic-cache`）中共同跳过未变模块的 `infer_fn`、`Mono::lower_fn`、`drop_elab` 与 `solve_function`。
+  - **严格信任边界**：`--semantic-cache DIR` 与 `--object-cache DIR`、`rustc -C incremental` 属于同一**可信本地构建缓存**模型。每次命中仍强制执行新鲜 `verify_ct_original_definitions`、`check_fidelity` 与 `check_module`（`verification_runs == 1`），绝不绕过内存/借用/协议安全验证；任何 `.zsem`/`.zbase` 损坏、篡改或核验失败都会清除对应范围缓存并自动回退完整源码重建。因 `check_fidelity` 不重跑全部纯常量表达式类型检查，不得将该目录暴露给不可信远端写入者。
 
 ### 3.2 稳定编译身份与结构化 CGU
 
@@ -96,7 +96,7 @@ Syntax → CoreAST → TypedCFG / Body IR → 候选证书（Solve） → Verifi
 
 验证授权（`VerifiedModule`）、对象码复用键（action key）与产物内容哈希三者不可互换：
 
-- **对象缓存（`--object-cache DIR`，`zil-obj-cache-v4`）**：先完成当前请求新鲜 `zil-check`，再按包含规范化单元 IR、显式 `OBJECT_CACHE_CODEGEN_ABI`、`LLVM_VERSION`、优化与目标配置的 SHA-256 键查找对象；采用私有 `.stage-<pid>-<seq>` 硬链接快照防跨进程竞态，先发布 `.meta` 再原子发布 `.o/.obj`，读取时核验 SHA-256 与 ELF/COFF 魔数并自动自愈损坏项；默认 `32 MiB` 最佳努力软 LRU 预算（`--object-cache-max-mb`，始终保留当前活跃构建对象）。
+- **直接 Body-IR 对象缓存（`--object-cache DIR`，`zil-obj-cache-v5-body`）**：先完成当前请求新鲜 `zil-check`，再在发射任何 LLVM IR 前直接对每 CGU 的规范结构化 Body IR 切片计算 SHA-256 键（绑定 `OBJECT_CACHE_CODEGEN_ABI = 2`、`LLVM_VERSION`、优化与目标配置，免疫无关模块 `FnId`/`TyId` 偏移）并并行探测缓存；命中 CGU 零 IR 发射、零模型构建、零 LLVM 调用，仅脏 CGU 延迟发射 IR 并通过每工作线程复用的 `WorkerSession`（复用 `LLVMTargetMachine`/`TargetData`/`PassBuilderOptions`，每 CGU 独立 `LLVMContext`/`LLVMModule`）编译。采用私有 `.stage-<pid>-<seq>` 硬链接快照防跨进程竞态，先发布 `.meta` 再原子发布 `.o/.obj`，读取时核验 SHA-256 与 ELF/COFF 魔数并自动自愈损坏项；默认 `32 MiB` 最佳努力软 LRU 预算（`--object-cache-max-mb`，始终保留当前活跃构建对象）。
 - **链接指纹跳过（`zil-link-v2`）**：全部单元缓存命中且无额外 C 源文件时，按编译器版本、`OBJECT_CACHE_CODEGEN_ABI`、`LLVM_VERSION`、目标/优化标志、全部单元键以及工具链二进制元数据身份（`clang`、同级 `ld.lld`、`windows.linker` 与 `import_libraries` 的规范路径、文件大小、mtime 及 Unix `dev`/`ino`）计算链接键；仅在输出文件存在且 SHA-256 与滚动侧车 `.link.<out_hash>.meta` 一致时跳过冗余链接，产物被删除/篡改或工具链原地升级后自动重链。
 
 ---

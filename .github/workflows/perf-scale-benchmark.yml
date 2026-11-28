@@ -82,6 +82,8 @@ jobs:
               --with-multiprocess \
               --with-generics \
               --with-frontend-cache \
+              --with-realistic-dag \
+              --dag-mods 500 \
               --json-out "$OUT/scale_o0.json"
 
             python3 tools/bench_scale_and_disk.py \
@@ -92,6 +94,8 @@ jobs:
               --samples "${{ inputs.samples }}" \
               --skip-disk \
               --with-generics \
+              --with-realistic-dag \
+              --dag-mods 500 \
               --json-out "$OUT/scale_o2.json"
 
             python3 tools/bench_scale_and_disk.py \

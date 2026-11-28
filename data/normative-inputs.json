@@ -4,12 +4,12 @@
   "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
   "tier_hashes": {
     "language_spec": "492885a1f2f6b0efe38959239dc5da0aa27b8ba348059fb98d7250121d0df7d0",
-    "compiler_contracts": "7b826ef8d8b7cd80e1ddda4a74b08e3fb326d1ffb10654f11ca9fe11800a2686",
+    "compiler_contracts": "d06406f10c2e145063fd044f49de10e757d685845d5748a86683961e32fc888e",
     "validation_contracts": "854f3e77804d0dc997ab166dc6e904d55e9ba1a79320a93267c3492955e713d2"
   },
   "files": {
     "_zil_design.md": "0bce680402ec3f9aa6e997665a3bf9590364576ce5dd444131cea8c57192fa8f",
-    "docs/architecture/compiler.md": "219c19054c100c3a2a9b3e0a457f925b2570aa33e96bd85c6b0373bce1bba28e",
+    "docs/architecture/compiler.md": "fcb42bf1d244ae0b3ec2c12c230b5f11f2d8ec0621edfbaafe9b2755fc9351b9",
     "policy/dependencies.json": "6efd6b0e7a3480950b195fafc14794ef9286885acfeae756afde07d184962dc4",
     "spec/README.md": "654e69e980c36609b73b85f4e6eeb08b95e4b276b68ce38c8ba6a3536f038ace",
     "spec/affine-mutex.md": "b1b58791ed113881a3d7c927b8360e1dcb662eec34527260e074e71106c5edee",
@@ -39,5 +39,5 @@
     "spec/trait-method-lending.md": "4d2fa0f9e57e8fbe89df84de8eb0e3ae06fcd8a59c7f36f120d32b8bd28dce55",
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
   },
-  "normative_hash": "057108a4b658bed89bf7cefef4f327088cefb4bbb5b8ec1150ed372a5e9b5bce"
+  "normative_hash": "9277cc5482d06ceb80e38d248b5c8036c47bccebda2e9148a5b287e074679a61"
 }
