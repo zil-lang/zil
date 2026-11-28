@@ -9626,7 +9626,21 @@ pub(crate) fn compute_suspend_flags(
     types: &Types,
     thir: &[Option<ThirFn>],
 ) -> (Vec<bool>, Vec<Vec<bool>>) {
+    compute_suspend_flags_with_seeds(items, types, thir, &[])
+}
+
+pub(crate) fn compute_suspend_flags_with_seeds(
+    items: &Items<'_>,
+    types: &Types,
+    thir: &[Option<ThirFn>],
+    seeded_fn_susp: &[bool],
+) -> (Vec<bool>, Vec<Vec<bool>>) {
     let mut fn_susp = vec![false; thir.len()];
+    for (i, &seeded) in seeded_fn_susp.iter().enumerate() {
+        if i < fn_susp.len() && seeded {
+            fn_susp[i] = true;
+        }
+    }
     let mut cl_susp: Vec<Vec<bool>> = thir
         .iter()
         .map(|f| vec![false; f.as_ref().map_or(0, |t| t.closures.len())])
@@ -9660,6 +9674,16 @@ pub fn check_defer_suspend_effects(
     items: &Items<'_>,
     types: &Types,
     thir: &[Option<ThirFn>],
+    diags: &mut Vec<Diagnostic>,
+) {
+    check_defer_suspend_effects_with_seeds(items, types, thir, &[], diags);
+}
+
+pub(crate) fn check_defer_suspend_effects_with_seeds(
+    items: &Items<'_>,
+    types: &Types,
+    thir: &[Option<ThirFn>],
+    seeded_fn_susp: &[bool],
     diags: &mut Vec<Diagnostic>,
 ) {
     fn check_defer_expr(
@@ -9956,7 +9980,7 @@ pub fn check_defer_suspend_effects(
         }
     }
 
-    let (fn_susp, cl_susp) = compute_suspend_flags(items, types, thir);
+    let (fn_susp, cl_susp) = compute_suspend_flags_with_seeds(items, types, thir, seeded_fn_susp);
 
     for tf in thir.iter().flatten() {
         walk_for_defers(&tf.body, items, types, &fn_susp, &cl_susp, diags);

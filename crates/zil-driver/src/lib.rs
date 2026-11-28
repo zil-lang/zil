@@ -32,7 +32,7 @@ use zil_base::{
     SourceUnit, Span, TargetProfile, json_string,
 };
 use zil_check::{CheckBudget, check_fidelity, check_module};
-use zil_solve::{Budget as SolveBudget, CertCacheKey, solve_module, solve_module_with_cache};
+use zil_solve::{Budget as SolveBudget, CertCacheKey, solve_module};
 use zil_syntax::parse_with_limits;
 use zil_typeck::{Limits as TypeckLimits, ModuleInput, lower_program};
 
@@ -276,6 +276,9 @@ pub struct CompileReport {
     pub disk_cache: DiskCacheStatus,
     pub query_events: Vec<QueryEvent>,
     pub verification_runs: usize,
+    pub reused_typeck_fns: usize,
+    pub total_typeck_fns: usize,
+    pub reused_cert_fns: usize,
     pub source_files: BTreeMap<FileId, String>,
 }
 
@@ -294,13 +297,16 @@ impl CompileReport {
             disk_cache: DiskCacheStatus::Disabled,
             query_events: Vec::new(),
             verification_runs: 0,
+            reused_typeck_fns: 0,
+            total_typeck_fns: 0,
+            reused_cert_fns: 0,
             source_files: BTreeMap::from([(source.file_id, source.path.clone())]),
         }
     }
 
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"source_files\":{{{}}}}}",
+            "{{\"status\":{},\"phase\":{},\"diagnostics\":[{}],\"artifacts\":{{{}}},\"input_fingerprint\":{},\"seconds\":{},\"cache_hit\":{},\"commands\":[{}],\"native_codegen\":{},\"disk_cache\":{},\"query_events\":[{}],\"verification_runs\":{},\"reused_typeck_fns\":{},\"total_typeck_fns\":{},\"reused_cert_fns\":{},\"source_files\":{{{}}}}}",
             json_string(self.status.as_str()),
             json_string(self.phase.as_str()),
             self.diagnostics
@@ -346,6 +352,9 @@ impl CompileReport {
                 .collect::<Vec<_>>()
                 .join(","),
             self.verification_runs,
+            self.reused_typeck_fns,
+            self.total_typeck_fns,
+            self.reused_cert_fns,
             self.source_files
                 .iter()
                 .map(|(file, path)| format!(
@@ -361,6 +370,8 @@ impl CompileReport {
 
 struct SemanticSnapshot {
     key: Fingerprint,
+    scope_key: Fingerprint,
+    dep_records: Vec<zil_typeck::ModuleDepRecord>,
     module: zil_ir::body::Module,
     source_map: zil_ir::body::SourceMap,
     cert: zil_ir::body::Certificate,
@@ -480,6 +491,8 @@ impl CompilationSession {
     fn store_semantic_snapshot(
         &mut self,
         key: Fingerprint,
+        scope_key: Fingerprint,
+        dep_records: Vec<zil_typeck::ModuleDepRecord>,
         module: zil_ir::body::Module,
         source_map: zil_ir::body::SourceMap,
         cert: zil_ir::body::Certificate,
@@ -490,6 +503,8 @@ impl CompilationSession {
         }
         self.semantic_snapshots.push_back(SemanticSnapshot {
             key,
+            scope_key,
+            dep_records,
             module,
             source_map,
             cert,
@@ -513,6 +528,9 @@ impl CompilationSession {
                     disk_cache: DiskCacheStatus::Disabled,
                     query_events: Vec::new(),
                     verification_runs: 0,
+                    reused_typeck_fns: 0,
+                    total_typeck_fns: 0,
+                    reused_cert_fns: 0,
                     source_files: BTreeMap::from([(
                         FileId(0),
                         path.to_string_lossy().into_owned(),
@@ -643,13 +661,17 @@ impl CompilationSession {
         // Recursively discover imported modules when compiling from a filesystem path.
         struct LoadedMod {
             logical_path: String,
+            file_id: u32,
             fingerprint: Fingerprint,
+            text: String,
             ast: zil_syntax::ast::Module,
             imports: Vec<(String, zil_check::ct_original::CtOriginalImportTarget)>,
         }
         let mut loaded: Vec<LoadedMod> = vec![LoadedMod {
             logical_path: String::new(),
+            file_id: source.file_id.0,
             fingerprint: source.fingerprint(),
+            text: source.text.clone(),
             ast: entry_ast,
             imports: Vec::new(),
         }];
@@ -869,7 +891,9 @@ impl CompilationSession {
                     };
                     loaded.push(LoadedMod {
                         logical_path: logical,
+                        file_id: mod_unit.file_id.0,
                         fingerprint: mod_unit.fingerprint(),
+                        text: mod_unit.text,
                         ast: mod_ast,
                         imports: Vec::new(),
                     });
@@ -968,7 +992,9 @@ impl CompilationSession {
                     };
                     loaded.push(LoadedMod {
                         logical_path: logical,
+                        file_id: mod_unit.file_id.0,
                         fingerprint: keys[i].text_fp,
+                        text: mod_unit.text,
                         ast: mod_ast,
                         imports: Vec::new(),
                     });
@@ -1042,33 +1068,48 @@ impl CompilationSession {
             .collect();
         let program_sem_key =
             semantic_cache::program_semantic_key(&mod_fps, &options.target, &options.limits);
+        let inc_scope_key =
+            semantic_cache::baseline_scope_key(&source.path, &options.target, &options.limits);
 
-        // Fast-Path A: consult untrusted semantic candidate cache (in-memory session
-        // first, then explicit `--semantic-cache DIR`). Any cached candidate MUST
-        // pass fresh `verify_ct_original_definitions` (above), fresh `check_fidelity`,
-        // AND fresh `check_module` (`verification_runs == 1`); on any corruption or
-        // verification mismatch, purge and fall through to fresh build.
+        // Fast-Path A: consult trusted-local whole-program semantic candidate cache
+        // (in-memory session first, then explicit `--semantic-cache DIR`). Any cached
+        // candidate MUST pass fresh `verify_ct_original_definitions` (above), fresh
+        // `check_fidelity`, AND fresh `check_module` (`verification_runs == 1`).
         let mut verified_from_semantic_cache: Option<zil_check::VerifiedModule> = None;
         if options.stop_after >= Stage::Verify {
             let mem_candidate = self
                 .semantic_snapshots
                 .iter()
                 .find(|s| s.key == program_sem_key)
-                .map(|s| (s.module.clone(), s.source_map.clone(), s.cert.clone()));
+                .map(|s| {
+                    (
+                        s.dep_records.clone(),
+                        s.module.clone(),
+                        s.source_map.clone(),
+                        s.cert.clone(),
+                    )
+                });
             let from_disk = mem_candidate.is_none();
             let candidate = mem_candidate.or_else(|| {
                 options.semantic_cache.as_deref().and_then(|dir| {
                     semantic_cache::read_disk_semantic_candidate(dir, program_sem_key)
+                        .map(|(m, sm, c)| (Vec::new(), m, sm, c))
                 })
             });
-            if let Some((cand_mod, cand_smap, cand_cert)) = candidate {
+            if let Some((cand_deps, cand_mod, cand_smap, cand_cert)) = candidate {
                 let fidelity_ok = check_fidelity(&cand_mod, &cand_smap, &ast_refs).is_ok();
                 if fidelity_ok {
                     match check_module(cand_mod, &cand_cert, CheckBudget { steps: 1_000_000 }) {
                         Ok(v) => {
+                            let fn_cnt = v.module().functions.len();
+                            report.reused_typeck_fns = fn_cnt;
+                            report.total_typeck_fns = fn_cnt;
+                            report.reused_cert_fns = fn_cnt;
                             if from_disk && self.capacity > 0 {
                                 self.store_semantic_snapshot(
                                     program_sem_key,
+                                    inc_scope_key,
+                                    cand_deps,
                                     v.module().clone(),
                                     cand_smap,
                                     cand_cert,
@@ -1119,40 +1160,193 @@ impl CompilationSession {
                     ast: &m.ast,
                 })
                 .collect();
-            let lowered = match lower_program(&mod_inputs, TypeckLimits::default(), Some(&mut ct)) {
-                Ok(l) => l,
-                Err(diags) => {
-                    report.phase = Phase::Types;
-                    report.status = highest_category(&diags);
-                    report.diagnostics = diags;
-                    report.seconds = start.elapsed().as_secs_f64();
-                    return report;
-                }
+
+            // Compute export-signature dependency records when incremental reuse
+            // (in-RAM resident session or explicit `--semantic-cache DIR`) is active.
+            let inc_enabled = self.capacity > 0 || options.semantic_cache.is_some();
+            let curr_dep_records = if inc_enabled {
+                let file_ids: Vec<u32> = loaded.iter().map(|m| m.file_id).collect();
+                let text_fps: Vec<Fingerprint> = loaded.iter().map(|m| m.fingerprint).collect();
+                let source_texts: Vec<&str> = loaded.iter().map(|m| m.text.as_str()).collect();
+                let import_edges: Vec<Vec<usize>> = loaded
+                    .iter()
+                    .map(|m| {
+                        m.imports
+                            .iter()
+                            .filter_map(|(_, tgt)| match tgt {
+                                zil_check::ct_original::CtOriginalImportTarget::Module(mid) => {
+                                    Some(mid.0 as usize)
+                                }
+                                zil_check::ct_original::CtOriginalImportTarget::Meta
+                                | zil_check::ct_original::CtOriginalImportTarget::Syntax => None,
+                            })
+                            .collect()
+                    })
+                    .collect();
+                zil_typeck::compute_module_dep_records(
+                    &mod_inputs,
+                    &file_ids,
+                    &text_fps,
+                    &source_texts,
+                    &import_edges,
+                )
+            } else {
+                Vec::new()
             };
 
+            // Fast-Path B: look for an incremental baseline (in-RAM session first,
+            // then disk `base-<scope>.zbase` when `--semantic-cache DIR` is active).
+            let mem_baseline = self
+                .semantic_snapshots
+                .iter()
+                .rev()
+                .find(|s| s.scope_key == inc_scope_key && !s.dep_records.is_empty())
+                .map(|s| {
+                    (
+                        s.dep_records.clone(),
+                        s.module.clone(),
+                        s.source_map.clone(),
+                        s.cert.clone(),
+                    )
+                });
+            let baseline = mem_baseline.or_else(|| {
+                options.semantic_cache.as_deref().and_then(|dir| {
+                    semantic_cache::read_disk_incremental_baseline(dir, inc_scope_key)
+                })
+            });
+
+            let mut used_incremental = false;
+            let mut lowered =
+                if let Some((ref base_recs, ref base_mod, ref base_smap, ref base_cert)) = baseline
+                {
+                    let reusable =
+                        zil_typeck::compute_reusable_modules(&curr_dep_records, base_recs);
+                    if !reusable.is_empty() {
+                        match zil_typeck::lower_program_incremental(
+                            &mod_inputs,
+                            TypeckLimits::default(),
+                            Some(&mut ct),
+                            Some(zil_typeck::IncrementalBaseline {
+                                prev_module: base_mod,
+                                prev_source_map: base_smap,
+                                prev_cert: Some(base_cert),
+                                reusable_modules: &reusable,
+                            }),
+                        ) {
+                            Ok(l) => {
+                                used_incremental = l.reused_fns > 0;
+                                l
+                            }
+                            Err(_) => {
+                                // Fail-closed: if incremental lowering errored, purge baseline
+                                // and run full fresh `lower_program` for exact diagnostics.
+                                self.semantic_snapshots
+                                    .retain(|s| s.scope_key != inc_scope_key);
+                                if let Some(dir) = options.semantic_cache.as_deref() {
+                                    semantic_cache::remove_disk_incremental_baseline(
+                                        dir,
+                                        inc_scope_key,
+                                    );
+                                }
+                                match lower_program(
+                                    &mod_inputs,
+                                    TypeckLimits::default(),
+                                    Some(&mut ct),
+                                ) {
+                                    Ok(l) => l,
+                                    Err(diags) => {
+                                        report.phase = Phase::Types;
+                                        report.status = highest_category(&diags);
+                                        report.diagnostics = diags;
+                                        report.seconds = start.elapsed().as_secs_f64();
+                                        return report;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        match lower_program(&mod_inputs, TypeckLimits::default(), Some(&mut ct)) {
+                            Ok(l) => l,
+                            Err(diags) => {
+                                report.phase = Phase::Types;
+                                report.status = highest_category(&diags);
+                                report.diagnostics = diags;
+                                report.seconds = start.elapsed().as_secs_f64();
+                                return report;
+                            }
+                        }
+                    }
+                } else {
+                    match lower_program(&mod_inputs, TypeckLimits::default(), Some(&mut ct)) {
+                        Ok(l) => l,
+                        Err(diags) => {
+                            report.phase = Phase::Types;
+                            report.status = highest_category(&diags);
+                            report.diagnostics = diags;
+                            report.seconds = start.elapsed().as_secs_f64();
+                            return report;
+                        }
+                    }
+                };
+
             if options.stop_after <= Stage::Types {
+                report.reused_typeck_fns = lowered.reused_fns;
+                report.total_typeck_fns = lowered.total_root_fns;
                 report.phase = Phase::Types;
                 report.seconds = start.elapsed().as_secs_f64();
                 return report;
             }
 
             if let Err(e) = check_fidelity(&lowered.module, &lowered.source_map, &ast_refs) {
-                report.phase = Phase::Verify;
-                report.status = ResultCategory::SafeReject;
-                report.diagnostics.push(Diagnostic::error(
-                    Phase::Verify,
-                    "E-SOURCE-FIDELITY",
-                    None,
-                    format!("fidelity check failed in {:?}: {}", e.function, e.reason),
-                ));
-                report.seconds = start.elapsed().as_secs_f64();
-                return report;
+                if used_incremental {
+                    // Fail-closed fallback: purge baseline and re-lower freshly.
+                    used_incremental = false;
+                    self.semantic_snapshots
+                        .retain(|s| s.scope_key != inc_scope_key);
+                    if let Some(dir) = options.semantic_cache.as_deref() {
+                        semantic_cache::remove_disk_incremental_baseline(dir, inc_scope_key);
+                    }
+                    lowered =
+                        match lower_program(&mod_inputs, TypeckLimits::default(), Some(&mut ct)) {
+                            Ok(l) => l,
+                            Err(diags) => {
+                                report.phase = Phase::Types;
+                                report.status = highest_category(&diags);
+                                report.diagnostics = diags;
+                                report.seconds = start.elapsed().as_secs_f64();
+                                return report;
+                            }
+                        };
+                    if let Err(e2) = check_fidelity(&lowered.module, &lowered.source_map, &ast_refs)
+                    {
+                        report.phase = Phase::Verify;
+                        report.status = ResultCategory::SafeReject;
+                        report.diagnostics.push(Diagnostic::error(
+                            Phase::Verify,
+                            "E-SOURCE-FIDELITY",
+                            None,
+                            format!("fidelity check failed in {:?}: {}", e2.function, e2.reason),
+                        ));
+                        report.seconds = start.elapsed().as_secs_f64();
+                        return report;
+                    }
+                } else {
+                    report.phase = Phase::Verify;
+                    report.status = ResultCategory::SafeReject;
+                    report.diagnostics.push(Diagnostic::error(
+                        Phase::Verify,
+                        "E-SOURCE-FIDELITY",
+                        None,
+                        format!("fidelity check failed in {:?}: {}", e.function, e.reason),
+                    ));
+                    report.seconds = start.elapsed().as_secs_f64();
+                    return report;
+                }
             }
 
-            // Fast-Path B: in resident/reused sessions, consult in-RAM per-function
-            // candidate certificate cache during solving. Cached certificates are
-            // untrusted; if fresh `check_module` rejects when any cached cert was
-            // used, purge and re-solve cleanly without cache.
+            // Fast-Path C: reuse pre-remapped candidate certificates from `lowered.reused_certs`
+            // (immune to `FnId`/`TyTable` shifts across edits!) and optionally consult the
+            // in-memory `SessionCertCache` for any remaining unchanged functions.
             let cert_cache = semantic_cache::SessionCertCache::new(&self.fn_cert_cache);
             let use_cert_cache = !self.semantic_snapshots.is_empty();
             if use_cert_cache
@@ -1161,9 +1355,11 @@ impl CompilationSession {
             {
                 zil_solve::seed_certificate_cache(&prev.module, &prev.cert, &cert_cache);
             }
-            let (mut cert, cert_hits) = match solve_module_with_cache(
+
+            let (mut cert, mut cert_hits) = match zil_solve::solve_module_with_prebuilt_and_cache(
                 &lowered.module,
                 SolveBudget { steps: 1_000_000 },
+                &lowered.reused_certs,
                 if use_cert_cache {
                     Some(&cert_cache)
                 } else {
@@ -1172,26 +1368,68 @@ impl CompilationSession {
             ) {
                 Ok(pair) => pair,
                 Err(e) => {
-                    report.phase = Phase::Analyze;
-                    report.status = ResultCategory::SafeReject;
-                    report.diagnostics.push(Diagnostic::error(
-                        Phase::Analyze,
-                        "E-SAFETY-SOLVE",
-                        None,
-                        format!("solver rejected: {e:?}"),
-                    ));
-                    report.seconds = start.elapsed().as_secs_f64();
-                    return report;
+                    if used_incremental {
+                        used_incremental = false;
+                        cert_cache.purge_all();
+                        self.semantic_snapshots
+                            .retain(|s| s.scope_key != inc_scope_key);
+                        if let Some(dir) = options.semantic_cache.as_deref() {
+                            semantic_cache::remove_disk_incremental_baseline(dir, inc_scope_key);
+                        }
+                        lowered = match lower_program(
+                            &mod_inputs,
+                            TypeckLimits::default(),
+                            Some(&mut ct),
+                        ) {
+                            Ok(l) => l,
+                            Err(diags) => {
+                                report.phase = Phase::Types;
+                                report.status = highest_category(&diags);
+                                report.diagnostics = diags;
+                                report.seconds = start.elapsed().as_secs_f64();
+                                return report;
+                            }
+                        };
+                        match solve_module(&lowered.module, SolveBudget { steps: 1_000_000 }) {
+                            Ok(fresh_cert) => (fresh_cert, 0),
+                            Err(se) => {
+                                report.phase = Phase::Analyze;
+                                report.status = ResultCategory::SafeReject;
+                                report.diagnostics.push(Diagnostic::error(
+                                    Phase::Analyze,
+                                    "E-SAFETY-SOLVE",
+                                    None,
+                                    format!("solver rejected: {se:?}"),
+                                ));
+                                report.seconds = start.elapsed().as_secs_f64();
+                                return report;
+                            }
+                        }
+                    } else {
+                        report.phase = Phase::Analyze;
+                        report.status = ResultCategory::SafeReject;
+                        report.diagnostics.push(Diagnostic::error(
+                            Phase::Analyze,
+                            "E-SAFETY-SOLVE",
+                            None,
+                            format!("solver rejected: {e:?}"),
+                        ));
+                        report.seconds = start.elapsed().as_secs_f64();
+                        return report;
+                    }
                 }
             };
 
             if options.stop_after <= Stage::Analyze {
+                report.reused_typeck_fns = lowered.reused_fns;
+                report.total_typeck_fns = lowered.total_root_fns;
+                report.reused_cert_fns = cert_hits;
                 report.phase = Phase::Analyze;
                 report.seconds = start.elapsed().as_secs_f64();
                 return report;
             }
 
-            let lowered_for_fallback = if cert_hits > 0 {
+            let lowered_for_fallback = if cert_hits > 0 || used_incremental {
                 Some(lowered.module.clone())
             } else {
                 None
@@ -1202,11 +1440,42 @@ impl CompilationSession {
                     Err(e) => {
                         if let Some(fallback_mod) = lowered_for_fallback {
                             cert_cache.purge_all();
-                            match solve_module(&fallback_mod, SolveBudget { steps: 1_000_000 }) {
+                            let fresh_mod = if used_incremental {
+                                self.semantic_snapshots
+                                    .retain(|s| s.scope_key != inc_scope_key);
+                                if let Some(dir) = options.semantic_cache.as_deref() {
+                                    semantic_cache::remove_disk_incremental_baseline(
+                                        dir,
+                                        inc_scope_key,
+                                    );
+                                }
+                                match lower_program(
+                                    &mod_inputs,
+                                    TypeckLimits::default(),
+                                    Some(&mut ct),
+                                ) {
+                                    Ok(l) => {
+                                        lowered.source_map = l.source_map;
+                                        lowered.reused_fns = 0;
+                                        l.module
+                                    }
+                                    Err(diags) => {
+                                        report.phase = Phase::Types;
+                                        report.status = highest_category(&diags);
+                                        report.diagnostics = diags;
+                                        report.seconds = start.elapsed().as_secs_f64();
+                                        return report;
+                                    }
+                                }
+                            } else {
+                                fallback_mod
+                            };
+                            cert_hits = 0;
+                            match solve_module(&fresh_mod, SolveBudget { steps: 1_000_000 }) {
                                 Ok(fresh_cert) => {
                                     cert = fresh_cert;
                                     match check_module(
-                                        fallback_mod,
+                                        fresh_mod,
                                         &cert,
                                         CheckBudget { steps: 1_000_000 },
                                     ) {
@@ -1253,10 +1522,25 @@ impl CompilationSession {
                     }
                 };
 
+            report.reused_typeck_fns = lowered.reused_fns;
+            report.total_typeck_fns = lowered.total_root_fns;
+            report.reused_cert_fns = cert_hits;
+            if lowered.reused_fns > 0 {
+                report.cache_hit = true;
+            }
+
             if let Some(dir) = options.semantic_cache.as_deref() {
                 semantic_cache::write_disk_semantic_candidate(
                     dir,
                     program_sem_key,
+                    verified.module(),
+                    &lowered.source_map,
+                    &cert,
+                );
+                semantic_cache::write_disk_incremental_baseline(
+                    dir,
+                    inc_scope_key,
+                    &curr_dep_records,
                     verified.module(),
                     &lowered.source_map,
                     &cert,
@@ -1267,6 +1551,8 @@ impl CompilationSession {
             if self.capacity > 0 {
                 self.store_semantic_snapshot(
                     program_sem_key,
+                    inc_scope_key,
+                    curr_dep_records,
                     verified.module().clone(),
                     lowered.source_map,
                     cert,
@@ -1641,6 +1927,9 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
             disk_cache: DiskCacheStatus::Disabled,
             query_events: Vec::new(),
             verification_runs: 0,
+            reused_typeck_fns: 0,
+            total_typeck_fns: 0,
+            reused_cert_fns: 0,
             source_files: BTreeMap::new(),
         };
     };

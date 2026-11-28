@@ -63,6 +63,19 @@ pub fn solve_module_with_cache(
     budget: Budget,
     cache: Option<&dyn CertificateCache>,
 ) -> Result<(Certificate, usize), Vec<SolveError>> {
+    solve_module_with_prebuilt_and_cache(module, budget, &[], cache)
+}
+
+/// Solves every function, optionally reusing pre-remapped candidate
+/// [`FunctionCertificate`]s (`prebuilt[fn_idx]`) or `cache` entries for
+/// unchanged functions. All candidate certificates remain untrusted and MUST
+/// still be verified fresh by `zil-check`. Returns `(certificate, cache_hits)`.
+pub fn solve_module_with_prebuilt_and_cache(
+    module: &Module,
+    budget: Budget,
+    prebuilt: &[Option<FunctionCertificate>],
+    cache: Option<&dyn CertificateCache>,
+) -> Result<(Certificate, usize), Vec<SolveError>> {
     if let Err((function, reason)) = zil_semantics::check_dyn_impl_region_contract(module) {
         return Err(vec![SolveError::Violation {
             function,
@@ -100,6 +113,13 @@ pub fn solve_module_with_cache(
         let mut cache_hits = 0usize;
         for (i, function) in module.functions.iter().enumerate() {
             let id = FnId::from_index(i);
+            if let Some(Some(pre)) = prebuilt.get(i) {
+                let mut hit = pre.clone();
+                hit.function = id;
+                certificate.functions.push(hit);
+                cache_hits += 1;
+                continue;
+            }
             let cache_key = cache.zip(ty_fp.as_ref()).map(|(_, fp)| {
                 zil_ir::body::function_solve_cache_key(module, i, fp, &return_summaries)
             });
@@ -152,6 +172,19 @@ pub fn solve_module_with_cache(
                         break;
                     }
                     let id = FnId::from_index(i);
+                    if let Some(Some(pre)) = prebuilt.get(i) {
+                        let mut hit = pre.clone();
+                        hit.function = id;
+                        if let Ok(mut guard) = slots[i].lock() {
+                            *guard = Some(FnSlot {
+                                result: Ok(hit),
+                                used: 0,
+                                budget_at_start: budget.steps,
+                                from_cache: true,
+                            });
+                        }
+                        continue;
+                    }
                     let cache_key = cache.zip(ty_fp.as_ref()).map(|(_, fp)| {
                         zil_ir::body::function_solve_cache_key(module, i, fp, &return_summaries)
                     });
