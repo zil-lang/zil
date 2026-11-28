@@ -168,7 +168,9 @@ def main():
     plans = load(ROOT / 'validation/task-test-plans.json')
     conformance = load(ROOT / 'conformance/index.json')
     spec = (ROOT / '_zil_design.md').read_text(encoding='utf-8')
-    rules = set(re.findall(r'<a id="(ZIL-[A-Z]+(?:-[A-Z]+)*)"></a>', spec))
+    arch_path = ROOT / 'docs/architecture/compiler.md'
+    rule_sources = spec + ('\n' + arch_path.read_text(encoding='utf-8') if arch_path.is_file() else '')
+    rules = set(re.findall(r'<a id="(ZIL-[A-Z]+(?:-[A-Z]+)*)"></a>', rule_sources))
     gates = set(re.findall(r'\| (V\d\d) \|', spec))
     report = validate(contracts, interfaces, plans, conformance, rules, gates)
     if args.self_test and report['ok']:

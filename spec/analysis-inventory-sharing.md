@@ -2,7 +2,7 @@
 
 固定点分析反复复制、合流相同形状的状态。降低这部分成本，应改变实际表示和重复工作，保留完整逻辑库存、独立核验与预算约束。不能让仍然执行树搜索或深复制的实现，只按直接索引或共享引用收费。
 
-本文约束 Analyze、Verify 内部的状态表示和请求内复用。[主设计 §19.2](../_zil_design.md) 允许共享不可变原始输入，但每次完整请求仍须独立 Verify；共享 TypedCFG、类型或原始计划，不等于共享安全结论，更不能从序列化结果或指纹直接构造 `Verified`。
+本文约束 Analyze、Verify 内部的状态表示和请求内复用。[`docs/architecture/compiler.md`](../docs/architecture/compiler.md)（`ZIL-ARCH`） 允许共享不可变原始输入，但每次完整请求仍须独立 Verify；共享 TypedCFG、类型或原始计划，不等于共享安全结论，更不能从序列化结果或指纹直接构造 `Verified`。
 
 ## 库存完整，事实独立
 

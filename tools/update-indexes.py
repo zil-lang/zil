@@ -6,8 +6,7 @@ R=Path(__file__).resolve().parents[1]
 def dump(p,obj):
     (R/p).write_text(json.dumps(obj,ensure_ascii=False,indent=2)+'\n')
 def sha(p):return hashlib.sha256((R/p).read_bytes()).hexdigest()
-spec=(R/'_zil_design.md').read_text()
-rules=re.findall(r'<a id="(ZIL-[A-Z]+(?:-[A-Z]+)*)"></a>',spec)
+rules=[r for f in ('_zil_design.md','docs/architecture/compiler.md') for r in re.findall(r'<a id="(ZIL-[A-Z]+(?:-[A-Z]+)*)"></a>',(R/f).read_text())]
 cases=[]
 for group in ('closure','receiver','record','pipe','script'):
     cases.extend(json.loads((R/'conformance'/f'{group}.json').read_text())['cases'])
@@ -25,7 +24,7 @@ for c in cases:
         d['phases']=sorted(set(d['phases']+[c['phase']]))
         d['requirements']=sorted(set(d['requirements']+c['requirements']))
 dump('spec/diagnostics.json',{'schema_version':1,'purpose':'Explicit stable diagnostic registry enriched by conformance mappings; safety meaning is defined only by normative rule IDs','entries':sorted(diagnostics.values(),key=lambda d:d['code'])})
-inputs=['_zil_design.md','spec/README.md','spec/grammar.ebnf','spec/attributes.json','spec/diagnostics.json','spec/interfaces.json','policy/dependencies.json','validation/product-gates.json','spec/semantic-kernel.md','spec/source-lowering.md']
+inputs=['_zil_design.md','docs/architecture/compiler.md','spec/README.md','spec/grammar.ebnf','spec/attributes.json','spec/diagnostics.json','spec/interfaces.json','policy/dependencies.json','validation/product-gates.json','spec/semantic-kernel.md','spec/source-lowering.md']
 files={p:sha(p) for p in inputs}
 canonical=''.join(p+'\0'+h+'\n' for p,h in sorted(files.items()))
 bundle=hashlib.sha256(canonical.encode()).hexdigest()

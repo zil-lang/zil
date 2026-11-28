@@ -9,7 +9,7 @@
 ## 权威层次总则
 
 1. **语言语义权威（Language Specification）**：[`_zil_design.md`](../_zil_design.md) 是 ZIL 语言语义、类型、所有权、借用、协议与形式语义的唯一文字权威源；本目录第一类文件为其规范性机器可读附件，第三类文件为其具名语言细则附件。若任一细则附件与 `_zil_design.md` 正文冲突，以 `_zil_design.md` 为准并同步修订附件。
-2. **编译器架构与阶段合同（Compiler Contracts）**：本目录第二类文件与 [`policy/dependencies.json`](../policy/dependencies.json) 定义编译器内部数据契约、中段语义核、降低契约与阶段可信边界，不单独创造新的源语言特性。
+2. **编译器架构与阶段合同（Compiler Contracts）**：[`docs/architecture/compiler.md`](../docs/architecture/compiler.md)（`ZIL-ARCH` / `ZIL-LOWERING`）、本目录第二类文件与 [`policy/dependencies.json`](../policy/dependencies.json) 定义编译器内部数据契约、中段语义核、降低契约与阶段可信边界，不单独创造新的源语言特性。
 3. **产品验收与符合性（Validation & Conformance）**：[`validation/product-gates.json`](../validation/product-gates.json) 与 [`conformance/`](../conformance/index.json) 管理量化验收门槛与源码符合性用例，不替代语言规范正文。
 4. **说明性与指南文档（Decisions & Guides）**：[`docs/decisions/`](../docs/decisions/README.md) 与 [`docs/guide/`](../docs/guide/quickstart.md) 为非规范性说明与使用文档，不具有覆盖规范的效力。
 
