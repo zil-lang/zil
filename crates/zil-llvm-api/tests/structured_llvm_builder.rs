@@ -304,3 +304,39 @@ fn signed_and_unsigned_spellings_of_integer_bits_are_identical_at_all_widths() {
         }
     }
 }
+
+#[test]
+fn worker_session_reuses_target_machine_with_bit_identical_objects() {
+    let m1 = loop_module();
+    let m2 = aggregate_module();
+    for opt in [Optimization::O0, Optimization::O2] {
+        let cfg = Config {
+            triple: "x86_64-unknown-linux-gnu",
+            optimization: opt,
+        };
+        let fresh1 = compile_module(&m1, &cfg, &|| false).expect("fresh m1");
+        let fresh2 = compile_module(&m2, &cfg, &|| false).expect("fresh m2");
+
+        let worker =
+            zil_llvm_api::WorkerSession::new(&cfg, zil_llvm_api::FunctionMerging::Disabled)
+                .expect("worker init");
+        let w1 = worker.compile_module(&m1, &|| false).expect("worker m1");
+        let w2 = worker.compile_module(&m2, &|| false).expect("worker m2");
+        let w1_again = worker
+            .compile_module(&m1, &|| false)
+            .expect("worker m1 repeat");
+
+        assert_eq!(
+            fresh1.bytes, w1.bytes,
+            "worker m1 must match fresh ({opt:?})"
+        );
+        assert_eq!(
+            fresh2.bytes, w2.bytes,
+            "worker m2 must match fresh ({opt:?})"
+        );
+        assert_eq!(
+            w1.bytes, w1_again.bytes,
+            "repeated worker m1 must be bit-identical ({opt:?})"
+        );
+    }
+}

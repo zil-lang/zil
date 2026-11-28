@@ -94,6 +94,42 @@ pub fn emit_verified_body_units_for_target(
     )
 }
 
+/// Pre-partitioned CGU emission plan built from a [`VerifiedModule`].
+///
+/// Allows computing direct Body-IR object-cache keys via
+/// [`PreparedBodyUnits::unit_body_fingerprint`] and lazily emitting LLVM IR
+/// ONLY for dirty (cache-miss) CGUs via [`PreparedBodyUnits::emit_unit_ir`].
+pub struct PreparedBodyUnits<'a> {
+    pub(crate) module: &'a Module,
+    pub(crate) is_windows: bool,
+    pub(crate) emit_c_main: bool,
+    pub(crate) custom_entry: bool,
+    pub(crate) actual_units: usize,
+    pub(crate) single_exe: bool,
+    pub(crate) header: String,
+    pub(crate) runtime_defs: String,
+    pub(crate) runtime_decls: String,
+    pub(crate) foreign_header: String,
+    pub(crate) header_fp: zil_base::Fingerprint,
+    pub(crate) runtime_defs_fp: zil_base::Fingerprint,
+    pub(crate) runtime_decls_fp: zil_base::Fingerprint,
+    pub(crate) foreign_header_fp: zil_base::Fingerprint,
+    pub(crate) syms: Vec<String>,
+    pub(crate) static_syms: Vec<String>,
+    pub(crate) main_fn: Option<(FnId, String, TyId)>,
+    pub(crate) reach: CodegenReachability,
+    pub(crate) unit_of_fn: Vec<usize>,
+    pub(crate) unit_fn_lists: Vec<Vec<usize>>,
+    pub(crate) closure_fn_by_def: std::collections::HashMap<zil_ir::body::ClosureId, usize>,
+    pub(crate) drop_fn_by_adt: std::collections::HashMap<zil_ir::body::AdtId, usize>,
+}
+
+impl<'a> PreparedBodyUnits<'a> {
+    pub fn actual_units(&self) -> usize {
+        self.actual_units
+    }
+}
+
 pub fn emit_verified_body_units_with_entry_for_target(
     verified: &VerifiedModule,
     emit_c_main: bool,
@@ -101,6 +137,25 @@ pub fn emit_verified_body_units_with_entry_for_target(
     entry_name: Option<&str>,
     target_triple: &str,
 ) -> Result<Vec<String>, BodyEmitError> {
+    let plan = prepare_verified_body_units(
+        verified,
+        emit_c_main,
+        requested_units,
+        entry_name,
+        target_triple,
+    )?;
+    plan.emit_all_units_ir()
+}
+
+/// Partitions `verified` into `actual_units = requested_units.max(1)` CGUs and
+/// prepares shared headers/symbols WITHOUT emitting per-function LLVM IR yet.
+pub fn prepare_verified_body_units<'a>(
+    verified: &'a VerifiedModule,
+    emit_c_main: bool,
+    requested_units: usize,
+    entry_name: Option<&str>,
+    target_triple: &str,
+) -> Result<PreparedBodyUnits<'a>, BodyEmitError> {
     let module = verified.module();
     let is_windows = target_triple.contains("windows");
     let fn_count = module.functions.len();
@@ -811,14 +866,6 @@ fail:\n\
         }
     }
 
-    let fn_cfg = FnEmitConfig {
-        is_windows,
-        internalize: single_exe,
-        emit_cancel_clear: reach.uses_tasks,
-        syms: &syms,
-        static_syms: &static_syms,
-    };
-
     let mut unit_fn_lists: Vec<Vec<usize>> = vec![Vec::new(); actual_units];
     for idx in 0..fn_count {
         if reach.fns[idx] {
@@ -829,7 +876,60 @@ fail:\n\
         list.sort_by(|&a, &b| syms[a].cmp(&syms[b]));
     }
 
-    let emit_unit = |unit_idx: usize, unit_fns: &[usize]| -> Result<String, BodyEmitError> {
+    let mut closure_fn_by_def = std::collections::HashMap::new();
+    let mut drop_fn_by_adt = std::collections::HashMap::new();
+    for (idx, f) in module.functions.iter().enumerate() {
+        if let Some(cid) = f.body.closure {
+            closure_fn_by_def.entry(cid).or_insert(idx);
+        }
+        if let FnRole::Drop(adt) = f.sig.role {
+            drop_fn_by_adt.entry(adt).or_insert(idx);
+        }
+    }
+
+    let header_fp = zil_base::Fingerprint::of(header.as_bytes());
+    let runtime_defs_fp = zil_base::Fingerprint::of(runtime_defs.as_bytes());
+    let runtime_decls_fp = zil_base::Fingerprint::of(runtime_decls.as_bytes());
+    let foreign_header_fp = zil_base::Fingerprint::of(foreign_header.as_bytes());
+
+    Ok(PreparedBodyUnits {
+        module,
+        is_windows,
+        emit_c_main,
+        custom_entry,
+        actual_units,
+        single_exe,
+        header,
+        runtime_defs,
+        runtime_decls,
+        foreign_header,
+        header_fp,
+        runtime_defs_fp,
+        runtime_decls_fp,
+        foreign_header_fp,
+        syms,
+        static_syms,
+        main_fn,
+        reach,
+        unit_of_fn,
+        unit_fn_lists,
+        closure_fn_by_def,
+        drop_fn_by_adt,
+    })
+}
+
+impl<'a> PreparedBodyUnits<'a> {
+    /// Emits LLVM 23 IR lazily for a single CGU `unit_idx`.
+    pub fn emit_unit_ir(&self, unit_idx: usize) -> Result<String, BodyEmitError> {
+        let module = self.module;
+        let unit_fns = &self.unit_fn_lists[unit_idx];
+        let fn_cfg = FnEmitConfig {
+            is_windows: self.is_windows,
+            internalize: self.single_exe,
+            emit_cancel_clear: self.reach.uses_tasks,
+            syms: &self.syms,
+            static_syms: &self.static_syms,
+        };
         let mut defs_buf = String::with_capacity(4096);
         let mut refs = UnitRefs::default();
 
@@ -849,13 +949,19 @@ fail:\n\
 
         // Emit dyn Trait vtables, drop shims, and slot thunks in unit 0.
         if unit_idx == 0 && !module.dyn_impls.is_empty() {
-            emit_dyn_vtables(module, fn_cfg, &reach.dyn_impls, &mut refs, &mut defs_buf)?;
+            emit_dyn_vtables(
+                module,
+                fn_cfg,
+                &self.reach.dyn_impls,
+                &mut refs,
+                &mut defs_buf,
+            )?;
         }
 
         // Emit C `main()` wrapper in unit 0.
         if unit_idx == 0
-            && emit_c_main
-            && let Some((main_id, ref sym, res_ty)) = main_fn
+            && self.emit_c_main
+            && let Some((main_id, ref sym, res_ty)) = self.main_fn
         {
             refs.fns.push(main_id.index());
             let ret = llvm_ty(&module.tys, res_ty)?;
@@ -878,7 +984,7 @@ fail:\n\
                     defs_buf.push_str("  ret i32 0\n");
                 } else if ok_llvm == "i32" {
                     let _ = writeln!(defs_buf, "  %v = extractvalue {ret} %r, 1");
-                    if custom_entry {
+                    if self.custom_entry {
                         defs_buf.push_str("  %ext = sext i32 %v to i64\n");
                         defs_buf.push_str(
                             "  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %ext)\n",
@@ -889,7 +995,7 @@ fail:\n\
                     }
                 } else if ok_llvm == "i64" {
                     let _ = writeln!(defs_buf, "  %v = extractvalue {ret} %r, 1");
-                    if custom_entry {
+                    if self.custom_entry {
                         defs_buf.push_str(
                             "  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %v)\n",
                         );
@@ -920,10 +1026,10 @@ fail:\n\
                         module,
                         fn_id: FnId(0),
                         body: &empty_body,
-                        is_windows,
+                        is_windows: self.is_windows,
                         emit_cancel_clear: false,
-                        syms: &syms,
-                        static_syms: &static_syms,
+                        syms: &self.syms,
+                        static_syms: &self.static_syms,
                         refs: &mut refs,
                         out: &mut defs_buf,
                         entry_allocas: None,
@@ -939,7 +1045,7 @@ fail:\n\
                 defs_buf.push_str("  ret i32 0\n");
             } else if ret == "i32" {
                 let _ = writeln!(defs_buf, "  %r = call i32 @{sym}()");
-                if custom_entry {
+                if self.custom_entry {
                     defs_buf.push_str("  %ext = sext i32 %r to i64\n");
                     defs_buf
                         .push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %ext)\n");
@@ -949,7 +1055,7 @@ fail:\n\
                 }
             } else if ret == "i64" {
                 let _ = writeln!(defs_buf, "  %r = call i64 @{sym}()");
-                if custom_entry {
+                if self.custom_entry {
                     defs_buf
                         .push_str("  call i32 (ptr, ...) @printf(ptr @__zil_fmt_i64, i64 %r)\n");
                     defs_buf.push_str("  ret i32 0\n");
@@ -971,15 +1077,19 @@ fail:\n\
 
         // 2. Assemble unit with minimal referenced statics and minimal cross-unit decls.
         let mut out = String::with_capacity(
-            header.len() + runtime_defs.len() + foreign_header.len() + defs_buf.len() + 512,
+            self.header.len()
+                + self.runtime_defs.len()
+                + self.foreign_header.len()
+                + defs_buf.len()
+                + 512,
         );
-        out.push_str(&header);
+        out.push_str(&self.header);
         if !refs.statics.is_empty() {
             refs.statics
-                .sort_by(|&a, &b| static_syms[a].cmp(&static_syms[b]));
+                .sort_by(|&a, &b| self.static_syms[a].cmp(&self.static_syms[b]));
             let mut emitted_static_syms = std::collections::HashSet::new();
             for &sidx in &refs.statics {
-                let ssym = &static_syms[sidx];
+                let ssym = &self.static_syms[sidx];
                 if emitted_static_syms.insert(ssym.as_str()) {
                     let bytes = &module.statics[sidx];
                     let escaped = escape_llvm_bytes(bytes);
@@ -993,19 +1103,19 @@ fail:\n\
             out.push('\n');
         }
         if unit_idx == 0 {
-            out.push_str(&runtime_defs);
+            out.push_str(&self.runtime_defs);
         } else {
-            out.push_str(&runtime_decls);
+            out.push_str(&self.runtime_decls);
         }
-        out.push_str(&foreign_header);
+        out.push_str(&self.foreign_header);
 
-        if actual_units > 1 {
-            refs.fns.sort_by(|&a, &b| syms[a].cmp(&syms[b]));
+        if self.actual_units > 1 {
+            refs.fns.sort_by(|&a, &b| self.syms[a].cmp(&self.syms[b]));
             refs.fns.dedup();
             let mut wrote_decl = false;
             for &idx in &refs.fns {
-                if reach.fns[idx] && unit_of_fn[idx] != unit_idx {
-                    emit_function_decl(module, &module.functions[idx], &syms[idx], &mut out)?;
+                if self.reach.fns[idx] && self.unit_of_fn[idx] != unit_idx {
+                    emit_function_decl(module, &module.functions[idx], &self.syms[idx], &mut out)?;
                     wrote_decl = true;
                 }
             }
@@ -1013,7 +1123,7 @@ fail:\n\
                 refs.dyns.sort_unstable();
                 refs.dyns.dedup();
                 for &i in &refs.dyns {
-                    if !reach.dyn_impls[i] {
+                    if !self.reach.dyn_impls[i] {
                         continue;
                     }
                     let n = module.dyn_impls[i].methods.len() + 1;
@@ -1028,58 +1138,62 @@ fail:\n\
 
         out.push_str(&defs_buf);
         Ok(out)
-    };
-
-    let workers = std::thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1)
-        .clamp(1, 16)
-        .min(actual_units);
-    let mut units = Vec::with_capacity(actual_units);
-    if workers <= 1 || actual_units <= 2 {
-        for (unit_idx, unit_fns) in unit_fn_lists.iter().enumerate() {
-            units.push(emit_unit(unit_idx, unit_fns)?);
-        }
-    } else {
-        use std::sync::Mutex;
-        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-
-        let next_idx = AtomicUsize::new(0);
-        let any_failed = AtomicBool::new(false);
-        let slots: Vec<Mutex<Option<Result<String, BodyEmitError>>>> =
-            (0..actual_units).map(|_| Mutex::new(None)).collect();
-        std::thread::scope(|scope| {
-            for _ in 0..workers {
-                scope.spawn(|| {
-                    loop {
-                        if any_failed.load(Ordering::Relaxed) {
-                            break;
-                        }
-                        let unit_idx = next_idx.fetch_add(1, Ordering::Relaxed);
-                        if unit_idx >= actual_units {
-                            break;
-                        }
-                        let res = emit_unit(unit_idx, &unit_fn_lists[unit_idx]);
-                        if res.is_err() {
-                            any_failed.store(true, Ordering::Relaxed);
-                        }
-                        if let Ok(mut guard) = slots[unit_idx].lock() {
-                            *guard = Some(res);
-                        }
-                    }
-                });
-            }
-        });
-        for (unit_idx, slot) in slots.into_iter().enumerate() {
-            match slot.into_inner().ok().flatten() {
-                Some(Ok(ir)) => units.push(ir),
-                Some(Err(err)) => return Err(err),
-                None => units.push(emit_unit(unit_idx, &unit_fn_lists[unit_idx])?),
-            }
-        }
     }
 
-    Ok(units)
+    /// Emits LLVM 23 IR for every CGU in parallel.
+    pub fn emit_all_units_ir(&self) -> Result<Vec<String>, BodyEmitError> {
+        let actual_units = self.actual_units;
+        let workers = std::thread::available_parallelism()
+            .map(usize::from)
+            .unwrap_or(1)
+            .clamp(1, 16)
+            .min(actual_units);
+        let mut units = Vec::with_capacity(actual_units);
+        if workers <= 1 || actual_units <= 2 {
+            for unit_idx in 0..actual_units {
+                units.push(self.emit_unit_ir(unit_idx)?);
+            }
+        } else {
+            use std::sync::Mutex;
+            use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+            let next_idx = AtomicUsize::new(0);
+            let any_failed = AtomicBool::new(false);
+            let slots: Vec<Mutex<Option<Result<String, BodyEmitError>>>> =
+                (0..actual_units).map(|_| Mutex::new(None)).collect();
+            std::thread::scope(|scope| {
+                for _ in 0..workers {
+                    scope.spawn(|| {
+                        loop {
+                            if any_failed.load(Ordering::Relaxed) {
+                                break;
+                            }
+                            let unit_idx = next_idx.fetch_add(1, Ordering::Relaxed);
+                            if unit_idx >= actual_units {
+                                break;
+                            }
+                            let res = self.emit_unit_ir(unit_idx);
+                            if res.is_err() {
+                                any_failed.store(true, Ordering::Relaxed);
+                            }
+                            if let Ok(mut guard) = slots[unit_idx].lock() {
+                                *guard = Some(res);
+                            }
+                        }
+                    });
+                }
+            });
+            for (unit_idx, slot) in slots.into_iter().enumerate() {
+                match slot.into_inner().ok().flatten() {
+                    Some(Ok(ir)) => units.push(ir),
+                    Some(Err(err)) => return Err(err),
+                    None => units.push(self.emit_unit_ir(unit_idx)?),
+                }
+            }
+        }
+
+        Ok(units)
+    }
 }
 
 #[derive(Default)]
@@ -6005,13 +6119,13 @@ fn emit_dyn_vtables(
     Ok(())
 }
 
-struct CodegenReachability {
-    fns: Vec<bool>,
-    dyn_impls: Vec<bool>,
-    uses_tasks: bool,
-    uses_regs: bool,
-    uses_aregs: bool,
-    uses_bytes_grow: bool,
+pub(crate) struct CodegenReachability {
+    pub(crate) fns: Vec<bool>,
+    pub(crate) dyn_impls: Vec<bool>,
+    pub(crate) uses_tasks: bool,
+    pub(crate) uses_regs: bool,
+    pub(crate) uses_aregs: bool,
+    pub(crate) uses_bytes_grow: bool,
 }
 
 impl CodegenReachability {

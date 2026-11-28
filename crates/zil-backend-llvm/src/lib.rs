@@ -8,13 +8,14 @@
 mod body_build;
 mod body_emit;
 mod body_structured;
+mod body_unit_hash;
 
 pub use body_build::{
     BodyBuildError, BodyBuildOptions, BodyBuildOutput, build_verified_body, default_clang_path,
 };
 pub use body_emit::{
-    BodyEmitError, emit_verified_body, emit_verified_body_for_target, emit_verified_body_units,
-    emit_verified_body_units_for_target,
+    BodyEmitError, PreparedBodyUnits, emit_verified_body, emit_verified_body_for_target,
+    emit_verified_body_units, emit_verified_body_units_for_target, prepare_verified_body_units,
 };
 pub use body_structured::{StructuredBuildError, build_structured_module};
 pub use zil_llvm_api::FunctionMerging;
