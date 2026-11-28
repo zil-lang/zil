@@ -118,5 +118,5 @@ environment node once, then permits delivery of the saved body result. A new
 occupant at a reused SSA site starts from its canonical storage, independently
 of the previous invocation's spill.
 
-Authority: `_zil_design.md` §§12.1–12.3; `spec/threaded-foreign-registration.md`
+Authority: `_zil_design.md` (`ZIL-ASYNC`); `spec/threaded-foreign-registration.md`
 and `spec/affine-mutex.md` retain their independent thread and guard contracts.

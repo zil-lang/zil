@@ -26,7 +26,7 @@
 5. **build。** 把 THIR 降为 Body IR，结构参照 rustc 的 MIR builder：
    - 表达式分三种求值形态：place、operand、rvalue；
    - 临时量的生命周期按词法作用域收束，作用域出口显式生成 `StorageDead`；
-   - 拥有值的清理显式生成 `Drop`，规则见 `_zil_design.md` §7；
+   - 拥有值的清理显式生成 `Drop`，规则见 `_zil_design.md`（`ZIL-CLEANUP`）；
    - 每条关键指令都记入 SourceMap 关系：绑定、字段选择、求值、资源操作。
 
 ## 3. 不变量

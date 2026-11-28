@@ -1,6 +1,6 @@
 # Error union construction
 
-The authority for `E!T` is `_zil_design.md` §15.2. Its error and success alternatives retain separate tags even when their complete payload types are equal.
+The authority for `E!T` is `_zil_design.md` (`ZIL-SYNTAX`). Its error and success alternatives retain separate tags even when their complete payload types are equal.
 
 `error_ok::<E,T>(value)` constructs the success alternative of `E!T`; `error_err::<E,T>(value)` constructs its error alternative. Both require exactly two complete type arguments and one value checked against the selected payload type. They are reserved bare primitive names: declarations, parameters, local bindings and resolved import aliases cannot rebind them. These operations lower to the existing `MakeErrorUnion { is_error, .. }`; a spelling does not grant a new ownership, borrowing or cleanup permission.
 

@@ -41,6 +41,6 @@ layout. New traversal, hashing, layout and copy work is prepaid within the
 existing request limits. This uses the existing complete Tuple/Array and
 OwnedStore representations; it requires no new public schema field.
 
-Authority: `_zil_design.md` §§8.1–8.2. Acceptance includes real Source libraries,
+Authority: `_zil_design.md` (`ZIL-PACKAGE`). Acceptance includes real Source libraries,
 both backends at O0/O2, allocation/cleanup controls, equal-layout type swaps,
 zero-size/length and overflow neighbors, and fresh budget boundaries.

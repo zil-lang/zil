@@ -45,5 +45,5 @@ only verified operations. Joint schema/Wire 46 reserves type tags 38/39 for mute
 guard, and instruction tags 141–145 for create/lock/project/unlock/guard cleanup.
 Transport alone does not establish executable support or release acceptance.
 
-Authority: `_zil_design.md` §§8, 11; acceptance:
+Authority: `_zil_design.md` (`ZIL-PACKAGE`, `ZIL-CONCURRENCY`); acceptance:
 `validation/language-release-gates.json` and `validation/product-gates.json`.

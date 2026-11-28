@@ -19,99 +19,99 @@
   "shared_change_owner": "integrator; consumers submit an interface-change request with affected producers/consumers and nearest counterexample; root Cargo, shared schema and registry files are single-writer",
   "implementation_profiles": {
     "owning_callable_factory_218": {
-      "authority": "_zil_design.md §9.4.1",
+      "authority": "ZIL-CAPTURE",
       "state": "ContractToImplement",
       "representation": "Existing concrete Closure input, fresh grounded Closure result and CallableReturnContract; no empty nonescaping helper contract; schema/Wire27 unchanged.",
       "responsibility": "Input F may be retained, used, consumed or cleaned on exit. Same ClosureId does not establish same value provenance. Analyze and Verify reconstruct the ordinary owning boundary independently."
     },
     "source_selection_219": {
-      "authority": "_zil_design.md §16.3",
+      "authority": "ZIL-COMPTIME",
       "state": "ContractToImplement",
       "input": "Fully parsed source, immutable ConfigReady ordinary scalar-function/import snapshot, target and remaining request limits.",
       "output": "Untrusted materialized source/Core plus original spans, selection trace and cumulative CT usage; ordinary semantic verification follows.",
       "cache": "Target/limits/source/dependencies bound; cache hits retain selection charge and never skip current independent Verify."
     },
     "source_for_222": {
-      "authority": "_zil_design.md §16.4",
+      "authority": "ZIL-COMPTIME",
       "state": "ContractToImplement",
       "representation": "Untrusted hygienic source generation using existing CTIR verification and VM, no Wire change.",
       "budget": "Cumulative CT and generation cost, charged before growth including warm reuse.",
       "declarations": "222 ordinary functions; 228 separately extends finite struct and alias declarations; 230 extends nongeneric Unit/Tuple enums. General Type/Syntax/trait/impl generation remains unimplemented."
     },
     "product_store_223": {
-      "authority": "_zil_design.md §8.2.4",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "representation": "Existing finite Product, Store prefix and exact Store result Sum shells; recursive inline element layout and cleanup.",
       "independence": "Types, Analyze and Verify reconstruct qualification independently; raw/Wire and unused definitions checked."
     },
     "shared_product_224": {
-      "authority": "_zil_design.md §8.1.2",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "representation": "Existing shared Address and actual root/field projections; no ownership or mutable Desc manufactured.",
       "independence": "Ordinary shared Product and Store-window admission are distinct; complete live root required."
     },
     "owned_product_store_capture_225": {
-      "authority": "_zil_design.md §9.1.3",
+      "authority": "ZIL-CAPTURE",
       "state": "ContractToImplement",
       "representation": "Existing Managed<OwnedStore<Product>>, capture slots and initialized prefix; schema/Wire27 unchanged.",
       "independence": "Types/Analyze/Verify each check the complete recursive element tree, canonical definition, real input identity and active loan invalidation; no producer proof bit."
     },
     "shared_product_capture_226": {
-      "authority": "_zil_design.md §9.1.4",
+      "authority": "ZIL-CAPTURE",
       "state": "ContractToImplement",
       "representation": "Existing shared Address<Package> and capture Hold; ordinary origin must not be confused with Store-element origin.",
       "independence": "Every admission must preserve actual parent provenance and Copy/Unit nonescaping boundary; otherwise reject."
     },
     "source_type_generation_228": {
-      "authority": "_zil_design.md §16.5",
+      "authority": "ZIL-COMPTIME",
       "state": "ContractToImplement",
       "representation": "Existing untrusted AST for nongeneric method-free struct and ordinary alias, separate type/value hygiene; schema/Wire27 unchanged.",
       "independence": "Generated declarations retain ordinary reserved-name, nominal identity and semantic checks; immutable ConfigReady and cumulative generation budgets remain."
     },
     "where_copy_normalization_229": {
-      "authority": "_zil_design.md §18.1 profile 229",
+      "authority": "ZIL-TRAIT (profile 229)",
       "state": "ContractToImplement",
       "representation": "Direct ordinary function type-parameter where Copy bounds normalize into existing inline bounds before aliases and specialization.",
       "independence": "No producer permission or solver extension. Definition and instance checks remain; one remaining budget flows through normalization, aliases and specialization."
     },
     "source_enum_generation_230": {
-      "authority": "_zil_design.md §16.6",
+      "authority": "ZIL-COMPTIME",
       "state": "ContractToImplement",
       "representation": "Existing untrusted AST for nongeneric Unit/Tuple enums with finite Copy payloads; per-iteration nominal hygiene, constructor and pattern paths; schema/Wire27 unchanged.",
       "independence": "Generated declarations pass ordinary Types, Analyze and independent Verify. Immutable ConfigReady, lexical shadowing and cumulative prepaid generation budgets remain. Record/generic enums, resource/package/trait/impl and general Type/Syntax/#emit remain outside this slice."
     },
     "where_nominal_traits_231": {
-      "authority": "_zil_design.md §18.1 profile 231",
+      "authority": "ZIL-TRAIT (profile 231)",
       "state": "ContractToImplement",
       "representation": "Direct ordinary function type-parameter where bounds normalize existing nongeneric nominal traits and Copy into the existing inline-bound checker; no new solver, schema or runtime representation.",
       "independence": "Actual module identity, visibility, definition/instance checks and one remaining prepaid budget are retained. Only a real $module<decimal>_ prefix is recognized for reserved-trait exclusion; it is never removed for nominal equality."
     },
     "default_readonly_product_capture_232": {
-      "authority": "_zil_design.md §9.1.4",
+      "authority": "ZIL-CAPTURE",
       "state": "ContractToImplement",
       "representation": "Existing shared Address<Package> capture for proven ordinary local complete flat/recursive Product roots; no schema/Wire change.",
       "responsibility": "Full use classification preserves explicit/actual owning uses. Analyze and Verify independently recover actual roots and active loans; no parameter, outer-capture or Store-origin promotion."
     },
     "cross_module_trait_impl_233": {
-      "authority": "_zil_design.md §18.1",
+      "authority": "ZIL-TRAIT",
       "state": "ContractToImplement",
       "representation": "Existing ordinary trait/receiver/static-call identity after real project module resolution; local concrete Self only.",
       "responsibility": "Public imported ordinary trait; actual signature/receiver, nominal ownership, duplicate/collision and reserved-name validation; no implicit permissions or runtime dictionary."
     },
     "synchronous_defer_227": {
-      "authority": "_zil_design.md §7.1",
+      "authority": "ZIL-CLEANUP",
       "state": "ContractToImplement",
       "representation": "Core Defer block and Typed RegisterDefer { scope, local }; schema/Wire/fingerprint28. Actual adjacent TakeLocal + zero-argument CallClosureOnce discharges the obligation, never a producer claim.",
       "responsibility": "Independent Analyze and Verify track pending actions per scope activation and mixed reverse successful-construction order, including empty/Copy environments. Current Verify always executes."
     },
     "ordinary_product_store_235": {
-      "authority": "_zil_design.md §8.1.3",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "representation": "Existing Package and Managed<OwnedStore<T>> with actual field operations, complete child and prefix layout. No new instruction or capability bit for 235.",
       "responsibility": "Ordinary ownership admission only; independent canonical definitions, provenance, complete-state and cleanup checks. Preserve prior shared/capture/StoreElement/array/Sum gates."
     },
     "generic_product_identity_237": {
-      "authority": "_zil_design.md §8.1.4",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "representation": "CoreModule.aggregate_templates: Vec<CoreAggregateTemplate>; aggregate_applications: Vec<CoreAggregateApplication>. Finite Package recipes retain an ordered dense vector of StoreElement formals; old modules have empty tables.",
       "template": "CoreAggregateTemplate { id:NodeId, name:String, parameters:Vec<CoreTypeParameter>, fields:Vec<CoreAggregateFieldRecipe>, span:Span }; field { name:String, public:bool, manages:bool, ty:CoreAggregateTypeRecipe, span:Span }. Recipe = Concrete(Type) | Parameter{index:u32} | Store{element:Box<Recipe>} | Apply{module:ModuleId,template:NodeId,arguments:Vec<Recipe>}.",
@@ -121,14 +121,14 @@
       "inference": "Ordinary Product value parameters infer the unique T from checked original family and full actual argument registry, including phantom. All constraints and explicit arguments must agree; no field-layout guessing or cross-owner permission."
     },
     "ordinary_product_assignment_238": {
-      "authority": "_zil_design.md §8.1.3.1",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "representation": "Existing same-shape Package shell and Read/Take/Drop/StorePackageField, MakePackage and ordinary temporary cleanup. No new runtime opcode or permission.",
       "scope": "Mutable ordinary Product without whole user teardown; independent RHS, or static ordinary call (including uniquely instantiated ordinary templates and explicit TypeApply) with exactly one direct target-local argument and no other free target reference. Other whole moves preserve TakeLocal semantics.",
       "responsibility": "Keep original shell construction age; fully prepare before ordered old-field cleanup and infallible publication. Actual source/loan/debt and failed preparation checked by existing independent kernels; no Copy read after whole move admitted."
     },
     "ordinary_owned_sum_239_244": {
-      "authority": "_zil_design.md §8.1.5",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "schema_version": 30,
       "raw_wire_version": 30,
@@ -172,7 +172,7 @@
       "helper_enum_copy_budget_exception": "Generic helper definition checking must prove Copy from the actual Enum fields (including Enum in ErrorUnion), not assume a concrete name is Copy. Unused definitions reject duplicate whole-value moves and repeated consuming matches. Real additional Expand qualification work is prepaid; corresponding old Copy Enum helper exact N may increase, with default limits and all unrelated old charges unchanged. Same-byte control Q-equivalent Expand work266/nodes116 and Types219 becomes Expand work296/nodes130 and Types219 (+30 work/+14 nodes); retain N-minus-one/fresh and same-output receipts. No owning generic Enum or owning callback signature authority is added."
     },
     "owned_callback_values_246_250": {
-      "authority": "_zil_design.md §9.3.1",
+      "authority": "ZIL-CAPTURE",
       "state": "ContractToImplement",
       "representation": "Existing concrete ClosureDefinition parameters/result, TypedFunction and CallClosure operations; schema/Wire30 unchanged unless a separately recorded representation change is needed.",
       "scope": "Concrete Fn/FnMut/FnOnce ordinary owning Product/Enum/ErrorUnion data signatures; one by-value F:FnOnce closed public helper. Existing capture/State/factory/lending/FFI profiles remain independently bounded.",
@@ -180,7 +180,7 @@
       "independence": "Types, Analyze and Verify independently reconstruct definition/call validity and actual budgets. No producer permission bit or cross-kernel proof reuse."
     },
     "callable_forward_251_256": {
-      "authority": "_zil_design.md §9.4.2",
+      "authority": "ZIL-CAPTURE",
       "state": "ContractToImplement",
       "representation": "CallableReturnContract.source=Fresh|Parameter(actual_parameter_index); CallableCleanup::Returned; schema/Wire/typed fingerprint31, return contract fingerprint3 and role contract fingerprint4. Raw claims require independent proof.",
       "scope": "One by-value self-contained F and direct same-F return; Fn/FnMut/FnOnce, existing Copy/Address and owning signatures, independently qualified ordinary closed data companions. Existing fresh factory and capture/container boundaries stay separate.",
@@ -189,7 +189,7 @@
       "independence": "Types, Analyze and Verify independently reconstruct every reachable normal return; no ClosureId-only or global provenance-union proof; all work prepaid."
     },
     "ct_type_syntax_257_262": {
-      "authority": "_zil_design.md §16.7 and §18.2",
+      "authority": "ZIL-COMPTIME, ZIL-TRAIT",
       "state": "ContractToImplement",
       "representation": "zil_ir::ct_artifact raw CT-only types/values/CFG, schema1; ordinary runtime schema/Wire31 unchanged; no Unit erasure overlay",
       "source": "ordinary fn; quote<Expr|Type|StmtList|ItemList>, typed $(...) holes; explicit #splice and #emit; explicit std.meta/std.syntax imports; locked multi-provider",
@@ -198,7 +198,7 @@
       "integration": "257 public schema, bounded wire and common integration; 258 syntax/parser; 259 CT verifier/VM; 260 source CT type attribution and CFG; 261 project registry/snapshots/hygienic materialization/CLI; 262 frozen consumer and independent oracle"
     },
     "explicit_life_322": {
-      "authority": "_zil_design.md §18.1 finite322",
+      "authority": "ZIL-TRAIT (finite322)",
       "state": "ContractToImplement",
       "schema_version": 33,
       "wire_version": 33,
@@ -214,7 +214,7 @@
       "producer_consumers": "Expand/receiver/CT -> Types -> independently Analyze and Verify -> verified actual interface -> Lower/backend; fields grant no proof or permission"
     },
     "structured_thread_325_328": {
-      "authority": "_zil_design.md §11.1",
+      "authority": "ZIL-CONCURRENCY",
       "state": "ContractToImplement",
       "schema_version": 34,
       "wire_version": 34,
@@ -233,62 +233,62 @@
       "consumers": "Expand/Types/Analyze/Verify/Lower/API+text LLVM/CGU/CT refusal; registration is not production completion"
     },
     "concrete_trait_instances_323": {
-      "authority": "_zil_design.md §18.1 profile323",
+      "authority": "ZIL-TRAIT (profile323)",
       "state": "ContractToImplement",
       "representation": "Complete trait declaration/module+ordered actual arguments+concrete Self; static method targets retain selected bound instance",
       "responsibility": "All premises, unused definitions, coherence, alias binder scopes and substituted signatures checked; no structural capability from nominal impl",
       "compatibility": "No runtime dictionary or new Typed node; preserves life metadata during normalization"
     },
     "record_enum_329": {
-      "authority": "_zil_design.md §15.2 profile329",
+      "authority": "ZIL-SYNTAX (profile329)",
       "representation": "Syntax PatternKind::RecordConstructor { path, fields: Vec<RecordPatternField{name,pattern,span}> }; label validation then existing Core/Typed Enum and Sequence preparations",
       "consumers": "parser/AST visitors -> bounded generic/module/CT normalization -> existing Enum/Copy matching -> independent kernels and native backends",
       "limits": "Explicit complete named fields only; no default/pub/manages or new ref/rest/owner authority; enum Copy premises checked at definition and actual arguments"
     },
     "trait_defaults_330": {
-      "authority": "_zil_design.md §18.1 profile330",
+      "authority": "ZIL-TRAIT (profile330)",
       "representation": "Symbolically checked default source, complete declaration/trait args/Self identity, private (impl,member) target map; no new public IR",
       "consumers": "generic/default/module index -> existing static targets -> independent kernels/native; one cumulative budget through publication"
     },
     "parent_closure_threads_332": {
-      "authority": "_zil_design.md §11.1 profile332",
+      "authority": "ZIL-CONCURRENCY (profile332)",
       "representation": "Existing WithScopedThread/Wire34 and actual ClosureDefinition entry; no new permission boolean",
       "consumers": "Types closure inference -> independently Analyze and Verify actual entry and body ownership -> existing pthread lowering/CGU/cache"
     },
     "large_copy_abi_333": {
-      "authority": "_zil_design.md §19.4",
+      "authority": "ZIL-ARCH",
       "representation": "Versioned .lc1 ZIL-generated symbol; large Copy copy-in pointers and hidden first out pointer; source Value semantics unchanged",
       "compatibility": "Small and foreign/C ABI unchanged; default External linkage retained; legacy generated large ABI requires rebuild, unsupported consumers fail before artifacts",
       "consumers": "Definitions/direct calls/function refs/ordinary indirect calls/CGU/actual machine cache keys; no Typed/Wire version change assumed"
     },
     "type_life_generics_331": {
-      "authority": "_zil_design.md §18.1 profile331",
+      "authority": "ZIL-TRAIT (profile331)",
       "representation": "One ordinary Copy type binder plus lexical life binders; type arguments substitute T while preserving CoreLifeContract and actual parameter positions",
       "consumers": "Unused symbolic checks/alias scope -> ordinary instantiation -> existing Core life/Typed bound -> independent kernels, CT/interface/cache",
       "compatibility": "No new Typed/Wire fields; existing schema34 consumers remain responsible for actual metadata/CFG"
     },
     "default_fnptr_336": {
-      "authority": "_zil_design.md §18.1 profile336",
+      "authority": "ZIL-TRAIT (profile336)",
       "representation": "Existing ordinary thin function pointer; real lexical static signature, local binding precedence and independently concrete Copy qualification.",
       "consumers": "Default symbolic definition check, modules, ordinary lowering and independent kernels; unchanged Wire34."
     },
     "mutable_life_337": {
-      "authority": "_zil_design.md §18.1 profile337",
+      "authority": "ZIL-TRAIT (profile337)",
       "representation": "Existing CoreLifeContract and Typed return parameter bound; life-only concrete Direct/inherent mutable references.",
       "consumers": "Expand/Core normalization, Types, independent Analyze/Verify actual origins and exclusivity, CT/cache; unchanged Wire34."
     },
     "large_copy_sum_338": {
-      "authority": "_zil_design.md §19.4 profile338",
+      "authority": "ZIL-ARCH (profile338)",
       "representation": "Existing .lc1 copy-in/out ABI and memory snapshots extended to finite ordinary Copy Enum/ErrorUnion; no source Value change.",
       "consumers": "Complete construct/tag/project/copy/call/ref/CGU/cache machine chain; unchanged Typed/Wire34."
     },
     "shared_thread_payload_339": {
-      "authority": "_zil_design.md §11.2 profile339",
+      "authority": "ZIL-CONCURRENCY (profile339)",
       "representation": "Existing WithScopedThread argument ValueId typed shared Address<i32>; actual stable parent pointer and combined payload/body window.",
       "consumers": "Types plus independent worker graph/hold/loan kernels, Wire34 revalidation, actual pthread context, machine ABI/CGU/cache."
     },
     "terminal_unsigned_option_340": {
-      "authority": "_zil_design.md §§2.4,15.2",
+      "authority": "ZIL-MODES, ZIL-SYNTAX",
       "state": "ContractToImplement",
       "schema_version": 35,
       "wire_version": 35,
@@ -308,13 +308,13 @@
       }
     },
     "terminal_generic_loans_342": {
-      "authority": "_zil_design.md §18.1 terminal342",
+      "authority": "ZIL-TRAIT (terminal342)",
       "state": "ContractToImplement",
       "representation": "Existing CoreLifeContract and actual Typed bound/CFG; new symbolic definition loan engine is private, never a proof bit",
       "responsibility": "All ordinary templates checked before use; actual parameter modes, roots, parent reborrows, simultaneous prepared arguments, joins/backedges and liveness; concrete Analyze/Verify remain separate"
     },
     "terminal_sync_cell_343": {
-      "authority": "_zil_design.md §11.3",
+      "authority": "ZIL-CONCURRENCY",
       "state": "ContractToImplement",
       "schema_version": 35,
       "wire_version": 35,
@@ -333,7 +333,7 @@
       "responsibility": "Actual root/capture/worker graph rebuilt separately; only sync ops access payload; stable native cell held until all joined children finish. No implicit shared WriteDesc permission. CT execution refuses."
     },
     "terminal_float_union_344": {
-      "authority": "_zil_design.md §§2.4,15.2",
+      "authority": "ZIL-MODES, ZIL-SYNTAX",
       "state": "ContractToImplement",
       "schema_version": 35,
       "wire_version": 35,
@@ -350,7 +350,7 @@
       "CT_anonymous_sum": "CtTypeNode::AnonymousSum(Vec<CtTypeNodeId>) tag15; CtTypeConstructor::AnonymousSum tag11. Bounded full structural constructor/nominal identity independent of DAG sharing/index; runtime full Type recanonicalization and explicit exact-member tag mapping, never hash/name-only identity."
     },
     "terminal_borrowed_function_pointer_342": {
-      "authority": "_zil_design.md §18.1 higherranked342",
+      "authority": "ZIL-TRAIT (higherranked342)",
       "state": "ContractToImplement",
       "schema_version": 35,
       "wire_version": 35,
@@ -363,7 +363,7 @@
       "CT_constructor": "CtTypeConstructor::BorrowedFunctionPointer {life:FunctionLifeContract}, appended constructor tag10; existing TypeConstruct actual children and independent bounded relation validation"
     },
     "terminal_task_343": {
-      "authority": "_zil_design.md §12.1.1",
+      "authority": "ZIL-ASYNC",
       "state": "ContractToImplement",
       "schema_version": 35,
       "wire_version": 35,
@@ -392,7 +392,7 @@
       "artifact": "Backend-only physical descriptor keyed by verified input/actual target+DataLayout/tools/codegen. Actual symbols, signatures, frame field offsets/sizes/alignment/machine and full type identity. Frozen supported Linux x64 layout checked against LLVM and C; no host size guesses."
     },
     "terminal_source_stdlib_345": {
-      "authority": "_zil_design.md §15.1",
+      "authority": "ZIL-SYNTAX",
       "state": "ContractToImplement",
       "representation": "Ordinary bundled ZIL SourceUnits and exact reserved module bytes; ordinary compilation and request budget",
       "identity": "Actual library bytes included in project/CT/cache keys; forged std source rejected; no name-based proof privilege",
@@ -405,14 +405,14 @@
       ]
     },
     "terminal_resource_head_projection_342": {
-      "authority": "_zil_design.md §15.2",
+      "authority": "ZIL-SYNTAX",
       "state": "ContractToImplement",
       "instruction": "DescribeAddress {address:ValueId}, opcode109",
       "result": "Desc(payload) from actual Address<Managed(payload)>, no Managed copy",
       "responsibility": "Independent actual roots, parent loan and shared/exclusive authority through locals/calls/returns/captures; may-write from shared input rejected; not generic authority for Task/Registration"
     },
     "terminal_returned_registration_343": {
-      "authority": "_zil_design.md §12.3",
+      "authority": "ZIL-ASYNC",
       "state": "ContractToImplement",
       "Type": "Registration {environment:Box<Type>} tag32; actual concrete closure, Managed owning root and read Desc",
       "instructions": {
@@ -424,7 +424,7 @@
       "qualification": "Compiler-sealed ClosedEnvironment independently reconstructed from actual captures; required on unused generic definition. Strong close ends all entered and future raw entries before releasing stable environment."
     },
     "terminal_owned_tuple_patterns_340": {
-      "authority": "_zil_design.md §15.2",
+      "authority": "ZIL-SYNTAX",
       "state": "ContractToImplement",
       "Type": "existing structural Type::Tuple",
       "path": "PlaceProjection Field(u32) tag0 | Variant(VariantProjection) tag1 | ErrorArm(bool is_error) tag2; bounded actual mixed path",
@@ -440,7 +440,7 @@
       "responsibility": "Independent actual partial-initialization CFG and real remaining-field cleanup; each active tag checked, no public proof flags, actual parent/child overlap and whole Take requires completeness; test all pattern discriminants before borrow/move, mixed ancestors checked and paid, partial live parent header grants no payload/whole replacement authority"
     },
     "terminal_higher_ranked_callable_342": {
-      "authority": "_zil_design.md §18.1",
+      "authority": "ZIL-TRAIT",
       "state": "ContractToImplement",
       "Core": "CoreCallableParameter.life: Option<FunctionLifeContract>, invocation-local required bound",
       "Typed": "CallableRole.life: Option<FunctionLifeContract>; fixed environment Hold remains separate",
@@ -451,7 +451,7 @@
       "identity": "Core/source dependency keys and JSON/interface output retain life; old cached candidates reverified under current version"
     },
     "terminal_ct_anonymous_value_344": {
-      "authority": "_zil_design.md §15.2",
+      "authority": "ZIL-SYNTAX",
       "state": "ContractToImplement",
       "schema_version": 3,
       "domains": "artifact/provider/dependencies and standalone function/value v3; old v2 rejected",
@@ -460,7 +460,7 @@
       "responsibility": "Independent actual declaration and complete instance authentication; bounded full-key canonicality, exact active payload, cycle/size checks, prepay traversal/sort/copy before allocation; data grants no authority"
     },
     "terminal_suspend_child_343": {
-      "authority": "_zil_design.md §12.1.2",
+      "authority": "ZIL-ASYNC",
       "state": "ContractToImplement",
       "schema_version": 37,
       "wire_version": 37,
@@ -474,7 +474,7 @@
       "selection": "Explicit effects containing suspend or any resume(local|transfer) selects Suspend; explicit effects without suspend selects Direct and conflicts with resume. No effects clause derives from body. Transfer unsupported until separately checked; static Direct targets use adapters and retain ordinary bodies."
     },
     "terminal_owned_task_343": {
-      "authority": "_zil_design.md §12.1.3",
+      "authority": "ZIL-ASYNC",
       "state": "ContractToImplement",
       "schema_version": 38,
       "wire_version": 38,
@@ -497,7 +497,7 @@
       "accounting": "Single cumulative request ledger; full actual type/instance/layout/effect/cleanup/metadata/cache work paid before traversal or growth; no producer proof bits or default-limit increase"
     },
     "terminal_rich_callable_context_181": {
-      "authority": "_zil_design.md §18.1 common40 and CT5",
+      "authority": "ZIL-TRAIT (common40 and CT5)",
       "state": "ContractToImplement",
       "schema_version": 40,
       "wire_version": 40,
@@ -510,7 +510,7 @@
       "responsibility": "Same remaining work/depth/node ledger prepays all traversal/lookup/clone/remap/sort/hash; independent actual source/body/target/loan/permission/cleanup reconstruction. Unsupported consumers explicitly reject new nonempty metadata; transport is not admission."
     },
     "terminal_atomic_compare_exchange_343": {
-      "authority": "_zil_design.md §11.4",
+      "authority": "ZIL-CONCURRENCY",
       "state": "ContractToImplement",
       "schema_version": 41,
       "wire_version": 41,
@@ -544,7 +544,7 @@
       "compatibility": "Isolated successor of40; Typed/Type/LifeInventory domainsV41 and Wire41 reject older versions. CT5 unchanged."
     },
     "pollable_registration": {
-      "authority": "_zil_design.md §12.3.1 and §12.1.3/§12.2/§12.3",
+      "authority": "ZIL-ASYNC (/§12.2/§12.3)",
       "state": "ContractToImplement",
       "schema_version": 42,
       "wire_version": 42,
@@ -578,7 +578,7 @@
     },
     "contextual_type_production_ct6": {
       "runtime_scope_roots": "Default-deny independent original Call + callee Definition + full Type/Const/Life vector + CT expression-root authentication may authorize only exact positional Definition/Instantiated rows, including no-life instances; independently checked parent roots seed first use before entry type graphs. Count is a prepaid comparison bound only; all kind, vector, bounded acyclic dependency, first-use and unused-row checks remain mandatory. Producer recipes, same-shaped declarations and unrelated extra rows grant no authority; runtime Wire unchanged.",
-      "authority": "_zil_design.md §18.1 CT6 successor to common40/CT5",
+      "authority": "ZIL-TRAIT (CT6 successor to common40/CT5)",
       "state": "ContractToImplement",
       "ct_schema_version": 6,
       "instruction": "CtInstructionKind::TypeInContext { ty: CtTypeRef } -> CtTy::Type; complete rooted graph, no free lifetime value or Type constant",
@@ -590,7 +590,7 @@
       "enclosing_scope": "CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>; authentic lexical host edge with independent Definition/Instantiated own actuals, bounded acyclic parent graph and full contextual identity; free scopes None"
     },
     "runtime_utf8": {
-      "authority": "_zil_design.md §15.1",
+      "authority": "ZIL-SYNTAX",
       "state": "ContractToImplement",
       "schema_version": 43,
       "wire_version": 43,
@@ -604,7 +604,7 @@
       "scope": "Ordinary immutable byte-slice literals and explicit std.string construction; not full text/formatting/grapheme library or Rust cost acceptance"
     },
     "shared_option_address": {
-      "authority": "_zil_design.md §15.2",
+      "authority": "ZIL-SYNTAX",
       "state": "ContractToImplement",
       "representation": "Existing Address Type actual and ordinary Enum; no additional wire fields",
       "identity": "Exact compiler builtin {module:u32::MAX,declaration:0,compiler:true}; @zil.builtin/[option]/[enum,Option]/[]; parameters=[Type]",
@@ -613,7 +613,7 @@
       "boundary": "Mutable or ordinary user nominal direct Address actuals remain unsupported pending complete formal occurrence metadata; names and same-shaped types do not authorize"
     },
     "pod_store": {
-      "authority": "_zil_design.md §8.2.5",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "representation": "Existing full OwnedStore Record element, canonical resource identity and opcodes80–88; schema/Wire43 unchanged",
       "admission": "Finite nonzero Record of Unit/Bool/U8/U16/I32/I64/U64/Usize/F32/F64/Record/Tuple/Array only; complete target layout and identities independently checked including unused definitions",
@@ -625,7 +625,7 @@
       "layout": "Nonzero bounded actual stored stride; aggregate Unit and empty Record/Tuple are empty structs size0/align1; closure capture Unit placeholder is distinct; existing ABI unchanged"
     },
     "static_trait": {
-      "authority": "_zil_design.md §15.4",
+      "authority": "ZIL-RECEIVER",
       "state": "ContractToImplement",
       "representation": "Existing ordinary Function/Call with actual origin-backed provider; no receiver argument, public schema or ABI change",
       "selection": "Lexical values precede type hosts; symbolic host requires exact declaration bound, concrete host a unique existing impl; nominal materialization and trait semantic reference stay distinct",
@@ -634,7 +634,7 @@
       "accounting": "New scans/substitution/keys/clones prepaid; unaffected receiver request fees unchanged"
     },
     "pod_store_mutable": {
-      "authority": "_zil_design.md §8.2.5",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "extends": "pod_store_G9_3_2",
       "representation": "Existing OwnedStoreBorrowMut, exact mutable Address<Record>, actual canonical Store and i64 index; Wire43 unchanged",
@@ -644,7 +644,7 @@
       "boundary": "No contiguous slice, owning-element widening, escaping return, capture or default limit increase"
     },
     "scalar_store": {
-      "authority": "_zil_design.md §8.2.5",
+      "authority": "ZIL-PACKAGE",
       "state": "ContractToImplement",
       "extends": [
         "pod_store_G9_3_2",
@@ -1821,7 +1821,7 @@
     },
     "product_capture214": {
       "status": "ImplementedPartial",
-      "normative": "_zil_design.md §9.1.2",
+      "normative": "_zil_design.md#ZIL-CALLABLE",
       "schema_version": 27,
       "shape": "206 complete nested Package Product as owned closure capture; direct Managed and complete child responsibility slots",
       "entrypoints": [
@@ -1842,7 +1842,7 @@
         "Product internal Store/Closure/owned Sum/borrow",
         "readonly default borrowed Product capture"
       ],
-      "acceptance": "Limited owning214-216 profile only; exact source/independent review in task records and integration receipt. No claim of complete §9.1.2, 1.4, ZUI or product acceptance."
+      "acceptance": "Limited owning214-216 profile only; exact source/independent review in task records and integration receipt. No claim of complete ZIL-CALLABLE, 1.4, ZUI or product acceptance."
     },
     "synchronous_defer_registration": {
       "scope": "227 contract; executable support requires independent acceptance",
@@ -1854,7 +1854,7 @@
     }
   },
   "scoped_foreign_callback_266_270": {
-    "source": "_zil_design.md §12.4.1; c_with_callback(register_name, close_name, &mut f, body) -> (bool,i32)",
+    "source": "_zil_design.md#ZIL-FFI; c_with_callback(register_name, close_name, &mut f, body) -> (bool,i32)",
     "runtime_schema": 32,
     "ct_artifact_schema": 1,
     "foreign_role": "ForeignDeclaration.scoped_callback: Option<ScopedCallbackRole>; None=0, Register=1, Close=2 immediately after static_callbacks in canonical fingerprint and wire",
@@ -1866,7 +1866,7 @@
     "status": "In construction; no external lifetime acceptance claimed before source/raw/native independent tests"
   },
   "trait_lending": {
-    "source": "_zil_design.md §18.1; spec/trait-method-lending.md",
+    "source": "_zil_design.md#ZIL-GENERICS; spec/trait-method-lending.md",
     "representation": "Existing function-local life relation and StorageLifeContract positions, canonical Option shared-address profile; no new opcode/schema",
     "identity": "Static trait/provider and complete associated substitution; alpha-equivalent local binders preserve relation and receiver mode",
     "consumer": "Types checks declaration relations; Analyze and Verify independently reconstruct actual return/call roots, parent loans, live result windows and unused definitions",
@@ -1875,7 +1875,7 @@
   },
   "ordinary_store_ownership": {
     "proposal": "spec/ordinary-store-ownership.md",
-    "normative": "_zil_design.md §8.1.3.2",
+    "normative": "_zil_design.md#ZIL-STORAGE",
     "representation": "Existing complete Managed<OwnedStore<T>>, Package/Tuple/Enum/ErrorUnion, concrete capture and actual ownership/loan instructions; no schema/ABI bump.",
     "consumers": [
       "Source/Types complete ownership positions",
@@ -1887,7 +1887,7 @@
   },
   "shared_dyn_dispatch": {
     "proposal": "spec/shared-dyn-dispatch.md",
-    "normative": "_zil_design.md §9.4",
+    "normative": "_zil_design.md#ZIL-CALLABLE",
     "representation": "Existing Dyn declarations/interface/vtable, DynContract, borrowed Address<Dyn> (shared or exclusive), MakeDynBorrow and CallDynSlot; actual receiver pointer plus immutable static table pointer. No schema/Wire/ABI bump.",
     "consumers": [
       "Source and CT runtime inventory",
@@ -1900,7 +1900,7 @@
   },
   "owned_dyn_storage": {
     "proposal": "spec/owned-dyn-storage.md",
-    "normative": "_zil_design.md §9.4",
+    "normative": "_zil_design.md#ZIL-CALLABLE",
     "schema_version": 48,
     "wire_version": 48,
     "type": "OwnedDyn{interface} tag40; affine two-pointer owner, distinct from unsized Dyn and Address<Dyn>",
@@ -1914,7 +1914,7 @@
     "trust": "Source and all independent kernels prove actual complete recursive Package Self, sealed ByteBuffer, canonical synchronous user Drop and recursive Store owned leaves and closed Copy companions, whole owner transfer and loans. The independent whole-owner cleanup bound covers real complete teardown; None remains Unknown. Moved Fn/FnMut entries borrow actual owner capture storage repeatedly, FnOnce may transfer it, and all normal exits retain or discharge the single environment debt. Raw metadata and tags grant no permission. No implicit box, GC/RC, retained borrows, async close, Guard, Transfer or Share."
   },
   "affine_mutex": {
-    "source": "_zil_design.md §§8,11; spec/affine-mutex.md",
+    "source": "_zil_design.md#ZIL-OWNERSHIP, _zil_design.md#ZIL-CONCURRENCY; spec/affine-mutex.md",
     "schema_version": 46,
     "wire_version": 46,
     "representation": "Type::Mutex{payload} tag38; Type::MutexGuard{payload,retained_life} tag39; actual stable owned mutex head and affine inline guard. Complete type/retained metadata is untrusted.",
@@ -1929,7 +1929,7 @@
     "trust": "Actual input cleanup, lock invariant, once-only unlock, guard-child loans, head retention and thread capability are reconstructed independently. Public transport is not source or machine acceptance."
   },
   "threaded_foreign_registration": {
-    "source": "_zil_design.md §12.3.3; spec/threaded-foreign-registration.md",
+    "source": "_zil_design.md#ZIL-FFI; spec/threaded-foreign-registration.md",
     "schema_version": 46,
     "wire_version": 46,
     "roles": {
@@ -1960,7 +1960,7 @@
     ]
   },
   "complete_integer_domains": {
-    "authority": "_zil_design.md §2.4",
+    "authority": "ZIL-MODES",
     "types": {
       "u32": "Type tag41, 32-bit unsigned, Constant tag13 u32 little-endian",
       "i8": "Type tag42, 8-bit signed, Constant tag14 i8 little-endian",

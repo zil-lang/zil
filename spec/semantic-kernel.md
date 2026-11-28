@@ -1,6 +1,6 @@
 # 语义内核与证书核验架构合同
 
-本合同定义编译器中段的终态职责。它取代“Analyze 与 Verify 各自重建同一安全事实”的旧约束（见 `_zil_design.md` §19 修订）。语言规则仍以 `_zil_design.md` 正文与具名附件为准；本合同只规定这些规则在编译器中的唯一承载位置和核验方式。
+本合同定义编译器中段的终态职责。它取代“Analyze 与 Verify 各自重建同一安全事实”的旧约束（见 `docs/architecture/compiler.md` `ZIL-ARCH`）。语言规则仍以 `_zil_design.md` 正文与具名附件为准；本合同只规定这些规则在编译器中的唯一承载位置和核验方式。
 
 ## 1. 原则
 
@@ -39,7 +39,7 @@ OpSpec 是 `InstructionKind` 上的一组穷尽静态方法，不在运行时构
 | operands | 每个操作数的角色：Consume、Copy、Borrow{mut}、PlaceBase、Index、Callee、Arg(n)、Receiver |
 | places | 指令作用的规范 Place 及其投影路径 |
 | constraints | 只依赖声明与类型的结构约束：字段存在、字段类型允许该访问模式、结果类型规则 |
-| effects | 静态效果，即该指令“尝试”做的操作：Read、Write、Init、Move、Borrow、Describe、Drop、ChangeVariant、Relocate、ReplaceInstance、EndLifetime、Create、Call、Protocol、Scope、Storage（对应 `_zil_design.md` §4.1） |
+| effects | 静态效果，即该指令“尝试”做的操作：Read、Write、Init、Move、Borrow、Describe、Drop、ChangeVariant、Relocate、ReplaceInstance、EndLifetime、Create、Call、Protocol、Scope、Storage（对应 `_zil_design.md` `ZIL-ORIGIN` / `ZIL-ACCESS`） |
 
 **覆盖规则。** OpSpec 与 `zil-semantics` 的转移函数对全部指令穷尽匹配，在模块级 `deny(clippy::wildcard_enum_match_arm)`。每条与安全相关的指令必须给出转移规则或明确的拒绝规则。只关心部分效果的检查器可以按效果类别显式忽略其余操作。
 
@@ -47,7 +47,7 @@ OpSpec 是 `InstructionKind` 上的一组穷尽静态方法，不在运行时构
 
 ## 5. 语义内核
 
-- **状态域。** 每个规范 Place 的初始化/移出状态；活动借用与描述（来源、投影、模式、依赖）；责任载体状态；协议状态；区域变量。基数分 One/Many，强更新只作用于 One（`_zil_design.md` §3.1）。
+- **状态域。** 每个规范 Place 的初始化/移出状态；活动借用与描述（来源、投影、模式、依赖）；责任载体状态；协议状态；区域变量。基数分 One/Many，强更新只作用于 One（`docs/architecture/compiler.md` `ZIL-ARCH` / `_zil_design.md` `ZIL-ORIGIN`）。
 - **转移。** `transition(op, state, ctx) → Result<Successors, Violation>`。后继可以多于一个，并可带分支条件，例如容量满、错误分支、Pending/Ready。
 - **边语义。** 正常、错误、取消、挂起、隐式清理和循环出口都是显式边，各自带边上的效果。
 - **出口义务。** 每个函数出口必须结算全部责任、借用与协议状态。
@@ -55,7 +55,7 @@ OpSpec 是 `InstructionKind` 上的一组穷尽静态方法，不在运行时构
 - **区域。** 内核给出约束的生成规则和约束成立的判定，不负责搜索区域解。
 - **检查陷阱归属。** 带检查的算术、移位、转换和 `Index` 投影的越界检查都由操作本身承担，机器降级必须在操作处生成检查；内核与核验器不依赖生产者额外插入的 `Assert`。
 - **tag 分支收窄。** 对 tag 局部（读自某 Place 的 `Discriminant`/`ErrorArm`）做 `Switch` 时，每个 arm 边确立对应 variant；otherwise 边上，若 arm 已覆盖全部 variant 则该边不可行，若只剩一个 variant 则确立该 variant。穷尽 match 因此可以把 otherwise 指向 `Unreachable`，由语义证明其不可达。
-- **drop flag。** Body 可声明 `(flag, place)`：flag 是非参数的 `Bool` 局部，place 是不含 `Deref`/`Index` 的局部内联 Place，每个 flag 至多声明一次。声明本身不授予任何事实。执行 `flag = true`（或 `false`）时，若 place 的整棵子树确定已初始化（或确定未初始化），确立 must 事实"flag 等于 place 已初始化"；合流取交集。对 `flag` 做 `Switch` 时，取值固定为 0 的边上 place 子树置为未初始化，固定为 1 的边上置为已初始化。证书以 `FlagClaim` 陈述，必须与声明一致。这是 `_zil_design.md` §7 条件关闭中的 flag 形式。
+- **drop flag。** Body 可声明 `(flag, place)`：flag 是非参数的 `Bool` 局部，place 是不含 `Deref`/`Index` 的局部内联 Place，每个 flag 至多声明一次。声明本身不授予任何事实。执行 `flag = true`（或 `false`）时，若 place 的整棵子树确定已初始化（或确定未初始化），确立 must 事实"flag 等于 place 已初始化"；合流取交集。对 `flag` 做 `Switch` 时，取值固定为 0 的边上 place 子树置为未初始化，固定为 1 的边上置为已初始化。证书以 `FlagClaim` 陈述，必须与声明一致。这是 `_zil_design.md`（`ZIL-CLEANUP`）条件关闭中的 flag 形式。
 - **键控事实失效（共用规则）。** 以局部为键的事实（tag、flag）在该局部被写入、移出、存储起止或被创建可写 loan 时失效；被描述 Place 发生相交写入时同样失效。flag 事实对 place 内部的任何写入也失效，因为那会改变初始化状态。
 
 ### 5.1 借用（loan）模型

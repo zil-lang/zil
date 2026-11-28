@@ -97,4 +97,4 @@ printf '10 20 -3\n' | ./out/stream
 - GPU 首帧、字体、OS IME、完整 ZUI 与 macOS/ARM64 目标不包含在当前 Alpha 范围。Windows 发行包不内置 `clang.exe` 与 Windows SDK，需宿主机器提供系统 C 链接工具链；目标/后端只按本次收据中真实执行的组合列出。
 - `validation/product-gates.json` 中零 safe UB、同语义 Rust 运行/内存与编译/维护成本条件、至少一项可重复净突破及发布前提原样有效。目前不得宣称这些产品条件达成。B0、完整语言与 ZUI 终态验收继续独立进行。
 
-本说明依据 `_zil_design.md` §20、`validation/language-alpha-profile.json`、`validation/language-release-gates.json`、`validation/product-gates.json`、`goal:workflow.md` 与实时 `goal:goal.md`。源码、各门结果与发布包校验绑定同一冻结提交收据；`alpha-release.yml` 与 `windows-alpha-release.yml` 的干净环境验证作业在不检出源码、不安装 Rust、不使用 Cargo 缓存的空机器上独立验证归档包安装与运行。
+本说明依据 `_zil_design.md#ZIL-TARGET`、`validation/README.md`、`validation/language-alpha-profile.json`、`validation/language-release-gates.json`、`validation/product-gates.json`、`goal:workflow.md` 与实时 `goal:goal.md`。源码、各门结果与发布包校验绑定同一冻结提交收据；`alpha-release.yml` 与 `windows-alpha-release.yml` 的干净环境验证作业在不检出源码、不安装 Rust、不使用 Cargo 缓存的空机器上独立验证归档包安装与运行。

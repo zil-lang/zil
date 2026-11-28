@@ -1,6 +1,6 @@
 # Threaded foreign registration
 
-Authority: `_zil_design.md` §12.3. The threaded route uses the existing `AsyncRegistration<F>` owner and pollable closing protocol. The threaded callback roles alone do not grant that owner Transfer or Share.
+Authority: `_zil_design.md` (`ZIL-ASYNC`). The threaded route uses the existing `AsyncRegistration<F>` owner and pollable closing protocol. The threaded callback roles alone do not grant that owner Transfer or Share.
 
 ## Provider and identity
 
