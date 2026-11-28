@@ -2,7 +2,7 @@
 //! Every pointer is owned by the current Context/Module and stays on this thread.
 use super::*;
 use crate::{model as m, preflight::Schedule};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 fn atomic_ordering(ordering: m::AtomicOrdering) -> c_int {
     match ordering {
@@ -206,11 +206,11 @@ struct Construction<'a> {
     context: Handle,
     module: &'a Module,
     builder: Builder,
-    types: BTreeMap<m::Ty, Handle>,
-    globals: BTreeMap<&'a str, Handle>,
-    function_types: BTreeMap<&'a str, Handle>,
-    locals: BTreeMap<&'a str, Handle>,
-    blocks: BTreeMap<&'a str, Handle>,
+    types: HashMap<m::Ty, Handle>,
+    globals: HashMap<&'a str, Handle>,
+    function_types: HashMap<&'a str, Handle>,
+    locals: HashMap<&'a str, Handle>,
+    blocks: HashMap<&'a str, Handle>,
 }
 impl<'a> Construction<'a> {
     fn ty(&mut self, ty: &m::Ty) -> Result<Handle, Error> {
@@ -680,6 +680,7 @@ impl<'a> Construction<'a> {
             }
             self.locals.insert(name, value);
         }
+        let mut block_handles = Vec::with_capacity(blocks.len());
         for block in blocks {
             let name = cstring(&block.name)?;
             let raw =
@@ -688,11 +689,19 @@ impl<'a> Construction<'a> {
                 return Err(error(ErrorKind::Emit, "LLVM block creation failed"));
             }
             self.blocks.insert(block.name.as_str(), raw);
+            block_handles.push(raw);
         }
         let mut phis = vec![];
-        for block in blocks {
+        for (b_idx, block) in blocks.iter().enumerate() {
+            if !block
+                .instructions
+                .first()
+                .is_some_and(|i| matches!(i.op, m::Op::Phi { .. }))
+            {
+                continue;
+            }
             unsafe {
-                LLVMPositionBuilderAtEnd(self.builder.0, self.blocks[block.name.as_str()]);
+                LLVMPositionBuilderAtEnd(self.builder.0, block_handles[b_idx]);
             }
             for inst in &block.instructions {
                 if let m::Op::Phi { ty, incoming } = &inst.op {
@@ -703,19 +712,23 @@ impl<'a> Construction<'a> {
                 }
             }
         }
+        let mut positioned_block: Option<usize> = None;
         for (step, &(b, j)) in schedule.iter().enumerate() {
             if step % 256 == 0 {
                 check(cancelled)?;
             }
-            unsafe {
-                LLVMPositionBuilderAtEnd(self.builder.0, self.blocks[blocks[b].name.as_str()]);
+            if positioned_block != Some(b) {
+                unsafe {
+                    LLVMPositionBuilderAtEnd(self.builder.0, block_handles[b]);
+                }
+                positioned_block = Some(b);
             }
             self.emit(&blocks[b].instructions[j])?;
         }
         // Back-edge operands can only be resolved after all definitions exist.
         for (phi, ty, incoming) in phis {
-            let mut values = vec![];
-            let mut predecessors = vec![];
+            let mut values = Vec::with_capacity(incoming.len());
+            let mut predecessors = Vec::with_capacity(incoming.len());
             for (v, block) in incoming {
                 values.push(self.value(v, ty)?);
                 predecessors.push(self.blocks[block.as_str()]);
@@ -760,11 +773,11 @@ pub(super) fn build(
         context,
         module: &module,
         builder,
-        types: BTreeMap::new(),
-        globals: BTreeMap::new(),
-        function_types: BTreeMap::new(),
-        locals: BTreeMap::new(),
-        blocks: BTreeMap::new(),
+        types: HashMap::with_capacity(64),
+        globals: HashMap::with_capacity(program.items.len()),
+        function_types: HashMap::with_capacity(program.items.len()),
+        locals: HashMap::with_capacity(128),
+        blocks: HashMap::with_capacity(32),
     };
     for item in &program.items {
         if let m::Item::NamedType(name, _) = item {

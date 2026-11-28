@@ -1,5 +1,7 @@
 //! Native build driver for `zil_check::VerifiedModule` using LLVM 23 clang at O0/O2.
 
+#[cfg(feature = "llvm-api")]
+use crate::body_emit::prepare_verified_body_units;
 use crate::body_emit::{BodyEmitError, emit_verified_body_units_with_entry_for_target};
 use crate::{NativeBackend, Optimization, WindowsLinkOptions};
 use std::fs;
@@ -303,14 +305,20 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 /// Explicit backend codegen ABI version bound into object-cache keys and `.meta`
-/// sidecars. Bump whenever `body_structured`, `zil-llvm-api` builder lowering, or
-/// machine object emission changes in a way that can alter output bytes for identical IR.
-pub const OBJECT_CACHE_CODEGEN_ABI: u32 = 1;
+/// sidecars. Bump whenever `body_emit`, `body_structured`, `zil-llvm-api` builder
+/// lowering, or machine object emission changes in a way that can alter output bytes.
+#[cfg_attr(not(feature = "llvm-api"), allow(dead_code))]
+pub const OBJECT_CACHE_CODEGEN_ABI: u32 = 2;
 
 #[cfg(feature = "llvm-api")]
-fn unit_cache_key(triple: &str, obj_ext: &str, pipeline: &str, unit_ir: &str) -> String {
+fn body_unit_cache_key(
+    triple: &str,
+    obj_ext: &str,
+    pipeline: &str,
+    body_fp: zil_base::Fingerprint,
+) -> String {
     let mut h = zil_base::FingerprintBuilder::new();
-    h.update(b"zil-obj-cache-v4\0");
+    h.update(b"zil-obj-cache-v5-body\0");
     h.update(OBJECT_CACHE_CODEGEN_ABI.to_le_bytes().as_slice());
     h.update(b"\0");
     h.update(env!("CARGO_PKG_VERSION").as_bytes());
@@ -323,7 +331,7 @@ fn unit_cache_key(triple: &str, obj_ext: &str, pipeline: &str, unit_ir: &str) ->
     h.update(b"\0");
     h.update(pipeline.as_bytes());
     h.update(b"\0cpu=generic|features=|reloc=pic|cm=default|verify=true\0");
-    h.update(unit_ir.as_bytes());
+    h.update(&body_fp.0);
     h.digest().to_hex()
 }
 
@@ -660,16 +668,20 @@ pub fn build_verified_body(
             {
                 let requested = options.codegen_units.max(1);
                 let emit_started = std::time::Instant::now();
-                let unit_irs = emit_verified_body_units_with_entry_for_target(
+                let plan = prepare_verified_body_units(
                     verified,
                     options.emit_c_main,
                     requested,
                     entry,
                     triple,
                 )?;
-                let emit_ns = emit_started.elapsed().as_nanos() as u64;
-                let actual_units = unit_irs.len();
-                let ir = if options.emit_ir_file {
+                let actual_units = plan.actual_units();
+                let pre_emitted_irs: Option<Vec<String>> = if options.emit_ir_file {
+                    Some(plan.emit_all_units_ir()?)
+                } else {
+                    None
+                };
+                let ir = if let Some(ref unit_irs) = pre_emitted_irs {
                     let text = if actual_units == 1 {
                         unit_irs[0].clone()
                     } else {
@@ -682,6 +694,7 @@ pub fn build_verified_body(
                 } else {
                     String::new()
                 };
+                let prepare_ns = emit_started.elapsed().as_nanos() as u64;
 
                 let cache_dir = options.object_cache.as_deref();
                 let pid = std::process::id();
@@ -728,183 +741,280 @@ pub fn build_verified_body(
                     report: String,
                     cache_hit: bool,
                 }
-                let results: Vec<std::sync::Mutex<Option<Result<UnitCompiled, String>>>> = (0
-                    ..actual_units)
-                    .map(|_| std::sync::Mutex::new(None))
-                    .collect();
-                let next_idx = std::sync::atomic::AtomicUsize::new(0);
+                struct DirtyUnit {
+                    idx: usize,
+                    cache_info: Option<(String, PathBuf, PathBuf)>,
+                    staged_target: Option<PathBuf>,
+                }
 
-                std::thread::scope(|s| {
-                    for _ in 0..jobs {
-                        s.spawn(|| {
-                            let config = zil_llvm_api::Config {
-                                triple,
-                                optimization: api_opt,
-                            };
-                            loop {
-                                let idx =
-                                    next_idx.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                                if idx >= actual_units {
-                                    break;
-                                }
-                                let cache_info = cache_dir.map(|dir| {
-                                    let key = unit_cache_key(
-                                        triple,
-                                        obj_ext,
-                                        pipeline_id,
-                                        &unit_irs[idx],
-                                    );
-                                    let cp = dir.join(format!("{key}.{obj_ext}"));
-                                    let mp = cache_meta_path(&cp);
-                                    (key, cp, mp)
-                                });
-                                let staged_target =
-                                    stage_dir_ref.map(|sd| sd.join(format!("u{idx}.{obj_ext}")));
+                // Phase 1: Check object cache directly from Body-IR CGU fingerprints BEFORE
+                // emitting any LLVM IR. Cache-hit CGUs pay zero IR formatting or LLVM cost!
+                enum ProbeResult {
+                    Hit(UnitCompiled),
+                    Miss(DirtyUnit),
+                }
+                let probe_unit = |idx: usize| -> ProbeResult {
+                    let cache_info = cache_dir.map(|dir| {
+                        let body_fp = plan.unit_body_fingerprint(idx);
+                        let key = body_unit_cache_key(triple, obj_ext, pipeline_id, body_fp);
+                        let cp = dir.join(format!("{key}.{obj_ext}"));
+                        let mp = cache_meta_path(&cp);
+                        (key, cp, mp)
+                    });
+                    let staged_target =
+                        stage_dir_ref.map(|sd| sd.join(format!("u{idx}.{obj_ext}")));
 
-                                // Pin a private hard-link snapshot BEFORE verifying integrity so a
-                                // concurrent process running LRU eviction cannot unlink our link input.
-                                let mut hit_unit: Option<UnitCompiled> = None;
-                                if let (Some((key, cp, mp)), Some(staged)) =
-                                    (cache_info.as_ref(), staged_target.as_ref())
-                                {
-                                    match stage_object_snapshot(cp, staged) {
-                                        Ok(()) => {
-                                            let verified_ok = fs::read_to_string(mp)
-                                                .ok()
-                                                .zip(fs::read(staged).ok())
-                                                .is_some_and(|(meta_txt, bytes)| {
-                                                    verify_cache_integrity(
-                                                        &meta_txt,
-                                                        &bytes,
-                                                        obj_ext,
-                                                        key,
-                                                        zil_llvm_api::LLVM_VERSION,
-                                                        triple,
-                                                        pipeline_id,
-                                                    )
-                                                });
-                                            if verified_ok {
-                                                touch_cache_mtime(cp);
-                                                hit_unit = Some(UnitCompiled {
-                                                    cache_key: Some(key.clone()),
-                                                    cache_entry_path: Some(cp.clone()),
-                                                    staged_path: Some(staged.clone()),
-                                                    bytes: Vec::new(),
-                                                    report: cache_hit_receipt_json(
-                                                        triple,
-                                                        pipeline_id,
-                                                    ),
-                                                    cache_hit: true,
-                                                });
-                                            } else {
-                                                // Corrupt or mismatched cache entry: drop staged copy and
-                                                // best-effort purge corrupt entry, then recompile cleanly.
-                                                let _ = fs::remove_file(staged);
-                                                let _ = fs::remove_file(mp);
-                                                let _ = fs::remove_file(cp);
-                                            }
-                                        }
-                                        Err(_) => {
-                                            // Not present or concurrently evicted; compile fresh.
-                                        }
+                    // Pin a private hard-link snapshot BEFORE verifying integrity so a
+                    // concurrent process running LRU eviction cannot unlink our link input.
+                    if let (Some((key, cp, mp)), Some(staged)) =
+                        (cache_info.as_ref(), staged_target.as_ref())
+                        && stage_object_snapshot(cp, staged).is_ok()
+                    {
+                        let verified_ok = fs::read_to_string(mp)
+                            .ok()
+                            .zip(fs::read(staged).ok())
+                            .is_some_and(|(meta_txt, bytes)| {
+                                verify_cache_integrity(
+                                    &meta_txt,
+                                    &bytes,
+                                    obj_ext,
+                                    key,
+                                    zil_llvm_api::LLVM_VERSION,
+                                    triple,
+                                    pipeline_id,
+                                )
+                            });
+                        if verified_ok {
+                            touch_cache_mtime(cp);
+                            return ProbeResult::Hit(UnitCompiled {
+                                cache_key: Some(key.clone()),
+                                cache_entry_path: Some(cp.clone()),
+                                staged_path: Some(staged.clone()),
+                                bytes: Vec::new(),
+                                report: cache_hit_receipt_json(triple, pipeline_id),
+                                cache_hit: true,
+                            });
+                        } else {
+                            // Corrupt or mismatched cache entry: drop staged copy and
+                            // best-effort purge corrupt entry, then recompile cleanly.
+                            let _ = fs::remove_file(staged);
+                            let _ = fs::remove_file(mp);
+                            let _ = fs::remove_file(cp);
+                        }
+                    }
+
+                    ProbeResult::Miss(DirtyUnit {
+                        idx,
+                        cache_info,
+                        staged_target,
+                    })
+                };
+
+                let mut hit_slots: Vec<Option<Result<UnitCompiled, String>>> =
+                    (0..actual_units).map(|_| None).collect();
+                let mut dirty_units: Vec<DirtyUnit> = Vec::new();
+                if cache_dir.is_some() && jobs > 1 && actual_units > 2 {
+                    let probe_slots: Vec<std::sync::Mutex<Option<ProbeResult>>> = (0..actual_units)
+                        .map(|_| std::sync::Mutex::new(None))
+                        .collect();
+                    let next_probe = std::sync::atomic::AtomicUsize::new(0);
+                    std::thread::scope(|s| {
+                        for _ in 0..jobs {
+                            s.spawn(|| {
+                                loop {
+                                    let idx = next_probe
+                                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                    if idx >= actual_units {
+                                        break;
+                                    }
+                                    let res = probe_unit(idx);
+                                    if let Ok(mut guard) = probe_slots[idx].lock() {
+                                        *guard = Some(res);
                                     }
                                 }
-
-                                let compiled = if let Some(hit) = hit_unit {
-                                    Ok(hit)
-                                } else {
-                                    crate::body_structured::build_structured_module(
-                                        &unit_irs[idx],
-                                        triple,
-                                        &format!("unit-{idx}"),
-                                    )
-                                    .map_err(|e| {
-                                        format!(
-                                            "zil-llvm-api unit {idx} structured build failed: {}",
-                                            e.message
-                                        )
-                                    })
-                                    .and_then(|structured| {
-                                        zil_llvm_api::compile_module(&structured, &config, &|| {
-                                            false
-                                        })
-                                        .map_err(|e| format!("zil-llvm-api unit {idx} failed: {e}"))
-                                    })
-                                    .map(|object| {
-                                        let mut cache_entry_path = None;
-                                        let mut staged_path = None;
-                                        let mut unit_key_owned = None;
-                                        if let (Some((key, cp, mp)), Some(staged)) =
-                                            (cache_info.as_ref(), staged_target.as_ref())
-                                        {
-                                            unit_key_owned = Some(key.clone());
-                                            let obj_sha = sha256_hex(&object.bytes);
-                                            let meta_text = format_cache_meta(
-                                                key,
-                                                object.bytes.len(),
-                                                &obj_sha,
-                                                &object.receipt.llvm_version,
-                                                &object.receipt.triple,
-                                                &object.receipt.pipeline,
-                                            );
-                                            let tmp_obj = cp.with_extension(format!(
-                                                "{obj_ext}.tmp.{pid}.{stage_seq}.{idx}"
-                                            ));
-                                            let tmp_meta = PathBuf::from(format!(
-                                                "{}.tmp.{pid}.{stage_seq}.{idx}",
-                                                mp.display()
-                                            ));
-                                            if fs::write(&tmp_obj, &object.bytes).is_ok() {
-                                                // Pin our private staged hard-link BEFORE publishing into
-                                                // cache_dir so neither concurrent eviction nor Windows rename
-                                                // contention can ever disrupt this build's link input.
-                                                if stage_object_snapshot(&tmp_obj, staged).is_ok() {
-                                                    staged_path = Some(staged.clone());
-                                                }
-                                                // Publish `.meta` BEFORE `.o` so concurrent readers never
-                                                // observe an object file whose paired `.meta` is missing.
-                                                let meta_published =
-                                                    fs::write(&tmp_meta, &meta_text).is_ok()
-                                                        && fs::rename(&tmp_meta, mp).is_ok();
-                                                if !meta_published {
-                                                    let _ = fs::remove_file(&tmp_meta);
-                                                }
-                                                if meta_published
-                                                    && fs::rename(&tmp_obj, cp).is_ok()
-                                                {
-                                                    cache_entry_path = Some(cp.clone());
-                                                } else {
-                                                    let _ = fs::remove_file(&tmp_obj);
-                                                }
-                                            }
-                                            if staged_path.is_none()
-                                                && fs::write(staged, &object.bytes).is_ok()
-                                            {
-                                                staged_path = Some(staged.clone());
-                                            }
-                                        }
-                                        let bytes = if staged_path.is_some() {
-                                            Vec::new()
-                                        } else {
-                                            object.bytes
-                                        };
-                                        UnitCompiled {
-                                            cache_key: unit_key_owned,
-                                            cache_entry_path,
-                                            staged_path,
-                                            bytes,
-                                            report: receipt_to_json(&object.receipt),
-                                            cache_hit: false,
-                                        }
-                                    })
-                                };
-                                if let Ok(mut slot) = results[idx].lock() {
-                                    *slot = Some(compiled);
-                                }
-                            }
-                        });
+                            });
+                        }
+                    });
+                    for (idx, slot) in probe_slots.into_iter().enumerate() {
+                        match slot
+                            .into_inner()
+                            .ok()
+                            .flatten()
+                            .unwrap_or_else(|| probe_unit(idx))
+                        {
+                            ProbeResult::Hit(hit) => hit_slots[idx] = Some(Ok(hit)),
+                            ProbeResult::Miss(dirty) => dirty_units.push(dirty),
+                        }
                     }
-                });
+                } else {
+                    for (idx, hit_slot) in hit_slots.iter_mut().enumerate() {
+                        match probe_unit(idx) {
+                            ProbeResult::Hit(hit) => *hit_slot = Some(Ok(hit)),
+                            ProbeResult::Miss(dirty) => dirty_units.push(dirty),
+                        }
+                    }
+                }
+
+                // Phase 2: Lazily emit LLVM IR and compile ONLY dirty (cache-miss) CGUs,
+                // reusing one LLVMTargetMachine (`WorkerSession`) per worker thread!
+                let lazy_emit_ns = std::sync::atomic::AtomicU64::new(0);
+                let compile_dirty_unit = |worker: &zil_llvm_api::WorkerSession,
+                                          dirty: &DirtyUnit|
+                 -> Result<UnitCompiled, String> {
+                    let idx = dirty.idx;
+                    let owned_ir: String;
+                    let unit_ir: &str = if let Some(ref irs) = pre_emitted_irs {
+                        &irs[idx]
+                    } else {
+                        let t_emit = std::time::Instant::now();
+                        owned_ir = plan
+                            .emit_unit_ir(idx)
+                            .map_err(|e| format!("unit {idx} IR emit failed: {}", e.message))?;
+                        lazy_emit_ns.fetch_add(
+                            t_emit.elapsed().as_nanos() as u64,
+                            std::sync::atomic::Ordering::Relaxed,
+                        );
+                        &owned_ir
+                    };
+                    let structured = crate::body_structured::build_structured_module(
+                        unit_ir,
+                        triple,
+                        &format!("unit-{idx}"),
+                    )
+                    .map_err(|e| {
+                        format!(
+                            "zil-llvm-api unit {idx} structured build failed: {}",
+                            e.message
+                        )
+                    })?;
+                    let object = worker
+                        .compile_module(&structured, &|| false)
+                        .map_err(|e| format!("zil-llvm-api unit {idx} failed: {e}"))?;
+                    let mut cache_entry_path = None;
+                    let mut staged_path = None;
+                    let mut unit_key_owned = None;
+                    if let (Some((key, cp, mp)), Some(staged)) =
+                        (dirty.cache_info.as_ref(), dirty.staged_target.as_ref())
+                    {
+                        unit_key_owned = Some(key.clone());
+                        let obj_sha = sha256_hex(&object.bytes);
+                        let meta_text = format_cache_meta(
+                            key,
+                            object.bytes.len(),
+                            &obj_sha,
+                            &object.receipt.llvm_version,
+                            &object.receipt.triple,
+                            &object.receipt.pipeline,
+                        );
+                        let tmp_obj =
+                            cp.with_extension(format!("{obj_ext}.tmp.{pid}.{stage_seq}.{idx}"));
+                        let tmp_meta =
+                            PathBuf::from(format!("{}.tmp.{pid}.{stage_seq}.{idx}", mp.display()));
+                        if fs::write(&tmp_obj, &object.bytes).is_ok() {
+                            // Pin our private staged hard-link BEFORE publishing into
+                            // cache_dir so neither concurrent eviction nor Windows rename
+                            // contention can ever disrupt this build's link input.
+                            if stage_object_snapshot(&tmp_obj, staged).is_ok() {
+                                staged_path = Some(staged.clone());
+                            }
+                            // Publish `.meta` BEFORE `.o` so concurrent readers never
+                            // observe an object file whose paired `.meta` is missing.
+                            let meta_published = fs::write(&tmp_meta, &meta_text).is_ok()
+                                && fs::rename(&tmp_meta, mp).is_ok();
+                            if !meta_published {
+                                let _ = fs::remove_file(&tmp_meta);
+                            }
+                            if meta_published && fs::rename(&tmp_obj, cp).is_ok() {
+                                cache_entry_path = Some(cp.clone());
+                            } else {
+                                let _ = fs::remove_file(&tmp_obj);
+                            }
+                        }
+                        if staged_path.is_none() && fs::write(staged, &object.bytes).is_ok() {
+                            staged_path = Some(staged.clone());
+                        }
+                    }
+                    let bytes = if staged_path.is_some() {
+                        Vec::new()
+                    } else {
+                        object.bytes
+                    };
+                    Ok(UnitCompiled {
+                        cache_key: unit_key_owned,
+                        cache_entry_path,
+                        staged_path,
+                        bytes,
+                        report: receipt_to_json(&object.receipt),
+                        cache_hit: false,
+                    })
+                };
+
+                let results: Vec<std::sync::Mutex<Option<Result<UnitCompiled, String>>>> =
+                    hit_slots.into_iter().map(std::sync::Mutex::new).collect();
+                let dirty_count = dirty_units.len();
+                let api_config = zil_llvm_api::Config {
+                    triple,
+                    optimization: api_opt,
+                };
+                if dirty_count == 1 || (dirty_count > 1 && jobs <= 1) {
+                    let worker = zil_llvm_api::WorkerSession::new(
+                        &api_config,
+                        zil_llvm_api::FunctionMerging::Disabled,
+                    )
+                    .map_err(|e| BodyBuildError::new(format!("zil-llvm-api init failed: {e}")))?;
+                    for dirty in &dirty_units {
+                        let compiled = compile_dirty_unit(&worker, dirty);
+                        if let Ok(mut slot) = results[dirty.idx].lock() {
+                            *slot = Some(compiled);
+                        }
+                    }
+                } else if dirty_count > 1 {
+                    let worker_count = jobs.min(dirty_count);
+                    let next_dirty = std::sync::atomic::AtomicUsize::new(0);
+                    std::thread::scope(|s| {
+                        for _ in 0..worker_count {
+                            s.spawn(|| {
+                                let worker = match zil_llvm_api::WorkerSession::new(
+                                    &api_config,
+                                    zil_llvm_api::FunctionMerging::Disabled,
+                                ) {
+                                    Ok(w) => w,
+                                    Err(e) => {
+                                        let msg = format!("zil-llvm-api init failed: {e}");
+                                        loop {
+                                            let di = next_dirty
+                                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                            if di >= dirty_count {
+                                                break;
+                                            }
+                                            if let Ok(mut slot) =
+                                                results[dirty_units[di].idx].lock()
+                                            {
+                                                *slot = Some(Err(msg.clone()));
+                                            }
+                                        }
+                                        return;
+                                    }
+                                };
+                                loop {
+                                    let di = next_dirty
+                                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                    if di >= dirty_count {
+                                        break;
+                                    }
+                                    let dirty = &dirty_units[di];
+                                    let compiled = compile_dirty_unit(&worker, dirty);
+                                    if let Ok(mut slot) = results[dirty.idx].lock() {
+                                        *slot = Some(compiled);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+                let emit_ns = prepare_ns
+                    + lazy_emit_ns.load(std::sync::atomic::Ordering::Relaxed)
+                        / (jobs.min(dirty_count.max(1)) as u64);
 
                 let mut obj_paths = Vec::with_capacity(actual_units);
                 let mut temp_obj_paths = Vec::new();

@@ -292,204 +292,257 @@ pub(super) fn runtime_library() -> Result<std::path::PathBuf, Error> {
     })
 }
 
+/// Thread-confined reusable LLVM target machine, data layout, and pass options.
+/// Each [`compile_module`] call still creates and disposes a fresh `LLVMContext`
+/// and `LLVMModule`, preserving strict isolation and deterministic teardown.
+pub(super) struct NativeSession {
+    // Field drop order matters: PassOptions & Layout drop before Machine.
+    opts: PassOptions,
+    layout: Layout,
+    machine: Machine,
+    data_layout: String,
+    triple: String,
+    optimization: Optimization,
+    function_merging: FunctionMerging,
+}
+
+impl NativeSession {
+    pub(super) fn new(
+        config: &Config<'_>,
+        function_merging: FunctionMerging,
+    ) -> Result<Self, Error> {
+        check_config(config)?;
+        if config.optimization != Optimization::O2 && function_merging != FunctionMerging::Disabled
+        {
+            return Err(error(ErrorKind::Optimize, "function merging requires O2"));
+        }
+        INIT.call_once(|| {
+            // SAFETY: target registry is initialized once, before worker lookups.
+            unsafe {
+                LLVMInitializeX86TargetInfo();
+                LLVMInitializeX86Target();
+                LLVMInitializeX86TargetMC();
+                LLVMInitializeX86AsmPrinter();
+                LLVMInitializeX86AsmParser();
+            }
+        });
+        let triple =
+            CString::new(config.triple).map_err(|e| error(ErrorKind::Target, e.to_string()))?;
+        let mut target = ptr::null_mut();
+        let mut msg = ptr::null_mut();
+        let failed = unsafe { LLVMGetTargetFromTriple(triple.as_ptr(), &mut target, &mut msg) };
+        let message = unsafe { take_message(msg) };
+        if failed != 0 || target.is_null() {
+            return Err(error(ErrorKind::Target, message));
+        }
+        let optimized = config.optimization == Optimization::O2;
+        // Fixed generic CPU; never inherit host features. PIC=2, Default code model=0.
+        let machine = Machine(unsafe {
+            LLVMCreateTargetMachine(
+                target,
+                triple.as_ptr(),
+                c"x86-64".as_ptr(),
+                c"".as_ptr(),
+                if optimized { 2 } else { 0 },
+                2,
+                0,
+            )
+        });
+        if machine.0.is_null() {
+            return Err(error(ErrorKind::Target, "cannot create target machine"));
+        }
+        let layout = Layout(unsafe { LLVMCreateTargetDataLayout(machine.0) });
+        if layout.0.is_null() {
+            return Err(error(ErrorKind::Target, "missing target data layout"));
+        }
+        // LLVMLittleEndian=1, byte width=8: do not use host pointer size/alignment.
+        if unsafe { LLVMPointerSize(layout.0) != 8 || LLVMByteOrder(layout.0) != 1 } {
+            return Err(error(
+                ErrorKind::Target,
+                "target data layout violates the checked x64 little-endian profile",
+            ));
+        }
+        let data_layout = unsafe { take_message(LLVMCopyStringRepOfTargetData(layout.0)) };
+        let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
+        if opts.0.is_null() {
+            return Err(error(ErrorKind::Optimize, "cannot create pass options"));
+        }
+        unsafe {
+            LLVMPassBuilderOptionsSetVerifyEach(opts.0, 0);
+            LLVMPassBuilderOptionsSetLoopInterleaving(opts.0, i32::from(optimized));
+            LLVMPassBuilderOptionsSetLoopVectorization(opts.0, i32::from(optimized));
+            LLVMPassBuilderOptionsSetSLPVectorization(opts.0, i32::from(optimized));
+            // LLVM's aliases option remains false. Do not add unnamed_addr: emitted
+            // canonical functions keep their address identity and external names.
+            LLVMPassBuilderOptionsSetMergeFunctions(
+                opts.0,
+                i32::from(function_merging != FunctionMerging::Disabled),
+            );
+        }
+        Ok(Self {
+            opts,
+            layout,
+            machine,
+            data_layout,
+            triple: config.triple.to_owned(),
+            optimization: config.optimization,
+            function_merging,
+        })
+    }
+
+    pub(super) fn compile_module(
+        &self,
+        module: &crate::model::Module,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Object, Error> {
+        self.compile_input_inner(Input::Structured(module), cancelled)
+    }
+
+    fn compile_input_inner(
+        &self,
+        input: Input<'_>,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Object, Error> {
+        let start = Instant::now();
+        check(cancelled)?;
+        // SAFETY below: handles never leave this thread, owned guards release in
+        // reverse order (module before context), and C string inputs stay alive.
+        let context = Context(unsafe { LLVMContextCreate() });
+        if context.0.is_null() {
+            return Err(error(ErrorKind::Emit, "LLVMContextCreate returned NULL"));
+        }
+        let (module, input_kind, preflight_ns, builder_ns, parse_ns) = match input {
+            #[cfg(feature = "text-reference")]
+            Input::Text(ir) => {
+                let t = Instant::now();
+                // LLVMParseIRInContext consumes its buffer on success and failure.
+                let buffer = unsafe {
+                    LLVMCreateMemoryBufferWithMemoryRangeCopy(
+                        ir.as_ptr().cast(),
+                        ir.len(),
+                        c"zil-unit".as_ptr(),
+                    )
+                };
+                if buffer.is_null() {
+                    return Err(error(ErrorKind::Parse, "cannot allocate IR buffer"));
+                }
+                let mut raw = ptr::null_mut();
+                let mut msg = ptr::null_mut();
+                let failed = unsafe { LLVMParseIRInContext(context.0, buffer, &mut raw, &mut msg) };
+                let module = Module(raw);
+                let message = unsafe { take_message(msg) };
+                if failed != 0 || module.0.is_null() {
+                    return Err(error(ErrorKind::Parse, message));
+                }
+                (module, "llvm-text", 0, 0, nanos(t))
+            }
+            Input::Structured(program) => {
+                if program.triple != self.triple {
+                    return Err(error(
+                        ErrorKind::Target,
+                        "structured module target differs from configuration",
+                    ));
+                }
+                let t = Instant::now();
+                let schedule = crate::preflight::validate(program)
+                    .map_err(|message| error(ErrorKind::Verify, message))?;
+                let preflight_ns = nanos(t);
+                check(cancelled)?;
+                let t = Instant::now();
+                let module =
+                    builder::build(context.0, program, self.layout.0, &schedule, cancelled)?;
+                (module, "builder", preflight_ns, nanos(t), 0)
+            }
+        };
+        verify(&module)?;
+        check(cancelled)?;
+        if unsafe { text(LLVMGetTarget(module.0)) } != self.triple {
+            return Err(error(
+                ErrorKind::Target,
+                "IR target differs from the verified target configuration",
+            ));
+        }
+        let previous = unsafe { text(LLVMGetDataLayoutStr(module.0)) };
+        if !previous.is_empty() && previous != self.data_layout {
+            return Err(error(
+                ErrorKind::Target,
+                "IR data layout differs from target machine",
+            ));
+        }
+        unsafe { LLVMSetModuleDataLayout(module.0, self.layout.0) };
+        let optimized = self.optimization == Optimization::O2;
+        let pipeline = match (optimized, self.function_merging) {
+            (false, _) => c"default<O0>",
+            (true, FunctionMerging::BeforeAndAfter) => c"mergefunc,default<O2>",
+            (true, _) => c"default<O2>",
+        };
+        let t = Instant::now();
+        let failure =
+            unsafe { LLVMRunPasses(module.0, pipeline.as_ptr(), self.machine.0, self.opts.0) };
+        if !failure.is_null() {
+            // GetErrorMessage consumes LLVMErrorRef; different message disposer.
+            let msg = unsafe { LLVMGetErrorMessage(failure) };
+            let message = unsafe { text(msg) };
+            if !msg.is_null() {
+                unsafe { LLVMDisposeErrorMessage(msg) };
+            }
+            return Err(error(ErrorKind::Optimize, message));
+        }
+        let optimize_ns = nanos(t);
+        verify(&module)?;
+        check(cancelled)?;
+        let t = Instant::now();
+        let mut object = ptr::null_mut();
+        let mut msg = ptr::null_mut();
+        // LLVMObjectFile=1. No file is created until the full object is returned.
+        let failed = unsafe {
+            LLVMTargetMachineEmitToMemoryBuffer(self.machine.0, module.0, 1, &mut msg, &mut object)
+        };
+        let object = Buffer(object);
+        let message = unsafe { take_message(msg) };
+        if failed != 0 || object.0.is_null() {
+            return Err(error(ErrorKind::Emit, message));
+        }
+        let len = unsafe { LLVMGetBufferSize(object.0) };
+        let ptr = unsafe { LLVMGetBufferStart(object.0) };
+        if len == 0 || len > isize::MAX as usize || ptr.is_null() {
+            return Err(error(ErrorKind::Emit, "invalid object buffer"));
+        }
+        // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
+        let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
+        let emit_ns = nanos(t);
+        check(cancelled)?;
+        Ok(Object {
+            bytes,
+            receipt: Receipt {
+                llvm_version: super::LLVM_VERSION.into(),
+                triple: self.triple.clone(),
+                cpu: "x86-64".into(),
+                features: String::new(),
+                data_layout: self.data_layout.clone(),
+                pipeline: super::pipeline_identity(self.optimization, self.function_merging).into(),
+                relocation: "PIC".into(),
+                code_model: "default".into(),
+                verify_before_after: true,
+                input_kind: input_kind.into(),
+                preflight_ns,
+                builder_ns,
+                parse_ns,
+                optimize_ns,
+                emit_ns,
+                total_ns: nanos(start),
+            },
+        })
+    }
+}
+
 fn compile_input(
     input: Input<'_>,
     config: &Config<'_>,
     function_merging: FunctionMerging,
     cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Result<Object, Error> {
-    let start = Instant::now();
     check(cancelled)?;
-    check_config(config)?;
-    if config.optimization != Optimization::O2 && function_merging != FunctionMerging::Disabled {
-        return Err(error(ErrorKind::Optimize, "function merging requires O2"));
-    }
-    INIT.call_once(|| {
-        // SAFETY: target registry is initialized once, before worker lookups.
-        unsafe {
-            LLVMInitializeX86TargetInfo();
-            LLVMInitializeX86Target();
-            LLVMInitializeX86TargetMC();
-            LLVMInitializeX86AsmPrinter();
-            LLVMInitializeX86AsmParser();
-        }
-    });
-    // SAFETY below: handles never leave this thread, owned guards release in
-    // reverse order, and all C string inputs remain alive through each call.
-    let context = Context(unsafe { LLVMContextCreate() });
-    if context.0.is_null() {
-        return Err(error(ErrorKind::Emit, "LLVMContextCreate returned NULL"));
-    }
-    let triple =
-        CString::new(config.triple).map_err(|e| error(ErrorKind::Target, e.to_string()))?;
-    let mut target = ptr::null_mut();
-    let mut msg = ptr::null_mut();
-    let failed = unsafe { LLVMGetTargetFromTriple(triple.as_ptr(), &mut target, &mut msg) };
-    let message = unsafe { take_message(msg) };
-    if failed != 0 || target.is_null() {
-        return Err(error(ErrorKind::Target, message));
-    }
-    let optimized = config.optimization == Optimization::O2;
-    // Fixed generic CPU; never inherit host features. PIC=2, Default code model=0.
-    let machine = Machine(unsafe {
-        LLVMCreateTargetMachine(
-            target,
-            triple.as_ptr(),
-            c"x86-64".as_ptr(),
-            c"".as_ptr(),
-            if optimized { 2 } else { 0 },
-            2,
-            0,
-        )
-    });
-    if machine.0.is_null() {
-        return Err(error(ErrorKind::Target, "cannot create target machine"));
-    }
-    let layout = Layout(unsafe { LLVMCreateTargetDataLayout(machine.0) });
-    if layout.0.is_null() {
-        return Err(error(ErrorKind::Target, "missing target data layout"));
-    }
-    // LLVMLittleEndian=1, byte width=8: do not use host pointer size/alignment.
-    if unsafe { LLVMPointerSize(layout.0) != 8 || LLVMByteOrder(layout.0) != 1 } {
-        return Err(error(
-            ErrorKind::Target,
-            "target data layout violates the checked x64 little-endian profile",
-        ));
-    }
-    let data_layout = unsafe { take_message(LLVMCopyStringRepOfTargetData(layout.0)) };
-    let (module, input_kind, preflight_ns, builder_ns, parse_ns) = match input {
-        #[cfg(feature = "text-reference")]
-        Input::Text(ir) => {
-            let t = Instant::now();
-            // LLVMParseIRInContext consumes its buffer on success and failure.
-            let buffer = unsafe {
-                LLVMCreateMemoryBufferWithMemoryRangeCopy(
-                    ir.as_ptr().cast(),
-                    ir.len(),
-                    c"zil-unit".as_ptr(),
-                )
-            };
-            if buffer.is_null() {
-                return Err(error(ErrorKind::Parse, "cannot allocate IR buffer"));
-            }
-            let mut raw = ptr::null_mut();
-            let mut msg = ptr::null_mut();
-            let failed = unsafe { LLVMParseIRInContext(context.0, buffer, &mut raw, &mut msg) };
-            let module = Module(raw);
-            let message = unsafe { take_message(msg) };
-            if failed != 0 || module.0.is_null() {
-                return Err(error(ErrorKind::Parse, message));
-            }
-            (module, "llvm-text", 0, 0, nanos(t))
-        }
-        Input::Structured(program) => {
-            if program.triple != config.triple {
-                return Err(error(
-                    ErrorKind::Target,
-                    "structured module target differs from configuration",
-                ));
-            }
-            let t = Instant::now();
-            let schedule = crate::preflight::validate(program)
-                .map_err(|message| error(ErrorKind::Verify, message))?;
-            let preflight_ns = nanos(t);
-            check(cancelled)?;
-            let t = Instant::now();
-            let module = builder::build(context.0, program, layout.0, &schedule, cancelled)?;
-            (module, "builder", preflight_ns, nanos(t), 0)
-        }
-    };
-    verify(&module)?;
-    check(cancelled)?;
-    if unsafe { text(LLVMGetTarget(module.0)) } != config.triple {
-        return Err(error(
-            ErrorKind::Target,
-            "IR target differs from the verified target configuration",
-        ));
-    }
-    let previous = unsafe { text(LLVMGetDataLayoutStr(module.0)) };
-    if !previous.is_empty() && previous != data_layout {
-        return Err(error(
-            ErrorKind::Target,
-            "IR data layout differs from target machine",
-        ));
-    }
-    unsafe { LLVMSetModuleDataLayout(module.0, layout.0) };
-    let pipeline = match (optimized, function_merging) {
-        (false, _) => c"default<O0>",
-        (true, FunctionMerging::BeforeAndAfter) => c"mergefunc,default<O2>",
-        (true, _) => c"default<O2>",
-    };
-    let opts = PassOptions(unsafe { LLVMCreatePassBuilderOptions() });
-    if opts.0.is_null() {
-        return Err(error(ErrorKind::Optimize, "cannot create pass options"));
-    }
-    unsafe {
-        LLVMPassBuilderOptionsSetVerifyEach(opts.0, 0);
-        LLVMPassBuilderOptionsSetLoopInterleaving(opts.0, i32::from(optimized));
-        LLVMPassBuilderOptionsSetLoopVectorization(opts.0, i32::from(optimized));
-        LLVMPassBuilderOptionsSetSLPVectorization(opts.0, i32::from(optimized));
-        // LLVM's aliases option remains false. Do not add unnamed_addr: emitted
-        // canonical functions keep their address identity and external names.
-        LLVMPassBuilderOptionsSetMergeFunctions(
-            opts.0,
-            i32::from(function_merging != FunctionMerging::Disabled),
-        );
-    }
-    let t = Instant::now();
-    let failure = unsafe { LLVMRunPasses(module.0, pipeline.as_ptr(), machine.0, opts.0) };
-    if !failure.is_null() {
-        // GetErrorMessage consumes LLVMErrorRef; different message disposer.
-        let msg = unsafe { LLVMGetErrorMessage(failure) };
-        let message = unsafe { text(msg) };
-        if !msg.is_null() {
-            unsafe { LLVMDisposeErrorMessage(msg) };
-        }
-        return Err(error(ErrorKind::Optimize, message));
-    }
-    let optimize_ns = nanos(t);
-    verify(&module)?;
-    check(cancelled)?;
-    let t = Instant::now();
-    let mut object = ptr::null_mut();
-    let mut msg = ptr::null_mut();
-    // LLVMObjectFile=1. No file is created until the full object is returned.
-    let failed = unsafe {
-        LLVMTargetMachineEmitToMemoryBuffer(machine.0, module.0, 1, &mut msg, &mut object)
-    };
-    let object = Buffer(object);
-    let message = unsafe { take_message(msg) };
-    if failed != 0 || object.0.is_null() {
-        return Err(error(ErrorKind::Emit, message));
-    }
-    let len = unsafe { LLVMGetBufferSize(object.0) };
-    let ptr = unsafe { LLVMGetBufferStart(object.0) };
-    if len == 0 || len > isize::MAX as usize || ptr.is_null() {
-        return Err(error(ErrorKind::Emit, "invalid object buffer"));
-    }
-    // SAFETY: immutable borrowed byte range from a live LLVM memory buffer.
-    let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) }.to_vec();
-    let emit_ns = nanos(t);
-    check(cancelled)?;
-    Ok(Object {
-        bytes,
-        receipt: Receipt {
-            llvm_version: super::LLVM_VERSION.into(),
-            triple: config.triple.into(),
-            cpu: "x86-64".into(),
-            features: String::new(),
-            data_layout,
-            pipeline: super::pipeline_identity(config.optimization, function_merging).into(),
-            relocation: "PIC".into(),
-            code_model: "default".into(),
-            verify_before_after: true,
-            input_kind: input_kind.into(),
-            preflight_ns,
-            builder_ns,
-            parse_ns,
-            optimize_ns,
-            emit_ns,
-            total_ns: nanos(start),
-        },
-    })
+    let session = NativeSession::new(config, function_merging)?;
+    session.compile_input_inner(input, cancelled)
 }

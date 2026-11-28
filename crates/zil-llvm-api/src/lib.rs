@@ -162,6 +162,56 @@ pub fn compile_module(
     compile_module_with_function_merging(module, config, FunctionMerging::Disabled, cancelled)
 }
 
+/// Thread-confined reusable LLVM codegen worker (`!Send`, `!Sync`).
+///
+/// Reuses one `LLVMTargetMachine`, `LLVMTargetData`, and `LLVMPassBuilderOptions`
+/// across multiple CGU compilations on a single worker thread while still creating
+/// and disposing a fresh `LLVMContext` and `LLVMModule` per CGU.
+pub struct WorkerSession {
+    #[cfg(feature = "native")]
+    inner: native::NativeSession,
+    _not_send_sync: std::marker::PhantomData<*const ()>,
+}
+
+impl WorkerSession {
+    pub fn new(config: &Config<'_>, function_merging: FunctionMerging) -> Result<Self, Error> {
+        #[cfg(feature = "native")]
+        {
+            Ok(Self {
+                inner: native::NativeSession::new(config, function_merging)?,
+                _not_send_sync: std::marker::PhantomData,
+            })
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            let _ = (config, function_merging);
+            Err(Error {
+                kind: ErrorKind::Unavailable,
+                message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),
+            })
+        }
+    }
+
+    pub fn compile_module(
+        &self,
+        module: &model::Module,
+        cancelled: &(dyn Fn() -> bool + Sync),
+    ) -> Result<Object, Error> {
+        #[cfg(feature = "native")]
+        {
+            self.inner.compile_module(module, cancelled)
+        }
+        #[cfg(not(feature = "native"))]
+        {
+            let _ = (module, cancelled);
+            Err(Error {
+                kind: ErrorKind::Unavailable,
+                message: format!("rebuild with llvm-api feature and LLVM {LLVM_VERSION}"),
+            })
+        }
+    }
+}
+
 /// Structured machine entry with an explicit pass policy. Current preflight and
 /// LLVM verification before/after optimization are identical to compile_module.
 pub fn compile_module_with_function_merging(
