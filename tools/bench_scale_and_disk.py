@@ -1141,6 +1141,585 @@ def run_frontend_cache_suite(
     }
 
 
+def _dag_layer_counts(n_mods: int) -> tuple[int, int, int, int]:
+    """Splits `n_mods` (including `main`) into 4 realistic engineering layers:
+    Core (~4%), Domain (~16%), Services (~30%), Features (~50%).
+    """
+    n_core = max(4, round(n_mods * 0.04))
+    n_dom = max(8, round(n_mods * 0.16))
+    n_svc = max(12, round(n_mods * 0.30))
+    n_feat = max(16, n_mods - 1 - n_core - n_dom - n_svc)
+    return n_core, n_dom, n_svc, n_feat
+
+
+def _dag_zil_feat_src(
+    i: int,
+    n_svc: int,
+    *,
+    salt: int = 0,
+    extra_helper: bool = False,
+    svc1_extra_arg: bool = False,
+) -> str:
+    s1 = i % n_svc
+    s2 = (i * 13 + 7) % n_svc
+    if s2 == s1:
+        s2 = (s1 + 1) % n_svc
+    helper_def = ""
+    priv_body = f"return x + {i + 2 + salt}"
+    if extra_helper:
+        helper_def = f"fn feat_extra_{i}(z: i64) -> i64 {{ return z + {i + 5 + salt} }}\n"
+        priv_body = f"return feat_extra_{i}(x)"
+    call_s1 = (
+        f"svc_{s1}.svc_run_{s1}(feat_priv_{i}(x), 1)"
+        if (svc1_extra_arg and s1 == 1)
+        else f"svc_{s1}.svc_run_{s1}(feat_priv_{i}(x))"
+    )
+    call_s2 = (
+        f"svc_{s2}.svc_run_{s2}(x, 1)"
+        if (svc1_extra_arg and s2 == 1)
+        else f"svc_{s2}.svc_run_{s2}(x)"
+    )
+    return (
+        f"import svc_{s1}\nimport svc_{s2}\n"
+        f"{helper_def}"
+        f"fn feat_priv_{i}(x: i64) -> i64 {{ {priv_body} }}\n"
+        f"pub fn feat_go_{i}(x: i64) -> i64 {{\n"
+        f"  return {call_s1} + {call_s2}\n"
+        f"}}\n"
+    )
+
+
+def _dag_rust_feat_src(
+    i: int,
+    n_svc: int,
+    *,
+    salt: int = 0,
+    extra_helper: bool = False,
+    svc1_extra_arg: bool = False,
+) -> str:
+    s1 = i % n_svc
+    s2 = (i * 13 + 7) % n_svc
+    if s2 == s1:
+        s2 = (s1 + 1) % n_svc
+    helper_def = ""
+    priv_body = f"x + {i + 2 + salt}"
+    if extra_helper:
+        helper_def = f"fn feat_extra_{i}(z: i64) -> i64 {{ z + {i + 5 + salt} }}\n"
+        priv_body = f"feat_extra_{i}(x)"
+    call_s1 = (
+        f"crate::svc_{s1}::svc_run_{s1}(feat_priv_{i}(x), 1)"
+        if (svc1_extra_arg and s1 == 1)
+        else f"crate::svc_{s1}::svc_run_{s1}(feat_priv_{i}(x))"
+    )
+    call_s2 = (
+        f"crate::svc_{s2}::svc_run_{s2}(x, 1)"
+        if (svc1_extra_arg and s2 == 1)
+        else f"crate::svc_{s2}::svc_run_{s2}(x)"
+    )
+    return (
+        f"{helper_def}"
+        f"fn feat_priv_{i}(x: i64) -> i64 {{ {priv_body} }}\n"
+        f"pub fn feat_go_{i}(x: i64) -> i64 {{\n"
+        f"  {call_s1} + {call_s2}\n"
+        f"}}\n"
+    )
+
+
+def _dag_zil_svc_src(i: int, n_dom: int, *, salt: int = 0, extra_param: bool = False) -> str:
+    d1 = i % n_dom
+    d2 = (i * 11 + 5) % n_dom
+    if d2 == d1:
+        d2 = (d1 + 1) % n_dom
+    if extra_param:
+        return (
+            f"import dom_{d1}\nimport dom_{d2}\n"
+            f"fn svc_priv_{i}(x: i64) -> i64 {{ return x * 3 + {i + salt} }}\n"
+            f"pub fn svc_run_{i}(x: i64, bonus: i64) -> i64 {{\n"
+            f"  return dom_{d1}.dom_eval_{d1}(svc_priv_{i}(x) + bonus) + dom_{d2}.dom_eval_{d2}(x)\n"
+            f"}}\n"
+        )
+    return (
+        f"import dom_{d1}\nimport dom_{d2}\n"
+        f"fn svc_priv_{i}(x: i64) -> i64 {{ return x * 3 + {i + salt} }}\n"
+        f"pub fn svc_run_{i}(x: i64) -> i64 {{\n"
+        f"  return dom_{d1}.dom_eval_{d1}(svc_priv_{i}(x)) + dom_{d2}.dom_eval_{d2}(x)\n"
+        f"}}\n"
+    )
+
+
+def _dag_rust_svc_src(i: int, n_dom: int, *, salt: int = 0, extra_param: bool = False) -> str:
+    d1 = i % n_dom
+    d2 = (i * 11 + 5) % n_dom
+    if d2 == d1:
+        d2 = (d1 + 1) % n_dom
+    if extra_param:
+        return (
+            f"fn svc_priv_{i}(x: i64) -> i64 {{ x * 3 + {i + salt} }}\n"
+            f"pub fn svc_run_{i}(x: i64, bonus: i64) -> i64 {{\n"
+            f"  crate::dom_{d1}::dom_eval_{d1}(svc_priv_{i}(x) + bonus) + crate::dom_{d2}::dom_eval_{d2}(x)\n"
+            f"}}\n"
+        )
+    return (
+        f"fn svc_priv_{i}(x: i64) -> i64 {{ x * 3 + {i + salt} }}\n"
+        f"pub fn svc_run_{i}(x: i64) -> i64 {{\n"
+        f"  crate::dom_{d1}::dom_eval_{d1}(svc_priv_{i}(x)) + crate::dom_{d2}::dom_eval_{d2}(x)\n"
+        f"}}\n"
+    )
+
+
+def generate_realistic_dag_projects(work: Path, n_mods: int) -> tuple[Path, Path, tuple[int, int, int, int], list[int]]:
+    """Generates semantically identical 4-layer engineering DAG projects in ZIL and Rust.
+
+    Returns `(z_src, r_src, (n_core, n_dom, n_svc, n_feat), svc1_callers)`.
+    """
+    n_core, n_dom, n_svc, n_feat = _dag_layer_counts(n_mods)
+    z_src = work / "zil_dag"
+    r_src = work / "rs_dag"
+    z_src.mkdir(parents=True, exist_ok=True)
+    r_src.mkdir(parents=True, exist_ok=True)
+
+    for i in range(n_core):
+        (z_src / f"core_{i}.zil").write_text(
+            f"pub struct CoreRec{i} {{ pub a: i64; pub b: i64 }}\n"
+            f"pub fn make_{i}(x: i64) -> CoreRec{i} {{ return CoreRec{i} {{ a: x + {i + 1}, b: x * 2 + {i} }} }}\n"
+            f"pub fn fold_{i}(r: CoreRec{i}) -> i64 {{ return r.a + r.b }}\n"
+        )
+        (r_src / f"core_{i}.rs").write_text(
+            f"pub struct CoreRec{i} {{ pub a: i64, pub b: i64 }}\n"
+            f"pub fn make_{i}(x: i64) -> CoreRec{i} {{ CoreRec{i} {{ a: x + {i + 1}, b: x * 2 + {i} }} }}\n"
+            f"pub fn fold_{i}(r: CoreRec{i}) -> i64 {{ r.a + r.b }}\n"
+        )
+
+    for i in range(n_dom):
+        c1 = i % n_core
+        c2 = (i * 7 + 3) % n_core
+        if c2 == c1:
+            c2 = (c1 + 1) % n_core
+        (z_src / f"dom_{i}.zil").write_text(
+            f"import core_{c1}\nimport core_{c2}\n"
+            f"fn dom_priv_{i}(x: i64) -> i64 {{ return x + {i + 1} }}\n"
+            f"pub fn dom_eval_{i}(x: i64) -> i64 {{\n"
+            f"  let r1 = core_{c1}.make_{c1}(dom_priv_{i}(x))\n"
+            f"  let r2 = core_{c2}.make_{c2}(x + 1)\n"
+            f"  return core_{c1}.fold_{c1}(r1) + core_{c2}.fold_{c2}(r2)\n"
+            f"}}\n"
+        )
+        (r_src / f"dom_{i}.rs").write_text(
+            f"fn dom_priv_{i}(x: i64) -> i64 {{ x + {i + 1} }}\n"
+            f"pub fn dom_eval_{i}(x: i64) -> i64 {{\n"
+            f"  let r1 = crate::core_{c1}::make_{c1}(dom_priv_{i}(x));\n"
+            f"  let r2 = crate::core_{c2}::make_{c2}(x + 1);\n"
+            f"  crate::core_{c1}::fold_{c1}(r1) + crate::core_{c2}::fold_{c2}(r2)\n"
+            f"}}\n"
+        )
+
+    for i in range(n_svc):
+        (z_src / f"svc_{i}.zil").write_text(_dag_zil_svc_src(i, n_dom))
+        (r_src / f"svc_{i}.rs").write_text(_dag_rust_svc_src(i, n_dom))
+
+    svc1_callers: list[int] = []
+    for i in range(n_feat):
+        s1 = i % n_svc
+        s2 = (i * 13 + 7) % n_svc
+        if s2 == s1:
+            s2 = (s1 + 1) % n_svc
+        if s1 == 1 or s2 == 1:
+            svc1_callers.append(i)
+        (z_src / f"feat_{i}.zil").write_text(_dag_zil_feat_src(i, n_svc))
+        (r_src / f"feat_{i}.rs").write_text(_dag_rust_feat_src(i, n_svc))
+
+    z_main_lines = [f"import feat_{i}" for i in range(n_feat)]
+    z_main_lines.append("fn main() -> i32 {")
+    z_main_lines.append("  var acc: i64 = 0")
+    for i in range(n_feat):
+        z_main_lines.append(f"  acc = acc + feat_{i}.feat_go_{i}(1)")
+    z_main_lines.append("  return i32(acc % 127)")
+    z_main_lines.append("}")
+    (z_src / "main.zil").write_text("\n".join(z_main_lines) + "\n")
+
+    r_main_lines = (
+        [f"mod core_{i};" for i in range(n_core)]
+        + [f"mod dom_{i};" for i in range(n_dom)]
+        + [f"mod svc_{i};" for i in range(n_svc)]
+        + [f"mod feat_{i};" for i in range(n_feat)]
+    )
+    r_main_lines.append("fn main() {")
+    r_main_lines.append("  let mut acc: i64 = 0;")
+    for i in range(n_feat):
+        r_main_lines.append(f"  acc += feat_{i}::feat_go_{i}(1);")
+    r_main_lines.append("  std::process::exit((acc % 127) as i32);")
+    r_main_lines.append("}")
+    (r_src / "main.rs").write_text("\n".join(r_main_lines) + "\n")
+
+    return z_src, r_src, (n_core, n_dom, n_svc, n_feat), svc1_callers
+
+
+def run_with_peak_rss(cmd: list[str], env: dict[str, str]) -> tuple[float, float | None, str]:
+    """Runs `cmd` and returns `(wall_ms, peak_rss_mb_or_none, stdout)` using `os.wait4`."""
+    t0 = time.perf_counter()
+    proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    assert proc.stdout is not None and proc.stderr is not None
+    # Drain stdout/stderr before wait4 so large outputs never block the child pipe.
+    stdout_chunks: list[str] = []
+    stderr_chunks: list[str] = []
+    import threading
+
+    def _drain(stream, out_list: list[str]) -> None:
+        out_list.append(stream.read())
+
+    t_out = threading.Thread(target=_drain, args=(proc.stdout, stdout_chunks))
+    t_err = threading.Thread(target=_drain, args=(proc.stderr, stderr_chunks))
+    t_out.start()
+    t_err.start()
+    rss_mb: float | None = None
+    if hasattr(os, "wait4"):
+        _, status, rusage = os.wait4(proc.pid, 0)
+        rc = os.waitstatus_to_exitcode(status)
+        # Linux reports ru_maxrss in KiB; macOS reports bytes.
+        divisor = (1024.0 * 1024.0) if platform.system() == "Darwin" else 1024.0
+        if rusage.ru_maxrss > 0:
+            rss_mb = round(rusage.ru_maxrss / divisor, 2)
+        proc.returncode = rc
+    else:
+        rc = proc.wait()
+    t_out.join()
+    t_err.join()
+    dt = (time.perf_counter() - t0) * 1000.0
+    stdout = "".join(stdout_chunks)
+    stderr = "".join(stderr_chunks)
+    if rc != 0:
+        raise RuntimeError(f"command failed ({rc}): {stderr}\n{stdout}")
+    return dt, rss_mb, stdout
+
+
+def run_realistic_dag_suite(
+    zil_bin: Path,
+    rustc_bin: Path,
+    n_mods: int,
+    opt: str,
+    jobs: int,
+    samples: int,
+    env: dict[str, str],
+) -> dict[str, object]:
+    """Experiment G: Realistic 4-layer engineering DAG (Core -> Domain -> Services -> Features -> Main)
+    comparing rustc (-C incremental) vs ZIL (plain CLI, --semantic-cache, --resident) across
+    7 real-world developer & LLM agent edit scenarios + peak RSS + disk usage + exit-code parity.
+    """
+    cgu = 16
+    rs_opt = "0" if opt == "O0" else "2"
+    scenarios = (
+        "cold",
+        "warm",
+        "leaf_priv_edit",
+        "leaf_new_helper",
+        "mid_dag_priv_edit",
+        "mid_dag_pub_edit",
+        "bulk_10pct_edit",
+    )
+    print(
+        f"\n=== Experiment G: Realistic 4-Layer DAG ({n_mods} modules, {opt}, jobs={jobs}, samples={samples}) ==="
+    )
+    samples = max(1, samples)
+    res: dict[str, dict[str, list[float]]] = {
+        mode: {sc: [] for sc in scenarios}
+        for mode in ("rustc", "zil_plain_cli", "zil_semantic_cache", "zil_resident")
+    }
+    peak_rss_mb: dict[str, list[float]] = {
+        "rustc": [],
+        "zil_plain_cli": [],
+        "zil_semantic_cache": [],
+    }
+    disk_bytes: dict[str, int] = {}
+    telemetry: dict[str, object] = {}
+    layers_info: dict[str, int] = {}
+
+    for s in range(samples):
+        work = Path(tempfile.mkdtemp(prefix=f"zil_bench_g_{n_mods}_{s}_"))
+        try:
+            z_src, r_src, (n_core, n_dom, n_svc, n_feat), svc1_callers = (
+                generate_realistic_dag_projects(work, n_mods)
+            )
+            layers_info = {
+                "core": n_core,
+                "dom": n_dom,
+                "svc": n_svc,
+                "feat": n_feat,
+                "total_modules": 1 + n_core + n_dom + n_svc + n_feat,
+                "svc1_direct_callers": len(svc1_callers),
+            }
+            entry = z_src / "main.zil"
+            z_out = work / "z_dag_app"
+            rs_out = work / "rs_dag_app"
+            bulk_n = max(1, round(n_feat * 0.10))
+
+            def reset_zil_edits() -> None:
+                (z_src / "feat_0.zil").write_text(_dag_zil_feat_src(0, n_svc))
+                (z_src / "svc_0.zil").write_text(_dag_zil_svc_src(0, n_dom))
+                (z_src / "svc_1.zil").write_text(_dag_zil_svc_src(1, n_dom))
+                for ci in svc1_callers:
+                    (z_src / f"feat_{ci}.zil").write_text(_dag_zil_feat_src(ci, n_svc))
+                for bi in range(bulk_n):
+                    (z_src / f"feat_{bi}.zil").write_text(_dag_zil_feat_src(bi, n_svc))
+
+            def apply_zil_scenario(sc: str, tag: int) -> None:
+                if sc == "leaf_priv_edit":
+                    (z_src / "feat_0.zil").write_text(_dag_zil_feat_src(0, n_svc, salt=10 + tag))
+                elif sc == "leaf_new_helper":
+                    (z_src / "feat_0.zil").write_text(
+                        _dag_zil_feat_src(0, n_svc, salt=20 + tag, extra_helper=True)
+                    )
+                elif sc == "mid_dag_priv_edit":
+                    (z_src / "svc_0.zil").write_text(_dag_zil_svc_src(0, n_dom, salt=30 + tag))
+                elif sc == "mid_dag_pub_edit":
+                    (z_src / "svc_1.zil").write_text(
+                        _dag_zil_svc_src(1, n_dom, salt=40 + tag, extra_param=True)
+                    )
+                    for ci in svc1_callers:
+                        (z_src / f"feat_{ci}.zil").write_text(
+                            _dag_zil_feat_src(ci, n_svc, svc1_extra_arg=True)
+                        )
+                elif sc == "bulk_10pct_edit":
+                    for bi in range(bulk_n):
+                        (z_src / f"feat_{bi}.zil").write_text(
+                            _dag_zil_feat_src(bi, n_svc, salt=50 + tag + bi)
+                        )
+
+            def run_zil_cli(
+                obj_cache: Path, sem_cache: Path | None = None, measure_rss: bool = False
+            ) -> tuple[float, float | None, dict]:
+                cmd = [
+                    str(zil_bin), "build", str(entry),
+                    "--opt", opt, "--codegen-units", str(cgu), "--codegen-jobs", str(jobs),
+                    "--object-cache", str(obj_cache), "--json", "-o", str(z_out),
+                ]
+                if sem_cache is not None:
+                    cmd += ["--semantic-cache", str(sem_cache)]
+                if measure_rss:
+                    dt, rss, stdout = run_with_peak_rss(cmd, env)
+                else:
+                    t0 = time.perf_counter()
+                    p = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                    dt = (time.perf_counter() - t0) * 1000.0
+                    if p.returncode != 0:
+                        raise RuntimeError(f"zil DAG failed: {p.stderr}\n{p.stdout}")
+                    rss, stdout = None, p.stdout
+                rep = json.loads(stdout)
+                if rep.get("status") != "Success":
+                    raise RuntimeError(f"zil DAG report error: {rep.get('diagnostics')}")
+                return dt, rss, rep
+
+            # 1. ZIL plain CLI (--object-cache)
+            oc_plain = work / "oc_plain"
+            dt_c, rss_c, _ = run_zil_cli(oc_plain, None, measure_rss=True)
+            res["zil_plain_cli"]["cold"].append(dt_c)
+            if rss_c is not None:
+                peak_rss_mb["zil_plain_cli"].append(rss_c)
+            z_exit = subprocess.run([str(z_out)], capture_output=True).returncode
+            dt_w, _, _ = run_zil_cli(oc_plain, None)
+            res["zil_plain_cli"]["warm"].append(dt_w)
+            for sc in scenarios[2:]:
+                reset_zil_edits()
+                apply_zil_scenario(sc, 100 + s)
+                dt_e, _, _ = run_zil_cli(oc_plain, None)
+                res["zil_plain_cli"][sc].append(dt_e)
+            reset_zil_edits()
+
+            # 2. ZIL CLI + --semantic-cache + --object-cache (P8+P9)
+            oc_sem = work / "oc_sem"
+            sc_sem = work / "sc_sem"
+            dt_c, rss_c, _ = run_zil_cli(oc_sem, sc_sem, measure_rss=True)
+            res["zil_semantic_cache"]["cold"].append(dt_c)
+            if rss_c is not None:
+                peak_rss_mb["zil_semantic_cache"].append(rss_c)
+            dt_w, _, jw = run_zil_cli(oc_sem, sc_sem)
+            res["zil_semantic_cache"]["warm"].append(dt_w)
+            sem_sc_telemetry: dict[str, object] = {
+                "warm_verify_runs": jw.get("verification_runs"),
+                "warm_link_skipped": jw.get("native_codegen", {}).get("link_skipped"),
+            }
+            for sc in scenarios[2:]:
+                reset_zil_edits()
+                # Re-baseline clean state so each scenario measures an isolated edit from baseline
+                run_zil_cli(oc_sem, sc_sem)
+                apply_zil_scenario(sc, 200 + s)
+                dt_e, _, je = run_zil_cli(oc_sem, sc_sem)
+                res["zil_semantic_cache"][sc].append(dt_e)
+                sem_sc_telemetry[sc] = {
+                    "reused_typeck_fns": je.get("reused_typeck_fns"),
+                    "total_typeck_fns": je.get("total_typeck_fns"),
+                    "reused_cert_fns": je.get("reused_cert_fns"),
+                    "obj_hits": je.get("native_codegen", {}).get("cache_hits"),
+                    "actual_units": je.get("native_codegen", {}).get("actual_units"),
+                    "verification_runs": je.get("verification_runs"),
+                }
+            reset_zil_edits()
+            disk_bytes["zil_object_cache"] = dir_stats(oc_sem)[0]
+            disk_bytes["zil_semantic_cache"] = dir_stats(sc_sem)[0]
+            disk_bytes["zil_total_cache"] = (
+                disk_bytes["zil_object_cache"] + disk_bytes["zil_semantic_cache"]
+            )
+            telemetry["zil_semantic_cache"] = sem_sc_telemetry
+
+            # 3. ZIL --resident + --object-cache (P8+P9 in-RAM baseline)
+            oc_res = work / "oc_res"
+            proc = subprocess.Popen(
+                [
+                    str(zil_bin), "build", str(entry),
+                    "--opt", opt, "--codegen-units", str(cgu), "--codegen-jobs", str(jobs),
+                    "--object-cache", str(oc_res), "-o", str(z_out),
+                    "--resident", "--resident-capacity", "4096", "--json",
+                ],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                text=True, env=env, bufsize=1,
+            )
+            assert proc.stdin is not None and proc.stdout is not None
+            ready = json.loads(proc.stdout.readline())
+            if not ready.get("ready"):
+                raise RuntimeError(f"resident not ready: {ready}")
+
+            def res_compile() -> tuple[float, dict]:
+                t0 = time.perf_counter()
+                proc.stdin.write("compile\n")
+                proc.stdin.flush()
+                line = proc.stdout.readline()
+                dt = (time.perf_counter() - t0) * 1000.0
+                j = json.loads(line)
+                rep = j.get("report", j)
+                if rep.get("status") != "Success":
+                    raise RuntimeError(f"resident DAG failed: {rep.get('diagnostics')}")
+                return dt, rep
+
+            dt_rc, _ = res_compile()
+            res["zil_resident"]["cold"].append(dt_rc)
+            dt_rw, _ = res_compile()
+            res["zil_resident"]["warm"].append(dt_rw)
+            res_sc_telemetry: dict[str, object] = {}
+            for sc in scenarios[2:]:
+                reset_zil_edits()
+                res_compile()
+                apply_zil_scenario(sc, 300 + s)
+                dt_re, jre = res_compile()
+                res["zil_resident"][sc].append(dt_re)
+                res_sc_telemetry[sc] = {
+                    "reused_typeck_fns": jre.get("reused_typeck_fns"),
+                    "total_typeck_fns": jre.get("total_typeck_fns"),
+                    "reused_cert_fns": jre.get("reused_cert_fns"),
+                    "obj_hits": jre.get("native_codegen", {}).get("cache_hits"),
+                    "verification_runs": jre.get("verification_runs"),
+                }
+            proc.stdin.write("quit\n")
+            proc.stdin.flush()
+            proc.wait(timeout=10)
+            telemetry["zil_resident"] = res_sc_telemetry
+
+            # 4. Rust baseline (-C incremental, identical 4-layer DAG)
+            rs_inc = work / "rs_inc"
+
+            def reset_rs_edits() -> None:
+                (r_src / "feat_0.rs").write_text(_dag_rust_feat_src(0, n_svc))
+                (r_src / "svc_0.rs").write_text(_dag_rust_svc_src(0, n_dom))
+                (r_src / "svc_1.rs").write_text(_dag_rust_svc_src(1, n_dom))
+                for ci in svc1_callers:
+                    (r_src / f"feat_{ci}.rs").write_text(_dag_rust_feat_src(ci, n_svc))
+                for bi in range(bulk_n):
+                    (r_src / f"feat_{bi}.rs").write_text(_dag_rust_feat_src(bi, n_svc))
+
+            def apply_rs_scenario(sc: str, tag: int) -> None:
+                if sc == "leaf_priv_edit":
+                    (r_src / "feat_0.rs").write_text(_dag_rust_feat_src(0, n_svc, salt=10 + tag))
+                elif sc == "leaf_new_helper":
+                    (r_src / "feat_0.rs").write_text(
+                        _dag_rust_feat_src(0, n_svc, salt=20 + tag, extra_helper=True)
+                    )
+                elif sc == "mid_dag_priv_edit":
+                    (r_src / "svc_0.rs").write_text(_dag_rust_svc_src(0, n_dom, salt=30 + tag))
+                elif sc == "mid_dag_pub_edit":
+                    (r_src / "svc_1.rs").write_text(
+                        _dag_rust_svc_src(1, n_dom, salt=40 + tag, extra_param=True)
+                    )
+                    for ci in svc1_callers:
+                        (r_src / f"feat_{ci}.rs").write_text(
+                            _dag_rust_feat_src(ci, n_svc, svc1_extra_arg=True)
+                        )
+                elif sc == "bulk_10pct_edit":
+                    for bi in range(bulk_n):
+                        (r_src / f"feat_{bi}.rs").write_text(
+                            _dag_rust_feat_src(bi, n_svc, salt=50 + tag + bi)
+                        )
+
+            def run_rs(measure_rss: bool = False) -> tuple[float, float | None]:
+                cmd = [
+                    str(rustc_bin), str(r_src / "main.rs"), "-o", str(rs_out),
+                    "-C", f"opt-level={rs_opt}", "-C", "debuginfo=0",
+                    "-C", "overflow-checks=yes", "-C", "panic=abort",
+                    "-C", f"codegen-units={cgu}", "-C", f"incremental={rs_inc}",
+                ]
+                if measure_rss:
+                    dt, rss, _ = run_with_peak_rss(cmd, env)
+                    return dt, rss
+                t0 = time.perf_counter()
+                p = subprocess.run(cmd, env=env, capture_output=True, text=True)
+                dt = (time.perf_counter() - t0) * 1000.0
+                if p.returncode != 0:
+                    raise RuntimeError(f"rustc DAG failed: {p.stderr}")
+                return dt, None
+
+            dt_rc, rss_rc = run_rs(measure_rss=True)
+            res["rustc"]["cold"].append(dt_rc)
+            if rss_rc is not None:
+                peak_rss_mb["rustc"].append(rss_rc)
+            rs_exit = subprocess.run([str(rs_out)], capture_output=True).returncode
+            if z_exit != rs_exit:
+                raise RuntimeError(
+                    f"DAG exit code mismatch: zil={z_exit} vs rustc={rs_exit}"
+                )
+            telemetry["exit_code_parity"] = {"zil": z_exit, "rustc": rs_exit, "matched": True}
+            dt_rw, _ = run_rs()
+            res["rustc"]["warm"].append(dt_rw)
+            for sc in scenarios[2:]:
+                reset_rs_edits()
+                run_rs()
+                apply_rs_scenario(sc, 400 + s)
+                dt_re, _ = run_rs()
+                res["rustc"][sc].append(dt_re)
+            disk_bytes["rustc_incremental_cache"] = dir_stats(rs_inc)[0]
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    summary: dict[str, dict[str, float]] = {}
+    for mode, buckets in res.items():
+        summary[mode] = {k: round(statistics.median(v), 2) for k, v in buckets.items()}
+    rss_summary = {
+        k: round(statistics.median(v), 2) for k, v in peak_rss_mb.items() if v
+    }
+
+    rs_m = summary["rustc"]
+    print(f"  Layers: {layers_info} | Exit parity: {telemetry.get('exit_code_parity')}")
+    for sc in scenarios:
+        print(
+            f"  {sc:18s} | rustc={rs_m[sc]:6.1f}ms"
+            f" | plain={summary['zil_plain_cli'][sc]:6.1f}ms ({summary['zil_plain_cli'][sc]/rs_m[sc]:.2f}x)"
+            f" | sem={summary['zil_semantic_cache'][sc]:6.1f}ms ({summary['zil_semantic_cache'][sc]/rs_m[sc]:.2f}x)"
+            f" | res={summary['zil_resident'][sc]:6.1f}ms ({summary['zil_resident'][sc]/rs_m[sc]:.2f}x)"
+        )
+    print(
+        f"  Peak RSS (cold): {rss_summary} MiB | Disk: ZIL={fmt_mb(disk_bytes.get('zil_total_cache', 0))} "
+        f"(obj={fmt_mb(disk_bytes.get('zil_object_cache', 0))}, sem={fmt_mb(disk_bytes.get('zil_semantic_cache', 0))}) "
+        f"vs rustc={fmt_mb(disk_bytes.get('rustc_incremental_cache', 0))}"
+    )
+    return {
+        "n_mods": n_mods,
+        "layers": layers_info,
+        "opt": opt,
+        "samples": samples,
+        "median_ms": summary,
+        "raw_ms": res,
+        "peak_rss_mb": rss_summary,
+        "disk_bytes": disk_bytes,
+        "telemetry": telemetry,
+    }
+
+
 def collect_metadata(zil_bin: Path, rustc_bin: Path, env: dict[str, str]) -> dict[str, object]:
     def ver(cmd: list[str]) -> str:
         try:
@@ -1193,6 +1772,8 @@ def main() -> None:
     ap.add_argument("--gen-mods", type=int, default=80, help="Module count for Experiment E")
     ap.add_argument("--with-frontend-cache", action="store_true", help="Run Experiment F semantic-cache & resident session suite")
     ap.add_argument("--fc-mods", type=int, default=1000, help="Module count for Experiment F")
+    ap.add_argument("--with-realistic-dag", action="store_true", help="Run Experiment G realistic 4-layer engineering DAG suite")
+    ap.add_argument("--dag-mods", type=int, default=500, help="Module count for Experiment G realistic DAG suite")
     ap.add_argument("--extra", action="append", default=[])
     ap.add_argument("--json-out", help="Optional path to save structured JSON report")
     args = ap.parse_args()
@@ -1239,6 +1820,10 @@ def main() -> None:
     if args.with_frontend_cache:
         report["experiment_f_frontend_cache"] = run_frontend_cache_suite(
             zil_bin, rustc_bin, args.fc_mods, args.opt, args.jobs, args.samples, env
+        )
+    if args.with_realistic_dag:
+        report["experiment_g_realistic_dag"] = run_realistic_dag_suite(
+            zil_bin, rustc_bin, args.dag_mods, args.opt, args.jobs, args.samples, env
         )
     if args.json_out:
         out_path = Path(args.json_out)
