@@ -31,4 +31,5 @@ jobs:
           python3 tools/check-plan.py --self-test
           python3 tools/check-conformance.py
           python3 tools/update-indexes.py
+          python3 tools/gen_stdlib_reference.py --check
           git diff --exit-code -- conformance/index.json spec/diagnostics.json data/normative-inputs.json
