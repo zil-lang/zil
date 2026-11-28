@@ -1,4 +1,4 @@
-(* ZIL-LANG-1.3 normative surface. This EBNF fixes productions, not a soundness proof.
+(* ZIL-LANG-1.5 normative surface. This EBNF fixes productions, not a soundness proof.
    ZIL-SYNTAX fixes lexical NEWLINE, control-head braces and arrow-block priority.
    IDENT includes contextual words; self binding is checked by ZIL-RECEIVER.
    A bare identifier or balanced parameter-list followed by => or -> selects Closure, without a type query.
@@ -143,5 +143,17 @@ End = Terminator | BeforeClose ;
 Terminator = ";" | NEWLINE ;
 BeforeClose = (* zero-width boundary immediately before '}', after a complete statement *) ;
 
-(* Finite Direct execution root; semantically reserved, never ordinary shadowable call. *)
-ScopedThreadExpr = "thread_scope", "(", Qualified, ",", Expr, ",", Expr, ")" ;
+(* Semantically reserved intrinsic call forms:
+   `thread_scope(worker, payload, body)` is parsed syntactically via the ordinary
+   Postfix call production (`IDENT "(" [Arguments] ")"`) and is reserved semantically
+   by ZIL-CONCURRENCY (never shadowable as a user function call). *)
+
+(* Lexical terminals (normatively defined by ZIL-SYNTAX in _zil_design.md):
+   IDENT             = Unicode XID_Start / "_" followed by XID_Continue characters ;
+   LIFEIDENT         = "'", IDENT ;
+   NUMBER            = integer or floating-point literal with optional type suffix ;
+   TUPLEINDEX        = unsigned decimal integer token immediately following "." ;
+   STRING            = UTF-8 double-quoted string literal with escapes ;
+   CHAR              = UTF-8 single-quoted scalar character literal ;
+   NEWLINE           = logical line terminator subject to ZIL-SYNTAX continuation rules ;
+   NonDelimiterToken = any single lexical token other than "(", ")", "[", "]", "{", "}" . *)

@@ -8,7 +8,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[3]
 FIXTURES = ROOT / 'tests/comptime-generated-items'
-RULE = 'ZIL-LANG-1.4'
+RULE = 'ZIL-LANG-1.5'
 GRAMMAR_PREFIX = b'zil/provider-grammar/v1\0'
 
 

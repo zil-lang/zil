@@ -26,7 +26,7 @@ assertion that byte-for-byte phase dumps or source identities must match.
 
 The two strict lock files use the public text contract. Source hashes bind
 raw SourceUnit bytes. Grammar hashes are SHA256 of
-`zil/provider-grammar/v1\0` + `ZIL-LANG-1.4` + `\0` + the raw 32 source-hash
+`zil/provider-grammar/v1\0` + `ZIL-LANG-1.5` + `\0` + the raw 32 source-hash
 bytes. No lock is repaired automatically. Standard CT modules are imported by
 their reserved compiler identities; input graphs provide only real user
 modules. `LOCK-NEGATIVES.json` lists six independent identity/rule failures.

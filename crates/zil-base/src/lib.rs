@@ -12,7 +12,7 @@ pub use source_map::*;
 
 use std::fmt;
 
-pub const RULE_VERSION: &str = "ZIL-LANG-1.4";
+pub const RULE_VERSION: &str = "ZIL-LANG-1.5";
 pub const SCHEMA_VERSION: u32 = 50;
 
 // Keep identities untrusted and trivially constructible. They confer no authority.

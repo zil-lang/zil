@@ -2,8 +2,9 @@
   "schema_version": 1,
   "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
   "files": {
-    "_zil_design.md": "17f7f2a767565c33a0e23fa1d530ec7ad0ada772d95dcc0adbb5c28656ddcb31",
-    "spec/grammar.ebnf": "baa5f366344cb0301cbe7137b9aab2ad6873580edb5ab47bbdb0384024be016a",
+    "_zil_design.md": "27df91791c22a98a7881fcee1a94bbc95bd86d53c7234e58a56ce44a685b06c0",
+    "spec/README.md": "533a476e5b1793b602716b9793ca2cb08b2588e2b9ed3c17022bbdeeb6b3b304",
+    "spec/grammar.ebnf": "0702d19224442a8b93818be658a09b8c3fe124aa4e89b2a5f1e8b7223b643b62",
     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
     "spec/diagnostics.json": "f4dd54d228ee87375c12168bee728d2b2f99bb3bc1170ae875dea97cec94d9ae",
     "spec/interfaces.json": "710b936a7af6910fd746b8adaed573788eb684e7c8f20b71ffa7906c7ea8ae40",
@@ -12,5 +13,5 @@
     "spec/semantic-kernel.md": "e3129fa5d66d1df86f61085815f2d31caca56816dc54e8480b8dfc699388f40d",
     "spec/source-lowering.md": "acccb3801fdae5fa53ff5f38220bddfc27f5a70f76a48586a8cd0c0ac124008c"
   },
-  "normative_hash": "21a65b58e7249d149417d317ddb68552bd4df2d4279b650cb4e1591c191a6800"
+  "normative_hash": "ba73976b9904c36a192a729d0444f953fd26a0d8e600da059b643bddd6897af6"
 }
