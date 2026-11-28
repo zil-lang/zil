@@ -1,18 +1,43 @@
 {
   "schema_version": 1,
+  "manifest": "spec/authority-manifest.json",
   "algorithm": "sha256 of sorted path + NUL + sha256 + LF entries",
-  "files": {
-    "_zil_design.md": "36a6f4f11d1d0626ebbe7da47509c0eaf27aef408e2a3ca60bbfc1c80da35690",
-    "docs/architecture/compiler.md": "219c19054c100c3a2a9b3e0a457f925b2570aa33e96bd85c6b0373bce1bba28e",
-    "spec/README.md": "dc9aa7e86361f6a7566cad63cdffb25d3835f79d3f4ec70d0e91376e31f0c5c1",
-    "spec/grammar.ebnf": "0702d19224442a8b93818be658a09b8c3fe124aa4e89b2a5f1e8b7223b643b62",
-    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
-    "spec/diagnostics.json": "f4dd54d228ee87375c12168bee728d2b2f99bb3bc1170ae875dea97cec94d9ae",
-    "spec/interfaces.json": "5ef3afe00739d9946f80a37e718951a4bf823959ec7c12c567a79d6a8eb2b290",
-    "policy/dependencies.json": "6efd6b0e7a3480950b195fafc14794ef9286885acfeae756afde07d184962dc4",
-    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
-    "spec/semantic-kernel.md": "3a40d11cfa668948fe7e6da6086ecc4ecf7dd5926a3ded2fb3a442e7acb2279f",
-    "spec/source-lowering.md": "f8bfa8f608d881db5f17a3c3e1e4d5881643acca3f248e8f24a9f1495a8cfcfb"
+  "tier_hashes": {
+    "language_spec": "492885a1f2f6b0efe38959239dc5da0aa27b8ba348059fb98d7250121d0df7d0",
+    "compiler_contracts": "7b826ef8d8b7cd80e1ddda4a74b08e3fb326d1ffb10654f11ca9fe11800a2686",
+    "validation_contracts": "854f3e77804d0dc997ab166dc6e904d55e9ba1a79320a93267c3492955e713d2"
   },
-  "normative_hash": "e819d76ccb597405083c735dd897db78507ec23194d5a6796f388643d81558ae"
+  "files": {
+    "_zil_design.md": "0bce680402ec3f9aa6e997665a3bf9590364576ce5dd444131cea8c57192fa8f",
+    "docs/architecture/compiler.md": "219c19054c100c3a2a9b3e0a457f925b2570aa33e96bd85c6b0373bce1bba28e",
+    "policy/dependencies.json": "6efd6b0e7a3480950b195fafc14794ef9286885acfeae756afde07d184962dc4",
+    "spec/README.md": "654e69e980c36609b73b85f4e6eeb08b95e4b276b68ce38c8ba6a3536f038ace",
+    "spec/affine-mutex.md": "b1b58791ed113881a3d7c927b8360e1dcb662eec34527260e074e71106c5edee",
+    "spec/analysis-inventory-sharing.md": "ad84b40465356ec3af07fe916120066b9185da4f61efbf8fee5bfa7318a62921",
+    "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
+    "spec/authority-manifest.json": "ecbe47ea6ea5156a8401223bf0a2904fdccf5d8aa652a98413f01ae6fbb43ce1",
+    "spec/closure-receiver-borrows.md": "583ca65100b6b355ca6c3554293fbe7d5b8b0574d5455c6829a9967cbc8483dd",
+    "spec/diagnostics.json": "f4dd54d228ee87375c12168bee728d2b2f99bb3bc1170ae875dea97cec94d9ae",
+    "spec/dyn-implementation-witnesses.md": "428331d97f4584faa561b1a2884fb9a97ee2326ff61d8d96b9796985b2dd3d33",
+    "spec/error-union-construction.md": "e4dc1fa1349fd4f8556c0fdfb0635afa0250b54165a96a71b690da55b8fbb7d2",
+    "spec/grammar.ebnf": "0702d19224442a8b93818be658a09b8c3fe124aa4e89b2a5f1e8b7223b643b62",
+    "spec/interfaces.json": "532de085ba776605bda27c180c6fe6bd9e8a9b048822f619ece4ec4e570b7cce",
+    "spec/mutable-stored-holder.md": "ee4ce5a9523fffdd56463dd66cd96dce0c64c5179e8d0b431ef0fe33392d8f2c",
+    "spec/ordinary-store-ownership.md": "7b905c5dc4b1e3432dd38a1eb1732bf3cdf1d5fbf69204dac1e19b3888534891",
+    "spec/ordinary-values-and-cleanup.md": "38c1967ea80ba6b6624e1d146147e1845041db6f216c2a6bd376f78c3d9c4a2c",
+    "spec/owned-dyn-storage.md": "cb876c96e1bf70c35a03dc41549890047eef2473fc4a3f8c46a659359dd9af90",
+    "spec/pod-store-elements.md": "6730351a62828283a8e41089003df91cd8f58059e685a99b47baf9dced98c255",
+    "spec/reserved-module-trait-names.md": "f7a5085dfb2847b81febfbad8eb18f820f4555b64ab6c8a6bf48e2d65ba08438",
+    "spec/returned-capture-provenance.md": "13c69f2153155474f0ac5861ee3ba172862dd5f82cb2f2b855d03535218bfa1b",
+    "spec/semantic-kernel.md": "3a40d11cfa668948fe7e6da6086ecc4ecf7dd5926a3ded2fb3a442e7acb2279f",
+    "spec/semantic-scopes.md": "cf63cf826332374eb33abce2761b6e3f9771341967435cb05efb3956e0b9950a",
+    "spec/shared-dyn-dispatch.md": "d1c272c34674c70c12e5fdd05c44cb98d5deb323edd0b6884ae506d6c71ea7e5",
+    "spec/source-lowering.md": "f8bfa8f608d881db5f17a3c3e1e4d5881643acca3f248e8f24a9f1495a8cfcfb",
+    "spec/store-growth.md": "c756a6ea3a70a4be90d2611053703d129e2393c2cbd64ce3cd685ee6316c7d05",
+    "spec/task-owned-aggregates.md": "5ef8c3c3cbeeab1b8549877a1fc83cf3343b55809c779ade3f8e411306990468",
+    "spec/threaded-foreign-registration.md": "79b320af682968b03d1c803d643f92fd1a11b6260eb80ba540c77cb12c61f8c8",
+    "spec/trait-method-lending.md": "4d2fa0f9e57e8fbe89df84de8eb0e3ae06fcd8a59c7f36f120d32b8bd28dce55",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
+  },
+  "normative_hash": "057108a4b658bed89bf7cefef4f327088cefb4bbb5b8ec1150ed372a5e9b5bce"
 }

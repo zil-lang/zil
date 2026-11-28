@@ -6,6 +6,7 @@ on:
       - 'README.md'
       - 'AGENTS.md'
       - 'docs/**'
+      - '!docs/guide/language-tour.md'
       - 'validation/README.md'
   pull_request:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - 'README.md'
       - 'AGENTS.md'
       - 'docs/**'
+      - '!docs/guide/language-tour.md'
       - 'validation/README.md'
 permissions:
   contents: read
@@ -120,6 +122,15 @@ jobs:
         run: |
           set -euo pipefail
           ZIL_TEST_REPORT_DIR="$RUNNER_TEMP/native-evidence/workspace" cargo test --locked --workspace --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/receipts/workspace.log"
+      - name: Language tour runnable examples
+        id: doc_examples
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked -p zil-cli
+          python3 tools/check_doc_examples.py --zil-bin "$CARGO_TARGET_DIR/debug/zil" --opt O0 2>&1 | tee "$RUNNER_TEMP/receipts/doc-examples-o0.log"
+          python3 tools/check_doc_examples.py --zil-bin "$CARGO_TARGET_DIR/debug/zil" --opt O2 2>&1 | tee "$RUNNER_TEMP/receipts/doc-examples-o2.log"
       - name: Explicit LLVM text-reference boundary
         id: text
         if: ${{ !cancelled() }}
