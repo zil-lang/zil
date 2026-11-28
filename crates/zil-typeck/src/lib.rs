@@ -11,6 +11,7 @@
 mod build;
 mod diag;
 mod drop_elab;
+mod incremental;
 mod infer;
 mod items;
 mod literal;
@@ -18,9 +19,14 @@ mod thir;
 mod ty;
 
 pub use build::Limits;
+pub use incremental::{
+    IncrementalBaseline, ModuleDepRecord, compute_module_dep_records, compute_reusable_modules,
+    module_export_signature_fp,
+};
 
+use std::collections::HashSet;
 use zil_base::{Diagnostic, FileId, ModuleId, SourceUnit, Span};
-use zil_ir::body::{FloatTy, FnId, IntTy, Module, SourceMap};
+use zil_ir::body::{FloatTy, FnId, FunctionCertificate, IntTy, Module, SourceMap};
 use zil_syntax::ast;
 
 /// A compile-time value returned by a host [`ConstEvaluator`].
@@ -64,6 +70,13 @@ pub struct Lowered {
     pub source_map: SourceMap,
     /// Entry roots (every non-generic normal function) by source name.
     pub roots: Vec<(String, FnId)>,
+    /// Number of non-generic root functions reused directly from an incremental baseline.
+    pub reused_fns: usize,
+    /// Total number of non-generic root functions in this program.
+    pub total_root_fns: usize,
+    /// Pre-remapped untrusted candidate [`FunctionCertificate`]s indexed by `FnId.index()`
+    /// for functions reused from an incremental baseline.
+    pub reused_certs: Vec<Option<FunctionCertificate>>,
 }
 
 /// One parsed source module in a multi-module program.
@@ -101,24 +114,49 @@ pub fn lower_program(
     limits: Limits,
     ct: Option<&mut dyn ConstEvaluator>,
 ) -> Result<Lowered, Vec<Diagnostic>> {
+    lower_program_incremental(modules, limits, ct, None)
+}
+
+/// Lowers a multi-module program, optionally reusing verified function bodies and
+/// source maps from `baseline` for modules whose source text and transitive
+/// imported export signatures are unchanged.
+pub fn lower_program_incremental(
+    modules: &[ModuleInput<'_>],
+    limits: Limits,
+    ct: Option<&mut dyn ConstEvaluator>,
+    baseline: Option<IncrementalBaseline<'_>>,
+) -> Result<Lowered, Vec<Diagnostic>> {
     let mut types = ty::Types::default();
     let mut diags = Vec::new();
     let items = items::collect_program(modules, &mut types, &mut diags);
     if !diags.is_empty() {
         return Err(diags);
     }
-    let mut ct = ct;
-    let mut thir: Vec<Option<thir::ThirFn>> = vec![None; items.fns.len()];
+
     let is_ct_type_fn = |f: &items::FnDecl<'_>, types: &ty::Types| -> bool {
         matches!(types.data(f.result), ty::TyData::Type)
             || f.params
                 .iter()
                 .any(|p| matches!(types.data(p.ty), ty::TyData::Type))
     };
+    let is_ct_flags: Vec<bool> = items.fns.iter().map(|f| is_ct_type_fn(f, &types)).collect();
+
+    // Fast path: when an incremental baseline is supplied with reusable modules,
+    // pre-register all non-generic root functions & ADTs in `Mono` and remap
+    // unchanged root functions directly from `prev_module`, skipping `infer_fn`,
+    // `Mono::lower_fn`, and `drop_elab` for every reused function!
+    if let Some(base) = baseline
+        && !base.reusable_modules.is_empty()
+    {
+        return lower_program_with_baseline(items, types, is_ct_flags, limits, ct, base);
+    }
+
+    let mut ct = ct;
+    let mut thir: Vec<Option<thir::ThirFn>> = vec![None; items.fns.len()];
     // Pass 1: infer compile-time Type-using functions first so `#(...)`
     // expressions in ordinary functions can evaluate them.
-    for (i, f) in items.fns.iter().enumerate() {
-        if is_ct_type_fn(f, &types) {
+    for (i, _) in items.fns.iter().enumerate() {
+        if is_ct_flags[i] {
             thir[i] = infer::infer_fn(
                 &items,
                 &mut types,
@@ -131,8 +169,8 @@ pub fn lower_program(
         }
     }
     // Pass 2: infer all remaining functions with access to completed CT-Type THIR.
-    for (i, f) in items.fns.iter().enumerate() {
-        if !is_ct_type_fn(f, &types) {
+    for (i, _) in items.fns.iter().enumerate() {
+        if !is_ct_flags[i] {
             let ct_ref: Option<&mut dyn ConstEvaluator> = match &mut ct {
                 Some(c) => Some(&mut **c),
                 None => None,
@@ -159,17 +197,16 @@ pub fn lower_program(
     let mut mono = build::Mono::new(&items, &mut types, &thir, &mut diags, limits, ct);
     mono.lower_foreigns();
     let mut roots = Vec::new();
+    let mut total_root_fns = 0usize;
     for (i, f) in items.fns.iter().enumerate() {
-        let ct_only = matches!(mono.ty_data(f.result), ty::TyData::Type)
-            || f.params
-                .iter()
-                .any(|p| matches!(mono.ty_data(p.ty), ty::TyData::Type));
         if f.generics.is_empty()
-            && !ct_only
+            && !is_ct_flags[i]
             && let Some(id) = mono.instance(thir::FnRef(i as u32), Vec::new(), f.ast.span)
-            && f.role == items::FnRoleSpec::Normal
         {
-            roots.push((f.name.clone(), id));
+            total_root_fns += 1;
+            if f.role == items::FnRoleSpec::Normal {
+                roots.push((f.name.clone(), id));
+            }
         }
     }
     mono.run();
@@ -183,6 +220,185 @@ pub fn lower_program(
         module,
         source_map,
         roots,
+        reused_fns: 0,
+        total_root_fns,
+        reused_certs: Vec::new(),
+    })
+}
+
+fn lower_program_with_baseline(
+    items: items::Items<'_>,
+    mut types: ty::Types,
+    is_ct_flags: Vec<bool>,
+    limits: Limits,
+    mut ct: Option<&mut dyn ConstEvaluator>,
+    base: IncrementalBaseline<'_>,
+) -> Result<Lowered, Vec<Diagnostic>> {
+    let mut diags = Vec::new();
+    let prev_idx =
+        incremental::PrevModuleIndex::new(base.prev_module, base.prev_source_map, base.prev_cert);
+
+    // Phase A: pre-register all non-generic ADTs, foreigns, and root functions,
+    // and reuse lowered bodies for clean modules BEFORE running `infer_fn`.
+    let empty_thir: [Option<thir::ThirFn>; 0] = [];
+    let mut pre_mono = build::Mono::new(&items, &mut types, &empty_thir, &mut diags, limits, None);
+    pre_mono.lower_foreigns();
+    let pre = incremental::pre_register_non_generic_items(&mut pre_mono, &is_ct_flags);
+
+    let fn_count = items.fns.len();
+    let mut reused = vec![false; fn_count];
+    let mut seeded_fn_susp = vec![false; fn_count];
+    let mut reused_certs: Vec<Option<FunctionCertificate>> =
+        vec![None; pre_mono.module.functions.len()];
+    let mut reused_fns = 0usize;
+    let mut total_root_fns = 0usize;
+
+    for (i, f) in items.fns.iter().enumerate() {
+        let Some(curr_fn_id) = pre.root_fn_ids[i] else {
+            continue;
+        };
+        total_root_fns += 1;
+        if base.reusable_modules.contains(&(f.module.0 as usize))
+            && let Some(remapped_cert) = incremental::try_reuse_root_fn(
+                &prev_idx,
+                &f.name,
+                curr_fn_id,
+                &pre.root_by_name,
+                &pre.adt_by_name,
+                &pre.foreign_by_sym,
+                &mut pre_mono,
+            )
+        {
+            reused[i] = true;
+            reused_fns += 1;
+            if let Some(slot) = reused_certs.get_mut(curr_fn_id.index()) {
+                *slot = remapped_cert;
+            }
+            let func = &pre_mono.module.functions[curr_fn_id.index()];
+            if incremental::body_contains_suspend(&func.body) {
+                seeded_fn_susp[i] = true;
+            }
+        }
+    }
+
+    let pre_parts = pre_mono.into_pre_parts();
+    if !diags.is_empty() {
+        return Err(diags);
+    }
+
+    // Determine which modules are transitively imported by any non-reused (dirty)
+    // function's module so generic templates in untouched leaf modules are skipped too.
+    let mut dirty_mods: HashSet<usize> = HashSet::new();
+    for (i, f) in items.fns.iter().enumerate() {
+        if !reused[i]
+            && (!f.generics.is_empty() && !base.reusable_modules.contains(&(f.module.0 as usize))
+                || f.generics.is_empty())
+        {
+            dirty_mods.insert(f.module.0 as usize);
+        }
+    }
+    let mut needed_generic_mods: HashSet<usize> = dirty_mods.clone();
+    let mut work: Vec<usize> = dirty_mods.into_iter().collect();
+    while let Some(m) = work.pop() {
+        if let Some(scope) = items.modules.get(m) {
+            for &imp_mid in scope.imports.values() {
+                let idx = imp_mid.0 as usize;
+                if needed_generic_mods.insert(idx) {
+                    work.push(idx);
+                }
+            }
+        }
+    }
+
+    // Phase B: run `infer_fn` ONLY on non-reused functions (and generic templates
+    // reachable from dirty modules).
+    let mut thir: Vec<Option<thir::ThirFn>> = vec![None; fn_count];
+    for i in 0..fn_count {
+        if is_ct_flags[i] {
+            thir[i] = infer::infer_fn(
+                &items,
+                &mut types,
+                &mut diags,
+                &[],
+                None,
+                limits,
+                thir::FnRef(i as u32),
+            );
+        }
+    }
+    for i in 0..fn_count {
+        if is_ct_flags[i] || reused[i] {
+            continue;
+        }
+        let f = &items.fns[i];
+        if !f.generics.is_empty()
+            && base.reusable_modules.contains(&(f.module.0 as usize))
+            && !needed_generic_mods.contains(&(f.module.0 as usize))
+        {
+            continue;
+        }
+        let ct_ref: Option<&mut dyn ConstEvaluator> = match &mut ct {
+            Some(c) => Some(&mut **c),
+            None => None,
+        };
+        thir[i] = infer::infer_fn(
+            &items,
+            &mut types,
+            &mut diags,
+            &thir,
+            ct_ref,
+            limits,
+            thir::FnRef(i as u32),
+        );
+    }
+    if !diags.is_empty() {
+        return Err(diags);
+    }
+    infer::check_defer_suspend_effects_with_seeds(
+        &items,
+        &types,
+        &thir,
+        &seeded_fn_susp,
+        &mut diags,
+    );
+    if !diags.is_empty() {
+        return Err(diags);
+    }
+
+    // Phase C: resume `Mono` with the pre-populated module and lower ONLY the
+    // dirty non-reused roots (plus any closures/generic instances they demand).
+    let mut mono = build::Mono::resume_from_pre_parts(
+        pre_parts,
+        &items,
+        &mut types,
+        &thir,
+        &seeded_fn_susp,
+        &mut diags,
+        limits,
+        ct,
+    );
+    for (i, root_id_opt) in pre.root_fn_ids.iter().enumerate() {
+        if let Some(id) = *root_id_opt
+            && !reused[i]
+        {
+            mono.enqueue_registered_root(thir::FnRef(i as u32), id);
+        }
+    }
+    mono.run();
+    let module = std::mem::take(&mut mono.module);
+    let source_map = std::mem::take(&mut mono.source_map);
+    drop(mono);
+    if !diags.is_empty() {
+        return Err(diags);
+    }
+    reused_certs.resize(module.functions.len(), None);
+    Ok(Lowered {
+        module,
+        source_map,
+        roots: pre.roots,
+        reused_fns,
+        total_root_fns,
+        reused_certs,
     })
 }
 

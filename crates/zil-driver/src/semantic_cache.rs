@@ -1,4 +1,5 @@
-//! Trusted-local semantic candidate & per-function certificate cache helpers.
+//! Trusted-local semantic candidate, export-signature incremental baseline,
+//! and per-function certificate cache helpers.
 //!
 //! ## Trust Boundary
 //! `--semantic-cache DIR` is an explicit **trusted-local build cache** (same
@@ -30,16 +31,21 @@ use zil_ir::body::{
     encode_semantic_candidate,
 };
 use zil_solve::{CertCacheKey, CertificateCache};
+use zil_typeck::ModuleDepRecord;
 
 static SEM_TMP_SEQ: AtomicU64 = AtomicU64::new(1);
 
 const MAX_DISK_SEM_SNAPSHOTS: usize = 8;
+const MAX_DISK_BASELINES: usize = 4;
 const MAX_MEM_FN_CERTS: usize = 4096;
+const BASELINE_MAGIC: &[u8; 4] = b"ZBAS";
+const BASELINE_MAX_BYTES: usize = 40 * 1024 * 1024;
+const BASELINE_MAX_RECORDS: usize = 16_384;
 
 /// Explicit typeck/lowering semantic cache ABI version. Bump whenever typeck,
 /// lowering, or semantic-candidate representation changes even if `WIRE_VERSION`
 /// stays unchanged.
-pub const SEMANTIC_CACHE_ABI_VERSION: u32 = 1;
+pub const SEMANTIC_CACHE_ABI_VERSION: u32 = 2;
 
 /// Canonical fingerprint of the complete source module graph, compiler/ABI
 /// identity, target, and limits.
@@ -76,6 +82,40 @@ pub(crate) fn program_semantic_key_with_abi(
     h.update(target.triple.as_bytes());
     h.update(b"\0");
     h.update(&target.pointer_width.to_le_bytes());
+    hash_limits(&mut h, limits);
+    h.update(&(modules.len() as u64).to_le_bytes());
+    for (path, fp) in modules {
+        h.update(path.as_bytes());
+        h.update(b"\0");
+        h.update(&fp.0);
+    }
+    h.digest()
+}
+
+/// Scope key for the per-entry incremental baseline (`baseline-<key>.zbase`).
+/// Binds entry path, ABI/compiler/wire versions, target, and limits so partial
+/// edits across consecutive CLI invocations find their latest baseline cleanly.
+pub(crate) fn baseline_scope_key(
+    entry_path: &str,
+    target: &TargetProfile,
+    limits: &Limits,
+) -> Fingerprint {
+    let mut h = FingerprintBuilder::new();
+    h.update(b"zil-inc-base-v1\0");
+    h.update(&SEMANTIC_CACHE_ABI_VERSION.to_le_bytes());
+    h.update(&WIRE_VERSION.to_le_bytes());
+    h.update(env!("CARGO_PKG_VERSION").as_bytes());
+    h.update(b"\0");
+    h.update(target.triple.as_bytes());
+    h.update(b"\0");
+    h.update(&target.pointer_width.to_le_bytes());
+    hash_limits(&mut h, limits);
+    h.update(entry_path.as_bytes());
+    h.update(b"\0");
+    h.digest()
+}
+
+fn hash_limits(h: &mut FingerprintBuilder, limits: &Limits) {
     h.update(&(limits.max_source_bytes as u64).to_le_bytes());
     h.update(&(limits.max_tokens as u64).to_le_bytes());
     h.update(&(limits.max_nodes as u64).to_le_bytes());
@@ -87,17 +127,14 @@ pub(crate) fn program_semantic_key_with_abi(
     h.update(&(limits.max_analysis_steps as u64).to_le_bytes());
     h.update(&limits.max_ct_steps.to_le_bytes());
     h.update(&(limits.max_call_depth as u64).to_le_bytes());
-    h.update(&(modules.len() as u64).to_le_bytes());
-    for (path, fp) in modules {
-        h.update(path.as_bytes());
-        h.update(b"\0");
-        h.update(&fp.0);
-    }
-    h.digest()
 }
 
 pub(crate) fn sem_snapshot_path(dir: &Path, key: Fingerprint) -> PathBuf {
     dir.join(format!("sem-{}.zsem", key.to_hex()))
+}
+
+pub(crate) fn baseline_path(dir: &Path, scope_key: Fingerprint) -> PathBuf {
+    dir.join(format!("base-{}.zbase", scope_key.to_hex()))
 }
 
 pub(crate) fn read_disk_semantic_candidate(
@@ -137,12 +174,152 @@ pub(crate) fn write_disk_semantic_candidate(
         if fs::rename(&tmp, &target).is_err() {
             let _ = fs::remove_file(&tmp);
         } else {
-            prune_old_sem_snapshots(dir, &target);
+            prune_old_files(dir, &target, "sem-", ".zsem", MAX_DISK_SEM_SNAPSHOTS);
         }
     }
 }
 
-fn prune_old_sem_snapshots(dir: &Path, keep: &Path) {
+/// Encodes a SHA-256-protected incremental baseline bundle (`ZBAS`).
+pub(crate) fn encode_incremental_baseline(
+    dep_records: &[ModuleDepRecord],
+    module: &Module,
+    source_map: &SourceMap,
+    cert: &Certificate,
+) -> Vec<u8> {
+    let zsem = encode_semantic_candidate(module, source_map, cert);
+    let mut payload = Vec::with_capacity(zsem.len() + dep_records.len() * 128 + 16);
+    payload.extend_from_slice(&(dep_records.len() as u32).to_le_bytes());
+    for r in dep_records {
+        let pb = r.logical_path.as_bytes();
+        payload.extend_from_slice(&(pb.len() as u32).to_le_bytes());
+        payload.extend_from_slice(pb);
+        payload.extend_from_slice(&r.file_id.to_le_bytes());
+        payload.extend_from_slice(&r.text_fp.0);
+        payload.extend_from_slice(&r.export_sig_fp.0);
+        payload.extend_from_slice(&r.dep_iface_fp.0);
+        payload.push(u8::from(r.has_comptime));
+    }
+    payload.extend_from_slice(&(zsem.len() as u32).to_le_bytes());
+    payload.extend_from_slice(&zsem);
+
+    let fp = Fingerprint::of(&payload);
+    let mut out = Vec::with_capacity(4 + 4 + 4 + 32 + payload.len());
+    out.extend_from_slice(BASELINE_MAGIC);
+    out.extend_from_slice(&SEMANTIC_CACHE_ABI_VERSION.to_le_bytes());
+    out.extend_from_slice(&WIRE_VERSION.to_le_bytes());
+    out.extend_from_slice(&fp.0);
+    out.extend_from_slice(&payload);
+    out
+}
+
+/// Decodes and SHA-256-verifies an incremental baseline bundle (`ZBAS`).
+pub(crate) fn decode_incremental_baseline(
+    bytes: &[u8],
+) -> Option<(Vec<ModuleDepRecord>, Module, SourceMap, Certificate)> {
+    if bytes.len() < 44 || bytes.len() > BASELINE_MAX_BYTES {
+        return None;
+    }
+    if &bytes[0..4] != BASELINE_MAGIC {
+        return None;
+    }
+    let abi = u32::from_le_bytes(bytes[4..8].try_into().ok()?);
+    let wire = u32::from_le_bytes(bytes[8..12].try_into().ok()?);
+    if abi != SEMANTIC_CACHE_ABI_VERSION || wire != WIRE_VERSION {
+        return None;
+    }
+    let expected_fp = &bytes[12..44];
+    let payload = &bytes[44..];
+    if Fingerprint::of(payload).0.as_slice() != expected_fp {
+        return None;
+    }
+
+    let mut pos = 0usize;
+    let take = |pos: &mut usize, n: usize| -> Option<&[u8]> {
+        let end = pos.checked_add(n)?;
+        let slice = payload.get(*pos..end)?;
+        *pos = end;
+        Some(slice)
+    };
+    let count = u32::from_le_bytes(take(&mut pos, 4)?.try_into().ok()?) as usize;
+    if count > BASELINE_MAX_RECORDS {
+        return None;
+    }
+    let mut dep_records = Vec::with_capacity(count);
+    for _ in 0..count {
+        let plen = u32::from_le_bytes(take(&mut pos, 4)?.try_into().ok()?) as usize;
+        let path_bytes = take(&mut pos, plen)?;
+        let logical_path = std::str::from_utf8(path_bytes).ok()?.to_owned();
+        let file_id = u32::from_le_bytes(take(&mut pos, 4)?.try_into().ok()?);
+        let text_fp = Fingerprint(take(&mut pos, 32)?.try_into().ok()?);
+        let export_sig_fp = Fingerprint(take(&mut pos, 32)?.try_into().ok()?);
+        let dep_iface_fp = Fingerprint(take(&mut pos, 32)?.try_into().ok()?);
+        let has_comptime = match take(&mut pos, 1)?[0] {
+            0 => false,
+            1 => true,
+            _ => return None,
+        };
+        dep_records.push(ModuleDepRecord {
+            logical_path,
+            file_id,
+            text_fp,
+            export_sig_fp,
+            dep_iface_fp,
+            has_comptime,
+        });
+    }
+    let zsem_len = u32::from_le_bytes(take(&mut pos, 4)?.try_into().ok()?) as usize;
+    let zsem_bytes = take(&mut pos, zsem_len)?;
+    if pos != payload.len() {
+        return None;
+    }
+    let (module, source_map, cert) = decode_semantic_candidate(zsem_bytes).ok()?;
+    Some((dep_records, module, source_map, cert))
+}
+
+pub(crate) fn read_disk_incremental_baseline(
+    dir: &Path,
+    scope_key: Fingerprint,
+) -> Option<(Vec<ModuleDepRecord>, Module, SourceMap, Certificate)> {
+    let path = baseline_path(dir, scope_key);
+    let bytes = fs::read(&path).ok()?;
+    match decode_incremental_baseline(&bytes) {
+        Some(decoded) => Some(decoded),
+        None => {
+            let _ = fs::remove_file(&path);
+            None
+        }
+    }
+}
+
+pub(crate) fn remove_disk_incremental_baseline(dir: &Path, scope_key: Fingerprint) {
+    let _ = fs::remove_file(baseline_path(dir, scope_key));
+}
+
+pub(crate) fn write_disk_incremental_baseline(
+    dir: &Path,
+    scope_key: Fingerprint,
+    dep_records: &[ModuleDepRecord],
+    module: &Module,
+    source_map: &SourceMap,
+    cert: &Certificate,
+) {
+    if fs::create_dir_all(dir).is_err() {
+        return;
+    }
+    let bytes = encode_incremental_baseline(dep_records, module, source_map, cert);
+    let target = baseline_path(dir, scope_key);
+    let seq = SEM_TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = dir.join(format!(".base.tmp.{}.{seq}", std::process::id()));
+    if fs::write(&tmp, &bytes).is_ok() {
+        if fs::rename(&tmp, &target).is_err() {
+            let _ = fs::remove_file(&tmp);
+        } else {
+            prune_old_files(dir, &target, "base-", ".zbase", MAX_DISK_BASELINES);
+        }
+    }
+}
+
+fn prune_old_files(dir: &Path, keep: &Path, prefix: &str, suffix: &str, max_keep: usize) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
@@ -155,7 +332,7 @@ fn prune_old_sem_snapshots(dir: &Path, keep: &Path) {
         let Some(name) = p.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        if !name.starts_with("sem-") || !name.ends_with(".zsem") {
+        if !name.starts_with(prefix) || !name.ends_with(suffix) {
             continue;
         }
         let mtime = entry
@@ -164,18 +341,18 @@ fn prune_old_sem_snapshots(dir: &Path, keep: &Path) {
             .unwrap_or(SystemTime::UNIX_EPOCH);
         files.push((mtime, p));
     }
-    if files.len() < MAX_DISK_SEM_SNAPSHOTS {
+    if files.len() < max_keep {
         return;
     }
     files.sort_by_key(|(t, _)| *t);
-    let to_remove = files.len().saturating_sub(MAX_DISK_SEM_SNAPSHOTS - 1);
+    let to_remove = files.len().saturating_sub(max_keep - 1);
     for (_, p) in files.into_iter().take(to_remove) {
         let _ = fs::remove_file(p);
     }
 }
 
 /// Thread-safe in-memory per-function candidate certificate cache seeded from
-/// either an in-RAM resident snapshot or the latest disk `.zsem` snapshot.
+/// either an in-RAM resident snapshot or the latest disk `.zbase` baseline.
 pub(crate) struct SessionCertCache<'a> {
     mem: &'a RwLock<HashMap<CertCacheKey, FunctionCertificate>>,
 }
@@ -263,5 +440,34 @@ mod tests {
         assert_ne!(bumped_abi, bumped_compiler);
         assert_ne!(bumped_abi, bumped_wire);
         assert_ne!(bumped_compiler, bumped_wire);
+    }
+
+    #[test]
+    fn incremental_baseline_roundtrip_and_tamper_rejection() {
+        let records = vec![ModuleDepRecord {
+            logical_path: "mod_a".into(),
+            file_id: 1,
+            text_fp: Fingerprint::of(b"src_a"),
+            export_sig_fp: Fingerprint::of(b"exp_a"),
+            dep_iface_fp: Fingerprint::of(b"dep_a"),
+            has_comptime: false,
+        }];
+        let module = Module::default();
+        let smap = SourceMap::default();
+        let cert = Certificate {
+            functions: Vec::new(),
+        };
+        let encoded = encode_incremental_baseline(&records, &module, &smap, &cert);
+        let (dec_rec, _, _, _) =
+            decode_incremental_baseline(&encoded).expect("valid baseline decodes");
+        assert_eq!(dec_rec, records);
+
+        let mut tampered = encoded.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 0xFF;
+        assert!(
+            decode_incremental_baseline(&tampered).is_none(),
+            "tampered baseline must fail SHA-256 verification"
+        );
     }
 }

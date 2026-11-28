@@ -145,7 +145,7 @@ fn max_region_param_count(tys: &zil_ir::body::TyTable, params: &[TyId], result: 
 }
 
 pub struct Mono<'c, 'a, 'e> {
-    items: &'c Items<'a>,
+    pub(crate) items: &'c Items<'a>,
     types: &'c mut Types,
     thir: &'c [Option<ThirFn>],
     diags: &'c mut Vec<Diagnostic>,
@@ -166,6 +166,16 @@ pub struct Mono<'c, 'a, 'e> {
     ensured: HashSet<TyId>,
     fn_susp: Vec<bool>,
     cl_susp: Vec<Vec<bool>>,
+}
+
+/// Owned pre-registered state extracted from `Mono` before running `infer_fn` on
+/// dirty functions during incremental lowering.
+pub(crate) struct MonoPreParts {
+    pub(crate) module: Module,
+    pub(crate) source_map: SourceMap,
+    pub(crate) instances: HashMap<(FnRef, Vec<Ty>), FnId>,
+    pub(crate) adts: HashMap<(AdtRef, Vec<u32>), AdtId>,
+    pub(crate) ensured: HashSet<TyId>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -214,6 +224,85 @@ impl<'c, 'a, 'e> Mono<'c, 'a, 'e> {
         }
     }
 
+    pub(crate) fn into_pre_parts(self) -> MonoPreParts {
+        MonoPreParts {
+            module: self.module,
+            source_map: self.source_map,
+            instances: self.instances,
+            adts: self.adts,
+            ensured: self.ensured,
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn resume_from_pre_parts(
+        parts: MonoPreParts,
+        items: &'c Items<'a>,
+        types: &'c mut Types,
+        thir: &'c [Option<ThirFn>],
+        seeded_fn_susp: &[bool],
+        diags: &'c mut Vec<Diagnostic>,
+        limits: Limits,
+        ct: Option<&'e mut dyn ConstEvaluator>,
+    ) -> Self {
+        let (fn_susp, cl_susp) = if thir.is_empty() {
+            (Vec::new(), Vec::new())
+        } else {
+            crate::infer::compute_suspend_flags_with_seeds(items, types, thir, seeded_fn_susp)
+        };
+        Mono {
+            items,
+            types,
+            thir,
+            diags,
+            limits,
+            ct,
+            is_ct_eval: false,
+            module: parts.module,
+            source_map: parts.source_map,
+            instances: parts.instances,
+            queue: VecDeque::new(),
+            adts: parts.adts,
+            unions: HashMap::new(),
+            dyns: HashMap::new(),
+            closures: HashMap::new(),
+            closure_queue: VecDeque::new(),
+            closure_fns: HashMap::new(),
+            closure_fn_queue: VecDeque::new(),
+            ensured: parts.ensured,
+            fn_susp,
+            cl_susp,
+        }
+    }
+
+    pub(crate) fn adt_id_pub(&mut self, adt: AdtRef, span: Span) -> Option<AdtId> {
+        self.adt_id(adt, span)
+    }
+
+    pub(crate) fn ensure_instance_pub(&mut self, ty: TyId) {
+        self.ensure_instance(ty);
+    }
+
+    /// Registers a non-generic root function's `FnId` and `FnSig` without
+    /// enqueueing it for body lowering yet (reused functions fill their body directly;
+    /// dirty functions are later enqueued via [`Self::enqueue_registered_root`]).
+    pub(crate) fn register_root_without_queue(&mut self, f: FnRef, span: Span) -> Option<FnId> {
+        let id = self.instance(f, Vec::new(), span)?;
+        if let Some((qf, qargs, qid)) = self.queue.back()
+            && *qf == f
+            && qargs.is_empty()
+            && *qid == id
+        {
+            self.queue.pop_back();
+        }
+        Some(id)
+    }
+
+    pub(crate) fn enqueue_registered_root(&mut self, f: FnRef, id: FnId) {
+        self.queue.push_back((f, Vec::new(), id));
+    }
+
+    #[allow(dead_code)]
     pub fn ty_data(&self, ty: Ty) -> &TyData {
         self.types.data(ty)
     }
