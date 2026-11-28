@@ -16,7 +16,9 @@ cargo run --offline --locked -p zil-cli -- run examples/modules/main.zil --entry
 
 ## 继续阅读
 
-- [文档导航](docs/README.md)：使用、构建和语言设计。
+- [语言导览](docs/guide/language-tour.md)：面向程序员的可运行 ZIL 实践教程。
+- [标准库参考](docs/guide/stdlib-reference.md)：从 `lib/std/` 源码自动抽取的公开 API 索引。
+- [文档导航](docs/README.md)：四层文档体系（语言规范、编译器架构、开发者指南、验证合同）。
 - [构建说明](docs/guide/build.md)：工具链与实际 CLI 构建。
 - [验证依据](validation/README.md)：产品门、静态合同与真实输入。
 - [goal 看板](https://github.com/zil-lang/zil/blob/goal/goal.md)：唯一实时任务分配和状态；代理先读 [AGENTS.md](AGENTS.md)。
