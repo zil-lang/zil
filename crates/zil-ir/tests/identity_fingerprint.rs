@@ -618,6 +618,7 @@ fn scoped32_reference_preserves_v31_anchors_and_rejects_new_old_forms() {
     ] {
         let mut input = module(flag);
         input.schema_version = 31;
+        input.target.rule_version = "ZIL-LANG-1.4".into();
         assert_eq!(
             Fingerprint::of(&legacy::bytes_v31(&input)).to_hex(),
             expected

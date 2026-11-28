@@ -1,10 +1,32 @@
-# ZIL 语言与编译器规范
+# ZIL 语言规范与参考（ZIL Language Specification）
 
-> 本文定义语言与编译器应满足的约束，不代表全部能力已经实现。当前可使用的范围见 `docs/guide/supported-language.md`；源码与实际验证结果分别绑定精确版本。
+> 规范版本：**`ZIL-LANG-1.5`** · 本文定义 ZIL 语言的语义规则与形式安全模型，不代表全部终态能力均已在当前发行版中实现。当前实际可用范围见 [`docs/guide/supported-language.md`](docs/guide/supported-language.md)；具体源码与验证证据分别绑定精确提交版本。
 
-规范标识：ZIL-LANG-1.4。语言规则、编译器架构不变量、永久拒绝边界和产品验收条件以本文件为唯一文字定义源。`spec/grammar.ebnf` 定义文法产生式，`spec/attributes.json` 定义属性注册表，`validation/product-gates.json` 定义量化测试配置；它们是本规范的具名附件，不允许另设同名条件的第二份定义。`spec/diagnostics.json` 登记稳定诊断标识；`spec/interfaces.json` 固定阶段间的数据与可信构造边界；`policy/dependencies.json` 固定编译器依赖边。派工同时锁定正文与全部附件的摘要。
+## 规范权威、附件层级与写作约定
 
-本文只描述终态要求。“必须”是实现义务，不是实现完成或证明通过的声明。实施顺序与派工属于独立 `goal` 分支的 `goal.md`；过程工单仅保留在任务分支。生效静态工程合同属于 `spec/`、`validation/`，当前有效的长期决定属于 `docs/decisions/`；实现工作流、独审与验收运行收据由独立 `goal` 分支协调并绑定精确源码；主树保留可执行验收协议、真实输入和产品门。原始运行按实际交付清单保存。
+1. **语言语义唯一文字权威**：本文件是 ZIL 源语言语义、类型系统、所有权/借用、协议合同与形式安全模型的唯一文字权威源。
+2. **具名规范附件与分类边界**（完整索引见 [`spec/README.md`](spec/README.md)）：
+   - **语言机器可读附件**：[`spec/grammar.ebnf`](spec/grammar.ebnf)（文法产生式）、[`spec/attributes.json`](spec/attributes.json)（属性注册表）、[`spec/diagnostics.json`](spec/diagnostics.json)（稳定诊断码）。
+   - **编译器架构与阶段合同**：[`spec/interfaces.json`](spec/interfaces.json)、[`spec/semantic-kernel.md`](spec/semantic-kernel.md)、[`spec/source-lowering.md`](spec/source-lowering.md) 与 [`policy/dependencies.json`](policy/dependencies.json)，约束编译器内部表示与核验边界，不单独定义新的源语言特性。
+   - **产品验收与符合性**：[`validation/product-gates.json`](validation/product-gates.json) 与 [`conformance/index.json`](conformance/index.json) 固定量化门槛与源码符合性映射。
+   - **说明性与指南文档**：[`docs/decisions/`](docs/decisions/README.md) 与 [`docs/guide/`](docs/guide/quickstart.md) 属非规范性说明；任务排期、工作流与验收协调位于独立 `goal` 分支的 `goal.md`。
+3. **规范用语**：
+
+| 术语 | 规范含义 |
+| --- | --- |
+| **必须（MUST）** | 任何符合本规范的编译器或运行环境都必须满足的硬性义务（不代表当前实现已完成） |
+| **不得（MUST NOT）** | 明确禁止的行为或实现捷径 |
+| **应当（SHOULD）** | 推荐遵循的约束；除非有明确文档化的技术理由，否则不应偏离 |
+| **可以（MAY）** | 允许但非强制的可选实现策略 |
+| **未指定（Unspecified）** | 规范不保证具体结果，但行为仍须保持内存与类型安全 |
+| **实现定义（Implementation-defined）** | 具体行为由目标或编译器选择，但实现必须保持一致并文档化 |
+
+4. **诊断与失败分类**：
+   - **语法错误（Syntax Error）**：源码不满足词法或 `spec/grammar.ebnf` 产生式。
+   - **类型错误（Type Error）**：名称解析、类型检查、trait 一致性或编译期约束不满足。
+   - **安全拒绝（Safety Rejection / `SafeReject`）**：静态来源、借用、初始化、访问权限、责任守恒或协议核验未通过；不得生成可执行产物。
+   - **实现未支持（`Unsupported`）**：语言规范定义但当前编译器/目标 profile 尚未支持的能力；必须显式拒绝，不得静默降级。
+   - **运行期失败（Runtime Failure）**：已通过静态安全核验的程序在运行期触发的确定性检查失败（如整数 checked 溢出、切片/Store 越界、显式 `abort`、分配失败返回错误分支）。
 
 <a id="ZIL-TARGET"></a>
 
